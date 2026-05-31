@@ -240,6 +240,11 @@
         <label>System Prompt（系统提示词）</label>
         <textarea id="systemPrompt" placeholder="你是一个乐于助人的助手……"></textarea>
       </div>
+      <div class="field" style="grid-column: 1 / -1;">
+        <label>🧠 长期记忆（每次对话都会自动带上，刷新不丢）</label>
+        <textarea id="memory" placeholder="在这里写下希望我一直记住的事，例如：&#10;- 我叫 XX，在做 XX 项目&#10;- 喜欢简洁直接的回答&#10;- 常用技术栈是 XX"></textarea>
+        <span class="hint">这些内容会作为长期记忆注入到每次请求，保存在本地浏览器。</span>
+      </div>
     </div>
   </div>
 
@@ -274,6 +279,7 @@ let settings = {
   temperature: 0.7,
   maxTokens: 2048,
   systemPrompt: "",
+  memory: "",
 };
 let messages = []; // {role, content}
 let abortController = null;
@@ -366,6 +372,13 @@ async function streamChat(onDelta) {
   const model = settings.model || DEFAULTS[settings.provider].model;
   abortController = new AbortController();
 
+  // Combine system prompt + long-term memory
+  let systemText = settings.systemPrompt || "";
+  if (settings.memory && settings.memory.trim()) {
+    const mem = "以下是需要长期记住的信息（用户的长期记忆）：\n" + settings.memory.trim();
+    systemText = systemText ? systemText + "\n\n" + mem : mem;
+  }
+
   let url, headers, body;
   if (isAnthropic) {
     url = base + "/messages";
@@ -382,7 +395,7 @@ async function streamChat(onDelta) {
       stream: true,
       messages: messages.map(m => ({ role: m.role, content: m.content })),
     };
-    if (settings.systemPrompt) body.system = settings.systemPrompt;
+    if (systemText) body.system = systemText;
   } else {
     url = base + "/chat/completions";
     headers = {
@@ -390,7 +403,7 @@ async function streamChat(onDelta) {
       "authorization": "Bearer " + settings.apiKey,
     };
     const msgs = [];
-    if (settings.systemPrompt) msgs.push({ role: "system", content: settings.systemPrompt });
+    if (systemText) msgs.push({ role: "system", content: systemText });
     msgs.push(...messages.map(m => ({ role: m.role, content: m.content })));
     body = {
       model,
@@ -511,6 +524,7 @@ function syncSettingsToUI() {
   $("tempVal").textContent = settings.temperature;
   $("maxTokens").value = settings.maxTokens;
   $("systemPrompt").value = settings.systemPrompt;
+  $("memory").value = settings.memory;
   updateProviderHint();
   updateStatusLine();
 }
@@ -522,6 +536,7 @@ function readSettingsFromUI() {
   settings.temperature = parseFloat($("temperature").value);
   settings.maxTokens = parseInt($("maxTokens").value) || 2048;
   settings.systemPrompt = $("systemPrompt").value;
+  settings.memory = $("memory").value;
   saveSettings();
   updateStatusLine();
 }
@@ -568,7 +583,7 @@ function init() {
   });
   $("input").addEventListener("input", autoResize);
 
-  ["provider","baseUrl","apiKey","model","maxTokens","systemPrompt"].forEach(id => {
+  ["provider","baseUrl","apiKey","model","maxTokens","systemPrompt","memory"].forEach(id => {
     $(id).addEventListener("change", () => { readSettingsFromUI(); updateProviderHint(); });
   });
   $("provider").addEventListener("change", () => {
