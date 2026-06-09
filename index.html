@@ -231,6 +231,8 @@
   .msg.user .body { align-items: flex-end; }
   .msg.user .name { text-align: right; }
   .msg.user .bubble { width: fit-content; max-width: 100%; }
+  .msg.assistant .body { align-items: flex-start; }
+  .msg.assistant .bubble { width: fit-content; max-width: 100%; }
   .bubble {
     background: color-mix(in srgb, var(--assistant-bubble) var(--bubble-pct, 100%), transparent);
     border: 1px solid var(--border);
@@ -245,14 +247,14 @@
     border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
   }
 
-  /* Flat / Tavo-style layout: avatar + name on top, text spans full width */
-  .msg.flat { flex-direction: column; gap: 6px; }
+  /* Flat / Tavo-style layout: avatar + name on top, bubble fits its content */
+  .msg.flat { flex-direction: column; gap: 6px; align-items: flex-start; }
   .msg.flat .msg-head { display: flex; align-items: center; gap: 8px; }
   .msg.flat .msg-head .name { margin: 0; }
-  .msg.flat.user { align-items: stretch; }
+  .msg.flat.user { align-items: flex-end; }
   .msg.flat.user .msg-head { flex-direction: row-reverse; }
   .msg.flat.user .name { text-align: right; }
-  .msg.flat .bubble { width: 100%; max-width: 100%; }
+  .msg.flat .bubble { width: fit-content; max-width: 100%; }
   .bubble .msg-img {
     max-width: 220px; max-height: 220px; border-radius: 8px; display: block;
     margin: 4px 0; cursor: pointer;
