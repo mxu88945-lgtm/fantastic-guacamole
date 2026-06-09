@@ -162,7 +162,9 @@
   .msg .avatar {
     width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
     display: grid; place-items: center; font-size: 13px; font-weight: 700;
+    overflow: hidden;
   }
+  .msg .avatar img { width: 100%; height: 100%; object-fit: cover; }
   .msg.user .avatar { background: var(--user-bubble); color: var(--accent); }
   .msg.assistant .avatar { background: linear-gradient(135deg,#7c83ff,#b06bff); color:#fff; }
   .msg .body { flex: 1; min-width: 0; }
@@ -331,8 +333,20 @@
           <input id="maxTokens" type="number" placeholder="2048" />
         </div>
         <div class="field" style="grid-column: 1 / -1;">
-          <label>常用模型列表（每行一个，会出现在顶部下拉里）</label>
+          <label style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            常用模型列表（每行一个，会出现在顶部下拉里）
+            <button class="icon-btn" id="fetch-models-btn" style="padding:4px 10px; font-size:12px;">📥 拉取可用模型</button>
+          </label>
           <textarea id="modelList" placeholder="gpt-4o-mini&#10;gpt-4o&#10;claude-opus-4-8"></textarea>
+        </div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+          <label style="font-weight:600;">🎭 名字 & 头像（可填文字、emoji，或图片链接）</label>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">
+            <input id="userName" placeholder="你的名字（默认：你）" style="flex:1; min-width:130px;" />
+            <input id="userAvatar" placeholder="你的头像（默认：你）" style="flex:1; min-width:130px;" />
+            <input id="aiName" placeholder="助手名字（默认：江屹琛）" style="flex:1; min-width:130px;" />
+            <input id="aiAvatar" placeholder="助手头像（默认：江）" style="flex:1; min-width:130px;" />
+          </div>
         </div>
         <div class="field" style="grid-column: 1 / -1;">
           <label>System Prompt（系统提示词）</label>
@@ -390,6 +404,10 @@ let settings = {
   sidebarCollapsed: false,
   supabaseUrl: "",
   supabaseKey: "",
+  userName: "你",
+  userAvatar: "你",
+  aiName: "江屹琛",
+  aiAvatar: "江",
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 
@@ -399,7 +417,8 @@ let cloudUser = null;   // logged-in user object
 let applyingCloud = false;
 let pushTimer = null;
 const SYNCED_KEYS = ["provider","baseUrl","model","temperature","maxTokens",
-  "systemPrompt","memory","autoMemory","theme","modelList"]; // note: apiKey & supabase* NOT synced
+  "systemPrompt","memory","autoMemory","theme","modelList",
+  "userName","userAvatar","aiName","aiAvatar"]; // note: apiKey & supabase* NOT synced
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
@@ -632,13 +651,24 @@ function renderMarkdown(text) {
 }
 
 // ---------- Rendering messages ----------
-function avatarFor(role) { return role === "user" ? "你" : "江"; }
-function nameFor(role) { return role === "user" ? "你" : "江屹琛"; }
+function avatarFor(role) {
+  return role === "user" ? (settings.userAvatar || "你") : (settings.aiAvatar || "江");
+}
+function nameFor(role) {
+  return role === "user" ? (settings.userName || "你") : (settings.aiName || "江屹琛");
+}
+function avatarHtml(role) {
+  const v = avatarFor(role);
+  if (/^https?:\/\//.test(v)) {
+    return `<div class="avatar"><img src="${escapeHtml(v)}" alt=""></div>`;
+  }
+  return `<div class="avatar">${escapeHtml(v)}</div>`;
+}
 function renderMessages() {
   const box = $("messages");
   if (messages.length === 0) {
     box.innerHTML = `<div class="empty-state"><div class="big">💬</div>
-      <div>你好呀～我是江屹琛，给我发条消息开始聊天吧</div>
+      <div>你好呀～我是${escapeHtml(settings.aiName || "江屹琛")}，给我发条消息开始聊天吧</div>
       <div style="margin-top:8px;font-size:12px;">第一次用记得先点右上角 ⚙️ 填好 API Key 哦</div></div>`;
     return;
   }
@@ -650,8 +680,8 @@ function renderMessages() {
 function makeMsgEl(role, content) {
   const el = document.createElement("div");
   el.className = "msg " + role;
-  el.innerHTML = `<div class="avatar">${avatarFor(role)}</div>
-    <div class="body"><div class="name">${nameFor(role)}</div>
+  el.innerHTML = `${avatarHtml(role)}
+    <div class="body"><div class="name">${escapeHtml(nameFor(role))}</div>
     <div class="bubble">${role === "assistant" ? renderMarkdown(content) : escapeHtml(content).replace(/\n/g,"<br>")}</div></div>`;
   return el;
 }
@@ -795,6 +825,34 @@ async function autoUpdateMemory() {
   showToast("🧠 记忆已更新：新增 " + additions.length + " 条");
 }
 
+// Fetch the provider's available model list (GET /models) and fill the model list box.
+async function fetchModels() {
+  if (!settings.apiKey) { showToast("请先填 API Key"); return; }
+  const isAnthropic = settings.provider === "anthropic";
+  const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
+  const headers = isAnthropic
+    ? { "x-api-key": settings.apiKey, "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true" }
+    : { "authorization": "Bearer " + settings.apiKey };
+  showToast("正在拉取模型…");
+  try {
+    const resp = await fetch(base + "/models", { headers });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    const list = (data.data || data.models || [])
+      .map(m => m.id || m.name || m).filter(x => typeof x === "string");
+    if (!list.length) { showToast("没拉到模型，可能该服务不支持"); return; }
+    list.sort();
+    settings.modelList = list.join("\n");
+    saveSettings();
+    $("modelList").value = settings.modelList;
+    renderModelQuick();
+    showToast("✅ 拉到 " + list.length + " 个模型");
+  } catch (e) {
+    showToast("拉取失败：" + (e.message || e));
+  }
+}
+
 let toastTimer = null;
 function showToast(msg) {
   const t = $("toast");
@@ -914,6 +972,10 @@ function syncSettingsToUI() {
   $("autoMemory").checked = settings.autoMemory;
   $("sbUrl").value = settings.supabaseUrl;
   $("sbKey").value = settings.supabaseKey;
+  $("userName").value = settings.userName;
+  $("userAvatar").value = settings.userAvatar;
+  $("aiName").value = settings.aiName;
+  $("aiAvatar").value = settings.aiAvatar;
   updateProviderHint();
   updateStatusLine();
   renderModelQuick();
@@ -931,6 +993,10 @@ function readSettingsFromUI() {
   settings.autoMemory = $("autoMemory").checked;
   settings.supabaseUrl = $("sbUrl").value.trim();
   settings.supabaseKey = $("sbKey").value.trim();
+  settings.userName = $("userName").value.trim();
+  settings.userAvatar = $("userAvatar").value.trim();
+  settings.aiName = $("aiName").value.trim();
+  settings.aiAvatar = $("aiAvatar").value.trim();
   saveSettings();
   updateStatusLine();
   renderModelQuick();
@@ -995,6 +1061,11 @@ function init() {
   $("signin-btn").onclick = () => doAuth("signin");
   $("signup-btn").onclick = () => doAuth("signup");
   $("signout-btn").onclick = doSignOut;
+  $("fetch-models-btn").onclick = fetchModels;
+
+  ["userName","userAvatar","aiName","aiAvatar"].forEach(id => {
+    $(id).addEventListener("change", () => { readSettingsFromUI(); renderMessages(); updateConvTitle(); });
+  });
 
   $("model-quick").addEventListener("change", () => {
     settings.model = $("model-quick").value;
