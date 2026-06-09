@@ -18,7 +18,8 @@
     - `providers` —— 多接口配置数组，每项 `{id, name, provider, baseUrl, apiKey, model, modelList}`；`activeProviderId` 指当前激活的那个。顶层 `provider/baseUrl/apiKey/model/modelList` 是「激活接口的镜像」，`streamChat` 等直接读这些，靠 `mirrorActiveToFlat()` 保持同步。
     - `userAvatar` / `aiAvatar` —— 头像，可为文字 / emoji / 图片链接 / 上传的 `data:` URL（上传时压缩到 128px JPEG）。
     - `memory` 是「长期记忆」文本，每次请求会拼进 system prompt（见 `streamChat` 里的 `systemText`）；清空对话不会清掉它。
-    - `theme` —— `dark` / `light`，作用在 `<html data-theme>` 上，CSS 变量按主题切换。
+    - `themeName` —— 命名主题（9 套：night/white/sakura/peach/mint/ocean/rose/milktea/gold），`THEMES` 里整套 CSS 变量，`applyTheme()` 注入到 `documentElement.style`。`accent` 可在主题基础上单独覆盖强调色。`theme`（dark/light）为旧字段，迁移用。
+    - `chatBg` / `chatBgBlur` / `chatBgDim` —— 聊天背景图（压缩到 1280px 的 data URL）+ 毛玻璃模糊 + 蒙版浓度，`applyChatBg()` 渲染到 `#chat-bg` 层。不上云。
     - `modelList` —— 多行文本，每行一个模型，渲染到顶部「快速切换模型」下拉。
   - `jyc_conversations` —— 多会话数组，每项 `{id, title, messages:[{role,content}], updatedAt}`。
   - `jyc_current` —— 当前会话 id。
