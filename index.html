@@ -1114,6 +1114,8 @@ async function streamChat(onDelta, onReasoning) {
       stream: true,
       messages: msgs,
     };
+    // Ask OpenRouter to include the model's reasoning/thinking when it has one.
+    if (/openrouter\.ai/i.test(base)) { body.reasoning = { enabled: true }; body.include_reasoning = true; }
   }
 
   const resp = await fetch(url, {
