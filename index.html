@@ -374,6 +374,27 @@
   #lock-screen.shake .lock-box { animation: shake .35s; }
   @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
 
+  /* Big pop-out editor (for system prompt / memory) */
+  #editor-modal {
+    display: none; position: fixed; inset: 0; z-index: 1001;
+    background: rgba(0,0,0,.5); padding: env(safe-area-inset-top) 16px 16px;
+    place-items: center;
+  }
+  #editor-modal.show { display: grid; }
+  .editor-box {
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 14px;
+    width: 100%; max-width: 720px; height: min(80vh, 640px);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .editor-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 1px solid var(--border); font-weight: 600;
+  }
+  #editor-textarea {
+    flex: 1; border: none; outline: none; resize: none; background: var(--bg-soft);
+    color: var(--text); padding: 14px; font-size: 15px; line-height: 1.6; font-family: inherit;
+  }
+
   /* Backdrop behind the sidebar on small screens */
   .backdrop {
     display: none; position: fixed; inset: 0; z-index: 15;
@@ -402,6 +423,15 @@
     <input id="lock-input" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••" />
     <div id="lock-err" class="lock-err"></div>
     <button class="mini-btn primary" id="lock-unlock" style="padding:8px 24px;">解锁</button>
+  </div>
+</div>
+<div id="editor-modal">
+  <div class="editor-box">
+    <div class="editor-head">
+      <span id="editor-title">编辑</span>
+      <button class="mini-btn" id="editor-done">✓ 完成</button>
+    </div>
+    <textarea id="editor-textarea" placeholder="在这里尽情写…"></textarea>
   </div>
 </div>
 <input type="file" id="userAvatarFile" accept="image/*" style="display:none;" />
@@ -578,11 +608,17 @@
           </div>
         </div>
         <div class="field" style="grid-column: 1 / -1;">
-          <label>System Prompt（系统提示词）</label>
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span>System Prompt（系统提示词 · 人设）</span>
+            <button class="mini-btn" data-edit="systemPrompt" data-title="System Prompt · 人设">⛶ 放大编辑</button>
+          </label>
           <textarea id="systemPrompt" placeholder="你是一个乐于助人的助手……"></textarea>
         </div>
         <div class="field" style="grid-column: 1 / -1;">
-          <label>🧠 长期记忆（每次对话都会自动带上，刷新不丢）</label>
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span>🧠 长期记忆（每次对话都会自动带上，刷新不丢）</span>
+            <button class="mini-btn" data-edit="memory" data-title="🧠 长期记忆">⛶ 放大编辑</button>
+          </label>
           <textarea id="memory" placeholder="在这里写下希望我一直记住的事，例如：&#10;- 我叫 XX，在做 XX 项目&#10;- 喜欢简洁直接的回答"></textarea>
           <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:4px;cursor:pointer;">
             <input type="checkbox" id="autoMemory" style="width:auto;" />
@@ -1104,6 +1140,15 @@ function toApiContent(content, isAnthropic) {
     return { type: "image_url", image_url: { url: p.dataUrl } };
   });
 }
+// What to actually send for a stored message: if an assistant turn's visible reply
+// ended up only in the reasoning channel, send that so the model keeps full context.
+function sendContent(m) {
+  if (m.role === "assistant" && typeof m.content === "string"
+      && !m.content.trim() && m.reasoning && m.reasoning.trim()) {
+    return m.reasoning;
+  }
+  return m.content;
+}
 async function streamChat(onDelta, onReasoning) {
   onReasoning = onReasoning || (() => {});
   const isAnthropic = settings.provider === "anthropic";
@@ -1131,7 +1176,7 @@ async function streamChat(onDelta, onReasoning) {
       max_tokens: settings.maxTokens || 2048,
       temperature: settings.temperature,
       stream: true,
-      messages: messages.map(m => ({ role: m.role, content: toApiContent(m.content, true) })),
+      messages: messages.map(m => ({ role: m.role, content: toApiContent(sendContent(m), true) })),
     };
     if (systemText) body.system = systemText;
   } else {
@@ -1142,7 +1187,7 @@ async function streamChat(onDelta, onReasoning) {
     };
     const msgs = [];
     if (systemText) msgs.push({ role: "system", content: systemText });
-    msgs.push(...messages.map(m => ({ role: m.role, content: toApiContent(m.content, false) })));
+    msgs.push(...messages.map(m => ({ role: m.role, content: toApiContent(sendContent(m), false) })));
     body = {
       model,
       temperature: settings.temperature,
@@ -1807,6 +1852,25 @@ function openSettings(force) {
 }
 function closeSettings() { $("settings-panel").classList.remove("open"); }
 
+// ---------- Big pop-out editor (system prompt / memory) ----------
+let editorTargetId = null;
+function openBigEditor(targetId, title) {
+  editorTargetId = targetId;
+  $("editor-title").textContent = title || "编辑";
+  $("editor-textarea").value = $(targetId).value;
+  $("editor-modal").classList.add("show");
+  setTimeout(() => $("editor-textarea").focus(), 80);
+}
+function closeBigEditor() {
+  if (editorTargetId) {
+    const t = $(editorTargetId);
+    t.value = $("editor-textarea").value;
+    t.dispatchEvent(new Event("change"));   // persist via the field's change handler
+  }
+  $("editor-modal").classList.remove("show");
+  editorTargetId = null;
+}
+
 // ---------- Privacy lock ----------
 function lockApp() {
   if (settings.lockEnabled && settings.lockPin) {
@@ -1870,6 +1934,9 @@ function init() {
   $("theme-btn").onclick = toggleTheme;
   $("settings-btn").onclick = () => openSettings();
   $("settings-close").onclick = closeSettings;
+  document.querySelectorAll("[data-edit]").forEach(btn =>
+    btn.onclick = () => openBigEditor(btn.dataset.edit, btn.dataset.title));
+  $("editor-done").onclick = closeBigEditor;
   $("send-btn").onclick = () => { if (abortController) abortController.abort(); else send(); };
 
   $("signin-btn").onclick = () => doAuth("signin");
