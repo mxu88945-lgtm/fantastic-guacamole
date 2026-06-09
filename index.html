@@ -1014,7 +1014,11 @@ function bubbleHtml(role, content, reasoning) {
   if (role === "assistant") {
     const split = splitThink(text || "");
     answer = split.answer;
-    thinkHtml = thinkBlockHtml((reasoning || "") + (split.think ? "\n" + split.think : ""));
+    let reason = (reasoning || "") + (split.think ? "\n" + split.think : "");
+    // Safety net: if the model dumped its whole reply into the "thinking" channel and
+    // left the answer empty, show that text as the actual reply (never hide the answer).
+    if (!answer.trim() && reason.trim()) { answer = reason; reason = ""; }
+    thinkHtml = thinkBlockHtml(reason);
   }
   const textHtml = answer
     ? (role === "assistant" ? renderMarkdown(answer) : escapeHtml(answer).replace(/\n/g, "<br>"))
@@ -1114,8 +1118,6 @@ async function streamChat(onDelta, onReasoning) {
       stream: true,
       messages: msgs,
     };
-    // Ask OpenRouter to include the model's reasoning/thinking when it has one.
-    if (/openrouter\.ai/i.test(base)) { body.reasoning = { enabled: true }; body.include_reasoning = true; }
   }
 
   const resp = await fetch(url, {
