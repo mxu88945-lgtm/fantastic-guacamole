@@ -223,6 +223,16 @@
     border-radius: 8px; font-size: 13px;
   }
 
+  /* Toast (small transient notice, e.g. memory updated) */
+  .toast {
+    position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--bg-panel); border: 1px solid var(--accent); color: var(--text);
+    padding: 9px 16px; border-radius: 999px; font-size: 13px; z-index: 50;
+    opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+    box-shadow: 0 6px 24px rgba(0,0,0,.3);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
   /* Backdrop behind the sidebar on small screens */
   .backdrop {
     display: none; position: fixed; inset: 0; z-index: 15;
@@ -243,6 +253,7 @@
 </style>
 </head>
 <body>
+<div class="toast" id="toast"></div>
 <div class="app">
   <div class="backdrop" id="backdrop"></div>
   <!-- Sidebar -->
@@ -313,7 +324,11 @@
         <div class="field" style="grid-column: 1 / -1;">
           <label>🧠 长期记忆（每次对话都会自动带上，刷新不丢）</label>
           <textarea id="memory" placeholder="在这里写下希望我一直记住的事，例如：&#10;- 我叫 XX，在做 XX 项目&#10;- 喜欢简洁直接的回答"></textarea>
-          <span class="hint">这些内容会作为长期记忆注入到每次请求，保存在本地浏览器。</span>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:4px;cursor:pointer;">
+            <input type="checkbox" id="autoMemory" style="width:auto;" />
+            ✨ 自动记忆：聊天时我会自动把值得长期记住的事，悄悄补进上面的记忆里
+          </label>
+          <span class="hint">开启后每隔几轮会多调用一次模型来提炼记忆（会额外消耗少量 token）。</span>
         </div>
       </div>
     </div>
@@ -352,10 +367,12 @@ let settings = {
   maxTokens: 2048,
   systemPrompt: "",
   memory: "",
+  autoMemory: false,
   theme: "dark",
   modelList: "",
   sidebarCollapsed: false,
 };
+let turnsSinceMemory = 0; // throttle auto-memory extraction
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
@@ -605,6 +622,67 @@ async function streamChat(onDelta) {
   }
 }
 
+// Non-streaming one-shot completion (used by auto-memory extraction).
+async function completeOnce(systemText, userText, maxTokens) {
+  const isAnthropic = settings.provider === "anthropic";
+  const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
+  const model = settings.model || DEFAULTS[settings.provider].model;
+  let url, headers, body;
+  if (isAnthropic) {
+    url = base + "/messages";
+    headers = { "content-type": "application/json", "x-api-key": settings.apiKey,
+      "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
+    body = { model, max_tokens: maxTokens, temperature: 0,
+      system: systemText, messages: [{ role: "user", content: userText }] };
+  } else {
+    url = base + "/chat/completions";
+    headers = { "content-type": "application/json", "authorization": "Bearer " + settings.apiKey };
+    body = { model, temperature: 0, max_tokens: maxTokens, messages: [
+      { role: "system", content: systemText }, { role: "user", content: userText } ] };
+  }
+  const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  if (!resp.ok) throw new Error("memory HTTP " + resp.status);
+  const data = await resp.json();
+  if (isAnthropic) return (data.content || []).map(c => c.text || "").join("").trim();
+  return (data.choices?.[0]?.message?.content || "").trim();
+}
+
+// Ask the model to extract durable facts from the recent chat and merge into memory.
+async function autoUpdateMemory() {
+  if (!settings.autoMemory || !settings.apiKey) return;
+  const recent = messages.slice(-8)
+    .map(m => (m.role === "user" ? "用户" : "助手") + ": " + m.content).join("\n");
+  if (!recent.trim()) return;
+  const sys = "你是一个记忆提炼助手。请从对话中找出关于【用户】值得长期记住的稳定事实"
+    + "（如称呼、身份、偏好、习惯、重要的人或事）。只输出新的、当前记忆里还没有的条目，"
+    + "每条一行，以「- 」开头，简洁中文。如果没有任何值得新增的，只输出一个词：NONE。";
+  const usr = "【已有长期记忆】\n" + (settings.memory || "（空）")
+    + "\n\n【最近对话】\n" + recent + "\n\n请输出需要新增的记忆条目：";
+  let out;
+  try { out = await completeOnce(sys, usr, 300); } catch (e) { return; }
+  if (!out || /^NONE\b/i.test(out)) return;
+  const existing = (settings.memory || "").toLowerCase();
+  const additions = out.split("\n").map(s => s.trim())
+    .filter(s => /^[-*]\s+/.test(s))
+    .map(s => s.replace(/^[-*]\s+/, "").trim())
+    .filter(s => s && !existing.includes(s.toLowerCase()));
+  if (additions.length === 0) return;
+  const lines = additions.map(s => "- " + s).join("\n");
+  settings.memory = (settings.memory ? settings.memory.replace(/\s+$/, "") + "\n" : "") + lines;
+  saveSettings();
+  if ($("memory")) $("memory").value = settings.memory;
+  showToast("🧠 记忆已更新：新增 " + additions.length + " 条");
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
 async function send() {
   const input = $("input");
   const text = input.value.trim();
@@ -627,6 +705,7 @@ async function send() {
   scrollToBottom();
   setSending(true);
 
+  let replied = false;
   try {
     await streamChat((delta) => {
       assistantMsg.content += delta;
@@ -634,6 +713,7 @@ async function send() {
       scrollToBottom();
     });
     bubble.innerHTML = renderMarkdown(assistantMsg.content);
+    replied = true;
   } catch (e) {
     if (e.name === "AbortError") {
       bubble.innerHTML = renderMarkdown(assistantMsg.content || "_（已停止）_");
@@ -646,6 +726,12 @@ async function send() {
     abortController = null;
     saveConversations();
     scrollToBottom();
+  }
+
+  // Auto-memory: every 2nd successful reply, quietly distill durable facts.
+  if (replied && settings.autoMemory) {
+    turnsSinceMemory++;
+    if (turnsSinceMemory >= 2) { turnsSinceMemory = 0; autoUpdateMemory(); }
   }
 }
 
@@ -704,6 +790,7 @@ function syncSettingsToUI() {
   $("modelList").value = settings.modelList;
   $("systemPrompt").value = settings.systemPrompt;
   $("memory").value = settings.memory;
+  $("autoMemory").checked = settings.autoMemory;
   updateProviderHint();
   updateStatusLine();
   renderModelQuick();
@@ -718,6 +805,7 @@ function readSettingsFromUI() {
   settings.modelList = $("modelList").value;
   settings.systemPrompt = $("systemPrompt").value;
   settings.memory = $("memory").value;
+  settings.autoMemory = $("autoMemory").checked;
   saveSettings();
   updateStatusLine();
   renderModelQuick();
@@ -790,7 +878,7 @@ function init() {
   });
   $("input").addEventListener("input", autoResize);
 
-  ["provider","baseUrl","apiKey","model","maxTokens","modelList","systemPrompt","memory"].forEach(id => {
+  ["provider","baseUrl","apiKey","model","maxTokens","modelList","systemPrompt","memory","autoMemory"].forEach(id => {
     $(id).addEventListener("change", () => { readSettingsFromUI(); updateProviderHint(); });
   });
   $("provider").addEventListener("change", () => {
