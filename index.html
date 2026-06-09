@@ -232,7 +232,8 @@
   .msg.user .name { text-align: right; }
   .msg.user .bubble { width: fit-content; max-width: 100%; }
   .bubble {
-    background: var(--assistant-bubble); border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--assistant-bubble) var(--bubble-pct, 100%), transparent);
+    border: 1px solid var(--border);
     border-radius: 16px; padding: 12px 15px; font-size: 14.5px;
     line-height: 1.65; word-wrap: break-word; overflow-wrap: anywhere;
     box-shadow: 0 2px 8px rgba(0,0,0,.06);
@@ -240,9 +241,18 @@
   .msg.assistant .bubble { border-top-left-radius: 5px; }
   .msg.user .bubble {
     border-top-right-radius: 5px;
-    background: color-mix(in srgb, var(--accent) 16%, var(--assistant-bubble));
+    background: color-mix(in srgb, color-mix(in srgb, var(--accent) 16%, var(--assistant-bubble)) var(--bubble-pct, 100%), transparent);
     border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
   }
+
+  /* Flat / Tavo-style layout: avatar + name on top, text spans full width */
+  .msg.flat { flex-direction: column; gap: 6px; }
+  .msg.flat .msg-head { display: flex; align-items: center; gap: 8px; }
+  .msg.flat .msg-head .name { margin: 0; }
+  .msg.flat.user { align-items: stretch; }
+  .msg.flat.user .msg-head { flex-direction: row-reverse; }
+  .msg.flat.user .name { text-align: right; }
+  .msg.flat .bubble { width: 100%; max-width: 100%; }
   .bubble .msg-img {
     max-width: 220px; max-height: 220px; border-radius: 8px; display: block;
     margin: 4px 0; cursor: pointer;
@@ -475,6 +485,18 @@
           </div>
           <span class="hint">背景图存在本地（不上云）。调高「雾化/蒙版」能让文字更清楚。</span>
         </div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+          <label style="font-weight:600;">💬 对话样式</label>
+          <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+            <button class="mini-btn" id="layout-bubble">气泡式（头像在侧）</button>
+            <button class="mini-btn" id="layout-flat">平铺式（头像名字在上）</button>
+          </div>
+          <div style="margin-top:12px;">
+            <div class="hint">气泡透明度 <span id="bubbleOpVal">100</span>%</div>
+            <input id="bubbleOpacity" type="range" min="10" max="100" step="5" value="100" style="width:100%;" />
+          </div>
+          <span class="hint">「平铺式」像 Tavo：头像名字在文字上方、文字铺满更宽。透明度调低能透出背景图。</span>
+        </div>
 
         <div class="section-title">🔌 模型与服务</div>
         <div class="field" style="grid-column: 1 / -1;">
@@ -649,6 +671,8 @@ let settings = {
   aiAvatar: "江",
   lockEnabled: false,
   lockPin: "",
+  chatLayout: "bubble",   // "bubble" | "flat" (Tavo-style header on top)
+  bubbleOpacity: 100,     // bubble background opacity (%)
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
@@ -660,7 +684,7 @@ let applyingCloud = false;
 let pushTimer = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","memory","autoMemory","themeName","accent",
-  "userName","userAvatar","aiName","aiAvatar"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
+  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
@@ -1027,13 +1051,19 @@ function bubbleHtml(role, content, reasoning) {
 }
 function makeMsgEl(role, content, opts) {
   opts = opts || {};
+  const flat = settings.chatLayout === "flat";
   const el = document.createElement("div");
-  el.className = "msg " + role;
-  el.innerHTML = `${avatarHtml(role)}
-    <div class="body"><div class="name">${escapeHtml(nameFor(role))}</div>
-    <div class="bubble">${bubbleHtml(role, content, opts.reasoning)}</div></div>`;
+  el.className = "msg " + role + (flat ? " flat" : "");
+  if (flat) {
+    el.innerHTML = `<div class="msg-head">${avatarHtml(role)}<span class="name">${escapeHtml(nameFor(role))}</span></div>
+      <div class="bubble">${bubbleHtml(role, content, opts.reasoning)}</div>`;
+  } else {
+    el.innerHTML = `${avatarHtml(role)}
+      <div class="body"><div class="name">${escapeHtml(nameFor(role))}</div>
+      <div class="bubble">${bubbleHtml(role, content, opts.reasoning)}</div></div>`;
+  }
   if (opts.actions && role === "assistant") {
-    const body = el.querySelector(".body");
+    const container = flat ? el : el.querySelector(".body");
     const bar = document.createElement("div");
     bar.className = "msg-actions";
     const text = (typeof content === "string") ? content
@@ -1048,7 +1078,7 @@ function makeMsgEl(role, content, opts) {
       reBtn.onclick = regenerate;
       bar.appendChild(reBtn);
     }
-    body.appendChild(bar);
+    container.appendChild(bar);
   }
   return el;
 }
@@ -1519,6 +1549,22 @@ function applyTheme() {
   $("theme-btn").title = "当前：" + t.name + "（点击轮换主题）";
   applyAccent();
   applyChatBg();
+  applyBubbleStyle();
+}
+function applyBubbleStyle() {
+  const pct = settings.bubbleOpacity == null ? 100 : settings.bubbleOpacity;
+  document.documentElement.style.setProperty("--bubble-pct", pct + "%");
+}
+function setLayout(layout) {
+  settings.chatLayout = layout;
+  saveSettings();
+  highlightLayoutButtons();
+  renderMessages();
+}
+function highlightLayoutButtons() {
+  const flat = settings.chatLayout === "flat";
+  $("layout-flat").classList.toggle("primary", flat);
+  $("layout-bubble").classList.toggle("primary", !flat);
 }
 function applyChatBg() {
   const bg = $("chat-bg");
@@ -1659,6 +1705,9 @@ function syncSettingsToUI() {
   $("bgDimVal").textContent = settings.chatBgDim;
   $("lockEnabled").checked = settings.lockEnabled;
   $("lockPin").value = settings.lockPin;
+  $("bubbleOpacity").value = settings.bubbleOpacity;
+  $("bubbleOpVal").textContent = settings.bubbleOpacity;
+  highlightLayoutButtons();
   renderProviderSelect();
   renderThemeCards();
   renderAccentSwatches();
@@ -1862,6 +1911,15 @@ function init() {
     settings.chatBgDim = parseInt($("chatBgDim").value);
     $("bgDimVal").textContent = settings.chatBgDim;
     saveSettings(); applyChatBg();
+  });
+
+  // Chat layout + bubble opacity
+  $("layout-bubble").onclick = () => setLayout("bubble");
+  $("layout-flat").onclick = () => setLayout("flat");
+  $("bubbleOpacity").addEventListener("input", () => {
+    settings.bubbleOpacity = parseInt($("bubbleOpacity").value);
+    $("bubbleOpVal").textContent = settings.bubbleOpacity;
+    saveSettings(); applyBubbleStyle();
   });
 
   // Local backup / restore
