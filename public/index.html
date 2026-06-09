@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>微信登录</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 48px 40px;
+      text-align: center;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      width: 360px;
+    }
+    .logo {
+      width: 72px;
+      height: 72px;
+      margin-bottom: 24px;
+    }
+    h1 {
+      font-size: 22px;
+      color: #1a1a1a;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 36px;
+    }
+    .btn-wechat {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: #07c160;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 14px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      width: 100%;
+      transition: background 0.2s;
+    }
+    .btn-wechat:hover { background: #06ad56; }
+    .btn-wechat svg { flex-shrink: 0; }
+    .error {
+      margin-top: 20px;
+      padding: 10px 14px;
+      background: #fff2f0;
+      border: 1px solid #ffccc7;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #cf1322;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <!-- WeChat logo SVG -->
+    <svg class="logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="50" cy="50" r="50" fill="#07c160"/>
+      <path d="M38 38c-8.3 0-15 5.8-15 13 0 4 2.1 7.6 5.5 10l-1.5 4.5 5-2.5c1.6.4 3.3.7 5 .7 8.3 0 15-5.8 15-13S46.3 38 38 38zm-4 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm8 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM62 47c-6.6 0-12 4.7-12 10.5S55.4 68 62 68c1.4 0 2.7-.2 3.9-.5l4 2-1.2-3.6C71.5 63.9 74 61 74 57.5 74 51.7 68.6 47 62 47zm-3 8a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="#fff"/>
+    </svg>
+    <h1>微信账号登录</h1>
+    <p class="subtitle">使用微信授权快速登录</p>
+    <a class="btn-wechat" href="/auth/wechat">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8.5 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm5 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" fill="#fff"/>
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M11 2C5.477 2 1 6.477 1 12s4.477 10 10 10 10-4.477 10-10S16.523 2 11 2zm0 2a8 8 0 1 1 0 16A8 8 0 0 1 11 4z" fill="#fff"/>
+      </svg>
+      微信登录
+    </a>
+    <div id="error-msg" class="error" style="display:none"></div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const err = params.get('error');
+    if (err) {
+      const el = document.getElementById('error-msg');
+      const messages = {
+        no_code: '未收到授权码，请重试',
+        invalid_state: '请求状态无效，请重试',
+        oauth_failed: '微信授权失败，请稍后重试',
+      };
+      el.textContent = messages[err] || `错误：${err}`;
+      el.style.display = 'block';
+    }
+  </script>
+</body>
+</html>
