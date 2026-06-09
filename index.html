@@ -1000,7 +1000,7 @@ function splitThink(text) {
 }
 function thinkBlockHtml(reasoning) {
   if (!reasoning || !reasoning.trim()) return "";
-  return `<details class="think" open><summary>💭 思考链（点击展开/收起）</summary>` +
+  return `<details class="think"><summary>💭 思考链（点击展开）</summary>` +
     `<div class="think-body">${escapeHtml(reasoning.trim())}</div></details>`;
 }
 function bubbleHtml(role, content, reasoning) {
