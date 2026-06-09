@@ -178,6 +178,21 @@
     border: 2px solid transparent; padding: 0;
   }
   .swatch.active { border-color: var(--text); box-shadow: 0 0 0 2px var(--bg-soft) inset; }
+  .theme-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+  .theme-card {
+    border: 2px solid var(--border); border-radius: 12px; padding: 8px; cursor: pointer;
+    background: var(--bg-panel); transition: .15s; text-align: center;
+  }
+  .theme-card:hover { transform: translateY(-2px); }
+  .theme-card.active { border-color: var(--accent); }
+  .theme-card .preview {
+    height: 40px; border-radius: 8px; margin-bottom: 6px; position: relative; overflow: hidden;
+  }
+  .theme-card .preview .dot {
+    position: absolute; bottom: 6px; right: 6px; width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid #fff;
+  }
+  .theme-card .tname { font-size: 12px; color: var(--text); }
 
   /* Chat area */
   .chat { flex: 1; overflow-y: auto; padding: 24px 0; }
@@ -359,9 +374,13 @@
             <span class="hint" id="auth-status">未登录（数据仅存本地）</span>
           </div>
         </div>
-        <div class="section-title">🎨 外观（主题色）</div>
+        <div class="section-title">🎨 外观 · 主题</div>
         <div class="field" style="grid-column: 1 / -1;">
-          <label>主题色（点一下换颜色，配色随你心情～）</label>
+          <label>主题风格（整套配色，点卡片切换；顶部 🌙 也能快速轮换）</label>
+          <div id="theme-cards" class="theme-cards"></div>
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <label>微调强调色（在主题基础上单独换个强调色）</label>
           <div id="accent-swatches" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;"></div>
         </div>
 
@@ -512,6 +531,7 @@ let settings = {
   memory: "",
   autoMemory: false,
   theme: "dark",
+  themeName: "night",
   accent: "#7c83ff",
   modelList: "",
   sidebarCollapsed: false,
@@ -533,7 +553,7 @@ let cloudUser = null;   // logged-in user object
 let applyingCloud = false;
 let pushTimer = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","memory","autoMemory","theme","accent",
+  "systemPrompt","memory","autoMemory","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
@@ -547,6 +567,8 @@ function loadState() {
   try {
     const s = JSON.parse(localStorage.getItem("jyc_settings") || "null");
     if (s) settings = { ...settings, ...s };
+    // migrate old dark/light flag to the named-theme system
+    if (s && !s.themeName) settings.themeName = (s.theme === "light") ? "white" : "night";
     const cs = JSON.parse(localStorage.getItem("jyc_conversations") || "null");
     if (Array.isArray(cs)) conversations = cs;
     currentId = localStorage.getItem("jyc_current") || null;
@@ -1271,18 +1293,83 @@ const ACCENT_PRESETS = [
   { name: "柠檬黄", color: "#f0b429" },
   { name: "玫瑰红", color: "#f0506e" },
 ];
+// Full theme presets: each defines the whole palette (CSS variables).
+const THEMES = [
+  { key: "night",  name: "暗夜紫", emoji: "🌌", dark: true,  vars: {
+    bg:"#0f1117", "bg-soft":"#161924", "bg-panel":"#1b1f2e", border:"#2a3042", text:"#e6e8ef",
+    "text-dim":"#9aa3b8", accent:"#7c83ff", "accent-soft":"#2e3358", "assistant-bubble":"#1b1f2e",
+    "code-bg":"#0c0e15", "err-bg":"#3a1f24", "err-text":"#ffb4b4", "item-active":"#232844" } },
+  { key: "white",  name: "极简白", emoji: "🤍", dark: false, vars: {
+    bg:"#f5f6fa", "bg-soft":"#ffffff", "bg-panel":"#eef0f6", border:"#dde1ea", text:"#1b1f2e",
+    "text-dim":"#6b7388", accent:"#5d63e6", "accent-soft":"#dfe1fb", "assistant-bubble":"#ffffff",
+    "code-bg":"#f0f2f8", "err-bg":"#fdecec", "err-text":"#b3343a", "item-active":"#e9ebf7" } },
+  { key: "sakura", name: "樱花少女", emoji: "🌸", dark: false, vars: {
+    bg:"#fff5f8", "bg-soft":"#fffafc", "bg-panel":"#ffeef4", border:"#f7d6e2", text:"#4a2c38",
+    "text-dim":"#a8788a", accent:"#ff6fa5", "accent-soft":"#ffd9e6", "assistant-bubble":"#fffafc",
+    "code-bg":"#fdeef3", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#ffe3ee" } },
+  { key: "peach",  name: "蜜桃奶昔", emoji: "🍑", dark: false, vars: {
+    bg:"#fff6f0", "bg-soft":"#fffbf8", "bg-panel":"#ffeee2", border:"#f5d9c6", text:"#4d362a",
+    "text-dim":"#ad8b76", accent:"#ff8a5b", "accent-soft":"#ffe0cf", "assistant-bubble":"#fffbf8",
+    "code-bg":"#fdeee3", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#ffe6d6" } },
+  { key: "mint",   name: "薄荷绿", emoji: "🌿", dark: false, vars: {
+    bg:"#f0faf6", "bg-soft":"#fbfffd", "bg-panel":"#e3f5ed", border:"#c5e6da", text:"#1f3b32",
+    "text-dim":"#6d9387", accent:"#1fb892", "accent-soft":"#cdeee3", "assistant-bubble":"#fbfffd",
+    "code-bg":"#e8f5ef", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#d9f0e8" } },
+  { key: "ocean",  name: "深海蓝", emoji: "🌊", dark: true, vars: {
+    bg:"#0c1622", "bg-soft":"#11202f", "bg-panel":"#15273a", border:"#243a52", text:"#dceaf5",
+    "text-dim":"#8aa6bf", accent:"#3aa0ff", "accent-soft":"#1d3a55", "assistant-bubble":"#15273a",
+    "code-bg":"#0a1420", "err-bg":"#3a1f24", "err-text":"#ffb4b4", "item-active":"#1c344c" } },
+  { key: "rose",   name: "暗夜玫瑰", emoji: "🥀", dark: true, vars: {
+    bg:"#160f14", "bg-soft":"#1f151b", "bg-panel":"#281a22", border:"#3d2832", text:"#f0e3e9",
+    "text-dim":"#b894a3", accent:"#ff6f91", "accent-soft":"#3d2530", "assistant-bubble":"#281a22",
+    "code-bg":"#120b0f", "err-bg":"#3a1f24", "err-text":"#ffb4b4", "item-active":"#33212b" } },
+  { key: "milktea",name: "暖奶茶", emoji: "🧋", dark: false, vars: {
+    bg:"#f6f1ea", "bg-soft":"#fffdf9", "bg-panel":"#efe7da", border:"#ddd0bd", text:"#4a3d2e",
+    "text-dim":"#9c8a72", accent:"#c08a4e", "accent-soft":"#ecdcc4", "assistant-bubble":"#fffdf9",
+    "code-bg":"#efe6d7", "err-bg":"#fbe9e3", "err-text":"#b3503a", "item-active":"#e8ddc9" } },
+  { key: "gold",   name: "墨黑金", emoji: "🖤", dark: true, vars: {
+    bg:"#0e0e0f", "bg-soft":"#161617", "bg-panel":"#1d1d1f", border:"#2e2e31", text:"#ececec",
+    "text-dim":"#9a9a9e", accent:"#e3b341", "accent-soft":"#3a3320", "assistant-bubble":"#1d1d1f",
+    "code-bg":"#0a0a0b", "err-bg":"#3a1f24", "err-text":"#ffb4b4", "item-active":"#262620" } },
+];
+function currentTheme() { return THEMES.find(t => t.key === settings.themeName) || THEMES[0]; }
 function applyTheme() {
-  document.documentElement.setAttribute("data-theme", settings.theme);
-  $("theme-btn").textContent = settings.theme === "dark" ? "🌙" : "☀️";
-  $("theme-btn").title = settings.theme === "dark" ? "切到亮色" : "切到暗色";
+  const t = currentTheme();
+  document.documentElement.setAttribute("data-theme", t.dark ? "dark" : "light");
+  const root = document.documentElement;
+  for (const k in t.vars) root.style.setProperty("--" + k, t.vars[k]);
+  $("theme-btn").textContent = t.emoji;
+  $("theme-btn").title = "当前：" + t.name + "（点击轮换主题）";
   applyAccent();
 }
 function applyAccent() {
-  document.documentElement.style.setProperty("--accent", settings.accent || "#7c83ff");
+  document.documentElement.style.setProperty("--accent", settings.accent || currentTheme().vars.accent);
+}
+function setTheme(key) {
+  settings.themeName = key;
+  settings.accent = currentTheme().vars.accent; // reset accent to the theme's own
+  saveSettings(); applyTheme(); renderThemeCards(); renderAccentSwatches();
 }
 function toggleTheme() {
-  settings.theme = settings.theme === "dark" ? "light" : "dark";
-  saveSettings(); applyTheme();
+  // header button cycles through all themes
+  const i = THEMES.findIndex(t => t.key === settings.themeName);
+  const next = THEMES[(i + 1) % THEMES.length];
+  setTheme(next.key);
+  showToast(next.emoji + " " + next.name);
+}
+function renderThemeCards() {
+  const box = $("theme-cards");
+  if (!box) return;
+  box.innerHTML = "";
+  for (const t of THEMES) {
+    const card = document.createElement("div");
+    card.className = "theme-card" + (t.key === settings.themeName ? " active" : "");
+    card.innerHTML = `<div class="preview" style="background:${t.vars.bg}">
+        <div class="dot" style="background:${t.vars.accent}"></div></div>
+      <div class="tname">${t.emoji} ${t.name}</div>`;
+    card.onclick = () => setTheme(t.key);
+    box.appendChild(card);
+  }
 }
 function setAccent(color) {
   settings.accent = color;
@@ -1353,6 +1440,7 @@ function syncSettingsToUI() {
   $("aiName").value = settings.aiName;
   $("aiAvatar").value = settings.aiAvatar;
   renderProviderSelect();
+  renderThemeCards();
   renderAccentSwatches();
   updateProviderHint();
   updateStatusLine();
