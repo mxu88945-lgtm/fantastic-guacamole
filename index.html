@@ -223,14 +223,28 @@
     border-radius: 8px; font-size: 13px;
   }
 
+  /* Backdrop behind the sidebar on small screens */
+  .backdrop {
+    display: none; position: fixed; inset: 0; z-index: 15;
+    background: rgba(0,0,0,.45);
+  }
   @media (max-width: 720px) {
-    .sidebar { position: absolute; z-index: 20; height: 100vh; box-shadow: 4px 0 20px rgba(0,0,0,.3); }
+    .sidebar {
+      position: fixed; top: 0; left: 0; z-index: 20;
+      height: 100vh; width: 78vw; max-width: 300px;
+      box-shadow: 4px 0 24px rgba(0,0,0,.4);
+    }
+    .sidebar.collapsed { margin-left: 0; transform: translateX(-100%); }
+    .backdrop.show { display: block; }
+    header h1 { font-size: 14px; }
+    .model-quick { max-width: 120px; }
     .composer-hint { display: none; }
   }
 </style>
 </head>
 <body>
 <div class="app">
+  <div class="backdrop" id="backdrop"></div>
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="brand">
@@ -400,6 +414,7 @@ function switchConversation(id) {
   renderMessages();
   updateConvTitle();
   scrollToBottom();
+  if (isMobile()) closeSidebar();
 }
 function createConversation() {
   if (abortController) abortController.abort();
@@ -727,17 +742,30 @@ function autoResize() {
   t.style.height = "auto";
   t.style.height = Math.min(t.scrollHeight, 200) + "px";
 }
+const isMobile = () => window.innerWidth <= 720;
+function applySidebar() {
+  const collapsed = settings.sidebarCollapsed;
+  $("sidebar").classList.toggle("collapsed", collapsed);
+  $("backdrop").classList.toggle("show", isMobile() && !collapsed);
+}
 function toggleSidebar() {
   settings.sidebarCollapsed = !settings.sidebarCollapsed;
-  $("sidebar").classList.toggle("collapsed", settings.sidebarCollapsed);
   saveSettings();
+  applySidebar();
+}
+function closeSidebar() {
+  settings.sidebarCollapsed = true;
+  saveSettings();
+  applySidebar();
 }
 
 // ---------- Wire up ----------
 function init() {
   loadState();
   applyTheme();
-  $("sidebar").classList.toggle("collapsed", settings.sidebarCollapsed);
+  // On phones, start with the sidebar tucked away so the chat is front-and-center.
+  if (isMobile()) settings.sidebarCollapsed = true;
+  applySidebar();
   syncSettingsToUI();
   renderConvList();
   renderMessages();
@@ -745,6 +773,8 @@ function init() {
 
   $("new-chat-btn").onclick = createConversation;
   $("toggle-sidebar").onclick = toggleSidebar;
+  $("backdrop").onclick = closeSidebar;
+  window.addEventListener("resize", applySidebar);
   $("theme-btn").onclick = toggleTheme;
   $("settings-btn").onclick = () => openSettings();
   $("send-btn").onclick = () => { if (abortController) abortController.abort(); else send(); };
