@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -343,6 +343,25 @@
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  /* Privacy lock screen */
+  #lock-screen {
+    display: none; position: fixed; inset: 0; z-index: 1000;
+    background: var(--bg); place-items: center;
+  }
+  #lock-screen.show { display: grid; }
+  .lock-box { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 24px; }
+  .lock-emoji { font-size: 46px; }
+  .lock-title { font-size: 15px; color: var(--text-dim); }
+  #lock-input {
+    width: 180px; text-align: center; letter-spacing: 8px; font-size: 22px;
+    background: var(--bg-panel); border: 1px solid var(--border); color: var(--text);
+    border-radius: 12px; padding: 12px; outline: none;
+  }
+  #lock-input:focus { border-color: var(--accent); }
+  .lock-err { color: var(--danger); font-size: 13px; min-height: 16px; }
+  #lock-screen.shake .lock-box { animation: shake .35s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+
   /* Backdrop behind the sidebar on small screens */
   .backdrop {
     display: none; position: fixed; inset: 0; z-index: 15;
@@ -364,6 +383,15 @@
 </head>
 <body>
 <div class="toast" id="toast"></div>
+<div id="lock-screen">
+  <div class="lock-box">
+    <div class="lock-emoji">🔒</div>
+    <div class="lock-title">输入密码解锁</div>
+    <input id="lock-input" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••" />
+    <div id="lock-err" class="lock-err"></div>
+    <button class="mini-btn primary" id="lock-unlock" style="padding:8px 24px;">解锁</button>
+  </div>
+</div>
 <input type="file" id="userAvatarFile" accept="image/*" style="display:none;" />
 <input type="file" id="aiAvatarFile" accept="image/*" style="display:none;" />
 <input type="file" id="importFile" accept=".json,application/json" style="display:none;" />
@@ -551,6 +579,15 @@
           </div>
           <span class="hint">导出的是 .json 文件，存在你自己设备上。默认不含 API Key，更安全。</span>
         </div>
+
+        <div class="section-title">🔒 隐私锁</div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600;">
+            <input type="checkbox" id="lockEnabled" style="width:auto;" /> 打开 App 需要输入密码
+          </label>
+          <input id="lockPin" inputmode="numeric" maxlength="8" placeholder="设置 4~8 位数字密码" style="margin-top:8px; letter-spacing:4px;" />
+          <span class="hint">只防别人随手翻看（存在本地、非加密）。忘了密码可在浏览器「清除网站数据」重置（会清空所有数据，建议先导出备份）。</span>
+        </div>
       </div>
     </div>
 
@@ -610,6 +647,8 @@ let settings = {
   userAvatar: "你",
   aiName: "江屹琛",
   aiAvatar: "江",
+  lockEnabled: false,
+  lockPin: "",
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
@@ -1614,6 +1653,8 @@ function syncSettingsToUI() {
   $("bgBlurVal").textContent = settings.chatBgBlur;
   $("chatBgDim").value = settings.chatBgDim;
   $("bgDimVal").textContent = settings.chatBgDim;
+  $("lockEnabled").checked = settings.lockEnabled;
+  $("lockPin").value = settings.lockPin;
   renderProviderSelect();
   renderThemeCards();
   renderAccentSwatches();
@@ -1688,6 +1729,8 @@ function readSettingsFromUI() {
   settings.userAvatar = $("userAvatar").value.trim();
   settings.aiName = $("aiName").value.trim();
   settings.aiAvatar = $("aiAvatar").value.trim();
+  settings.lockEnabled = $("lockEnabled").checked;
+  settings.lockPin = $("lockPin").value.trim();
   saveSettings();
   updateStatusLine();
   renderModelQuick();
@@ -1708,6 +1751,28 @@ function openSettings(force) {
   if (force) panel.classList.add("open"); else panel.classList.toggle("open");
 }
 function closeSettings() { $("settings-panel").classList.remove("open"); }
+
+// ---------- Privacy lock ----------
+function lockApp() {
+  if (settings.lockEnabled && settings.lockPin) {
+    $("lock-input").value = "";
+    $("lock-err").textContent = "";
+    $("lock-screen").classList.add("show");
+    setTimeout(() => $("lock-input").focus(), 100);
+  }
+}
+function tryUnlock() {
+  if ($("lock-input").value === settings.lockPin) {
+    $("lock-screen").classList.remove("show");
+    $("lock-input").value = "";
+  } else {
+    $("lock-err").textContent = "密码不对，再试试";
+    $("lock-input").value = "";
+    const ls = $("lock-screen");
+    ls.classList.add("shake");
+    setTimeout(() => ls.classList.remove("shake"), 400);
+  }
+}
 function autoResize() {
   const t = $("input");
   t.style.height = "auto";
@@ -1827,6 +1892,12 @@ function init() {
   });
 
   if (!settings.apiKey) openSettings(true);
+
+  // privacy lock
+  $("lock-unlock").onclick = tryUnlock;
+  $("lock-input").addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
+  ["lockEnabled", "lockPin"].forEach(id => $(id).addEventListener("change", readSettingsFromUI));
+  lockApp();
 
   // restore cloud session (if previously logged in) and sync
   initCloud().catch(e => console.warn("cloud init:", e));
