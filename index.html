@@ -154,6 +154,24 @@
   .field .row { display: flex; align-items: center; gap: 8px; }
   .field .row input[type="range"] { flex: 1; }
   .field .hint { font-size: 11px; color: var(--text-dim); }
+  .section-title {
+    grid-column: 1 / -1; font-size: 13px; font-weight: 700; color: var(--accent);
+    margin: 6px 0 -2px; padding-top: 8px; border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .section-title:first-child { border-top: none; padding-top: 0; }
+  .mini-btn {
+    background: var(--bg-panel); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+  }
+  .mini-btn:hover { border-color: var(--accent); }
+  .mini-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .avatar-preview {
+    width: 40px; height: 40px; border-radius: 9px; flex-shrink: 0;
+    display: grid; place-items: center; font-weight: 700; font-size: 15px;
+    background: linear-gradient(135deg,#7c83ff,#b06bff); color: #fff; overflow: hidden;
+  }
+  .avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
 
   /* Chat area */
   .chat { flex: 1; overflow-y: auto; padding: 24px 0; }
@@ -256,6 +274,9 @@
 </head>
 <body>
 <div class="toast" id="toast"></div>
+<input type="file" id="userAvatarFile" accept="image/*" style="display:none;" />
+<input type="file" id="aiAvatarFile" accept="image/*" style="display:none;" />
+<input type="file" id="importFile" accept=".json,application/json" style="display:none;" />
 <div class="app">
   <div class="backdrop" id="backdrop"></div>
   <!-- Sidebar -->
@@ -285,8 +306,9 @@
 
     <div class="settings" id="settings-panel">
       <div class="settings-inner">
+        <div class="section-title">☁️ 账号 · 多设备同步（可选）</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
-          <label style="font-weight:600;">☁️ 云端账号（可选 · 登录后多设备同步，API Key 不上云）</label>
+          <label style="font-weight:600;">登录后多设备同步，API Key 不上云</label>
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">
             <input id="sbUrl" placeholder="Supabase URL（https://xxx.supabase.co）" style="flex:1; min-width:200px;" />
             <input id="sbKey" placeholder="Supabase anon key" style="flex:1; min-width:200px;" />
@@ -302,6 +324,7 @@
             <span class="hint" id="auth-status">未登录（数据仅存本地）</span>
           </div>
         </div>
+        <div class="section-title">🔌 模型与服务</div>
         <div class="field">
           <label>API 格式</label>
           <select id="provider">
@@ -339,13 +362,32 @@
           </label>
           <textarea id="modelList" placeholder="gpt-4o-mini&#10;gpt-4o&#10;claude-opus-4-8"></textarea>
         </div>
+        <div class="section-title">🎭 人设 · 头像 · 记忆</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
-          <label style="font-weight:600;">🎭 名字 & 头像（可填文字、emoji，或图片链接）</label>
-          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">
-            <input id="userName" placeholder="你的名字（默认：你）" style="flex:1; min-width:130px;" />
-            <input id="userAvatar" placeholder="你的头像（默认：你）" style="flex:1; min-width:130px;" />
-            <input id="aiName" placeholder="助手名字（默认：江屹琛）" style="flex:1; min-width:130px;" />
-            <input id="aiAvatar" placeholder="助手头像（默认：江）" style="flex:1; min-width:130px;" />
+          <label style="font-weight:600;">🎭 名字 & 头像（头像可填文字 / emoji / 图片链接，或直接从相册上传）</label>
+          <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:10px;">
+            <div style="flex:1; min-width:240px;">
+              <div class="hint" style="margin-bottom:4px;">你</div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <span class="avatar-preview" id="userAvatarPreview">你</span>
+                <input id="userName" placeholder="名字（默认：你）" style="flex:1; min-width:90px;" />
+              </div>
+              <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+                <input id="userAvatar" placeholder="头像文字/emoji/链接" style="flex:1; min-width:90px;" />
+                <button class="mini-btn" id="userAvatarUpload">📷 上传</button>
+              </div>
+            </div>
+            <div style="flex:1; min-width:240px;">
+              <div class="hint" style="margin-bottom:4px;">助手</div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <span class="avatar-preview" id="aiAvatarPreview">江</span>
+                <input id="aiName" placeholder="名字（默认：江屹琛）" style="flex:1; min-width:90px;" />
+              </div>
+              <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+                <input id="aiAvatar" placeholder="头像文字/emoji/链接" style="flex:1; min-width:90px;" />
+                <button class="mini-btn" id="aiAvatarUpload">📷 上传</button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="field" style="grid-column: 1 / -1;">
@@ -360,6 +402,19 @@
             ✨ 自动记忆：聊天时我会自动把值得长期记住的事，悄悄补进上面的记忆里
           </label>
           <span class="hint">开启后每隔几轮会多调用一次模型来提炼记忆（会额外消耗少量 token）。</span>
+        </div>
+
+        <div class="section-title">📦 数据（本地备份 / 恢复）</div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+          <label style="font-weight:600;">把所有对话和设置导出成一个文件，换设备时再导入恢复</label>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+            <button class="mini-btn primary" id="export-btn">📤 导出备份</button>
+            <button class="mini-btn" id="import-btn">📥 恢复备份</button>
+            <label style="display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer;">
+              <input type="checkbox" id="exportWithKey" style="width:auto;" /> 包含 API Key
+            </label>
+          </div>
+          <span class="hint">导出的是 .json 文件，存在你自己设备上。默认不含 API Key，更安全。</span>
         </div>
       </div>
     </div>
@@ -657,12 +712,20 @@ function avatarFor(role) {
 function nameFor(role) {
   return role === "user" ? (settings.userName || "你") : (settings.aiName || "江屹琛");
 }
+function isImageRef(v) { return /^(https?:\/\/|data:image\/)/.test(v || ""); }
 function avatarHtml(role) {
   const v = avatarFor(role);
-  if (/^https?:\/\//.test(v)) {
-    return `<div class="avatar"><img src="${escapeHtml(v)}" alt=""></div>`;
-  }
+  if (isImageRef(v)) return `<div class="avatar"><img src="${escapeHtml(v)}" alt=""></div>`;
   return `<div class="avatar">${escapeHtml(v)}</div>`;
+}
+function setPreview(id, v, fallback) {
+  const el = $(id);
+  if (isImageRef(v)) el.innerHTML = `<img src="${escapeHtml(v)}" alt="">`;
+  else el.textContent = v || fallback;
+}
+function updateAvatarPreviews() {
+  setPreview("userAvatarPreview", settings.userAvatar, "你");
+  setPreview("aiAvatarPreview", settings.aiAvatar, "江");
 }
 function renderMessages() {
   const box = $("messages");
@@ -853,6 +916,77 @@ async function fetchModels() {
   }
 }
 
+// Read an image file, downscale to <=128px, store as a small JPEG data URL.
+function handleAvatarFile(file, which) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const max = 128;
+      let { width: w, height: h } = img;
+      const scale = Math.min(1, max / Math.max(w, h));
+      w = Math.round(w * scale); h = Math.round(h * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      if (which === "user") { settings.userAvatar = dataUrl; $("userAvatar").value = dataUrl; }
+      else { settings.aiAvatar = dataUrl; $("aiAvatar").value = dataUrl; }
+      saveSettings();
+      updateAvatarPreviews(); renderMessages();
+      showToast("✅ 头像已更新");
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Export all data (conversations + settings) as a downloadable JSON file.
+function exportBackup() {
+  const out = { app: "jyc-chat", version: 1, exportedAt: new Date().toISOString(),
+    conversations, settings: { ...settings } };
+  if (!$("exportWithKey").checked) {
+    out.settings = { ...out.settings, apiKey: "", supabaseKey: "" };
+  }
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0, 10);
+  a.href = url; a.download = `jyc-chat-backup-${stamp}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast("📤 已导出备份");
+}
+
+function importBackup(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try { data = JSON.parse(reader.result); } catch (e) { showToast("文件解析失败"); return; }
+    if (!data || !Array.isArray(data.conversations)) { showToast("不是有效的备份文件"); return; }
+    if (!confirm("恢复备份会覆盖当前所有对话和设置，确定吗？")) return;
+    conversations = data.conversations.length ? data.conversations : [newConversation()];
+    if (data.settings) {
+      for (const k in data.settings) {
+        // keep current API key if the backup didn't include one
+        if ((k === "apiKey" || k === "supabaseKey") && !data.settings[k]) continue;
+        settings[k] = data.settings[k];
+      }
+    }
+    currentId = conversations[0].id;
+    messages = currentConv().messages;
+    saveSettings();
+    localStorage.setItem("jyc_conversations", JSON.stringify(conversations));
+    localStorage.setItem("jyc_current", currentId);
+    applyTheme(); syncSettingsToUI(); updateAvatarPreviews();
+    renderConvList(); renderMessages(); updateConvTitle();
+    showToast("📥 备份已恢复");
+  };
+  reader.readAsText(file);
+}
+
 let toastTimer = null;
 function showToast(msg) {
   const t = $("toast");
@@ -979,6 +1113,7 @@ function syncSettingsToUI() {
   updateProviderHint();
   updateStatusLine();
   renderModelQuick();
+  updateAvatarPreviews();
 }
 function readSettingsFromUI() {
   settings.provider = $("provider").value;
@@ -1064,8 +1199,21 @@ function init() {
   $("fetch-models-btn").onclick = fetchModels;
 
   ["userName","userAvatar","aiName","aiAvatar"].forEach(id => {
-    $(id).addEventListener("change", () => { readSettingsFromUI(); renderMessages(); updateConvTitle(); });
+    $(id).addEventListener("change", () => {
+      readSettingsFromUI(); updateAvatarPreviews(); renderMessages(); updateConvTitle();
+    });
   });
+
+  // Avatar upload from local photos
+  $("userAvatarUpload").onclick = () => $("userAvatarFile").click();
+  $("aiAvatarUpload").onclick = () => $("aiAvatarFile").click();
+  $("userAvatarFile").onchange = (e) => handleAvatarFile(e.target.files[0], "user");
+  $("aiAvatarFile").onchange = (e) => handleAvatarFile(e.target.files[0], "ai");
+
+  // Local backup / restore
+  $("export-btn").onclick = exportBackup;
+  $("import-btn").onclick = () => $("importFile").click();
+  $("importFile").onchange = (e) => importBackup(e.target.files[0]);
 
   $("model-quick").addEventListener("change", () => {
     settings.model = $("model-quick").value;
