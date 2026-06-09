@@ -93,12 +93,13 @@
   .conv-item .name {
     flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .conv-item .del {
+  .conv-item .act {
     opacity: 0; border: none; background: none; color: var(--text-dim);
-    cursor: pointer; font-size: 14px; padding: 0 2px; flex-shrink: 0;
+    cursor: pointer; font-size: 13px; padding: 0 2px; flex-shrink: 0;
   }
-  .conv-item:hover .del { opacity: .6; }
-  .conv-item .del:hover { opacity: 1; color: var(--danger); }
+  .conv-item:hover .act { opacity: .6; }
+  .conv-item .act:hover { opacity: 1; color: var(--accent); }
+  .conv-item .act.del:hover { color: var(--danger); }
   .sidebar .foot {
     padding: 10px 12px; border-top: 1px solid var(--border);
     font-size: 11px; color: var(--text-dim); text-align: center;
@@ -172,6 +173,11 @@
     background: linear-gradient(135deg,#7c83ff,#b06bff); color: #fff; overflow: hidden;
   }
   .avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .swatch {
+    width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent; padding: 0;
+  }
+  .swatch.active { border-color: var(--text); box-shadow: 0 0 0 2px var(--bg-soft) inset; }
 
   /* Chat area */
   .chat { flex: 1; overflow-y: auto; padding: 24px 0; }
@@ -194,14 +200,20 @@
   .msg.user .bubble { width: fit-content; max-width: 100%; }
   .bubble {
     background: var(--assistant-bubble); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 12px 15px; font-size: 14.5px;
+    border-radius: 16px; padding: 12px 15px; font-size: 14.5px;
     line-height: 1.65; word-wrap: break-word; overflow-wrap: anywhere;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  }
+  .msg.assistant .bubble { border-top-left-radius: 5px; }
+  .msg.user .bubble {
+    border-top-right-radius: 5px;
+    background: color-mix(in srgb, var(--accent) 16%, var(--assistant-bubble));
+    border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
   }
   .bubble .msg-img {
     max-width: 220px; max-height: 220px; border-radius: 8px; display: block;
     margin: 4px 0; cursor: pointer;
   }
-  .msg.user .bubble { background: var(--user-bubble); border-color: var(--accent-soft); }
   .bubble p { margin: 0 0 10px; }
   .bubble p:last-child { margin-bottom: 0; }
   .bubble pre {
@@ -318,7 +330,7 @@
     <header>
       <button class="icon-btn" id="toggle-sidebar" title="收起/展开侧栏">☰</button>
       <div style="min-width:0;">
-        <h1 id="conv-title">新对话</h1>
+        <h1 id="conv-title" style="cursor:pointer;" title="点击重命名">新对话</h1>
         <div class="sub" id="status-line">本地网页客户端</div>
       </div>
       <div class="spacer"></div>
@@ -347,6 +359,12 @@
             <span class="hint" id="auth-status">未登录（数据仅存本地）</span>
           </div>
         </div>
+        <div class="section-title">🎨 外观（主题色）</div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <label>主题色（点一下换颜色，配色随你心情～）</label>
+          <div id="accent-swatches" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;"></div>
+        </div>
+
         <div class="section-title">🔌 模型与服务</div>
         <div class="field" style="grid-column: 1 / -1;">
           <label>接口配置（可存多个，随时切换）</label>
@@ -494,6 +512,7 @@ let settings = {
   memory: "",
   autoMemory: false,
   theme: "dark",
+  accent: "#7c83ff",
   modelList: "",
   sidebarCollapsed: false,
   supabaseUrl: "",
@@ -514,7 +533,7 @@ let cloudUser = null;   // logged-in user object
 let applyingCloud = false;
 let pushTimer = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","memory","autoMemory","theme",
+  "systemPrompt","memory","autoMemory","theme","accent",
   "userName","userAvatar","aiName","aiAvatar"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
@@ -750,12 +769,24 @@ function renderConvList() {
     const el = document.createElement("div");
     el.className = "conv-item" + (c.id === currentId ? " active" : "");
     el.innerHTML = `<span class="ic">💬</span><span class="name"></span>
-      <button class="del" title="删除">✕</button>`;
+      <button class="act ren" title="重命名">✎</button>
+      <button class="act del" title="删除">✕</button>`;
     el.querySelector(".name").textContent = c.title || "新对话";
     el.onclick = () => switchConversation(c.id);
+    el.querySelector(".ren").onclick = (e) => renameConversation(c.id, e);
     el.querySelector(".del").onclick = (e) => deleteConversation(c.id, e);
     box.appendChild(el);
   }
+}
+function renameConversation(id, ev) {
+  if (ev) ev.stopPropagation();
+  const conv = conversations.find(c => c.id === id);
+  if (!conv) return;
+  const name = prompt("给这个对话起个名字：", conv.title || "新对话");
+  if (name === null) return;
+  conv.title = name.trim() || conv.title;
+  saveConversations();
+  renderConvList(); updateConvTitle();
 }
 function updateConvTitle() {
   $("conv-title").textContent = currentConv().title || "新对话";
@@ -1230,14 +1261,51 @@ function setSending(on) {
 }
 
 // ---------- Theme ----------
+const ACCENT_PRESETS = [
+  { name: "暮光紫", color: "#7c83ff" },
+  { name: "丁香", color: "#b06bff" },
+  { name: "樱花粉", color: "#ff6fa5" },
+  { name: "蜜桃橘", color: "#ff8a5b" },
+  { name: "薄荷绿", color: "#36c8a0" },
+  { name: "海洋蓝", color: "#3aa0ff" },
+  { name: "柠檬黄", color: "#f0b429" },
+  { name: "玫瑰红", color: "#f0506e" },
+];
 function applyTheme() {
   document.documentElement.setAttribute("data-theme", settings.theme);
   $("theme-btn").textContent = settings.theme === "dark" ? "🌙" : "☀️";
   $("theme-btn").title = settings.theme === "dark" ? "切到亮色" : "切到暗色";
+  applyAccent();
+}
+function applyAccent() {
+  document.documentElement.style.setProperty("--accent", settings.accent || "#7c83ff");
 }
 function toggleTheme() {
   settings.theme = settings.theme === "dark" ? "light" : "dark";
   saveSettings(); applyTheme();
+}
+function setAccent(color) {
+  settings.accent = color;
+  saveSettings(); applyAccent(); renderAccentSwatches();
+}
+function renderAccentSwatches() {
+  const box = $("accent-swatches");
+  if (!box) return;
+  box.innerHTML = "";
+  for (const p of ACCENT_PRESETS) {
+    const b = document.createElement("button");
+    b.className = "swatch" + (p.color.toLowerCase() === (settings.accent || "").toLowerCase() ? " active" : "");
+    b.style.background = p.color; b.title = p.name;
+    b.onclick = () => setAccent(p.color);
+    box.appendChild(b);
+  }
+  // custom color picker
+  const custom = document.createElement("input");
+  custom.type = "color"; custom.value = settings.accent || "#7c83ff";
+  custom.title = "自定义颜色";
+  custom.style.cssText = "width:30px;height:30px;border:none;background:none;cursor:pointer;padding:0;";
+  custom.oninput = () => setAccent(custom.value);
+  box.appendChild(custom);
 }
 
 // ---------- Model quick switcher ----------
@@ -1285,6 +1353,7 @@ function syncSettingsToUI() {
   $("aiName").value = settings.aiName;
   $("aiAvatar").value = settings.aiAvatar;
   renderProviderSelect();
+  renderAccentSwatches();
   updateProviderHint();
   updateStatusLine();
   renderModelQuick();
@@ -1410,6 +1479,7 @@ function init() {
   updateConvTitle();
 
   $("new-chat-btn").onclick = createConversation;
+  $("conv-title").onclick = () => renameConversation(currentId);
   $("toggle-sidebar").onclick = toggleSidebar;
   $("backdrop").onclick = closeSidebar;
   window.addEventListener("resize", applySidebar);
