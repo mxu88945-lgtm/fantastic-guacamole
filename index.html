@@ -244,6 +244,20 @@
     max-width: 220px; max-height: 220px; border-radius: 8px; display: block;
     margin: 4px 0; cursor: pointer;
   }
+  .think {
+    border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border-radius: 10px; padding: 6px 10px; margin: 0 0 10px; font-size: 13px;
+  }
+  .think > summary {
+    cursor: pointer; color: var(--accent); font-weight: 600; list-style: none;
+    user-select: none; outline: none;
+  }
+  .think > summary::-webkit-details-marker { display: none; }
+  .think .think-body {
+    margin-top: 6px; color: var(--text-dim); white-space: pre-wrap;
+    line-height: 1.55; font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 6px;
+  }
   .msg-actions { display: flex; gap: 8px; margin-top: 6px; opacity: 0; transition: .15s; }
   .msg:hover .msg-actions { opacity: 1; }
   .msg-act {
@@ -381,6 +395,10 @@
 
     <div class="settings" id="settings-panel">
       <div class="settings-inner">
+        <div class="section-title" style="justify-content:space-between; align-items:center;">
+          <span>⚙️ 设置</span>
+          <button class="mini-btn primary" id="settings-close">✕ 关闭设置</button>
+        </div>
         <div class="section-title">☁️ 账号 · 多设备同步（可选）</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
           <label style="font-weight:600;">登录后多设备同步，API Key 不上云</label>
@@ -926,20 +944,40 @@ function renderMessages() {
   box.innerHTML = "";
   for (let i = 0; i < messages.length; i++) {
     const isLast = i === messages.length - 1;
-    box.appendChild(makeMsgEl(messages[i].role, messages[i].content, { actions: true, isLast }));
+    box.appendChild(makeMsgEl(messages[i].role, messages[i].content,
+      { actions: true, isLast, reasoning: messages[i].reasoning }));
   }
 }
-function bubbleHtml(role, content) {
+// Pull <think>...</think> (including an unclosed, still-streaming one) out of the text.
+function splitThink(text) {
+  let think = "";
+  text = text.replace(/<think>([\s\S]*?)<\/think>/g, (_, t) => { think += t; return ""; });
+  const open = text.indexOf("<think>");
+  if (open !== -1) { think += text.slice(open + 7); text = text.slice(0, open); }
+  return { think: think.trim(), answer: text };
+}
+function thinkBlockHtml(reasoning) {
+  if (!reasoning || !reasoning.trim()) return "";
+  return `<details class="think" open><summary>💭 思考链（点击展开/收起）</summary>` +
+    `<div class="think-body">${escapeHtml(reasoning.trim())}</div></details>`;
+}
+function bubbleHtml(role, content, reasoning) {
   let imgs = "", text = content;
   if (Array.isArray(content)) {
     imgs = content.filter(p => p.type === "image")
       .map(p => `<img class="msg-img" src="${escapeHtml(p.dataUrl)}" onclick="window.open(this.src)" alt="">`).join("");
     text = content.filter(p => p.type === "text").map(p => p.text).join("\n");
   }
-  const textHtml = text
-    ? (role === "assistant" ? renderMarkdown(text) : escapeHtml(text).replace(/\n/g, "<br>"))
+  let thinkHtml = "", answer = text;
+  if (role === "assistant") {
+    const split = splitThink(text || "");
+    answer = split.answer;
+    thinkHtml = thinkBlockHtml((reasoning || "") + (split.think ? "\n" + split.think : ""));
+  }
+  const textHtml = answer
+    ? (role === "assistant" ? renderMarkdown(answer) : escapeHtml(answer).replace(/\n/g, "<br>"))
     : "";
-  return imgs + textHtml;
+  return imgs + thinkHtml + textHtml;
 }
 function makeMsgEl(role, content, opts) {
   opts = opts || {};
@@ -947,7 +985,7 @@ function makeMsgEl(role, content, opts) {
   el.className = "msg " + role;
   el.innerHTML = `${avatarHtml(role)}
     <div class="body"><div class="name">${escapeHtml(nameFor(role))}</div>
-    <div class="bubble">${bubbleHtml(role, content)}</div></div>`;
+    <div class="bubble">${bubbleHtml(role, content, opts.reasoning)}</div></div>`;
   if (opts.actions && role === "assistant") {
     const body = el.querySelector(".body");
     const bar = document.createElement("div");
@@ -988,7 +1026,8 @@ function toApiContent(content, isAnthropic) {
     return { type: "image_url", image_url: { url: p.dataUrl } };
   });
 }
-async function streamChat(onDelta) {
+async function streamChat(onDelta, onReasoning) {
+  onReasoning = onReasoning || (() => {});
   const isAnthropic = settings.provider === "anthropic";
   const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
   const model = settings.model || DEFAULTS[settings.provider].model;
@@ -1061,11 +1100,17 @@ async function streamChat(onDelta) {
       let json;
       try { json = JSON.parse(data); } catch (e) { continue; }
       if (isAnthropic) {
-        if (json.type === "content_block_delta" && json.delta?.text) onDelta(json.delta.text);
+        if (json.type === "content_block_delta") {
+          if (json.delta?.text) onDelta(json.delta.text);
+          if (json.delta?.thinking) onReasoning(json.delta.thinking);
+        }
         if (json.type === "error") throw new Error(json.error?.message || "stream error");
       } else {
-        const delta = json.choices?.[0]?.delta?.content;
-        if (delta) onDelta(delta);
+        const d = json.choices?.[0]?.delta;
+        // reasoning models expose the chain-of-thought separately
+        if (d?.reasoning_content) onReasoning(d.reasoning_content);   // DeepSeek
+        if (d?.reasoning) onReasoning(d.reasoning);                   // OpenRouter & others
+        if (d?.content) onDelta(d.content);
       }
     }
   }
@@ -1304,7 +1349,7 @@ async function send() {
 async function generateReply() {
   if (abortController) return;
   clearError();
-  const assistantMsg = { role: "assistant", content: "" };
+  const assistantMsg = { role: "assistant", content: "", reasoning: "" };
   messages.push(assistantMsg);
   const el = makeMsgEl("assistant", "");
   $("messages").appendChild(el);
@@ -1312,19 +1357,23 @@ async function generateReply() {
   bubble.innerHTML = '<span class="cursor"></span>';
   scrollToBottom();
   setSending(true);
+  const paint = () => {
+    bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning)
+      + '<span class="cursor"></span>';
+    scrollToBottom();
+  };
 
   let replied = false;
   try {
-    await streamChat((delta) => {
-      assistantMsg.content += delta;
-      bubble.innerHTML = renderMarkdown(assistantMsg.content) + '<span class="cursor"></span>';
-      scrollToBottom();
-    });
-    bubble.innerHTML = renderMarkdown(assistantMsg.content);
+    await streamChat(
+      (delta) => { assistantMsg.content += delta; paint(); },
+      (rdelta) => { assistantMsg.reasoning += rdelta; paint(); }
+    );
+    bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning);
     replied = true;
   } catch (e) {
     if (e.name === "AbortError") {
-      bubble.innerHTML = renderMarkdown(assistantMsg.content || "_（已停止）_");
+      bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content || "_（已停止）_", assistantMsg.reasoning);
     } else {
       messages.pop(); el.remove();
       showError(e.message || String(e));
@@ -1655,6 +1704,7 @@ function openSettings(force) {
   const panel = $("settings-panel");
   if (force) panel.classList.add("open"); else panel.classList.toggle("open");
 }
+function closeSettings() { $("settings-panel").classList.remove("open"); }
 function autoResize() {
   const t = $("input");
   t.style.height = "auto";
@@ -1696,6 +1746,7 @@ function init() {
   window.addEventListener("resize", applySidebar);
   $("theme-btn").onclick = toggleTheme;
   $("settings-btn").onclick = () => openSettings();
+  $("settings-close").onclick = closeSettings;
   $("send-btn").onclick = () => { if (abortController) abortController.abort(); else send(); };
 
   $("signin-btn").onclick = () => doAuth("signin");
