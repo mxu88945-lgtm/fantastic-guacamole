@@ -21,6 +21,13 @@
   - `jyc_conversations` —— 多会话数组，每项 `{id, title, messages:[{role,content}], updatedAt}`。
   - `jyc_current` —— 当前会话 id。
   - `jyc_messages` —— 旧版单会话历史，仅用于首次加载时迁移到 `jyc_conversations`。
+- 可选「云端账号同步」用 **Supabase**：
+  - 运行时通过 `import("https://esm.sh/@supabase/supabase-js@2")` 动态加载（仍是单文件、无构建）。
+  - 设置里填 `supabaseUrl` / `supabaseKey`（anon key，本身可公开，靠 RLS 保护）；邮箱密码登录。
+  - 同步数据存到表 `chats(user_id uuid pk, payload jsonb, updated_at)`，整 blob upsert，last-write-wins。
+  - `payload = { conversations, settings(仅 SYNCED_KEYS) }`。**apiKey 和 supabase* 配置不上云**，只留本地。
+  - 登录后 `pullCloud`（云端非空则覆盖本地，空则把本地推上去），改动经 `schedulePush` 防抖 1.5s 后 `pushCloudNow`。
+- 「自动记忆」：`settings.autoMemory` 开启后，每 2 轮成功回复调一次 `autoUpdateMemory()`（非流式 `completeOnce`）提炼新事实，追加进 `settings.memory`。
 - 支持两种 API 格式，靠 `settings.provider` 切换：
   - `openai` —— 走 `/chat/completions`，`Authorization: Bearer` 头
   - `anthropic` —— 走 `/messages`，`x-api-key` + `anthropic-version` + `anthropic-dangerous-direct-browser-access` 头

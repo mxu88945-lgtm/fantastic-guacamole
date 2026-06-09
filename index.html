@@ -283,6 +283,23 @@
 
     <div class="settings" id="settings-panel">
       <div class="settings-inner">
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+          <label style="font-weight:600;">☁️ 云端账号（可选 · 登录后多设备同步，API Key 不上云）</label>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">
+            <input id="sbUrl" placeholder="Supabase URL（https://xxx.supabase.co）" style="flex:1; min-width:200px;" />
+            <input id="sbKey" placeholder="Supabase anon key" style="flex:1; min-width:200px;" />
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            <input id="authEmail" type="email" placeholder="邮箱" style="flex:1; min-width:160px;" />
+            <input id="authPass" type="password" placeholder="密码（至少6位）" style="flex:1; min-width:160px;" />
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px; align-items:center; flex-wrap:wrap;">
+            <button class="icon-btn" id="signin-btn">登录</button>
+            <button class="icon-btn" id="signup-btn">注册</button>
+            <button class="icon-btn" id="signout-btn" style="display:none;">退出登录</button>
+            <span class="hint" id="auth-status">未登录（数据仅存本地）</span>
+          </div>
+        </div>
         <div class="field">
           <label>API 格式</label>
           <select id="provider">
@@ -371,8 +388,18 @@ let settings = {
   theme: "dark",
   modelList: "",
   sidebarCollapsed: false,
+  supabaseUrl: "",
+  supabaseKey: "",
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
+
+// ---------- Cloud (Supabase) runtime state ----------
+let sb = null;          // supabase client
+let cloudUser = null;   // logged-in user object
+let applyingCloud = false;
+let pushTimer = null;
+const SYNCED_KEYS = ["provider","baseUrl","model","temperature","maxTokens",
+  "systemPrompt","memory","autoMemory","theme","modelList"]; // note: apiKey & supabase* NOT synced
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
@@ -405,10 +432,104 @@ function loadState() {
   if (!conversations.find(c => c.id === currentId)) currentId = conversations[0].id;
   messages = currentConv().messages;
 }
-function saveSettings() { localStorage.setItem("jyc_settings", JSON.stringify(settings)); }
+function saveSettings() {
+  localStorage.setItem("jyc_settings", JSON.stringify(settings));
+  schedulePush();
+}
 function saveConversations() {
   localStorage.setItem("jyc_conversations", JSON.stringify(conversations));
   localStorage.setItem("jyc_current", currentId);
+  schedulePush();
+}
+
+// ---------- Cloud sync (Supabase) ----------
+async function getSb() {
+  if (sb) return sb;
+  if (!settings.supabaseUrl || !settings.supabaseKey) return null;
+  const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+  sb = createClient(settings.supabaseUrl, settings.supabaseKey);
+  return sb;
+}
+function setAuthStatus(text, loggedIn) {
+  $("auth-status").textContent = text;
+  $("signout-btn").style.display = loggedIn ? "" : "none";
+  $("signin-btn").style.display = loggedIn ? "none" : "";
+  $("signup-btn").style.display = loggedIn ? "none" : "";
+}
+async function initCloud() {
+  const client = await getSb();
+  if (!client) return;
+  const { data } = await client.auth.getSession();
+  if (data.session) {
+    cloudUser = data.session.user;
+    setAuthStatus("已登录：" + cloudUser.email, true);
+    await pullCloud();
+  }
+}
+async function doAuth(mode) {
+  readSettingsFromUI();
+  const client = await getSb();
+  if (!client) { showToast("请先填 Supabase URL 和 anon key"); return; }
+  const email = $("authEmail").value.trim();
+  const password = $("authPass").value;
+  if (!email || !password) { showToast("请填邮箱和密码"); return; }
+  const fn = mode === "signup" ? "signUp" : "signInWithPassword";
+  const { data, error } = await client.auth[fn]({ email, password });
+  if (error) { showToast("失败：" + error.message); return; }
+  if (mode === "signup" && !data.session) {
+    showToast("注册成功，请去邮箱点确认链接后再登录"); return;
+  }
+  cloudUser = data.user;
+  setAuthStatus("已登录：" + cloudUser.email, true);
+  showToast("登录成功，正在同步…");
+  await pullCloud();
+}
+async function doSignOut() {
+  const client = await getSb();
+  if (client) await client.auth.signOut();
+  cloudUser = null;
+  setAuthStatus("未登录（数据仅存本地）", false);
+  showToast("已退出登录");
+}
+async function pullCloud() {
+  const client = await getSb();
+  if (!client || !cloudUser) return;
+  const { data, error } = await client.from("chats").select("payload")
+    .eq("user_id", cloudUser.id).maybeSingle();
+  if (error) { showToast("同步读取失败：" + error.message); return; }
+  const payload = data && data.payload;
+  if (payload && Array.isArray(payload.conversations) && payload.conversations.length) {
+    applyingCloud = true;
+    conversations = payload.conversations;
+    if (payload.settings) for (const k of SYNCED_KEYS)
+      if (payload.settings[k] !== undefined) settings[k] = payload.settings[k];
+    currentId = conversations[0].id;
+    messages = currentConv().messages;
+    localStorage.setItem("jyc_conversations", JSON.stringify(conversations));
+    localStorage.setItem("jyc_current", currentId);
+    saveSettings();
+    applyingCloud = false;
+    applyTheme(); syncSettingsToUI(); renderConvList(); renderMessages(); updateConvTitle();
+    showToast("☁️ 已从云端同步");
+  } else {
+    // cloud empty → push current local data up
+    pushCloudNow();
+  }
+}
+function schedulePush() {
+  if (applyingCloud || !cloudUser) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushCloudNow, 1500);
+}
+async function pushCloudNow() {
+  const client = await getSb();
+  if (!client || !cloudUser) return;
+  const syncedSettings = {};
+  for (const k of SYNCED_KEYS) syncedSettings[k] = settings[k];
+  const payload = { conversations, settings: syncedSettings };
+  const { error } = await client.from("chats")
+    .upsert({ user_id: cloudUser.id, payload, updated_at: new Date().toISOString() });
+  if (error) console.warn("cloud push failed:", error.message);
 }
 
 function newConversation() {
@@ -791,6 +912,8 @@ function syncSettingsToUI() {
   $("systemPrompt").value = settings.systemPrompt;
   $("memory").value = settings.memory;
   $("autoMemory").checked = settings.autoMemory;
+  $("sbUrl").value = settings.supabaseUrl;
+  $("sbKey").value = settings.supabaseKey;
   updateProviderHint();
   updateStatusLine();
   renderModelQuick();
@@ -806,6 +929,8 @@ function readSettingsFromUI() {
   settings.systemPrompt = $("systemPrompt").value;
   settings.memory = $("memory").value;
   settings.autoMemory = $("autoMemory").checked;
+  settings.supabaseUrl = $("sbUrl").value.trim();
+  settings.supabaseKey = $("sbKey").value.trim();
   saveSettings();
   updateStatusLine();
   renderModelQuick();
@@ -867,6 +992,10 @@ function init() {
   $("settings-btn").onclick = () => openSettings();
   $("send-btn").onclick = () => { if (abortController) abortController.abort(); else send(); };
 
+  $("signin-btn").onclick = () => doAuth("signin");
+  $("signup-btn").onclick = () => doAuth("signup");
+  $("signout-btn").onclick = doSignOut;
+
   $("model-quick").addEventListener("change", () => {
     settings.model = $("model-quick").value;
     $("model").value = settings.model;
@@ -878,7 +1007,7 @@ function init() {
   });
   $("input").addEventListener("input", autoResize);
 
-  ["provider","baseUrl","apiKey","model","maxTokens","modelList","systemPrompt","memory","autoMemory"].forEach(id => {
+  ["provider","baseUrl","apiKey","model","maxTokens","modelList","systemPrompt","memory","autoMemory","sbUrl","sbKey"].forEach(id => {
     $(id).addEventListener("change", () => { readSettingsFromUI(); updateProviderHint(); });
   });
   $("provider").addEventListener("change", () => {
@@ -893,6 +1022,9 @@ function init() {
   });
 
   if (!settings.apiKey) openSettings(true);
+
+  // restore cloud session (if previously logged in) and sync
+  initCloud().catch(e => console.warn("cloud init:", e));
 }
 init();
 </script>
