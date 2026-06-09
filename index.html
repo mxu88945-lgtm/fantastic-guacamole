@@ -185,12 +185,21 @@
   .msg .avatar img { width: 100%; height: 100%; object-fit: cover; }
   .msg.user .avatar { background: var(--user-bubble); color: var(--accent); }
   .msg.assistant .avatar { background: linear-gradient(135deg,#7c83ff,#b06bff); color:#fff; }
-  .msg .body { flex: 1; min-width: 0; }
+  .msg .body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .msg .name { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+  /* WeChat-style: assistant left, user right */
+  .msg.user { flex-direction: row-reverse; }
+  .msg.user .body { align-items: flex-end; }
+  .msg.user .name { text-align: right; }
+  .msg.user .bubble { width: fit-content; max-width: 100%; }
   .bubble {
     background: var(--assistant-bubble); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 12px 15px; font-size: 14.5px;
     line-height: 1.65; word-wrap: break-word; overflow-wrap: anywhere;
+  }
+  .bubble .msg-img {
+    max-width: 220px; max-height: 220px; border-radius: 8px; display: block;
+    margin: 4px 0; cursor: pointer;
   }
   .msg.user .bubble { background: var(--user-bubble); border-color: var(--accent-soft); }
   .bubble p { margin: 0 0 10px; }
@@ -227,6 +236,20 @@
     flex: 1; background: none; border: none; color: var(--text); resize: none;
     font-size: 14.5px; font-family: inherit; line-height: 1.5;
     max-height: 200px; padding: 6px 0; outline: none;
+  }
+  .attach-btn {
+    background: none; border: none; color: var(--text-dim); cursor: pointer;
+    width: 34px; height: 38px; display: grid; place-items: center; flex-shrink: 0;
+    align-self: flex-end;
+  }
+  .attach-btn:hover { color: var(--accent); }
+  .attach-thumb { position: relative; }
+  .attach-thumb img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px;
+    border: 1px solid var(--border); }
+  .attach-thumb .rm {
+    position: absolute; top: -6px; right: -6px; width: 18px; height: 18px;
+    border-radius: 50%; background: var(--danger); color: #fff; border: none;
+    cursor: pointer; font-size: 11px; line-height: 1; display: grid; place-items: center;
   }
   .send-btn {
     background: var(--accent); border: none; color: #fff; width: 38px; height: 38px;
@@ -334,6 +357,7 @@
             <button class="mini-btn" id="provider-del">🗑️ 删除</button>
           </div>
         </div>
+        <span class="hint" style="grid-column:1/-1; margin-top:-4px;">👇 下面这排（API格式 / Base URL / API Key / 当前模型）就是「上面所选接口」的内容，新增接口后在这里填它的地址和 Key。</span>
         <div class="field">
           <label>API 格式</label>
           <select id="provider">
@@ -343,7 +367,7 @@
           <span class="hint" id="provider-hint"></span>
         </div>
         <div class="field">
-          <label>Base URL</label>
+          <label>Base URL（主机地址）</label>
           <input id="baseUrl" placeholder="https://api.openai.com/v1" />
         </div>
         <div class="field">
@@ -351,8 +375,9 @@
           <input id="apiKey" type="password" placeholder="sk-..." />
         </div>
         <div class="field">
-          <label>当前模型</label>
-          <input id="model" placeholder="gpt-4o-mini" />
+          <label>当前模型（点一下可从列表里选）</label>
+          <input id="model" list="model-datalist" placeholder="gpt-4o-mini" />
+          <datalist id="model-datalist"></datalist>
         </div>
         <div class="field">
           <label>温度 <span id="tempVal">0.7</span></label>
@@ -434,7 +459,12 @@
 
     <div class="composer-wrap">
       <div id="err-slot"></div>
+      <div id="attach-preview" style="max-width:820px; margin:0 auto 8px; display:none; gap:8px; flex-wrap:wrap;"></div>
       <div class="composer">
+        <button class="attach-btn" id="attach-btn" title="发送图片">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </button>
+        <input type="file" id="attach-file" accept="image/*" multiple style="display:none;" />
         <textarea id="input" rows="1" placeholder="给江屹琛发消息…（Enter 发送，Shift+Enter 换行）"></textarea>
         <button class="send-btn" id="send-btn" title="发送">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
@@ -476,6 +506,7 @@ let settings = {
   aiAvatar: "江",
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
+let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
 
 // ---------- Cloud (Supabase) runtime state ----------
 let sb = null;          // supabase client
@@ -656,10 +687,22 @@ function newConversation() {
   return { id: uid(), title: "新对话", messages: [], updatedAt: Date.now() };
 }
 function currentConv() { return conversations.find(c => c.id === currentId); }
+// A message's content may be a string, or an array of parts (text + images).
+function messageText(m) {
+  if (typeof m.content === "string") return m.content;
+  if (Array.isArray(m.content))
+    return m.content.filter(p => p.type === "text").map(p => p.text).join(" ");
+  return "";
+}
+function messageImages(m) {
+  if (Array.isArray(m.content)) return m.content.filter(p => p.type === "image");
+  return [];
+}
 function deriveTitle(msgs) {
   const first = msgs.find(m => m.role === "user");
   if (!first) return "新对话";
-  return first.content.replace(/\s+/g, " ").trim().slice(0, 24) || "新对话";
+  const t = messageText(first).replace(/\s+/g, " ").trim().slice(0, 24);
+  return t || (messageImages(first).length ? "🖼️ 图片" : "新对话");
 }
 
 // ---------- Conversation management ----------
@@ -786,12 +829,24 @@ function renderMessages() {
     box.appendChild(makeMsgEl(messages[i].role, messages[i].content));
   }
 }
+function bubbleHtml(role, content) {
+  let imgs = "", text = content;
+  if (Array.isArray(content)) {
+    imgs = content.filter(p => p.type === "image")
+      .map(p => `<img class="msg-img" src="${escapeHtml(p.dataUrl)}" onclick="window.open(this.src)" alt="">`).join("");
+    text = content.filter(p => p.type === "text").map(p => p.text).join("\n");
+  }
+  const textHtml = text
+    ? (role === "assistant" ? renderMarkdown(text) : escapeHtml(text).replace(/\n/g, "<br>"))
+    : "";
+  return imgs + textHtml;
+}
 function makeMsgEl(role, content) {
   const el = document.createElement("div");
   el.className = "msg " + role;
   el.innerHTML = `${avatarHtml(role)}
     <div class="body"><div class="name">${escapeHtml(nameFor(role))}</div>
-    <div class="bubble">${role === "assistant" ? renderMarkdown(content) : escapeHtml(content).replace(/\n/g,"<br>")}</div></div>`;
+    <div class="bubble">${bubbleHtml(role, content)}</div></div>`;
   return el;
 }
 function scrollToBottom() { const c = $("chat"); c.scrollTop = c.scrollHeight; }
@@ -799,6 +854,21 @@ function showError(msg) { $("err-slot").innerHTML = `<div class="err-banner">⚠
 function clearError() { $("err-slot").innerHTML = ""; }
 
 // ---------- API calls ----------
+// Convert our stored content (string | parts[]) into the provider's wire format.
+function toApiContent(content, isAnthropic) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content.map(p => {
+    if (p.type === "text") return { type: "text", text: p.text };
+    // image part
+    if (isAnthropic) {
+      const comma = p.dataUrl.indexOf(",");
+      return { type: "image", source: { type: "base64",
+        media_type: p.mediaType || "image/jpeg", data: p.dataUrl.slice(comma + 1) } };
+    }
+    return { type: "image_url", image_url: { url: p.dataUrl } };
+  });
+}
 async function streamChat(onDelta) {
   const isAnthropic = settings.provider === "anthropic";
   const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
@@ -825,7 +895,7 @@ async function streamChat(onDelta) {
       max_tokens: settings.maxTokens || 2048,
       temperature: settings.temperature,
       stream: true,
-      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      messages: messages.map(m => ({ role: m.role, content: toApiContent(m.content, true) })),
     };
     if (systemText) body.system = systemText;
   } else {
@@ -836,7 +906,7 @@ async function streamChat(onDelta) {
     };
     const msgs = [];
     if (systemText) msgs.push({ role: "system", content: systemText });
-    msgs.push(...messages.map(m => ({ role: m.role, content: m.content })));
+    msgs.push(...messages.map(m => ({ role: m.role, content: toApiContent(m.content, false) })));
     body = {
       model,
       temperature: settings.temperature,
@@ -911,7 +981,7 @@ async function completeOnce(systemText, userText, maxTokens) {
 async function autoUpdateMemory() {
   if (!settings.autoMemory || !settings.apiKey) return;
   const recent = messages.slice(-8)
-    .map(m => (m.role === "user" ? "用户" : "助手") + ": " + m.content).join("\n");
+    .map(m => (m.role === "user" ? "用户" : "助手") + ": " + messageText(m)).join("\n");
   if (!recent.trim()) return;
   const sys = "你是一个记忆提炼助手。请从对话中找出关于【用户】值得长期记住的稳定事实"
     + "（如称呼、身份、偏好、习惯、重要的人或事）。只输出新的、当前记忆里还没有的条目，"
@@ -989,6 +1059,40 @@ function handleAvatarFile(file, which) {
   reader.readAsDataURL(file);
 }
 
+// Stage an image to send: downscale to <=1024px, keep as JPEG data URL.
+function stageImageFile(file) {
+  if (!file || !file.type.startsWith("image/")) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const max = 1024;
+      let { width: w, height: h } = img;
+      const scale = Math.min(1, max / Math.max(w, h));
+      w = Math.round(w * scale); h = Math.round(h * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      pendingImages.push({ dataUrl: canvas.toDataURL("image/jpeg", 0.85), mediaType: "image/jpeg" });
+      renderAttachPreview();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+function renderAttachPreview() {
+  const box = $("attach-preview");
+  box.innerHTML = "";
+  box.style.display = pendingImages.length ? "flex" : "none";
+  pendingImages.forEach((im, i) => {
+    const d = document.createElement("div");
+    d.className = "attach-thumb";
+    d.innerHTML = `<img src="${im.dataUrl}" alt=""><button class="rm" title="移除">✕</button>`;
+    d.querySelector(".rm").onclick = () => { pendingImages.splice(i, 1); renderAttachPreview(); };
+    box.appendChild(d);
+  });
+}
+
 // Export all data (conversations + settings) as a downloadable JSON file.
 function exportBackup() {
   const out = { app: "jyc-chat", version: 1, exportedAt: new Date().toISOString(),
@@ -1055,11 +1159,21 @@ function showToast(msg) {
 async function send() {
   const input = $("input");
   const text = input.value.trim();
-  if (!text || abortController) return;
+  if ((!text && pendingImages.length === 0) || abortController) return;
   if (!settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
   clearError();
 
-  messages.push({ role: "user", content: text });
+  // Build user message: plain string when no images, else a parts array.
+  let userContent;
+  if (pendingImages.length) {
+    userContent = [];
+    if (text) userContent.push({ type: "text", text });
+    for (const im of pendingImages) userContent.push({ type: "image", dataUrl: im.dataUrl, mediaType: im.mediaType });
+  } else {
+    userContent = text;
+  }
+  messages.push({ role: "user", content: userContent });
+  pendingImages = []; renderAttachPreview();
   input.value = ""; autoResize();
   renderMessages();
   touchConversation();
@@ -1145,6 +1259,10 @@ function renderModelQuick() {
     if (m === cur) opt.selected = true;
     sel.appendChild(opt);
   }
+  // also fill the settings <datalist> so the model field is click-to-pick
+  const dl = $("model-datalist");
+  if (dl) { dl.innerHTML = ""; for (const m of list) {
+    const o = document.createElement("option"); o.value = m; dl.appendChild(o); } }
 }
 
 // ---------- Settings UI ----------
@@ -1319,6 +1437,13 @@ function init() {
   $("aiAvatarUpload").onclick = () => $("aiAvatarFile").click();
   $("userAvatarFile").onchange = (e) => handleAvatarFile(e.target.files[0], "user");
   $("aiAvatarFile").onchange = (e) => handleAvatarFile(e.target.files[0], "ai");
+
+  // Image attach
+  $("attach-btn").onclick = () => $("attach-file").click();
+  $("attach-file").onchange = (e) => {
+    for (const f of e.target.files) stageImageFile(f);
+    e.target.value = "";
+  };
 
   // Local backup / restore
   $("export-btn").onclick = exportBackup;
