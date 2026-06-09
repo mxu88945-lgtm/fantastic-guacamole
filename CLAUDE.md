@@ -14,7 +14,9 @@
 - 纯原生 HTML / CSS / JavaScript，**不引入框架、不加构建工具**（保持单文件、零依赖是核心约定）。
 - 中文 UI，暗色主题为主，配色变量定义在 `:root` CSS 变量里。
 - 数据持久化用浏览器 `localStorage`：
-  - `jyc_settings` —— 设置（provider / baseUrl / apiKey / model / temperature / maxTokens / systemPrompt / memory / theme / modelList / sidebarCollapsed）
+  - `jyc_settings` —— 设置（providers / activeProviderId / temperature / maxTokens / systemPrompt / memory / autoMemory / theme / sidebarCollapsed / supabase* / userName / userAvatar / aiName / aiAvatar）
+    - `providers` —— 多接口配置数组，每项 `{id, name, provider, baseUrl, apiKey, model, modelList}`；`activeProviderId` 指当前激活的那个。顶层 `provider/baseUrl/apiKey/model/modelList` 是「激活接口的镜像」，`streamChat` 等直接读这些，靠 `mirrorActiveToFlat()` 保持同步。
+    - `userAvatar` / `aiAvatar` —— 头像，可为文字 / emoji / 图片链接 / 上传的 `data:` URL（上传时压缩到 128px JPEG）。
     - `memory` 是「长期记忆」文本，每次请求会拼进 system prompt（见 `streamChat` 里的 `systemText`）；清空对话不会清掉它。
     - `theme` —— `dark` / `light`，作用在 `<html data-theme>` 上，CSS 变量按主题切换。
     - `modelList` —— 多行文本，每行一个模型，渲染到顶部「快速切换模型」下拉。

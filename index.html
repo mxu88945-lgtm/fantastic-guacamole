@@ -325,6 +325,15 @@
           </div>
         </div>
         <div class="section-title">🔌 模型与服务</div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <label>接口配置（可存多个，随时切换）</label>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <select id="active-provider" style="flex:1; min-width:150px;"></select>
+            <button class="mini-btn" id="provider-add">＋ 新增</button>
+            <button class="mini-btn" id="provider-rename">✏️ 重命名</button>
+            <button class="mini-btn" id="provider-del">🗑️ 删除</button>
+          </div>
+        </div>
         <div class="field">
           <label>API 格式</label>
           <select id="provider">
@@ -459,6 +468,8 @@ let settings = {
   sidebarCollapsed: false,
   supabaseUrl: "",
   supabaseKey: "",
+  providers: [],          // [{id,name,provider,baseUrl,apiKey,model,modelList}]
+  activeProviderId: "",
   userName: "你",
   userAvatar: "你",
   aiName: "江屹琛",
@@ -471,9 +482,9 @@ let sb = null;          // supabase client
 let cloudUser = null;   // logged-in user object
 let applyingCloud = false;
 let pushTimer = null;
-const SYNCED_KEYS = ["provider","baseUrl","model","temperature","maxTokens",
-  "systemPrompt","memory","autoMemory","theme","modelList",
-  "userName","userAvatar","aiName","aiAvatar"]; // note: apiKey & supabase* NOT synced
+const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
+  "systemPrompt","memory","autoMemory","theme",
+  "userName","userAvatar","aiName","aiAvatar"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
@@ -505,6 +516,28 @@ function loadState() {
   }
   if (!conversations.find(c => c.id === currentId)) currentId = conversations[0].id;
   messages = currentConv().messages;
+
+  // migrate to multi-provider profiles
+  if (!Array.isArray(settings.providers) || settings.providers.length === 0) {
+    settings.providers = [{
+      id: uid(), name: "接口 1",
+      provider: settings.provider || "openai", baseUrl: settings.baseUrl || "",
+      apiKey: settings.apiKey || "", model: settings.model || "", modelList: settings.modelList || "",
+    }];
+    settings.activeProviderId = settings.providers[0].id;
+  }
+  if (!settings.providers.find(p => p.id === settings.activeProviderId))
+    settings.activeProviderId = settings.providers[0].id;
+  mirrorActiveToFlat();
+}
+function activeProvider() {
+  return settings.providers.find(p => p.id === settings.activeProviderId) || settings.providers[0];
+}
+// Keep the flat settings.* fields (used by streamChat etc.) in sync with the active profile.
+function mirrorActiveToFlat() {
+  const p = activeProvider();
+  settings.provider = p.provider; settings.baseUrl = p.baseUrl;
+  settings.apiKey = p.apiKey; settings.model = p.model; settings.modelList = p.modelList;
 }
 function saveSettings() {
   localStorage.setItem("jyc_settings", JSON.stringify(settings));
@@ -575,8 +608,18 @@ async function pullCloud() {
   if (payload && Array.isArray(payload.conversations) && payload.conversations.length) {
     applyingCloud = true;
     conversations = payload.conversations;
+    // remember local API keys so the (key-less) cloud copy doesn't wipe them
+    const localKeys = {};
+    (settings.providers || []).forEach(p => { localKeys[p.id] = p.apiKey; });
     if (payload.settings) for (const k of SYNCED_KEYS)
       if (payload.settings[k] !== undefined) settings[k] = payload.settings[k];
+    if (Array.isArray(settings.providers))
+      settings.providers.forEach(p => { if (!p.apiKey && localKeys[p.id]) p.apiKey = localKeys[p.id]; });
+    if (!settings.providers || !settings.providers.length) settings.providers = [{
+      id: uid(), name: "接口 1", provider: "openai", baseUrl: "", apiKey: "", model: "", modelList: "" }];
+    if (!settings.providers.find(p => p.id === settings.activeProviderId))
+      settings.activeProviderId = settings.providers[0].id;
+    mirrorActiveToFlat();
     currentId = conversations[0].id;
     messages = currentConv().messages;
     localStorage.setItem("jyc_conversations", JSON.stringify(conversations));
@@ -600,6 +643,9 @@ async function pushCloudNow() {
   if (!client || !cloudUser) return;
   const syncedSettings = {};
   for (const k of SYNCED_KEYS) syncedSettings[k] = settings[k];
+  // never send API keys to the cloud
+  if (Array.isArray(syncedSettings.providers))
+    syncedSettings.providers = syncedSettings.providers.map(p => ({ ...p, apiKey: "" }));
   const payload = { conversations, settings: syncedSettings };
   const { error } = await client.from("chats")
     .upsert({ user_id: cloudUser.id, payload, updated_at: new Date().toISOString() });
@@ -906,7 +952,8 @@ async function fetchModels() {
       .map(m => m.id || m.name || m).filter(x => typeof x === "string");
     if (!list.length) { showToast("没拉到模型，可能该服务不支持"); return; }
     list.sort();
-    settings.modelList = list.join("\n");
+    activeProvider().modelList = list.join("\n");
+    mirrorActiveToFlat();
     saveSettings();
     $("modelList").value = settings.modelList;
     renderModelQuick();
@@ -948,6 +995,8 @@ function exportBackup() {
     conversations, settings: { ...settings } };
   if (!$("exportWithKey").checked) {
     out.settings = { ...out.settings, apiKey: "", supabaseKey: "" };
+    if (Array.isArray(out.settings.providers))
+      out.settings.providers = out.settings.providers.map(p => ({ ...p, apiKey: "" }));
   }
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -975,6 +1024,13 @@ function importBackup(file) {
         settings[k] = data.settings[k];
       }
     }
+    if (!Array.isArray(settings.providers) || !settings.providers.length) settings.providers = [{
+      id: uid(), name: "接口 1", provider: settings.provider || "openai",
+      baseUrl: settings.baseUrl || "", apiKey: settings.apiKey || "",
+      model: settings.model || "", modelList: settings.modelList || "" }];
+    if (!settings.providers.find(p => p.id === settings.activeProviderId))
+      settings.activeProviderId = settings.providers[0].id;
+    mirrorActiveToFlat();
     currentId = conversations[0].id;
     messages = currentConv().messages;
     saveSettings();
@@ -1110,19 +1166,69 @@ function syncSettingsToUI() {
   $("userAvatar").value = settings.userAvatar;
   $("aiName").value = settings.aiName;
   $("aiAvatar").value = settings.aiAvatar;
+  renderProviderSelect();
   updateProviderHint();
   updateStatusLine();
   renderModelQuick();
   updateAvatarPreviews();
 }
+function renderProviderSelect() {
+  const sel = $("active-provider");
+  sel.innerHTML = "";
+  for (const p of settings.providers) {
+    const opt = document.createElement("option");
+    opt.value = p.id; opt.textContent = p.name;
+    if (p.id === settings.activeProviderId) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+function switchProvider(id) {
+  settings.activeProviderId = id;
+  mirrorActiveToFlat();
+  saveSettings();
+  syncSettingsToUI();
+}
+function addProvider() {
+  const name = prompt("新接口的名字（比如 DeepSeek、OpenRouter）：", "接口 " + (settings.providers.length + 1));
+  if (name === null) return;
+  const p = { id: uid(), name: name.trim() || ("接口 " + (settings.providers.length + 1)),
+    provider: "openai", baseUrl: "", apiKey: "", model: "", modelList: "" };
+  settings.providers.push(p);
+  settings.activeProviderId = p.id;
+  mirrorActiveToFlat();
+  saveSettings();
+  syncSettingsToUI();
+  showToast("已新增接口，填好下面的 Base URL 和 API Key 即可");
+}
+function renameProvider() {
+  const ap = activeProvider();
+  const name = prompt("重命名这个接口：", ap.name);
+  if (name === null) return;
+  ap.name = name.trim() || ap.name;
+  saveSettings();
+  renderProviderSelect();
+  updateStatusLine();
+}
+function deleteProvider() {
+  if (settings.providers.length <= 1) { showToast("至少要保留一个接口"); return; }
+  const ap = activeProvider();
+  if (!confirm(`确定删除接口「${ap.name}」？`)) return;
+  settings.providers = settings.providers.filter(p => p.id !== ap.id);
+  settings.activeProviderId = settings.providers[0].id;
+  mirrorActiveToFlat();
+  saveSettings();
+  syncSettingsToUI();
+}
 function readSettingsFromUI() {
-  settings.provider = $("provider").value;
-  settings.baseUrl = $("baseUrl").value.trim();
-  settings.apiKey = $("apiKey").value.trim();
-  settings.model = $("model").value.trim();
+  const ap = activeProvider();
+  ap.provider = $("provider").value;
+  ap.baseUrl = $("baseUrl").value.trim();
+  ap.apiKey = $("apiKey").value.trim();
+  ap.model = $("model").value.trim();
+  ap.modelList = $("modelList").value;
+  mirrorActiveToFlat();
   settings.temperature = parseFloat($("temperature").value);
   settings.maxTokens = parseInt($("maxTokens").value) || 2048;
-  settings.modelList = $("modelList").value;
   settings.systemPrompt = $("systemPrompt").value;
   settings.memory = $("memory").value;
   settings.autoMemory = $("autoMemory").checked;
@@ -1143,9 +1249,9 @@ function updateProviderHint() {
   if (!$("model").value) $("model").placeholder = d.model;
 }
 function updateStatusLine() {
-  const p = settings.provider === "anthropic" ? "Anthropic" : "OpenAI 兼容";
+  const ap = activeProvider();
   const m = settings.model || DEFAULTS[settings.provider].model;
-  $("status-line").textContent = `${p} · ${m}`;
+  $("status-line").textContent = `${ap ? ap.name + " · " : ""}${m}`;
 }
 function openSettings(force) {
   const panel = $("settings-panel");
@@ -1197,6 +1303,10 @@ function init() {
   $("signup-btn").onclick = () => doAuth("signup");
   $("signout-btn").onclick = doSignOut;
   $("fetch-models-btn").onclick = fetchModels;
+  $("active-provider").addEventListener("change", () => switchProvider($("active-provider").value));
+  $("provider-add").onclick = addProvider;
+  $("provider-rename").onclick = renameProvider;
+  $("provider-del").onclick = deleteProvider;
 
   ["userName","userAvatar","aiName","aiAvatar"].forEach(id => {
     $(id).addEventListener("change", () => {
@@ -1216,7 +1326,8 @@ function init() {
   $("importFile").onchange = (e) => importBackup(e.target.files[0]);
 
   $("model-quick").addEventListener("change", () => {
-    settings.model = $("model-quick").value;
+    activeProvider().model = $("model-quick").value;
+    mirrorActiveToFlat();
     $("model").value = settings.model;
     saveSettings(); updateStatusLine();
   });
