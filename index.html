@@ -1907,6 +1907,12 @@ function init() {
   initCloud().catch(e => console.warn("cloud init:", e));
 }
 init();
+
+// Auto-update: register a network-first service worker so future code changes
+// load on next launch instead of getting stuck behind an old cache.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
 </script>
 </body>
 </html>
