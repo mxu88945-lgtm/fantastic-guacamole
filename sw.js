@@ -1,21 +1,26 @@
-// Network-first service worker: always try to fetch the latest from the network,
-// fall back to cache only when offline. This keeps the app auto-updating so code
-// changes show up on next launch instead of getting stuck behind an old cache.
-const CACHE = "jyc-chat-cache";
+// Network-first service worker that BYPASSES the HTTP cache (cache: "no-store"),
+// so the very latest files always load when online; falls back to the cache only
+// when offline. This stops code changes from getting stuck behind a stale cache.
+const CACHE = "jyc-chat-cache-v2";
 
-self.addEventListener("install", (e) => self.skipWaiting());
-self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (e) => e.waitUntil((async () => {
+  // drop old caches, then take control of open pages immediately
+  for (const k of await caches.keys()) { if (k !== CACHE) await caches.delete(k); }
+  await self.clients.claim();
+})()));
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  const url = new URL(e.request.url);
+  if (url.origin !== self.location.origin) return; // let cross-origin (CDN/API) pass through
   e.respondWith((async () => {
     try {
-      const net = await fetch(e.request);
-      try { const cache = await caches.open(CACHE); cache.put(e.request, net.clone()); } catch (_) {}
+      const net = await fetch(e.request, { cache: "no-store" });
+      try { (await caches.open(CACHE)).put(e.request, net.clone()); } catch (_) {}
       return net;
     } catch (_) {
-      const cached = await caches.match(e.request);
-      return cached || Response.error();
+      return (await caches.match(e.request)) || Response.error();
     }
   })());
 });
