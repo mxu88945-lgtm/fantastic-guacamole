@@ -14,9 +14,13 @@
 - 纯原生 HTML / CSS / JavaScript，**不引入框架、不加构建工具**（保持单文件、零依赖是核心约定）。
 - 中文 UI，暗色主题为主，配色变量定义在 `:root` CSS 变量里。
 - 数据持久化用浏览器 `localStorage`：
-  - `jyc_settings` —— 设置（provider / baseUrl / apiKey / model / temperature / maxTokens / systemPrompt / memory）
+  - `jyc_settings` —— 设置（provider / baseUrl / apiKey / model / temperature / maxTokens / systemPrompt / memory / theme / modelList / sidebarCollapsed）
     - `memory` 是「长期记忆」文本，每次请求会拼进 system prompt（见 `streamChat` 里的 `systemText`）；清空对话不会清掉它。
-  - `jyc_messages` —— 当前对话历史
+    - `theme` —— `dark` / `light`，作用在 `<html data-theme>` 上，CSS 变量按主题切换。
+    - `modelList` —— 多行文本，每行一个模型，渲染到顶部「快速切换模型」下拉。
+  - `jyc_conversations` —— 多会话数组，每项 `{id, title, messages:[{role,content}], updatedAt}`。
+  - `jyc_current` —— 当前会话 id。
+  - `jyc_messages` —— 旧版单会话历史，仅用于首次加载时迁移到 `jyc_conversations`。
 - 支持两种 API 格式，靠 `settings.provider` 切换：
   - `openai` —— 走 `/chat/completions`，`Authorization: Bearer` 头
   - `anthropic` —— 走 `/messages`，`x-api-key` + `anthropic-version` + `anthropic-dangerous-direct-browser-access` 头
@@ -34,8 +38,10 @@
 
 ## 可能的后续方向（尚未实现）
 
-- 多会话 / 侧边栏
-- 亮色主题切换
+- ~~多会话 / 侧边栏~~ ✅ 已实现（左侧栏，可新建/切换/删除会话，可收起）。
+- ~~亮色主题切换~~ ✅ 已实现（顶部 🌙/☀️ 切换，存 `settings.theme`）。
+- ~~模型快速切换~~ ✅ 已实现（顶部下拉，列表来自设置里的「常用模型列表」）。
 - ~~长期「记忆库」~~ ✅ 已实现（手动便签式，注入 system prompt）。后续可升级为「模型自动提取记忆」。
+- MCP 支持（纯浏览器难直连，需配后端/代理，尚未做）。
 - 后端代理（隐藏 API Key）
 - 导出对话为 Markdown
