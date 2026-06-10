@@ -569,6 +569,7 @@
 </div>
 <div id="msg-menu">
   <button data-mact="copy">📋 复制</button>
+  <button data-mact="edit">✏️ 编辑重发</button>
   <button data-mact="quote">↩︎ 引用回复</button>
   <button data-mact="fav">⭐ 收藏</button>
   <button data-mact="del">🗑️ 删除</button>
@@ -1624,7 +1625,7 @@ function stageImageFile(file) {
       const canvas = document.createElement("canvas");
       canvas.width = w; canvas.height = h;
       canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      pendingImages.push({ dataUrl: canvas.toDataURL("image/jpeg", 0.85), mediaType: "image/jpeg" });
+      pendingImages.push({ type: "image", dataUrl: canvas.toDataURL("image/jpeg", 0.85), mediaType: "image/jpeg" });
       renderAttachPreview();
     };
     img.src = reader.result;
@@ -1699,7 +1700,7 @@ function renderStickerPanel() {
   for (const s of settings.stickers) {
     const img = document.createElement("img");
     img.src = s.dataUrl; img.title = s.name; img.alt = s.name;
-    img.onclick = () => { sendSticker(s); $("sticker-panel").classList.remove("show"); };
+    img.onclick = () => { stageSticker(s); $("sticker-panel").classList.remove("show"); };
     box.appendChild(img);
   }
 }
@@ -1707,12 +1708,10 @@ function stickerByName(name) {
   const n = (name || "").trim().toLowerCase();
   return settings.stickers.find(s => s.name.toLowerCase() === n);
 }
-function sendSticker(s) {
-  if (abortController) return;
-  if (!settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
-  messages.push({ id: uid(), role: "user", content: [{ type: "sticker", name: s.name, dataUrl: s.dataUrl }] });
-  renderMessages(); touchConversation(); scrollToBottom();
-  generateReply();
+// stage a sticker so it can be sent together with text (press send to actually send)
+function stageSticker(s) {
+  pendingImages.push({ type: "sticker", name: s.name, dataUrl: s.dataUrl });
+  renderAttachPreview();
 }
 
 // Export all data (conversations + settings) as a downloadable JSON file.
@@ -1777,6 +1776,8 @@ function openMsgMenu(x, y, idx) {
   const favBtn = $("msg-menu").querySelector('[data-mact="fav"]');
   const isFav = m && m.id && settings.favorites.some(f => f.id === m.id);
   favBtn.textContent = isFav ? "⭐ 取消收藏" : "⭐ 收藏";
+  // edit/resend only makes sense for your own messages
+  $("msg-menu").querySelector('[data-mact="edit"]').style.display = (m && m.role === "user") ? "" : "none";
   const menu = $("msg-menu");
   menu.classList.add("show");
   // clamp within viewport
@@ -1804,6 +1805,20 @@ function quoteMessage(idx) {
   const inp = $("input");
   inp.value = q + "\n\n" + inp.value;
   inp.focus(); autoResize();
+}
+// Edit & resend: load the message back into the input (with its attachments) and
+// drop it + everything after, so sending starts fresh from that point.
+function editMessage(idx) {
+  const m = messages[idx];
+  if (!m) return;
+  if (idx !== messages.length - 1 && !confirm("编辑这条会删掉它之后的所有消息，确定？")) return;
+  $("input").value = messageText(m);
+  pendingImages = Array.isArray(m.content)
+    ? m.content.filter(p => p.type === "image" || p.type === "sticker").map(p => ({ ...p })) : [];
+  renderAttachPreview();
+  messages.splice(idx);   // remove this message and everything after it
+  saveConversations(); renderMessages();
+  autoResize(); $("input").focus();
 }
 function deleteMessage(idx) {
   if (!messages[idx]) return;
@@ -1895,12 +1910,13 @@ async function send() {
   if (!settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
   clearError();
 
-  // Build user message: plain string when no images, else a parts array.
+  // Build user message: plain string when no attachments, else a parts array
+  // (attachments may be images or stickers, and can ride along with text).
   let userContent;
   if (pendingImages.length) {
     userContent = [];
     if (text) userContent.push({ type: "text", text });
-    for (const im of pendingImages) userContent.push({ type: "image", dataUrl: im.dataUrl, mediaType: im.mediaType });
+    for (const a of pendingImages) userContent.push({ ...a });
   } else {
     userContent = text;
   }
@@ -2557,6 +2573,7 @@ function init() {
       if (idx == null) return;
       const a = btn.dataset.mact;
       if (a === "copy") { navigator.clipboard.writeText(messageText(messages[idx])); showToast("已复制"); }
+      else if (a === "edit") editMessage(idx);
       else if (a === "quote") quoteMessage(idx);
       else if (a === "fav") toggleFavorite(idx);
       else if (a === "del") deleteMessage(idx);
