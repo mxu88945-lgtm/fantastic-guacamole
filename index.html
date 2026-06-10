@@ -154,15 +154,23 @@
   }
   .model-quick:focus { outline: none; border-color: var(--accent); }
 
-  /* Settings panel */
+  /* Settings — full-screen overlay page */
   .settings {
-    background: var(--bg-soft); border-bottom: 1px solid var(--border);
-    overflow: hidden; max-height: 0; transition: max-height .25s ease;
+    position: fixed; inset: 0; z-index: 60; background: var(--bg);
+    display: none; flex-direction: column;
   }
-  .settings.open { max-height: 640px; overflow-y: auto; }
+  .settings.open { display: flex; }
+  .settings-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 14px 16px; padding-top: calc(14px + env(safe-area-inset-top));
+    border-bottom: 1px solid var(--border); background: var(--bg-soft);
+    font-weight: 700; font-size: 16px; flex-shrink: 0;
+  }
   .settings-inner {
-    padding: 16px; display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;
+    flex: 1; overflow-y: auto; padding: 16px;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;
+    align-content: start;
   }
   .field { display: flex; flex-direction: column; gap: 5px; }
   .field label { font-size: 12px; color: var(--text-dim); }
@@ -411,7 +419,7 @@
   .toast {
     position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%) translateY(20px);
     background: var(--bg-panel); border: 1px solid var(--accent); color: var(--text);
-    padding: 9px 16px; border-radius: 999px; font-size: 13px; z-index: 50;
+    padding: 9px 16px; border-radius: 999px; font-size: 13px; z-index: 1005;
     opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
     box-shadow: 0 6px 24px rgba(0,0,0,.3);
   }
@@ -530,11 +538,11 @@
     </header>
 
     <div class="settings" id="settings-panel">
+      <div class="settings-header">
+        <span>⚙️ 设置</span>
+        <button class="mini-btn primary" id="settings-close">✓ 完成</button>
+      </div>
       <div class="settings-inner">
-        <div class="section-title" style="justify-content:space-between; align-items:center;">
-          <span>⚙️ 设置</span>
-          <button class="mini-btn primary" id="settings-close">✕ 关闭设置</button>
-        </div>
         <div class="section-title">☁️ 账号 · 多设备同步（可选）</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
           <label style="font-weight:600;">登录后多设备同步，API Key 不上云</label>
