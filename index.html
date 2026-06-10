@@ -293,6 +293,41 @@
     border-radius: 7px; padding: 3px 9px; font-size: 11.5px; cursor: pointer;
   }
   .msg-act:hover { border-color: var(--accent); color: var(--accent); }
+  /* long-press: suppress iOS selection on bubbles (but allow it in code blocks) */
+  .bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .bubble pre, .bubble code { -webkit-user-select: text; user-select: text; }
+  .msg.starred .bubble { box-shadow: 0 0 0 2px var(--accent) inset, 0 2px 8px rgba(0,0,0,.06); }
+  #msg-menu {
+    display: none; position: fixed; z-index: 1003; flex-direction: column;
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.3); overflow: hidden; min-width: 130px;
+  }
+  #msg-menu.show { display: flex; }
+  #msg-menu button {
+    background: none; border: none; color: var(--text); text-align: left;
+    padding: 11px 16px; font-size: 14px; cursor: pointer;
+  }
+  #msg-menu button:hover { background: var(--item-active); }
+  #msg-menu button[data-mact="del"] { color: var(--danger); }
+  /* memory cards */
+  #memory-cards { display: flex; flex-direction: column; gap: 8px; }
+  .mem-card {
+    display: flex; align-items: flex-start; gap: 8px; padding: 9px 11px;
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .mem-card .mem-text { flex: 1; font-size: 13px; line-height: 1.5; }
+  .mem-card .mem-acts { display: flex; gap: 2px; flex-shrink: 0; }
+  .mem-card .mem-acts button {
+    background: none; border: none; color: var(--text-dim); cursor: pointer;
+    font-size: 13px; padding: 2px 5px; border-radius: 6px;
+  }
+  .mem-card .mem-acts button:hover { color: var(--accent); background: var(--item-active); }
+  /* favorites / 语录集 */
+  .fav-item { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; }
+  .fav-item .fav-text { font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+  .fav-item .fav-meta { display: flex; justify-content: space-between; margin-top: 6px;
+    font-size: 11px; color: var(--text-dim); }
+  .linkbtn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 11px; padding: 0; }
   .bubble p { margin: 0 0 10px; }
   .bubble p:last-child { margin-bottom: 0; }
   .bubble pre {
@@ -309,6 +344,13 @@
   .cursor { display: inline-block; width: 7px; height: 15px; background: var(--accent);
     animation: blink 1s steps(2) infinite; vertical-align: text-bottom; border-radius:1px;}
   @keyframes blink { 50% { opacity: 0; } }
+  .typing { display: inline-flex; gap: 5px; align-items: center; padding: 3px 2px; }
+  .typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim);
+    animation: typing 1.2s infinite ease-in-out; }
+  .typing span:nth-child(2) { animation-delay: .18s; }
+  .typing span:nth-child(3) { animation-delay: .36s; }
+  @keyframes typing { 0%,60%,100% { transform: translateY(0); opacity: .4; }
+    30% { transform: translateY(-5px); opacity: 1; } }
   .empty-state { text-align: center; color: var(--text-dim); margin-top: 80px; }
   .empty-state .big { font-size: 40px; margin-bottom: 12px; }
 
@@ -504,6 +546,12 @@
     <textarea id="editor-textarea" placeholder="在这里尽情写…"></textarea>
   </div>
 </div>
+<div id="msg-menu">
+  <button data-mact="copy">📋 复制</button>
+  <button data-mact="quote">↩︎ 引用回复</button>
+  <button data-mact="fav">⭐ 收藏</button>
+  <button data-mact="del">🗑️ 删除</button>
+</div>
 <input type="file" id="userAvatarFile" accept="image/*" style="display:none;" />
 <input type="file" id="aiAvatarFile" accept="image/*" style="display:none;" />
 <input type="file" id="importFile" accept=".json,application/json" style="display:none;" />
@@ -696,15 +744,25 @@
         </div>
         <div class="field" style="grid-column: 1 / -1;">
           <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <span>🧠 长期记忆（每次对话都会自动带上，刷新不丢）</span>
-            <button class="mini-btn" data-edit="memory" data-title="🧠 长期记忆">⛶ 放大编辑</button>
+            <span>🧠 长期记忆（共 <span id="memory-count">0</span> 条 · 每次对话都会带上）</span>
+            <span>
+              <button class="mini-btn" id="memory-add">＋ 添加</button>
+              <button class="mini-btn" data-edit="memory" data-title="🧠 长期记忆">⛶ 原文编辑</button>
+            </span>
           </label>
-          <textarea id="memory" placeholder="在这里写下希望我一直记住的事，例如：&#10;- 我叫 XX，在做 XX 项目&#10;- 喜欢简洁直接的回答"></textarea>
-          <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:4px;cursor:pointer;">
+          <div id="memory-cards"></div>
+          <textarea id="memory" style="display:none;"></textarea>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:8px;cursor:pointer;">
             <input type="checkbox" id="autoMemory" style="width:auto;" />
-            ✨ 自动记忆：聊天时我会自动把值得长期记住的事，悄悄补进上面的记忆里
+            ✨ 自动记忆：聊天时我会自动把值得长期记住的事，悄悄补进记忆里
           </label>
-          <span class="hint">开启后每隔几轮会多调用一次模型来提炼记忆（会额外消耗少量 token）。</span>
+          <span class="hint">每条一个卡片，可单独编辑/删除/置顶。开启自动记忆每隔几轮会多调用一次模型提炼（费少量 token）。</span>
+        </div>
+
+        <div class="section-title">⭐ 语录集（收藏的消息）</div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+          <label style="font-weight:600;">共 <span id="fav-count">0</span> 条 —— 长按聊天消息即可收藏</label>
+          <div id="fav-list" style="margin-top:8px; display:flex; flex-direction:column; gap:8px;"></div>
         </div>
 
         <div class="section-title">📦 数据（本地备份 / 恢复）</div>
@@ -765,6 +823,7 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
+const TYPING_HTML = '<span class="typing"><span></span><span></span><span></span></span>';
 
 // ---------- State ----------
 const DEFAULTS = {
@@ -802,6 +861,7 @@ let settings = {
   chatLayout: "bubble",   // "bubble" | "flat" (Tavo-style header on top)
   bubbleOpacity: 100,     // bubble background opacity (%)
   stickers: [],           // [{id, name, dataUrl}] image stickers / 表情包
+  favorites: [],          // [{id, who, text, ts}] starred quotes / 语录集
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
@@ -813,7 +873,7 @@ let applyingCloud = false;
 let pushTimer = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","memory","autoMemory","themeName","accent",
-  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
+  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
@@ -860,6 +920,8 @@ function loadState() {
   if (!settings.providers.find(p => p.id === settings.activeProviderId))
     settings.activeProviderId = settings.providers[0].id;
   mirrorActiveToFlat();
+  // give every message a stable id (for starring / deleting)
+  for (const c of conversations) for (const m of c.messages) if (!m.id) m.id = uid();
 }
 function activeProvider() {
   return settings.providers.find(p => p.id === settings.activeProviderId) || settings.providers[0];
@@ -1139,9 +1201,12 @@ function renderMessages() {
   }
   box.innerHTML = "";
   for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
     const isLast = i === messages.length - 1;
-    box.appendChild(makeMsgEl(messages[i].role, messages[i].content,
-      { actions: true, isLast, reasoning: messages[i].reasoning }));
+    const el = makeMsgEl(m.role, m.content, { actions: true, isLast, reasoning: m.reasoning });
+    el.dataset.idx = i;
+    if (m.id && settings.favorites.some(f => f.id === m.id)) el.classList.add("starred");
+    box.appendChild(el);
   }
 }
 // Pull <think>...</think> (including an unclosed, still-streaming one) out of the text.
@@ -1400,6 +1465,7 @@ async function autoUpdateMemory() {
   settings.memory = (settings.memory ? settings.memory.replace(/\s+$/, "") + "\n" : "") + lines;
   saveSettings();
   if ($("memory")) $("memory").value = settings.memory;
+  renderMemoryCards();
   showToast("🧠 记忆已更新：新增 " + additions.length + " 条");
 }
 
@@ -1558,7 +1624,7 @@ function stickerByName(name) {
 function sendSticker(s) {
   if (abortController) return;
   if (!settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
-  messages.push({ role: "user", content: [{ type: "sticker", name: s.name, dataUrl: s.dataUrl }] });
+  messages.push({ id: uid(), role: "user", content: [{ type: "sticker", name: s.name, dataUrl: s.dataUrl }] });
   renderMessages(); touchConversation(); scrollToBottom();
   generateReply();
 }
@@ -1617,6 +1683,116 @@ function importBackup(file) {
   reader.readAsText(file);
 }
 
+// ---------- Message long-press menu + favorites ----------
+let menuTargetIdx = null;
+function openMsgMenu(x, y, idx) {
+  menuTargetIdx = idx;
+  const m = messages[idx];
+  const favBtn = $("msg-menu").querySelector('[data-mact="fav"]');
+  const isFav = m && m.id && settings.favorites.some(f => f.id === m.id);
+  favBtn.textContent = isFav ? "⭐ 取消收藏" : "⭐ 收藏";
+  const menu = $("msg-menu");
+  menu.classList.add("show");
+  // clamp within viewport
+  const mw = menu.offsetWidth || 150, mh = menu.offsetHeight || 180;
+  menu.style.left = Math.min(x, window.innerWidth - mw - 8) + "px";
+  menu.style.top = Math.min(y, window.innerHeight - mh - 8) + "px";
+}
+function closeMsgMenu() { $("msg-menu").classList.remove("show"); menuTargetIdx = null; }
+function toggleFavorite(idx) {
+  const m = messages[idx];
+  if (!m) return;
+  if (!m.id) m.id = uid();
+  const i = settings.favorites.findIndex(f => f.id === m.id);
+  if (i >= 0) { settings.favorites.splice(i, 1); showToast("已取消收藏"); }
+  else {
+    settings.favorites.unshift({ id: m.id, who: nameFor(m.role), text: messageText(m), ts: Date.now() });
+    showToast("⭐ 已收藏到语录集");
+  }
+  saveSettings(); renderMessages(); renderFavorites();
+}
+function quoteMessage(idx) {
+  const m = messages[idx];
+  if (!m) return;
+  const q = messageText(m).split("\n").map(l => "> " + l).join("\n");
+  const inp = $("input");
+  inp.value = q + "\n\n" + inp.value;
+  inp.focus(); autoResize();
+}
+function deleteMessage(idx) {
+  if (!messages[idx]) return;
+  if (!confirm("删除这条消息？")) return;
+  messages.splice(idx, 1);
+  saveConversations(); renderMessages();
+}
+// ---------- Memory cards ----------
+function memoryLines() {
+  return (settings.memory || "").split("\n").map(s => s.replace(/^\s*[-*]\s*/, "").trim()).filter(Boolean);
+}
+function setMemoryLines(lines) {
+  settings.memory = lines.map(l => "- " + l).join("\n");
+  if ($("memory")) $("memory").value = settings.memory;
+  saveSettings();
+  renderMemoryCards();
+}
+function renderMemoryCards() {
+  const box = $("memory-cards");
+  if (!box) return;
+  const lines = memoryLines();
+  if ($("memory-count")) $("memory-count").textContent = lines.length;
+  box.innerHTML = "";
+  if (!lines.length) {
+    box.innerHTML = `<span class="hint">还没有记忆。点「＋ 添加」写一条，或开启自动记忆让我自己记。</span>`;
+    return;
+  }
+  lines.forEach((line, i) => {
+    const d = document.createElement("div");
+    d.className = "mem-card";
+    d.innerHTML = `<div class="mem-text"></div>
+      <div class="mem-acts">
+        <button data-mp title="置顶">⤴</button>
+        <button data-me title="编辑">✎</button>
+        <button data-md title="删除">✕</button>
+      </div>`;
+    d.querySelector(".mem-text").textContent = line;
+    d.querySelector("[data-mp]").onclick = () => { const a = memoryLines(); const x = a.splice(i, 1)[0]; a.unshift(x); setMemoryLines(a); };
+    d.querySelector("[data-me]").onclick = () => { const v = prompt("编辑这条记忆：", line); if (v === null) return; const a = memoryLines(); a[i] = v.trim(); setMemoryLines(a.filter(Boolean)); };
+    d.querySelector("[data-md]").onclick = () => { const a = memoryLines(); a.splice(i, 1); setMemoryLines(a); };
+    box.appendChild(d);
+  });
+}
+function addMemory() {
+  const v = prompt("添加一条长期记忆：", "");
+  if (!v || !v.trim()) return;
+  const a = memoryLines(); a.push(v.trim()); setMemoryLines(a);
+}
+
+function renderFavorites() {
+  const box = $("fav-list");
+  if (!box) return;
+  $("fav-count").textContent = settings.favorites.length;
+  box.innerHTML = "";
+  if (!settings.favorites.length) {
+    box.innerHTML = `<span class="hint">长按聊天里的消息 → ⭐ 收藏，就会出现在这里。</span>`;
+    return;
+  }
+  for (const f of settings.favorites) {
+    const d = document.createElement("div");
+    d.className = "fav-item";
+    d.innerHTML = `<div class="fav-text"></div>
+      <div class="fav-meta"><span></span>
+        <span><button class="linkbtn" data-fc>复制</button> · <button class="linkbtn" data-fd>删除</button></span></div>`;
+    d.querySelector(".fav-text").textContent = f.text;
+    d.querySelector(".fav-meta span").textContent = f.who;
+    d.querySelector("[data-fc]").onclick = () => { navigator.clipboard.writeText(f.text); showToast("已复制"); };
+    d.querySelector("[data-fd]").onclick = () => {
+      settings.favorites = settings.favorites.filter(x => x.id !== f.id);
+      saveSettings(); renderFavorites(); renderMessages();
+    };
+    box.appendChild(d);
+  }
+}
+
 let toastTimer = null;
 function showToast(msg) {
   const t = $("toast");
@@ -1642,7 +1818,7 @@ async function send() {
   } else {
     userContent = text;
   }
-  messages.push({ role: "user", content: userContent });
+  messages.push({ id: uid(), role: "user", content: userContent });
   pendingImages = []; renderAttachPreview();
   input.value = ""; autoResize();
   renderMessages();
@@ -1655,17 +1831,18 @@ async function send() {
 async function generateReply() {
   if (abortController) return;
   clearError();
-  const assistantMsg = { role: "assistant", content: "", reasoning: "" };
+  const assistantMsg = { id: uid(), role: "assistant", content: "", reasoning: "" };
   messages.push(assistantMsg);
   const el = makeMsgEl("assistant", "");
   $("messages").appendChild(el);
   const bubble = el.querySelector(".bubble");
-  bubble.innerHTML = '<span class="cursor"></span>';
+  bubble.innerHTML = TYPING_HTML;
   scrollToBottom();
   setSending(true);
   const paint = () => {
-    bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning)
-      + '<span class="cursor"></span>';
+    const empty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim();
+    bubble.innerHTML = empty ? TYPING_HTML
+      : bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning) + '<span class="cursor"></span>';
     scrollToBottom();
   };
 
@@ -1936,6 +2113,8 @@ function syncSettingsToUI() {
   $("modelList").value = settings.modelList;
   $("systemPrompt").value = settings.systemPrompt;
   $("memory").value = settings.memory;
+  renderMemoryCards();
+  renderFavorites();
   $("autoMemory").checked = settings.autoMemory;
   $("sbUrl").value = settings.supabaseUrl;
   $("sbKey").value = settings.supabaseKey;
@@ -2158,6 +2337,8 @@ function init() {
   document.querySelectorAll("[data-edit]").forEach(btn =>
     btn.onclick = () => openBigEditor(btn.dataset.edit, btn.dataset.title));
   $("editor-done").onclick = closeBigEditor;
+  $("memory-add").onclick = addMemory;
+  $("memory").addEventListener("change", renderMemoryCards);
   $("send-btn").onclick = () => { if (abortController) abortController.abort(); else send(); };
 
   $("signin-btn").onclick = () => doAuth("signin");
@@ -2227,6 +2408,44 @@ function init() {
     const far = c.scrollHeight - c.scrollTop - c.clientHeight > 240;
     $("scroll-bottom-btn").classList.toggle("show", far);
   });
+
+  // Message long-press / right-click menu
+  const messagesEl = $("messages");
+  let pressTimer = null, pressXY = null;
+  const findIdx = (target) => {
+    const msg = target.closest && target.closest(".msg");
+    return msg && msg.dataset.idx != null ? parseInt(msg.dataset.idx) : null;
+  };
+  messagesEl.addEventListener("contextmenu", (e) => {
+    const idx = findIdx(e.target);
+    if (idx == null) return;
+    e.preventDefault();
+    openMsgMenu(e.clientX, e.clientY, idx);
+  });
+  messagesEl.addEventListener("touchstart", (e) => {
+    const idx = findIdx(e.target);
+    if (idx == null) return;
+    const t = e.touches[0]; pressXY = { x: t.clientX, y: t.clientY };
+    pressTimer = setTimeout(() => openMsgMenu(pressXY.x, pressXY.y, idx), 480);
+  }, { passive: true });
+  const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+  messagesEl.addEventListener("touchmove", cancelPress, { passive: true });
+  messagesEl.addEventListener("touchend", cancelPress);
+  $("chat").addEventListener("scroll", cancelPress);
+  $("msg-menu").querySelectorAll("button").forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const idx = menuTargetIdx; closeMsgMenu();
+      if (idx == null) return;
+      const a = btn.dataset.mact;
+      if (a === "copy") { navigator.clipboard.writeText(messageText(messages[idx])); showToast("已复制"); }
+      else if (a === "quote") quoteMessage(idx);
+      else if (a === "fav") toggleFavorite(idx);
+      else if (a === "del") deleteMessage(idx);
+    };
+  });
+  document.addEventListener("click", (e) => { if (!$("msg-menu").contains(e.target)) closeMsgMenu(); });
+  renderFavorites();
 
   // Chat background image + frosted-glass blur
   $("bg-upload").onclick = () => $("chatBgFile").click();
