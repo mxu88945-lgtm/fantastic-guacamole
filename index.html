@@ -638,9 +638,9 @@
           <input id="apiKey" type="password" placeholder="sk-..." />
         </div>
         <div class="field">
-          <label>当前模型（点一下可从列表里选）</label>
-          <input id="model" list="model-datalist" placeholder="gpt-4o-mini" />
-          <datalist id="model-datalist"></datalist>
+          <label>当前模型（下拉选择 · 先点下面「拉取可用模型」）</label>
+          <select id="model-select"></select>
+          <input id="model" placeholder="或手动输入模型名（列表里没有时用）" style="margin-top:6px;" />
         </div>
         <div class="field">
           <label>温度 <span id="tempVal">0.7</span></label>
@@ -1894,20 +1894,34 @@ function getModelList() {
   return list;
 }
 function renderModelQuick() {
-  const sel = $("model-quick");
   const list = getModelList();
   const cur = settings.model || DEFAULTS[settings.provider].model;
-  sel.innerHTML = "";
-  for (const m of list) {
-    const opt = document.createElement("option");
-    opt.value = m; opt.textContent = m;
-    if (m === cur) opt.selected = true;
-    sel.appendChild(opt);
-  }
-  // also fill the settings <datalist> so the model field is click-to-pick
-  const dl = $("model-datalist");
-  if (dl) { dl.innerHTML = ""; for (const m of list) {
-    const o = document.createElement("option"); o.value = m; dl.appendChild(o); } }
+  const fill = (sel, withCustom) => {
+    if (!sel) return;
+    sel.innerHTML = "";
+    for (const m of list) {
+      const opt = document.createElement("option");
+      opt.value = m; opt.textContent = m;
+      if (m === cur) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    if (withCustom) {
+      // if the current model isn't in the list (manually typed), show it as selected
+      if (cur && !list.includes(cur)) {
+        const opt = document.createElement("option");
+        opt.value = cur; opt.textContent = cur + "（自定义）"; opt.selected = true;
+        sel.insertBefore(opt, sel.firstChild);
+      }
+      if (!list.length) {
+        const opt = document.createElement("option");
+        opt.value = ""; opt.textContent = "（先点「拉取可用模型」）"; opt.disabled = true;
+        if (!cur) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    }
+  };
+  fill($("model-quick"), false);
+  fill($("model-select"), true);
 }
 
 // ---------- Settings UI ----------
@@ -2243,12 +2257,15 @@ function init() {
   $("import-btn").onclick = () => $("importFile").click();
   $("importFile").onchange = (e) => importBackup(e.target.files[0]);
 
-  $("model-quick").addEventListener("change", () => {
-    activeProvider().model = $("model-quick").value;
+  const pickModel = (value) => {
+    if (!value) return;
+    activeProvider().model = value;
     mirrorActiveToFlat();
     $("model").value = settings.model;
-    saveSettings(); updateStatusLine();
-  });
+    saveSettings(); updateStatusLine(); renderModelQuick();
+  };
+  $("model-quick").addEventListener("change", () => pickModel($("model-quick").value));
+  $("model-select").addEventListener("change", () => pickModel($("model-select").value));
 
   $("input").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
