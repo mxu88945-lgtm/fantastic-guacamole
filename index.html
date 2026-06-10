@@ -192,6 +192,9 @@
     display: flex; align-items: center; gap: 6px;
   }
   .section-title:first-child { border-top: none; padding-top: 0; }
+  .section-title.accordion { cursor: pointer; user-select: none; }
+  .acc-chev { margin-left: auto; transition: transform .2s; font-size: 12px; opacity: .7; }
+  .section-title.collapsed .acc-chev { transform: rotate(-90deg); }
   .mini-btn {
     background: var(--bg-panel); border: 1px solid var(--border); color: var(--text);
     border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;
@@ -286,8 +289,11 @@
     margin-top: 6px; color: var(--text-dim); white-space: pre-wrap;
     line-height: 1.55; font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 6px;
   }
-  .msg-actions { display: flex; gap: 8px; margin-top: 6px; opacity: 0; transition: .15s; }
-  .msg:hover .msg-actions { opacity: 1; }
+  .msg-actions { display: flex; gap: 8px; margin-top: 6px; opacity: .6; transition: .15s; }
+  @media (hover: hover) {
+    .msg-actions { opacity: 0; }
+    .msg:hover .msg-actions { opacity: 1; }
+  }
   .msg-act {
     background: none; border: 1px solid var(--border); color: var(--text-dim);
     border-radius: 7px; padding: 3px 9px; font-size: 11.5px; cursor: pointer;
@@ -2228,6 +2234,35 @@ function openSettings(force) {
 }
 function closeSettings() { $("settings-panel").classList.remove("open"); }
 
+// Collapsible settings sections (folder-style accordion)
+function setupAccordion() {
+  const state = JSON.parse(localStorage.getItem("jyc_sections") || "{}");
+  document.querySelectorAll(".settings-inner > .section-title").forEach(title => {
+    if (title.classList.contains("accordion")) return; // already set up
+    const key = title.textContent.trim();
+    const items = [];
+    let n = title.nextElementSibling;
+    while (n && !n.classList.contains("section-title")) { items.push(n); n = n.nextElementSibling; }
+    title.classList.add("accordion");
+    const chev = document.createElement("span");
+    chev.className = "acc-chev"; chev.textContent = "▾";
+    title.appendChild(chev);
+    const apply = (collapsed) => {
+      items.forEach(it => it.style.display = collapsed ? "none" : "");
+      title.classList.toggle("collapsed", collapsed);
+    };
+    // default: collapse everything except 模型与服务 (where the API key lives)
+    const def = !key.includes("模型与服务");
+    apply(state[key] !== undefined ? state[key] : def);
+    title.addEventListener("click", () => {
+      const collapsed = !title.classList.contains("collapsed");
+      apply(collapsed);
+      state[key] = collapsed;
+      localStorage.setItem("jyc_sections", JSON.stringify(state));
+    });
+  });
+}
+
 // ---------- Big pop-out editor (system prompt / memory) ----------
 let editorTargetId = null;
 function openBigEditor(targetId, title) {
@@ -2322,6 +2357,7 @@ function init() {
   if (isMobile()) settings.sidebarCollapsed = true;
   applySidebar();
   syncSettingsToUI();
+  setupAccordion();
   renderConvList();
   renderMessages();
   updateConvTitle();
