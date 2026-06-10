@@ -90,26 +90,31 @@
     display: flex; align-items: center; justify-content: center; gap: 6px;
     transition: .15s;
   }
-  .new-chat-btn:hover { border-color: var(--accent); color: var(--accent); }
   .conv-list { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
   .conv-item {
     display: flex; align-items: center; gap: 8px;
     padding: 9px 10px; border-radius: 9px; cursor: pointer;
     font-size: 13px; color: var(--text-dim); margin-bottom: 2px;
   }
-  .conv-item:hover { background: var(--item-active); color: var(--text); }
   .conv-item.active { background: var(--item-active); color: var(--text); }
   .conv-item .ic { flex-shrink: 0; opacity: .7; }
   .conv-item .name {
     flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .conv-item .act {
-    opacity: 0; border: none; background: none; color: var(--text-dim);
+    opacity: .5; border: none; background: none; color: var(--text-dim);
     cursor: pointer; font-size: 13px; padding: 0 2px; flex-shrink: 0;
   }
-  .conv-item:hover .act { opacity: .6; }
-  .conv-item .act:hover { opacity: 1; color: var(--accent); }
-  .conv-item .act.del:hover { color: var(--danger); }
+  /* Hover effects only on devices that truly hover (desktop) — on touch they cause
+     the "needs two taps" bug, so we skip them and keep action icons always visible. */
+  @media (hover: hover) {
+    .new-chat-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .conv-item:hover { background: var(--item-active); color: var(--text); }
+    .conv-item .act { opacity: 0; }
+    .conv-item:hover .act { opacity: .6; }
+    .conv-item .act:hover { opacity: 1; color: var(--accent); }
+    .conv-item .act.del:hover { color: var(--danger); }
+  }
   .sidebar .foot {
     padding: 10px 12px; border-top: 1px solid var(--border);
     font-size: 11px; color: var(--text-dim); text-align: center;
