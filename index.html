@@ -130,6 +130,12 @@
     .conv-item .act:hover { opacity: 1; color: var(--accent); }
     .conv-item .act.del:hover { color: var(--danger); }
   }
+  .sidebar-tool {
+    margin: 0 10px 8px; padding: 9px 12px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg-panel); color: var(--text-dim);
+    font-size: 12.5px; cursor: pointer; text-align: center;
+  }
+  .sidebar-tool:hover { border-color: var(--accent); color: var(--accent); }
   .sidebar .foot {
     padding: 10px 12px; border-top: 1px solid var(--border);
     font-size: 11px; color: var(--text-dim); text-align: center;
@@ -388,7 +394,6 @@
   .empty-state { text-align: center; color: var(--text-dim); margin-top: 26vh;
     display: flex; flex-direction: column; align-items: center; }
   .empty-state .big { font-size: 40px; margin-bottom: 12px; }
-  .empty-state .starburst { margin-bottom: 14px; }
   .empty-state .greet { font-size: 22px; color: var(--text); font-weight: 500; }
 
   /* Composer */
@@ -607,6 +612,7 @@
     <button class="new-chat-btn" id="new-chat-btn">＋ 新对话</button>
     <input id="search-input" placeholder="🔍 搜索聊天记录…" />
     <div class="conv-list" id="conv-list"></div>
+    <button class="sidebar-tool" id="compact-btn" title="把当前对话的旧消息摘要成一段，省空间、更流畅">🗜️ 压缩当前对话</button>
     <div class="foot">数据仅存于本地浏览器</div>
   </aside>
 
@@ -620,8 +626,6 @@
         <div class="sub" id="status-line">本地网页客户端</div>
       </div>
       <div class="spacer"></div>
-      <button class="icon-btn" id="compact-btn" title="压缩对话（把旧消息摘要成一段，省空间）">🗜️</button>
-      <button class="icon-btn" id="theme-btn" title="切换主题">🌙</button>
       <button class="icon-btn" id="settings-btn">⚙️</button>
     </header>
 
@@ -1323,7 +1327,6 @@ function renderMessages() {
   if (messages.length === 0) {
     const who = (settings.userName && settings.userName !== "你") ? "，" + escapeHtml(settings.userName) : "";
     box.innerHTML = `<div class="empty-state">
-      <svg class="starburst" width="46" height="46" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 1l1.6 6.5L20 5.6l-4.2 4.9L22 12l-6.2 1.5L20 18.4l-6.4-1.9L12 23l-1.6-6.5L4 18.4l4.2-4.9L2 12l6.2-1.5L4 5.6l6.4 1.9z"/></svg>
       <div class="greet">${greetingText()}${who}</div>
       <div style="margin-top:6px;font-size:12px;">${settings.apiKey ? "给" + escapeHtml(settings.aiName || "江屹琛") + "发条消息，开始聊天吧" : "第一次用记得先点右上角 ⚙️ 填好 API Key 哦"}</div>
     </div>`;
@@ -2151,8 +2154,6 @@ function applyTheme() {
   document.documentElement.setAttribute("data-theme", t.dark ? "dark" : "light");
   const root = document.documentElement;
   for (const k in t.vars) root.style.setProperty("--" + k, t.vars[k]);
-  $("theme-btn").textContent = t.emoji;
-  $("theme-btn").title = "当前：" + t.name + "（点击轮换主题）";
   applyAccent();
   applyChatBg();
   applyBubbleStyle();
@@ -2565,7 +2566,6 @@ function init() {
   $("toggle-sidebar").onclick = toggleSidebar;
   $("backdrop").onclick = closeSidebar;
   window.addEventListener("resize", applySidebar);
-  $("theme-btn").onclick = toggleTheme;
   $("settings-btn").onclick = () => openSettings();
   $("settings-close").onclick = closeSettings;
   document.querySelectorAll("[data-edit]").forEach(btn =>
