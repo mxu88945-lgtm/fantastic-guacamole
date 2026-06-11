@@ -278,7 +278,11 @@
     line-height: 1.65; word-wrap: break-word; overflow-wrap: anywhere;
     box-shadow: 0 2px 8px rgba(0,0,0,.06);
   }
-  .msg.assistant .bubble { border-top-left-radius: 5px; }
+  /* Claude-style: assistant message has no bubble — just text on the page */
+  .msg.assistant .bubble {
+    background: transparent; border: none; box-shadow: none;
+    border-radius: 0; padding: 2px 0; width: auto; max-width: 100%;
+  }
   .msg.user .bubble {
     border-top-right-radius: 5px;
     background: color-mix(in srgb, color-mix(in srgb, var(--accent) 16%, var(--assistant-bubble)) var(--bubble-pct, 100%), transparent);
@@ -857,7 +861,7 @@
       </div>
       <div class="composer">
         <input type="file" id="attach-file" accept="image/*" multiple style="display:none;" />
-        <textarea id="input" rows="1" placeholder="给江屹琛发消息…（Enter 发送，Shift+Enter 换行）"></textarea>
+        <textarea id="input" rows="1" placeholder="Message 江屹琛"></textarea>
         <div class="composer-row">
           <button class="attach-btn" id="plus-btn" title="更多">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -2311,6 +2315,7 @@ function syncSettingsToUI() {
   $("userAvatar").value = settings.userAvatar;
   $("aiName").value = settings.aiName;
   $("aiAvatar").value = settings.aiAvatar;
+  $("input").placeholder = "Message " + (settings.aiName || "江屹琛");
   $("chatBgBlur").value = settings.chatBgBlur;
   $("bgBlurVal").textContent = settings.chatBgBlur;
   $("chatBgDim").value = settings.chatBgDim;
