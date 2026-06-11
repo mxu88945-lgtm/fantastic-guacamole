@@ -1,4 +1,4 @@
-import { useApp } from '../store.js';
+import { useApp } from '../store.jsx';
 
 const THEMES = [
   { value: 'light', label: '浅色', icon: '☀️' },

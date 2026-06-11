@@ -1,4 +1,4 @@
-import { useApp } from '../store.js';
+import { useApp } from '../store.jsx';
 
 function formatDate(ts) {
   const d = new Date(ts);

@@ -1,4 +1,4 @@
-import { useApp } from './store.js';
+import { useApp } from './store.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import ChatArea from './components/ChatArea.jsx';
 import Settings from './components/Settings.jsx';

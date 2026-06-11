@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useApp } from '../store.js';
+import { useApp } from '../store.jsx';
 import MessageBubble from './MessageBubble.jsx';
 import { ThemeToggleButton } from './ThemeToggle.jsx';
 import { streamChat } from '../utils/api.js';
