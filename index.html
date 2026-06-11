@@ -1332,7 +1332,7 @@ function thinkBlockHtml(reasoning) {
 function stickerImg(s) {
   return `<img class="sticker-img" src="${escapeHtml(s.dataUrl)}" alt="${escapeHtml(s.name)}" title="${escapeHtml(s.name)}">`;
 }
-function bubbleHtml(role, content, reasoning) {
+function bubbleHtml(role, content, reasoning, streaming) {
   let imgs = "", text = content;
   if (Array.isArray(content)) {
     imgs = content.filter(p => p.type === "image")
@@ -1346,9 +1346,10 @@ function bubbleHtml(role, content, reasoning) {
     const split = splitThink(text || "");
     answer = split.answer;
     let reason = (reasoning || "") + (split.think ? "\n" + split.think : "");
-    // Safety net: if the model dumped its whole reply into the "thinking" channel and
-    // left the answer empty, show that text as the actual reply (never hide the answer).
-    if (!answer.trim() && reason.trim()) { answer = reason; reason = ""; }
+    // Safety net (only AFTER streaming finishes): if the model dumped its whole reply into
+    // the "thinking" channel and left the answer empty, show that text as the actual reply.
+    // During streaming we keep reasoning inside the think box (don't leak it into the body).
+    if (!streaming && !answer.trim() && reason.trim()) { answer = reason; reason = ""; }
     thinkHtml = thinkBlockHtml(reason);
   }
   let textHtml = answer
@@ -2002,7 +2003,7 @@ async function generateReply() {
   const paint = () => {
     const empty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim();
     bubble.innerHTML = empty ? TYPING_HTML
-      : bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning) + '<span class="cursor"></span>';
+      : bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, true) + '<span class="cursor"></span>';
     scrollToBottom();
   };
 
