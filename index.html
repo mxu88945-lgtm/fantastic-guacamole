@@ -311,10 +311,12 @@
     .msg:hover .msg-actions { opacity: 1; }
   }
   .msg-act {
-    background: none; border: 1px solid var(--border); color: var(--text-dim);
-    border-radius: 7px; padding: 3px 9px; font-size: 11.5px; cursor: pointer;
+    background: none; border: none; color: var(--text-dim);
+    border-radius: 8px; padding: 4px; cursor: pointer;
+    display: grid; place-items: center; width: 30px; height: 30px;
   }
-  .msg-act:hover { border-color: var(--accent); color: var(--accent); }
+  .msg-act svg { width: 17px; height: 17px; }
+  .msg-act:hover { color: var(--accent); background: var(--item-active); }
   /* long-press: suppress iOS selection on bubbles (but allow it in code blocks) */
   .bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   .bubble pre, .bubble code { -webkit-user-select: text; user-select: text; }
@@ -373,8 +375,11 @@
   .typing span:nth-child(3) { animation-delay: .36s; }
   @keyframes typing { 0%,60%,100% { transform: translateY(0); opacity: .4; }
     30% { transform: translateY(-5px); opacity: 1; } }
-  .empty-state { text-align: center; color: var(--text-dim); margin-top: 80px; }
+  .empty-state { text-align: center; color: var(--text-dim); margin-top: 26vh;
+    display: flex; flex-direction: column; align-items: center; }
   .empty-state .big { font-size: 40px; margin-bottom: 12px; }
+  .empty-state .starburst { margin-bottom: 14px; }
+  .empty-state .greet { font-size: 22px; color: var(--text); font-weight: 500; }
 
   /* Composer */
   .composer-wrap {
@@ -1289,12 +1294,23 @@ function updateAvatarPreviews() {
   setPreview("userAvatarPreview", settings.userAvatar, "你");
   setPreview("aiAvatarPreview", settings.aiAvatar, "江");
 }
+function greetingText() {
+  const h = new Date().getHours();
+  if (h < 5) return "夜深了";
+  if (h < 11) return "早上好";
+  if (h < 13) return "中午好";
+  if (h < 18) return "下午好";
+  return "晚上好";
+}
 function renderMessages() {
   const box = $("messages");
   if (messages.length === 0) {
-    box.innerHTML = `<div class="empty-state"><div class="big">💬</div>
-      <div>你好呀～我是${escapeHtml(settings.aiName || "江屹琛")}，给我发条消息开始聊天吧</div>
-      <div style="margin-top:8px;font-size:12px;">第一次用记得先点右上角 ⚙️ 填好 API Key 哦</div></div>`;
+    const who = (settings.userName && settings.userName !== "你") ? "，" + escapeHtml(settings.userName) : "";
+    box.innerHTML = `<div class="empty-state">
+      <svg class="starburst" width="46" height="46" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 1l1.6 6.5L20 5.6l-4.2 4.9L22 12l-6.2 1.5L20 18.4l-6.4-1.9L12 23l-1.6-6.5L4 18.4l4.2-4.9L2 12l6.2-1.5L4 5.6l6.4 1.9z"/></svg>
+      <div class="greet">${greetingText()}${who}</div>
+      <div style="margin-top:6px;font-size:12px;">${settings.apiKey ? "给" + escapeHtml(settings.aiName || "江屹琛") + "发条消息，开始聊天吧" : "第一次用记得先点右上角 ⚙️ 填好 API Key 哦"}</div>
+    </div>`;
     return;
   }
   box.innerHTML = "";
@@ -1393,12 +1409,14 @@ function makeMsgEl(role, content, opts) {
     const text = (typeof content === "string") ? content
       : (Array.isArray(content) ? content.filter(p => p.type === "text").map(p => p.text).join("\n") : "");
     const copyBtn = document.createElement("button");
-    copyBtn.className = "msg-act"; copyBtn.textContent = "📋 复制";
+    copyBtn.className = "msg-act"; copyBtn.title = "复制";
+    copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
     copyBtn.onclick = () => { navigator.clipboard.writeText(text); showToast("已复制"); };
     bar.appendChild(copyBtn);
     if (opts.isLast) {
       const reBtn = document.createElement("button");
-      reBtn.className = "msg-act"; reBtn.textContent = "🔄 重新生成";
+      reBtn.className = "msg-act"; reBtn.title = "重新生成";
+      reBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>`;
       reBtn.onclick = regenerate;
       bar.appendChild(reBtn);
     }
@@ -2106,6 +2124,10 @@ const THEMES = [
     bg:"#0e0e0f", "bg-soft":"#161617", "bg-panel":"#1d1d1f", border:"#2e2e31", text:"#ececec",
     "text-dim":"#9a9a9e", accent:"#e3b341", "accent-soft":"#3a3320", "assistant-bubble":"#1d1d1f",
     "code-bg":"#0a0a0b", "err-bg":"#3a1f24", "err-text":"#ffb4b4", "item-active":"#262620" } },
+  { key: "claude", name: "暖杏 Claude", emoji: "✳️", dark: false, vars: {
+    bg:"#f5f4ef", "bg-soft":"#faf9f5", "bg-panel":"#eeece4", border:"#e3e0d6", text:"#3d3a34",
+    "text-dim":"#8a8678", accent:"#d97757", "accent-soft":"#f0ddd4", "assistant-bubble":"#faf9f5",
+    "code-bg":"#efece3", "err-bg":"#fbe9e3", "err-text":"#b3503a", "item-active":"#eae7dd" } },
 ];
 function currentTheme() { return THEMES.find(t => t.key === settings.themeName) || THEMES[0]; }
 function applyTheme() {
