@@ -471,6 +471,8 @@
   }
   .send-btn:hover { filter: brightness(1.1); }
   .send-btn.stop { background: var(--danger); }
+  .composer-toolbar { max-width: 820px; margin: 0 auto 6px; display: flex; }
+  .composer-toolbar .model-quick { max-width: 220px; }
   .composer-hint { max-width: 820px; margin: 6px auto 0; font-size: 11px;
     color: var(--text-dim); text-align: center; }
   .err-banner {
@@ -604,7 +606,6 @@
         <div class="sub" id="status-line">本地网页客户端</div>
       </div>
       <div class="spacer"></div>
-      <select class="model-quick" id="model-quick" title="快速切换模型"></select>
       <button class="icon-btn" id="compact-btn" title="压缩对话（把旧消息摘要成一段，省空间）">🗜️</button>
       <button class="icon-btn" id="theme-btn" title="切换主题">🌙</button>
       <button class="icon-btn" id="settings-btn">⚙️</button>
@@ -836,6 +837,9 @@
         <button data-act="image">🖼️ 图片</button>
         <button data-act="emoji">😊 表情</button>
         <button data-act="sticker">🧩 表情包</button>
+      </div>
+      <div class="composer-toolbar">
+        <select class="model-quick" id="model-quick" title="切换模型"></select>
       </div>
       <div class="composer">
         <button class="attach-btn" id="plus-btn" title="更多">
