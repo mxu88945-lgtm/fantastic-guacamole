@@ -1766,7 +1766,8 @@ function exportBackup() {
   a.href = url; a.download = `jyc-chat-backup-${stamp}.json`;
   a.click();
   URL.revokeObjectURL(url);
-  showToast("📤 已导出备份");
+  const msgCount = conversations.reduce((n, c) => n + (c.messages ? c.messages.length : 0), 0);
+  showToast(`📤 已导出：${conversations.length} 个对话 · ${msgCount} 条消息`);
 }
 
 function importBackup(file) {
