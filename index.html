@@ -601,8 +601,8 @@
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <div class="logo">江</div>
-      <div class="title">江屹琛 · Chat</div>
+      <div class="logo" id="brand-logo">江</div>
+      <div class="title" id="brand-title">江屹琛 · Chat</div>
     </div>
     <button class="new-chat-btn" id="new-chat-btn">＋ 新对话</button>
     <input id="search-input" placeholder="🔍 搜索聊天记录…" />
@@ -2315,7 +2315,10 @@ function syncSettingsToUI() {
   $("userAvatar").value = settings.userAvatar;
   $("aiName").value = settings.aiName;
   $("aiAvatar").value = settings.aiAvatar;
-  $("input").placeholder = "Message " + (settings.aiName || "江屹琛");
+  const aiNm = settings.aiName || "江屹琛";
+  $("input").placeholder = "Message " + aiNm;
+  $("brand-title").textContent = aiNm + " · Chat";
+  if (!isImageRef(settings.aiAvatar)) $("brand-logo").textContent = (settings.aiAvatar || aiNm).slice(0, 1);
   $("chatBgBlur").value = settings.chatBgBlur;
   $("bgBlurVal").textContent = settings.chatBgBlur;
   $("chatBgDim").value = settings.chatBgDim;
