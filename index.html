@@ -1407,6 +1407,12 @@ function clearError() { $("err-slot").innerHTML = ""; }
 function toApiContent(content, isAnthropic) {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
+  // No real image? Send plain text (text + sticker notes joined) — many models
+  // choke on the structured array format, so this keeps text/sticker messages working.
+  if (!content.some(p => p.type === "image")) {
+    return content.map(p => p.type === "text" ? p.text
+      : (p.type === "sticker" ? `（发了一个表情：${p.name}）` : "")).join(" ").trim();
+  }
   return content.map(p => {
     if (p.type === "text") return { type: "text", text: p.text };
     // a sticker is sent to the model as a short text note (so non-vision models understand it)
