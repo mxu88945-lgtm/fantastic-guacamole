@@ -301,19 +301,19 @@
     max-width: 220px; max-height: 220px; border-radius: 8px; display: block;
     margin: 4px 0; cursor: pointer;
   }
-  .think {
-    border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
-    border-radius: 10px; padding: 6px 10px; margin: 0 0 10px; font-size: 13px;
-  }
+  /* Claude-style subtle thinking line — no box, just a faint collapsible row */
+  .think { border: none; background: none; padding: 0; margin: 2px 0 10px; font-size: 12.5px; }
   .think > summary {
-    cursor: pointer; color: var(--accent); font-weight: 600; list-style: none;
-    user-select: none; outline: none;
+    cursor: pointer; color: var(--text-dim); font-weight: 400; list-style: none;
+    user-select: none; outline: none; display: inline-flex; align-items: center; gap: 5px;
   }
   .think > summary::-webkit-details-marker { display: none; }
+  .think > summary::after { content: "›"; font-size: 14px; opacity: .7; transition: transform .2s; }
+  .think[open] > summary::after { transform: rotate(90deg); }
   .think .think-body {
-    margin-top: 6px; color: var(--text-dim); white-space: pre-wrap;
-    line-height: 1.55; font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 6px;
+    margin-top: 8px; color: var(--text-dim); white-space: pre-wrap;
+    line-height: 1.55; font-size: 12.5px; padding-left: 11px;
+    border-left: 2px solid var(--border);
   }
   .msg-actions { display: flex; gap: 8px; margin-top: 6px; opacity: .6; transition: .15s; }
   @media (hover: hover) {
@@ -1352,7 +1352,7 @@ function splitThink(text) {
 }
 function thinkBlockHtml(reasoning) {
   if (!reasoning || !reasoning.trim()) return "";
-  return `<details class="think"><summary>💭 思考链（点击展开）</summary>` +
+  return `<details class="think"><summary>💭 思考过程</summary>` +
     `<div class="think-body">${escapeHtml(reasoning.trim())}</div></details>`;
 }
 function stickerImg(s) {
