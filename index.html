@@ -71,6 +71,8 @@
     border-right: 1px solid var(--border);
     display: flex; flex-direction: column;
     transition: margin-left .2s ease;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
   .sidebar.collapsed { margin-left: -250px; }
   .sidebar .brand {
