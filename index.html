@@ -191,7 +191,7 @@
   .field label { font-size: 12px; color: var(--text-dim); }
   .field input, .field select, .field textarea {
     background: var(--bg-panel); border: 1px solid var(--border);
-    color: var(--text); border-radius: 8px; padding: 8px 10px;
+    color: var(--text); border-radius: 11px; padding: 11px 13px;
     font-size: 13px; font-family: inherit;
   }
   .field input:focus, .field select:focus, .field textarea:focus {
@@ -202,13 +202,19 @@
   .field .row input[type="range"] { flex: 1; }
   .field .hint { font-size: 11px; color: var(--text-dim); }
   .section-title {
-    grid-column: 1 / -1; font-size: 13px; font-weight: 700; color: var(--accent);
-    margin: 6px 0 -2px; padding-top: 8px; border-top: 1px solid var(--border);
-    display: flex; align-items: center; gap: 6px;
+    grid-column: 1 / -1; font-size: 14px; font-weight: 600; color: var(--accent);
+    margin: 4px 0 2px; display: flex; align-items: center; gap: 6px;
   }
   .section-title:first-child { border-top: none; padding-top: 0; }
-  .section-title.accordion { cursor: pointer; user-select: none; }
-  .acc-chev { margin-left: auto; transition: transform .2s; font-size: 12px; opacity: .7; }
+  /* Claude-style rounded card rows for the collapsible sections */
+  .section-title.accordion {
+    cursor: pointer; user-select: none;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    border-radius: 13px; padding: 14px 15px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .section-title.accordion:active { background: var(--item-active); }
+  .acc-chev { margin-left: auto; transition: transform .2s; font-size: 12px; opacity: .55; }
   .section-title.collapsed .acc-chev { transform: rotate(-90deg); }
   .mini-btn {
     background: var(--bg-panel); border: 1px solid var(--border); color: var(--text);
@@ -622,7 +628,7 @@
       </div>
       <div class="settings-inner">
         <div class="section-title">☁️ 账号 · 多设备同步（可选）</div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">登录后多设备同步，API Key 不上云</label>
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">
             <input id="sbUrl" placeholder="Supabase URL（https://xxx.supabase.co）" style="flex:1; min-width:200px;" />
@@ -648,7 +654,7 @@
           <label>微调强调色（在主题基础上单独换个强调色）</label>
           <div id="accent-swatches" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;"></div>
         </div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🖼️ 聊天背景图（毛玻璃雾化）</label>
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
             <button class="mini-btn primary" id="bg-upload">📷 上传背景</button>
@@ -666,7 +672,7 @@
           </div>
           <span class="hint">背景图存在本地（不上云）。调高「雾化/蒙版」能让文字更清楚。</span>
         </div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">💬 对话样式</label>
           <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
             <button class="mini-btn" id="layout-bubble">气泡式（头像在侧）</button>
@@ -684,7 +690,7 @@
           </label>
           <span class="hint">「平铺式」像 Tavo：头像名字在文字上方、文字铺满更宽。透明度调低能透出背景图。</span>
         </div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🧩 表情包 / 贴纸库</label>
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
             <button class="mini-btn primary" id="sticker-upload">＋ 上传贴纸</button>
@@ -744,7 +750,7 @@
           <textarea id="modelList" placeholder="gpt-4o-mini&#10;gpt-4o&#10;claude-opus-4-8"></textarea>
         </div>
         <div class="section-title">🎭 人设 · 头像 · 记忆</div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🎭 名字 & 头像（头像可填文字 / emoji / 图片链接，或直接从相册上传）</label>
           <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:10px;">
             <div style="flex:1; min-width:240px;">
@@ -796,13 +802,13 @@
         </div>
 
         <div class="section-title">⭐ 语录集（收藏的消息）</div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">共 <span id="fav-count">0</span> 条 —— 长按聊天消息即可收藏</label>
           <div id="fav-list" style="margin-top:8px; display:flex; flex-direction:column; gap:8px;"></div>
         </div>
 
         <div class="section-title">📦 数据（本地备份 / 恢复）</div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">把所有对话和设置导出成一个文件，换设备时再导入恢复</label>
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
             <button class="mini-btn primary" id="export-btn">📤 导出备份</button>
@@ -813,7 +819,7 @@
           </div>
           <span class="hint">导出的是 .json 文件，存在你自己设备上。默认不含 API Key，更安全。</span>
         </div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🔄 检查更新</label>
           <div style="margin-top:8px;">
             <button class="mini-btn primary" id="update-btn">🔄 强制刷新到最新版</button>
@@ -822,7 +828,7 @@
         </div>
 
         <div class="section-title">🔒 隐私锁</div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600;">
             <input type="checkbox" id="lockEnabled" style="width:auto;" /> 打开 App 需要输入密码
           </label>
