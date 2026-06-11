@@ -808,6 +808,13 @@
           </div>
           <span class="hint">导出的是 .json 文件，存在你自己设备上。默认不含 API Key，更安全。</span>
         </div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
+          <label style="font-weight:600;">🔄 检查更新</label>
+          <div style="margin-top:8px;">
+            <button class="mini-btn primary" id="update-btn">🔄 强制刷新到最新版</button>
+          </div>
+          <span class="hint">桌面 App 没更新到最新功能时点这个：会清掉缓存、拉取最新代码（不会动你的聊天和设置）。</span>
+        </div>
 
         <div class="section-title">🔒 隐私锁</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:10px; padding:12px;">
@@ -1750,6 +1757,20 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
+// Force-refresh to the very latest deployed version: drop the service worker + its
+// caches, then reload to a cache-busted URL. Does NOT touch localStorage (your data).
+async function forceUpdate() {
+  showToast("正在拉取最新版…");
+  try {
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const r of regs) await r.unregister();
+    }
+    if (window.caches) { for (const k of await caches.keys()) await caches.delete(k); }
+  } catch (e) { /* ignore */ }
+  location.href = location.pathname + "?u=" + Date.now();
+}
+
 // Export all data (conversations + settings) as a downloadable JSON file.
 function exportBackup() {
   const out = { app: "jyc-chat", version: 1, exportedAt: new Date().toISOString(),
@@ -2649,6 +2670,7 @@ function init() {
 
   // Local backup / restore
   $("export-btn").onclick = exportBackup;
+  $("update-btn").onclick = forceUpdate;
   $("import-btn").onclick = () => $("importFile").click();
   $("importFile").onchange = (e) => importBackup(e.target.files[0]);
 
