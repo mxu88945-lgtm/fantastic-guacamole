@@ -1009,6 +1009,10 @@ function loadState() {
     saveConversations();
   }
   if (!conversations.find(c => c.id === currentId)) currentId = conversations[0].id;
+  // Drop stale empty conversations; keep the active one even if it's empty
+  const beforeClean = conversations.length;
+  conversations = conversations.filter(c => c.messages.length > 0 || c.id === currentId);
+  if (conversations.length !== beforeClean) saveConversations();
   messages = currentConv().messages;
 
   // migrate to multi-provider profiles
@@ -2859,7 +2863,7 @@ function init() {
     readSettingsFromUI();
   });
 
-  goHome();   // open on the greeting home page, not jumped into an old conversation
+  renderConvList(); renderMessages(); updateConvTitle(); // restore last session as-is
   if (!settings.apiKey) openSettings(true);
 
   // privacy lock
