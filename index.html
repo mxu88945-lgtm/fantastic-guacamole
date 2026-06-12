@@ -991,6 +991,12 @@ function loadState() {
   // Drop stale empty conversations; keep the active one even if it's empty
   const beforeClean = conversations.length;
   conversations = conversations.filter(c => c.messages.length > 0 || c.id === currentId);
+  // If the saved current conversation is empty but non-empty ones exist, restore the most recent one
+  if (currentConv().messages.length === 0) {
+    const nonEmpty = conversations.filter(c => c.messages.length > 0)
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+    if (nonEmpty) currentId = nonEmpty.id;
+  }
   if (conversations.length !== beforeClean) saveConversations();
   messages = currentConv().messages;
 
@@ -1099,7 +1105,8 @@ async function pullCloud() {
     if (!settings.providers.find(p => p.id === settings.activeProviderId))
       settings.activeProviderId = settings.providers[0].id;
     mirrorActiveToFlat();
-    currentId = conversations[0].id;
+    { const ne = conversations.filter(c => c.messages.length > 0).sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0))[0];
+      currentId = (ne || conversations[0]).id; }
     messages = currentConv().messages;
     localStorage.setItem("jyc_conversations", JSON.stringify(conversations));
     localStorage.setItem("jyc_current", currentId);
