@@ -2090,12 +2090,12 @@ function renderFavorites() {
 }
 
 let toastTimer = null;
-function showToast(msg) {
+function showToast(msg, ms) {
   const t = $("toast");
   t.textContent = msg;
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+  toastTimer = setTimeout(() => t.classList.remove("show"), ms || 2600);
 }
 
 async function send() {
@@ -2114,6 +2114,11 @@ async function send() {
     for (const a of pendingImages) userContent.push({ ...a });
   } else {
     userContent = text;
+  }
+  // If the last message is already from user (previous reply failed), insert a placeholder
+  // so the API always sees alternating user/assistant turns.
+  if (messages.length > 0 && messages[messages.length - 1].role === "user") {
+    messages.push({ id: uid(), role: "assistant", content: "（无回复）", ts: Date.now() });
   }
   messages.push({ id: uid(), role: "user", content: userContent, ts: Date.now() });
   pendingImages = []; renderAttachPreview();
@@ -2158,7 +2163,7 @@ async function generateReply() {
     if (isEmpty) {
       messages.pop(); el.remove();
       showError("模型返回了空回复。可能原因：thinking 模型不支持图片输入、temperature 设置有冲突，或接口限制。请打开浏览器控制台查看详细错误。");
-      showToast("❌ 空回复（可能不支持图片/thinking 冲突）");
+      showToast("❌ 空回复（可能不支持图片/thinking 冲突）", 5000);
     } else {
       bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning);
       replied = true;
@@ -2170,7 +2175,7 @@ async function generateReply() {
     } else {
       messages.pop(); el.remove();
       showError(e.message || String(e));
-      showToast("❌ " + (e.message || String(e)).slice(0, 80));
+      showToast("❌ " + (e.message || String(e)).slice(0, 80), 5000);
     }
   } finally {
     setSending(false);
