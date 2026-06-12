@@ -486,6 +486,8 @@
   }
   .send-btn:hover { filter: brightness(1.1); }
   .send-btn.stop { background: var(--danger); }
+  .send-btn.staging { opacity: .6; cursor: progress; animation: sendPulse 1s ease-in-out infinite; }
+  @keyframes sendPulse { 0%,100% { opacity: .45; } 50% { opacity: .85; } }
   .composer-hint { max-width: 820px; margin: 6px auto 0; font-size: 11px;
     color: var(--text-dim); text-align: center; }
   .err-banner {
@@ -979,6 +981,7 @@ let settings = {
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
+let imageStaging = [];    // in-flight stageImageFile() promises (iOS PWA race fix)
 
 // ---------- Cloud (Supabase) runtime state ----------
 let sb = null;          // supabase client
@@ -1818,25 +1821,41 @@ function handleAvatarFile(file, which) {
 }
 
 // Stage an image to send: downscale to <=1024px, keep as JPEG data URL.
+// Returns a Promise that resolves once the image is staged (or has failed).
+// The whole chain (FileReader → Image decode → canvas) is async; on iOS PWA it
+// can be slow, so send() awaits these via `imageStaging` to avoid the race where
+// the user taps 发送 before pendingImages is populated and we silently return.
 function stageImageFile(file) {
-  if (!file || !file.type.startsWith("image/")) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    const img = new Image();
-    img.onload = () => {
-      const max = 1024;
-      let { width: w, height: h } = img;
-      const scale = Math.min(1, max / Math.max(w, h));
-      w = Math.round(w * scale); h = Math.round(h * scale);
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      pendingImages.push({ type: "image", dataUrl: canvas.toDataURL("image/jpeg", 0.85), mediaType: "image/jpeg" });
-      renderAttachPreview();
+  if (!file || !file.type.startsWith("image/")) return Promise.resolve();
+  const p = new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onerror = () => { showToast("❌ 图片读取失败，换张图试试"); resolve(); };
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => { showToast("❌ 图片解码失败（iOS 有时不支持该格式），换张图试试"); resolve(); };
+      img.onload = () => {
+        try {
+          const max = 1024;
+          let { width: w, height: h } = img;
+          const scale = Math.min(1, max / Math.max(w, h));
+          w = Math.round(w * scale); h = Math.round(h * scale);
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          pendingImages.push({ type: "image", dataUrl: canvas.toDataURL("image/jpeg", 0.85), mediaType: "image/jpeg" });
+          renderAttachPreview();
+        } catch (e) {
+          showToast("❌ 图片处理失败: " + (e.message || String(e)).slice(0, 40));
+        }
+        resolve();
+      };
+      img.src = reader.result;
     };
-    img.src = reader.result;
-  };
-  reader.readAsDataURL(file);
+    reader.readAsDataURL(file);
+  });
+  imageStaging.push(p);
+  p.then(() => { imageStaging = imageStaging.filter((x) => x !== p); });
+  return p;
 }
 // Read a text-ish file and insert its content into the input box.
 function handleTextFile(file) {
@@ -2099,9 +2118,19 @@ function showToast(msg, ms) {
 }
 
 async function send() {
+  if (abortController) return;
   const input = $("input");
   const text = input.value.trim();
-  if ((!text && pendingImages.length === 0) || abortController) return;
+  // iOS PWA fix: image staging (FileReader → decode → canvas) is async. If the
+  // user taps 发送 before it finishes, pendingImages is still empty and we'd
+  // silently bail. Wait for any in-flight image processing to settle first.
+  if (imageStaging.length) {
+    const btn = $("send-btn");
+    btn.disabled = true; btn.classList.add("staging");
+    try { await Promise.all(imageStaging); } catch (_) {}
+    btn.disabled = false; btn.classList.remove("staging");
+  }
+  if (!text && pendingImages.length === 0) return;
   if (!settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
   clearError();
 
