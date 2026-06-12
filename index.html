@@ -236,6 +236,7 @@
     background: linear-gradient(135deg,#7c83ff,#b06bff); color: #fff; overflow: hidden;
   }
   .avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .avatar-status { font-size: 12px; color: var(--accent); white-space: nowrap; }
   .swatch {
     width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
     border: 2px solid transparent; padding: 0;
@@ -765,56 +766,65 @@
           </label>
           <textarea id="modelList" placeholder="gpt-4o-mini&#10;gpt-4o&#10;claude-opus-4-8"></textarea>
         </div>
-        <div class="section-title">🎭 人设 · 头像 · 记忆</div>
+        <div class="section-title">🎭 角色档案</div>
+
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
-          <label style="font-weight:600;">🎭 名字 & 头像（头像可填文字 / emoji / 图片链接，或直接从相册上传）</label>
-          <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:10px;">
+          <label style="font-weight:600;">身份信息</label>
+          <span class="hint">设置你和 AI 的名称、头像与显示方式。</span>
+          <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:12px;">
             <div style="flex:1; min-width:240px;">
-              <div class="hint" style="margin-bottom:4px;">你</div>
+              <div class="hint" style="margin-bottom:6px;">你</div>
               <div style="display:flex; gap:8px; align-items:center;">
                 <span class="avatar-preview" id="userAvatarPreview">你</span>
-                <input id="userName" placeholder="名字（默认：你）" style="flex:1; min-width:90px;" />
+                <input id="userName" placeholder="昵称（默认：你）" style="flex:1; min-width:90px;" />
               </div>
-              <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
-                <input id="userAvatar" placeholder="头像文字/emoji/链接" style="flex:1; min-width:90px;" />
+              <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
+                <input id="userAvatar" placeholder="头像：文字 / emoji" style="flex:1; min-width:80px;" />
+                <span class="avatar-status" id="userAvatarStatus" style="display:none;">✅ 已上传图片</span>
                 <button class="mini-btn" id="userAvatarUpload">📷 上传</button>
+                <button class="mini-btn" id="userAvatarClear" style="display:none;">清除</button>
               </div>
             </div>
             <div style="flex:1; min-width:240px;">
-              <div class="hint" style="margin-bottom:4px;">助手</div>
+              <div class="hint" style="margin-bottom:6px;">AI</div>
               <div style="display:flex; gap:8px; align-items:center;">
                 <span class="avatar-preview" id="aiAvatarPreview">江</span>
-                <input id="aiName" placeholder="名字（默认：江屹琛）" style="flex:1; min-width:90px;" />
+                <input id="aiName" placeholder="名称（默认：江屹琛）" style="flex:1; min-width:90px;" />
               </div>
-              <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
-                <input id="aiAvatar" placeholder="头像文字/emoji/链接" style="flex:1; min-width:90px;" />
+              <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
+                <input id="aiAvatar" placeholder="头像：文字 / emoji" style="flex:1; min-width:80px;" />
+                <span class="avatar-status" id="aiAvatarStatus" style="display:none;">✅ 已上传图片</span>
                 <button class="mini-btn" id="aiAvatarUpload">📷 上传</button>
+                <button class="mini-btn" id="aiAvatarClear" style="display:none;">清除</button>
               </div>
             </div>
           </div>
         </div>
+
         <div class="field" style="grid-column: 1 / -1;">
           <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <span>System Prompt（系统提示词 · 人设）</span>
-            <button class="mini-btn" data-edit="systemPrompt" data-title="System Prompt · 人设">⛶ 放大编辑</button>
+            <span style="font-weight:600;">核心人设 <span class="hint" style="font-weight:400;">· 系统提示词</span></span>
+            <button class="mini-btn" data-edit="systemPrompt" data-title="核心人设">⛶ 展开编辑</button>
           </label>
-          <textarea id="systemPrompt" placeholder="你是一个乐于助人的助手……"></textarea>
+          <span class="hint">决定 AI 如何理解身份、关系、语气与边界。</span>
+          <textarea id="systemPrompt" placeholder="你叫江屹琛，对用户亲切、口语化……" style="margin-top:6px;"></textarea>
         </div>
+
         <div class="field" style="grid-column: 1 / -1;">
           <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <span>🧠 长期记忆（共 <span id="memory-count">0</span> 条 · 每次对话都会带上）</span>
+            <span style="font-weight:600;">长期记忆 <span class="hint" style="font-weight:400;">· 共 <span id="memory-count">0</span> 条</span></span>
             <span>
               <button class="mini-btn" id="memory-add">＋ 添加</button>
-              <button class="mini-btn" data-edit="memory" data-title="🧠 长期记忆">⛶ 原文编辑</button>
+              <button class="mini-btn" data-edit="memory" data-title="长期记忆 · 原文">⛶ 原文</button>
             </span>
           </label>
-          <div id="memory-cards"></div>
+          <span class="hint">这些信息会随每次对话一起发送，用于保持角色连续性。</span>
+          <div id="memory-cards" style="margin-top:8px;"></div>
           <textarea id="memory" style="display:none;"></textarea>
-          <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:8px;cursor:pointer;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:10px;cursor:pointer;">
             <input type="checkbox" id="autoMemory" style="width:auto;" />
-            ✨ 自动记忆：聊天时我会自动把值得长期记住的事，悄悄补进记忆里
+            ✨ 自动记忆：聊天时自动把值得记住的事补进记忆（每隔几轮多调一次模型，费少量 token）
           </label>
-          <span class="hint">每条一个卡片，可单独编辑/删除/置顶。开启自动记忆每隔几轮会多调用一次模型提炼（费少量 token）。</span>
         </div>
 
         <div class="section-title">⭐ 语录集（收藏的消息）</div>
@@ -1316,6 +1326,21 @@ function updateAvatarPreviews() {
   setPreview("userAvatarPreview", settings.userAvatar, "你");
   setPreview("aiAvatarPreview", settings.aiAvatar, "江");
 }
+// Show "✅ 已上传图片" instead of the ugly base64 string when an image is set.
+function updateAvatarUI(role) {
+  const key = role === "user" ? "userAvatar" : "aiAvatar";
+  const v = settings[key];
+  const img = isImageRef(v);
+  $(key).style.display = img ? "none" : "";
+  $(role + "AvatarStatus").style.display = img ? "" : "none";
+  $(role + "AvatarClear").style.display = (img || v) ? "" : "none";
+  if (!img) $(key).value = v || "";
+}
+function setAvatarValue(role, v) {
+  settings[role === "user" ? "userAvatar" : "aiAvatar"] = v;
+  saveSettings();
+  updateAvatarUI(role); updateAvatarPreviews(); updateBrand(); renderMessages();
+}
 function updateBrand() {
   const aiNm = settings.aiName || "江屹琛";
   $("input").placeholder = "Message " + aiNm;
@@ -1689,10 +1714,7 @@ function handleAvatarFile(file, which) {
       canvas.width = w; canvas.height = h;
       canvas.getContext("2d").drawImage(img, 0, 0, w, h);
       const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-      if (which === "user") { settings.userAvatar = dataUrl; $("userAvatar").value = dataUrl; }
-      else { settings.aiAvatar = dataUrl; $("aiAvatar").value = dataUrl; }
-      saveSettings();
-      updateAvatarPreviews(); renderMessages();
+      setAvatarValue(which, dataUrl);
       showToast("✅ 头像已更新");
     };
     img.src = reader.result;
@@ -1976,7 +1998,7 @@ function renderMemoryCards() {
     d.querySelector(".mem-text").textContent = line;
     d.querySelector("[data-mp]").onclick = () => { const a = memoryLines(); const x = a.splice(i, 1)[0]; a.unshift(x); setMemoryLines(a); };
     d.querySelector("[data-me]").onclick = () => { const v = prompt("编辑这条记忆：", line); if (v === null) return; const a = memoryLines(); a[i] = v.trim(); setMemoryLines(a.filter(Boolean)); };
-    d.querySelector("[data-md]").onclick = () => { const a = memoryLines(); a.splice(i, 1); setMemoryLines(a); };
+    d.querySelector("[data-md]").onclick = () => { if (!confirm("确定删除这条记忆吗？")) return; const a = memoryLines(); a.splice(i, 1); setMemoryLines(a); };
     box.appendChild(d);
   });
 }
@@ -2341,9 +2363,8 @@ function syncSettingsToUI() {
   $("sbUrl").value = settings.supabaseUrl;
   $("sbKey").value = settings.supabaseKey;
   $("userName").value = settings.userName;
-  $("userAvatar").value = settings.userAvatar;
   $("aiName").value = settings.aiName;
-  $("aiAvatar").value = settings.aiAvatar;
+  updateAvatarUI("user"); updateAvatarUI("ai");
   updateBrand();
   $("chatBgBlur").value = settings.chatBgBlur;
   $("bgBlurVal").textContent = settings.chatBgBlur;
@@ -2427,9 +2448,9 @@ function readSettingsFromUI() {
   settings.supabaseUrl = $("sbUrl").value.trim();
   settings.supabaseKey = $("sbKey").value.trim();
   settings.userName = $("userName").value.trim();
-  settings.userAvatar = $("userAvatar").value.trim();
   settings.aiName = $("aiName").value.trim();
-  settings.aiAvatar = $("aiAvatar").value.trim();
+  // avatars are managed by updateAvatarUI / upload / clear handlers (so an empty
+  // text box doesn't wipe an uploaded image) — not read here.
   settings.lockEnabled = $("lockEnabled").checked;
   settings.lockPin = $("lockPin").value.trim();
   saveSettings();
@@ -2606,17 +2627,28 @@ function init() {
   $("provider-rename").onclick = renameProvider;
   $("provider-del").onclick = deleteProvider;
 
-  ["userName","userAvatar","aiName","aiAvatar"].forEach(id => {
+  ["userName","aiName"].forEach(id => {
     $(id).addEventListener("change", () => {
-      readSettingsFromUI(); updateAvatarPreviews(); updateBrand(); renderMessages(); updateConvTitle();
+      readSettingsFromUI(); updateBrand(); renderMessages(); updateConvTitle();
     });
   });
+  // typing in the avatar box switches it to text/emoji mode
+  const onAvatarType = (role) => {
+    const key = role === "user" ? "userAvatar" : "aiAvatar";
+    settings[key] = $(key).value.trim();
+    saveSettings(); updateAvatarPreviews(); updateBrand(); renderMessages();
+    $(role + "AvatarClear").style.display = settings[key] ? "" : "none";
+  };
+  $("userAvatar").addEventListener("input", () => onAvatarType("user"));
+  $("aiAvatar").addEventListener("input", () => onAvatarType("ai"));
 
-  // Avatar upload from local photos
+  // Avatar upload / clear
   $("userAvatarUpload").onclick = () => $("userAvatarFile").click();
   $("aiAvatarUpload").onclick = () => $("aiAvatarFile").click();
   $("userAvatarFile").onchange = (e) => handleAvatarFile(e.target.files[0], "user");
   $("aiAvatarFile").onchange = (e) => handleAvatarFile(e.target.files[0], "ai");
+  $("userAvatarClear").onclick = () => { setAvatarValue("user", ""); showToast("已清除头像"); };
+  $("aiAvatarClear").onclick = () => { setAvatarValue("ai", ""); showToast("已清除头像"); };
 
   // Image attach
   $("attach-file").onchange = (e) => {
