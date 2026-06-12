@@ -2288,7 +2288,8 @@ function renderAccentSwatches() {
   custom.type = "color"; custom.value = settings.accent || "#7c83ff";
   custom.title = "自定义颜色";
   custom.style.cssText = "width:30px;height:30px;border:none;background:none;cursor:pointer;padding:0;";
-  custom.oninput = () => setAccent(custom.value);
+  custom.oninput = () => { settings.accent = custom.value; saveSettings(); applyAccent(); };
+  custom.onchange = () => renderAccentSwatches();
   box.appendChild(custom);
 }
 
