@@ -214,6 +214,7 @@
     margin: 4px 0 2px; display: flex; align-items: center; gap: 6px;
   }
   .section-title:first-child { border-top: none; padding-top: 0; }
+  .section-icon { width: 16px; height: 16px; flex-shrink: 0; }
   /* Claude-style rounded card rows for the collapsible sections */
   .section-title.accordion {
     cursor: pointer; user-select: none;
@@ -645,7 +646,7 @@
         <button class="mini-btn primary" id="settings-close">✓ 完成</button>
       </div>
       <div class="settings-inner">
-        <div class="section-title">☁️ 账号 · 多设备同步（可选）</div>
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/></svg>账号 · 多设备同步（可选）</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">登录后多设备同步，API Key 不上云</label>
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">
@@ -663,7 +664,7 @@
             <span class="hint" id="auth-status">未登录（数据仅存本地）</span>
           </div>
         </div>
-        <div class="section-title">🎨 外观 · 主题</div>
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>外观 · 主题</div>
         <div class="field" style="grid-column: 1 / -1;">
           <label>主题风格（整套配色，点卡片切换；顶部 🌙 也能快速轮换）</label>
           <div id="theme-cards" class="theme-cards"></div>
@@ -736,7 +737,7 @@
           <span class="hint">上传图片当表情包，聊天点 🧩 发送；江屹琛也能用「[贴纸:名字]」发（存本地、不上云）。</span>
         </div>
 
-        <div class="section-title">🔌 模型与服务</div>
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg>模型与服务</div>
         <div class="field" style="grid-column: 1 / -1;">
           <label>接口配置（可存多个，随时切换）</label>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -785,7 +786,7 @@
           </label>
           <textarea id="modelList" placeholder="gpt-4o-mini&#10;gpt-4o&#10;claude-opus-4-8"></textarea>
         </div>
-        <div class="section-title">🎭 角色档案</div>
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>角色档案</div>
 
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">身份信息</label>
@@ -846,13 +847,13 @@
           </label>
         </div>
 
-        <div class="section-title">⭐ 语录集（收藏的消息）</div>
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>语录集（收藏的消息）</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">共 <span id="fav-count">0</span> 条 —— 长按聊天消息即可收藏</label>
           <div id="fav-list" style="margin-top:8px; display:flex; flex-direction:column; gap:8px;"></div>
         </div>
 
-        <div class="section-title">📦 数据（本地备份 / 恢复）</div>
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>数据（本地备份 / 恢复）</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">把所有对话和设置导出成一个文件，换设备时再导入恢复</label>
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
@@ -872,7 +873,7 @@
           <span class="hint">桌面 App 没更新到最新功能时点这个：会清掉缓存、拉取最新代码（不会动你的聊天和设置）。</span>
         </div>
 
-        <div class="section-title">🔒 隐私锁</div>
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>隐私锁</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600;">
             <input type="checkbox" id="lockEnabled" style="width:auto;" /> 打开 App 需要输入密码
