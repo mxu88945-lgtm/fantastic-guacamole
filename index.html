@@ -1629,19 +1629,27 @@ async function streamChat(onDelta, onReasoning) {
   let url, headers, body;
   if (isAnthropic) {
     url = base + "/messages";
+    const isThinking = /thinking/i.test(model);
     headers = {
       "content-type": "application/json",
       "x-api-key": settings.apiKey,
       "anthropic-version": "2023-06-01",
       "anthropic-dangerous-direct-browser-access": "true",
     };
+    if (isThinking) headers["anthropic-beta"] = "interleaved-thinking-2025-05-14";
     body = {
       model,
       max_tokens: settings.maxTokens || 2048,
-      temperature: settings.temperature,
+      // thinking models require temperature=1; for others use the user's setting
+      temperature: isThinking ? 1 : settings.temperature,
       stream: true,
       messages: messages.map(m => ({ role: m.role, content: toApiContent(sendContent(m), true) })),
     };
+    if (isThinking) {
+      const thinkBudget = 8000;
+      body.thinking = { type: "enabled", budget_tokens: thinkBudget };
+      body.max_tokens = Math.max(body.max_tokens, thinkBudget + 2048); // ensure room for output
+    }
     if (systemText) body.system = systemText;
   } else {
     url = base + "/chat/completions";
@@ -2141,9 +2149,16 @@ async function generateReply() {
       (delta) => { assistantMsg.content += delta; paint(); },
       (rdelta) => { assistantMsg.reasoning += rdelta; paint(); }
     );
-    bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning);
-    replied = true;
+    const isEmpty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim();
+    if (isEmpty) {
+      messages.pop(); el.remove();
+      showError("模型返回了空回复。可能原因：thinking 模型不支持图片输入、temperature 设置有冲突，或接口限制。请打开浏览器控制台查看详细错误。");
+    } else {
+      bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning);
+      replied = true;
+    }
   } catch (e) {
+    console.error("[generateReply error]", e);
     if (e.name === "AbortError") {
       bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content || "_（已停止）_", assistantMsg.reasoning);
     } else {
