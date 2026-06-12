@@ -988,16 +988,6 @@ function loadState() {
     saveConversations();
   }
   if (!conversations.find(c => c.id === currentId)) currentId = conversations[0].id;
-  // Drop stale empty conversations; keep the active one even if it's empty
-  const beforeClean = conversations.length;
-  conversations = conversations.filter(c => c.messages.length > 0 || c.id === currentId);
-  // If the saved current conversation is empty but non-empty ones exist, restore the most recent one
-  if (currentConv().messages.length === 0) {
-    const nonEmpty = conversations.filter(c => c.messages.length > 0)
-      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
-    if (nonEmpty) currentId = nonEmpty.id;
-  }
-  if (conversations.length !== beforeClean) saveConversations();
   messages = currentConv().messages;
 
   // migrate to multi-provider profiles
@@ -1179,12 +1169,15 @@ function createConversation() {
   conversations.unshift(conv);
   switchConversation(conv.id);
 }
-// Land on a fresh greeting "home": reuse an empty conversation if one exists, else make one.
+// Land on the greeting home page. Keep exactly one empty conversation; purge any extras.
 function goHome() {
   if (abortController) abortController.abort();
-  const empty = conversations.find(c => c.messages.length === 0);
-  if (empty) switchConversation(empty.id);
-  else createConversation();
+  let empty = conversations.find(c => c.messages.length === 0);
+  if (!empty) { empty = newConversation(); conversations.unshift(empty); }
+  // Remove every other empty conversation so they don't pile up
+  conversations = conversations.filter(c => c.messages.length > 0 || c.id === empty.id);
+  saveConversations();
+  switchConversation(empty.id);
 }
 function deleteConversation(id, ev) {
   if (ev) ev.stopPropagation();
@@ -2804,7 +2797,7 @@ function init() {
     readSettingsFromUI();
   });
 
-  renderConvList(); renderMessages(); updateConvTitle(); // restore last session as-is
+  goHome();   // always open on the greeting home page
   if (!settings.apiKey) openSettings(true);
 
   // privacy lock
