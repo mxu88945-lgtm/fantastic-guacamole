@@ -2153,6 +2153,7 @@ async function generateReply() {
     if (isEmpty) {
       messages.pop(); el.remove();
       showError("模型返回了空回复。可能原因：thinking 模型不支持图片输入、temperature 设置有冲突，或接口限制。请打开浏览器控制台查看详细错误。");
+      showToast("❌ 空回复（可能不支持图片/thinking 冲突）");
     } else {
       bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning);
       replied = true;
@@ -2164,6 +2165,7 @@ async function generateReply() {
     } else {
       messages.pop(); el.remove();
       showError(e.message || String(e));
+      showToast("❌ " + (e.message || String(e)).slice(0, 80));
     }
   } finally {
     setSending(false);
