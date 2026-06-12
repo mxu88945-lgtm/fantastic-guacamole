@@ -651,7 +651,10 @@
         </div>
         <div class="field" style="grid-column: 1 / -1;">
           <label>微调强调色（在主题基础上单独换个强调色）</label>
-          <div id="accent-swatches" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;"></div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <div id="accent-swatches" style="display:contents;"></div>
+            <input type="color" id="accent-color-picker" title="自定义颜色" style="width:30px;height:30px;border:none;background:none;cursor:pointer;padding:0;flex-shrink:0;" />
+          </div>
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🖼️ 聊天背景图（毛玻璃雾化）</label>
@@ -2283,14 +2286,9 @@ function renderAccentSwatches() {
     b.onclick = () => setAccent(p.color);
     box.appendChild(b);
   }
-  // custom color picker
-  const custom = document.createElement("input");
-  custom.type = "color"; custom.value = settings.accent || "#7c83ff";
-  custom.title = "自定义颜色";
-  custom.style.cssText = "width:30px;height:30px;border:none;background:none;cursor:pointer;padding:0;";
-  custom.oninput = () => { settings.accent = custom.value; saveSettings(); applyAccent(); };
-  custom.onchange = () => renderAccentSwatches();
-  box.appendChild(custom);
+  // sync the static color picker value without touching the DOM node
+  const picker = $("accent-color-picker");
+  if (picker) picker.value = settings.accent || "#7c83ff";
 }
 
 // ---------- Model quick switcher ----------
@@ -2602,6 +2600,8 @@ function init() {
   document.querySelectorAll("[data-edit]").forEach(btn =>
     btn.onclick = () => openBigEditor(btn.dataset.edit, btn.dataset.title));
   $("editor-done").onclick = closeBigEditor;
+  $("accent-color-picker").oninput = (e) => { settings.accent = e.target.value; saveSettings(); applyAccent(); };
+  $("accent-color-picker").onchange = () => renderAccentSwatches();
   $("send-btn").onclick = () => { if (abortController) abortController.abort(); else send(); };
 
   $("signin-btn").onclick = () => doAuth("signin");
