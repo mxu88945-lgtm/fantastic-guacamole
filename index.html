@@ -332,6 +332,9 @@
   }
   .msg-act svg { width: 17px; height: 17px; }
   .msg-act:hover { color: var(--accent); background: var(--item-active); }
+  .msg-act.playing { color: var(--accent); }
+  .msg-act.tts-loading { opacity: .45; pointer-events: none; animation: tts-pulse .8s ease-in-out infinite; }
+  @keyframes tts-pulse { 0%,100%{opacity:.45} 50%{opacity:.2} }
   /* long-press: suppress iOS selection on bubbles (but allow it in code blocks) */
   .bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   .bubble pre, .bubble code { -webkit-user-select: text; user-select: text; }
@@ -768,6 +771,35 @@
           </label>
           <textarea id="modelList" placeholder="gpt-4o-mini&#10;gpt-4o&#10;claude-opus-4-8"></textarea>
         </div>
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>语音朗读（TTS）</div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600;">
+            <input type="checkbox" id="ttsEnabled" style="width:auto;" onchange="readSettingsFromUI(); renderMessages();" />
+            开启语音朗读
+          </label>
+          <span class="hint" style="margin-top:4px; display:block;">开启后，AI 消息下方会出现朗读按钮（🔊）。</span>
+        </div>
+        <div class="field">
+          <label>TTS 接口地址</label>
+          <input id="ttsBaseUrl" placeholder="https://api.minimax.chat" onchange="readSettingsFromUI();" />
+        </div>
+        <div class="field">
+          <label>TTS API Key <span class="hint">（不上云）</span></label>
+          <input id="ttsApiKey" type="password" placeholder="填 TTS 服务的 Key" onchange="readSettingsFromUI();" />
+        </div>
+        <div class="field">
+          <label>模型</label>
+          <input id="ttsModel" placeholder="speech-01-turbo" onchange="readSettingsFromUI();" />
+        </div>
+        <div class="field">
+          <label>音色 ID</label>
+          <input id="ttsVoice" placeholder="female-tianmei-jingpin" onchange="readSettingsFromUI();" />
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <label>语速 <span id="ttsSpeedVal">1.0</span>x</label>
+          <input type="range" id="ttsSpeed" min="0.5" max="2" step="0.1" oninput="$('ttsSpeedVal').textContent=parseFloat(this.value).toFixed(1)" onchange="readSettingsFromUI();" />
+        </div>
+
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>角色档案</div>
 
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
@@ -953,9 +985,12 @@ let sb = null;          // supabase client
 let cloudUser = null;   // logged-in user object
 let applyingCloud = false;
 let pushTimer = null;
+let ttsAudio = null;
+let ttsBtnActive = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","memory","autoMemory","themeName","accent",
-  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
+  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily",
+  "ttsEnabled","ttsBaseUrl","ttsVoice","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
@@ -1477,6 +1512,13 @@ function makeMsgEl(role, content, opts) {
     copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
     copyBtn.onclick = () => { navigator.clipboard.writeText(text); showToast("已复制"); };
     bar.appendChild(copyBtn);
+    if (settings.ttsEnabled) {
+      const speakBtn = document.createElement("button");
+      speakBtn.className = "msg-act"; speakBtn.title = "朗读";
+      speakBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
+      speakBtn.onclick = () => speakText(text, speakBtn);
+      bar.appendChild(speakBtn);
+    }
     if (opts.isLast) {
       const reBtn = document.createElement("button");
       reBtn.className = "msg-act"; reBtn.title = "重新生成";
@@ -1495,6 +1537,34 @@ function scrollToBottom() {
 }
 function showError(msg) { $("err-slot").innerHTML = `<div class="err-banner">⚠️ ${escapeHtml(msg)}</div>`; }
 function clearError() { $("err-slot").innerHTML = ""; }
+
+async function speakText(text, btn) {
+  const wasActive = ttsBtnActive === btn;
+  if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
+  if (ttsBtnActive) { ttsBtnActive.classList.remove("playing", "tts-loading"); ttsBtnActive = null; }
+  if (wasActive) return;
+  if (!settings.ttsBaseUrl || !settings.ttsApiKey) { showToast("请先在设置里填写 TTS 接口地址和 Key"); return; }
+  btn.classList.add("tts-loading"); ttsBtnActive = btn;
+  try {
+    const base = settings.ttsBaseUrl.replace(/\/$/, "");
+    const resp = await fetch(base + "/v1/audio/speech", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + settings.ttsApiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: settings.ttsModel || "speech-01-turbo", input: text, voice: settings.ttsVoice || "female-tianmei-jingpin", speed: parseFloat(settings.ttsSpeed) || 1 })
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    ttsAudio = new Audio(url);
+    btn.classList.remove("tts-loading"); btn.classList.add("playing");
+    ttsAudio.onended = () => { btn.classList.remove("playing"); if (ttsBtnActive === btn) ttsBtnActive = null; ttsAudio = null; URL.revokeObjectURL(url); };
+    ttsAudio.play();
+  } catch(e) {
+    btn.classList.remove("tts-loading", "playing");
+    if (ttsBtnActive === btn) ttsBtnActive = null;
+    showToast("朗读失败：" + (e.message || e));
+  }
+}
 
 // ---------- API calls ----------
 // Convert our stored content (string | parts[]) into the provider's wire format.
@@ -2360,6 +2430,13 @@ function syncSettingsToUI() {
   $("bubbleOpVal").textContent = settings.bubbleOpacity;
   $("showTime").checked = settings.showTime;
   $("timeAware").checked = settings.timeAware;
+  $("ttsEnabled").checked = !!settings.ttsEnabled;
+  $("ttsBaseUrl").value = settings.ttsBaseUrl || "";
+  $("ttsApiKey").value = settings.ttsApiKey || "";
+  $("ttsModel").value = settings.ttsModel || "";
+  $("ttsVoice").value = settings.ttsVoice || "";
+  $("ttsSpeed").value = settings.ttsSpeed || 1;
+  $("ttsSpeedVal").textContent = parseFloat(settings.ttsSpeed || 1).toFixed(1);
   highlightLayoutButtons();
   highlightFontButtons();
   renderProviderSelect();
@@ -2438,6 +2515,12 @@ function readSettingsFromUI() {
   // text box doesn't wipe an uploaded image) — not read here.
   settings.lockEnabled = $("lockEnabled").checked;
   settings.lockPin = $("lockPin").value.trim();
+  settings.ttsEnabled = $("ttsEnabled").checked;
+  settings.ttsBaseUrl = $("ttsBaseUrl").value.trim();
+  settings.ttsApiKey = $("ttsApiKey").value.trim();
+  settings.ttsModel = $("ttsModel").value.trim();
+  settings.ttsVoice = $("ttsVoice").value.trim();
+  settings.ttsSpeed = parseFloat($("ttsSpeed").value) || 1;
   saveSettings();
   updateStatusLine();
   renderModelQuick();
