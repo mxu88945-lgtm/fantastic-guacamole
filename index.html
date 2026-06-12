@@ -740,7 +740,6 @@
             <button class="mini-btn" id="provider-del">🗑️ 删除</button>
           </div>
         </div>
-        <span class="hint" style="grid-column:1/-1; margin-top:-4px;">👇 下面这排（API格式 / Base URL / API Key / 当前模型）就是「上面所选接口」的内容，新增接口后在这里填它的地址和 Key。</span>
         <div class="field">
           <label>API 格式</label>
           <select id="provider">
@@ -817,7 +816,7 @@
         <div class="field" style="grid-column: 1 / -1;">
           <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <span style="font-weight:600;">核心人设 <span class="hint" style="font-weight:400;">· 系统提示词</span></span>
-            <button class="mini-btn" data-edit="systemPrompt" data-title="核心人设">⛶ 展开编辑</button>
+            <button class="mini-btn" data-edit="systemPrompt" data-title="核心人设" title="展开编辑" style="padding:5px 8px;line-height:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
           </label>
           <span class="hint">决定 AI 如何理解身份、关系、语气与边界。</span>
           <textarea id="systemPrompt" placeholder="你叫江屹琛，对用户亲切、口语化……" style="margin-top:6px;"></textarea>
@@ -828,7 +827,7 @@
             <span style="font-weight:600;">长期记忆 <span class="hint" style="font-weight:400;">· 共 <span id="memory-count">0</span> 条</span></span>
             <span>
               <button class="mini-btn" id="memory-add">＋ 添加</button>
-              <button class="mini-btn" data-edit="memory" data-title="长期记忆 · 原文">⛶ 原文</button>
+              <button class="mini-btn" data-edit="memory" data-title="长期记忆 · 原文" title="展开原文编辑" style="padding:5px 8px;line-height:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
             </span>
           </label>
           <span class="hint">这些信息会随每次对话一起发送，用于保持角色连续性。</span>
@@ -2839,7 +2838,7 @@ function init() {
   $("model-select").addEventListener("change", () => pickModel($("model-select").value));
 
   $("input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+    if (e.key === "Enter" && !e.shiftKey && !isMobile()) { e.preventDefault(); send(); }
   });
   $("input").addEventListener("input", autoResize);
 
