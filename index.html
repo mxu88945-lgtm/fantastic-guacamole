@@ -348,19 +348,6 @@
   }
   #msg-menu button:hover { background: var(--item-active); }
   #msg-menu button[data-mact="del"] { color: var(--danger); }
-  /* memory cards */
-  #memory-cards { display: flex; flex-direction: column; gap: 8px; }
-  .mem-card {
-    display: flex; align-items: flex-start; gap: 8px; padding: 9px 11px;
-    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
-  }
-  .mem-card .mem-text { flex: 1; font-size: 13px; line-height: 1.5; }
-  .mem-card .mem-acts { display: flex; gap: 2px; flex-shrink: 0; }
-  .mem-card .mem-acts button {
-    background: none; border: none; color: var(--text-dim); cursor: pointer;
-    font-size: 13px; padding: 2px 5px; border-radius: 6px;
-  }
-  .mem-card .mem-acts button:hover { color: var(--accent); background: var(--item-active); }
   /* favorites / 语录集 */
   .fav-item { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; }
   .fav-item .fav-text { font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
@@ -824,14 +811,10 @@
 
         <div class="field" style="grid-column: 1 / -1;">
           <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <span style="font-weight:600;">长期记忆 <span class="hint" style="font-weight:400;">· 共 <span id="memory-count">0</span> 条</span></span>
-            <span>
-              <button class="mini-btn" id="memory-add">＋ 添加</button>
-              <button class="mini-btn" data-edit="memory" data-title="长期记忆 · 原文" title="展开原文编辑" style="padding:5px 8px;line-height:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
-            </span>
+            <span style="font-weight:600;">长期记忆</span>
+            <button class="mini-btn" data-edit="memory" data-title="长期记忆" title="展开编辑" style="padding:5px 8px;line-height:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
           </label>
           <span class="hint">这些信息会随每次对话一起发送，用于保持角色连续性。</span>
-          <div id="memory-cards" style="margin-top:8px;"></div>
           <textarea id="memory" style="display:none;"></textarea>
           <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:10px;cursor:pointer;">
             <input type="checkbox" id="autoMemory" style="width:auto;" />
@@ -1696,7 +1679,6 @@ async function autoUpdateMemory() {
   settings.memory = (settings.memory ? settings.memory.replace(/\s+$/, "") + "\n" : "") + lines;
   saveSettings();
   if ($("memory")) $("memory").value = settings.memory;
-  renderMemoryCards();
   showToast("🧠 记忆已更新：新增 " + additions.length + " 条");
 }
 
@@ -1996,47 +1978,6 @@ function deleteMessage(idx) {
   if (!confirm("删除这条消息？")) return;
   messages.splice(idx, 1);
   saveConversations(); renderMessages();
-}
-// ---------- Memory cards ----------
-function memoryLines() {
-  return (settings.memory || "").split("\n").map(s => s.replace(/^\s*[-*]\s*/, "").trim()).filter(Boolean);
-}
-function setMemoryLines(lines) {
-  settings.memory = lines.map(l => "- " + l).join("\n");
-  if ($("memory")) $("memory").value = settings.memory;
-  saveSettings();
-  renderMemoryCards();
-}
-function renderMemoryCards() {
-  const box = $("memory-cards");
-  if (!box) return;
-  const lines = memoryLines();
-  if ($("memory-count")) $("memory-count").textContent = lines.length;
-  box.innerHTML = "";
-  if (!lines.length) {
-    box.innerHTML = `<span class="hint">还没有记忆。点「＋ 添加」写一条，或开启自动记忆让我自己记。</span>`;
-    return;
-  }
-  lines.forEach((line, i) => {
-    const d = document.createElement("div");
-    d.className = "mem-card";
-    d.innerHTML = `<div class="mem-text"></div>
-      <div class="mem-acts">
-        <button data-mp title="置顶">⤴</button>
-        <button data-me title="编辑">✎</button>
-        <button data-md title="删除">✕</button>
-      </div>`;
-    d.querySelector(".mem-text").textContent = line;
-    d.querySelector("[data-mp]").onclick = () => { const a = memoryLines(); const x = a.splice(i, 1)[0]; a.unshift(x); setMemoryLines(a); };
-    d.querySelector("[data-me]").onclick = () => { const v = prompt("编辑这条记忆：", line); if (v === null) return; const a = memoryLines(); a[i] = v.trim(); setMemoryLines(a.filter(Boolean)); };
-    d.querySelector("[data-md]").onclick = () => { if (!confirm("确定删除这条记忆吗？")) return; const a = memoryLines(); a.splice(i, 1); setMemoryLines(a); };
-    box.appendChild(d);
-  });
-}
-function addMemory() {
-  const v = prompt("添加一条长期记忆：", "");
-  if (!v || !v.trim()) return;
-  const a = memoryLines(); a.push(v.trim()); setMemoryLines(a);
 }
 
 function renderFavorites() {
@@ -2400,7 +2341,6 @@ function syncSettingsToUI() {
   $("modelList").value = settings.modelList;
   $("systemPrompt").value = settings.systemPrompt;
   $("memory").value = settings.memory;
-  renderMemoryCards();
   renderFavorites();
   $("autoMemory").checked = settings.autoMemory;
   $("sbUrl").value = settings.supabaseUrl;
@@ -2659,8 +2599,6 @@ function init() {
   document.querySelectorAll("[data-edit]").forEach(btn =>
     btn.onclick = () => openBigEditor(btn.dataset.edit, btn.dataset.title));
   $("editor-done").onclick = closeBigEditor;
-  $("memory-add").onclick = addMemory;
-  $("memory").addEventListener("change", renderMemoryCards);
   $("send-btn").onclick = () => { if (abortController) abortController.abort(); else send(); };
 
   $("signin-btn").onclick = () => doAuth("signin");
