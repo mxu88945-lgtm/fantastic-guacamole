@@ -283,8 +283,9 @@
   .bubble {
     background: color-mix(in srgb, var(--assistant-bubble) var(--bubble-pct, 100%), transparent);
     border: 1px solid var(--border);
-    border-radius: 16px; padding: 12px 15px; font-size: 14.5px;
-    line-height: 1.65; word-wrap: break-word; overflow-wrap: anywhere;
+    border-radius: 16px; padding: 12px 15px;
+    font-size: var(--msg-font, 14.5px); font-family: var(--msg-font-family, inherit);
+    line-height: 1.7; word-wrap: break-word; overflow-wrap: anywhere;
     box-shadow: 0 2px 8px rgba(0,0,0,.06);
   }
   /* Claude-style: assistant message has no bubble — just text on the page */
@@ -705,16 +706,34 @@
           <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-top:8px; cursor:pointer;">
             <input type="checkbox" id="timeAware" style="width:auto;" /> 让 AI 感知当前时间（会道早安/催睡觉）
           </label>
+          <div style="margin-top:12px;">
+            <div class="hint">字体大小</div>
+            <div style="display:flex; gap:8px; margin-top:6px;">
+              <button class="mini-btn" data-fs="small">小</button>
+              <button class="mini-btn" data-fs="medium">中</button>
+              <button class="mini-btn" data-fs="large">大</button>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <div class="hint">字体样式</div>
+            <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+              <button class="mini-btn" data-ff="default">默认</button>
+              <button class="mini-btn" data-ff="kai" style="font-family:'Kaiti SC',KaiTi,serif;">楷体</button>
+              <button class="mini-btn" data-ff="song" style="font-family:'Songti SC',serif;">宋体</button>
+            </div>
+          </div>
           <span class="hint">「平铺式」像 Tavo：头像名字在文字上方、文字铺满更宽。透明度调低能透出背景图。</span>
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
-          <label style="font-weight:600;">🧩 表情包 / 贴纸库</label>
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
-            <button class="mini-btn primary" id="sticker-upload">＋ 上传贴纸</button>
-            <span class="hint">上传图片当表情包，聊天时点 🧩 发送。</span>
-          </div>
-          <div id="sticker-manage" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;"></div>
-          <span class="hint">江屹琛也能发！他会用「[贴纸:名字]」自动发对应表情（贴纸存本地、不上云）。</span>
+          <label style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <span style="font-weight:600;">🧩 表情包 <span class="hint" style="font-weight:400;">· 共 <span id="sticker-count">0</span> 个</span></span>
+            <span>
+              <button class="mini-btn primary" id="sticker-upload">＋ 上传</button>
+              <button class="mini-btn" id="sticker-toggle">展开 ▾</button>
+            </span>
+          </label>
+          <div id="sticker-manage" style="display:none; gap:8px; flex-wrap:wrap; margin-top:10px; max-height:200px; overflow-y:auto;"></div>
+          <span class="hint">上传图片当表情包，聊天点 🧩 发送；江屹琛也能用「[贴纸:名字]」发（存本地、不上云）。</span>
         </div>
 
         <div class="section-title">🔌 模型与服务</div>
@@ -941,6 +960,8 @@ let settings = {
   bubbleOpacity: 100,     // bubble background opacity (%)
   showTime: true,         // show message timestamps
   timeAware: true,        // tell the model the current local time
+  fontSize: "medium",     // small | medium | large
+  fontFamily: "default",  // default | kai | song
   stickers: [],           // [{id, name, dataUrl}] image stickers / 表情包
   favorites: [],          // [{id, who, text, ts}] starred quotes / 语录集
 };
@@ -954,7 +975,7 @@ let applyingCloud = false;
 let pushTimer = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","memory","autoMemory","themeName","accent",
-  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
+  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
@@ -1166,6 +1187,13 @@ function createConversation() {
   const conv = newConversation();
   conversations.unshift(conv);
   switchConversation(conv.id);
+}
+// Land on a fresh greeting "home": reuse an empty conversation if one exists, else make one.
+function goHome() {
+  if (abortController) abortController.abort();
+  const empty = conversations.find(c => c.messages.length === 0);
+  if (empty) switchConversation(empty.id);
+  else createConversation();
 }
 function deleteConversation(id, ev) {
   if (ev) ev.stopPropagation();
@@ -1476,7 +1504,11 @@ function makeMsgEl(role, content, opts) {
   }
   return el;
 }
-function scrollToBottom() { const c = $("chat"); c.scrollTop = c.scrollHeight; }
+function scrollToBottom() {
+  const c = $("chat");
+  c.scrollTop = c.scrollHeight;
+  requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; }); // again after layout settles
+}
 function showError(msg) { $("err-slot").innerHTML = `<div class="err-banner">⚠️ ${escapeHtml(msg)}</div>`; }
 function clearError() { $("err-slot").innerHTML = ""; }
 
@@ -1802,6 +1834,7 @@ function deleteSticker(id) {
 function renderStickerManage() {
   const box = $("sticker-manage");
   if (!box) return;
+  if ($("sticker-count")) $("sticker-count").textContent = settings.stickers.length;
   box.innerHTML = "";
   for (const s of settings.stickers) {
     const d = document.createElement("div");
@@ -2201,10 +2234,22 @@ function applyTheme() {
   applyAccent();
   applyChatBg();
   applyBubbleStyle();
+  applyFont();
 }
 function applyBubbleStyle() {
   const pct = settings.bubbleOpacity == null ? 100 : settings.bubbleOpacity;
   document.documentElement.style.setProperty("--bubble-pct", pct + "%");
+}
+const FONT_SIZES = { small: "13px", medium: "14.5px", large: "16.5px" };
+const FONT_FAMS = { default: "inherit", kai: '"Kaiti SC","STKaiti",KaiTi,serif', song: '"Songti SC","STSong",serif' };
+function applyFont() {
+  const root = document.documentElement;
+  root.style.setProperty("--msg-font", FONT_SIZES[settings.fontSize] || FONT_SIZES.medium);
+  root.style.setProperty("--msg-font-family", FONT_FAMS[settings.fontFamily] || "inherit");
+}
+function highlightFontButtons() {
+  document.querySelectorAll("[data-fs]").forEach(b => b.classList.toggle("primary", b.dataset.fs === settings.fontSize));
+  document.querySelectorAll("[data-ff]").forEach(b => b.classList.toggle("primary", b.dataset.ff === settings.fontFamily));
 }
 function setLayout(layout) {
   settings.chatLayout = layout;
@@ -2377,6 +2422,7 @@ function syncSettingsToUI() {
   $("showTime").checked = settings.showTime;
   $("timeAware").checked = settings.timeAware;
   highlightLayoutButtons();
+  highlightFontButtons();
   renderProviderSelect();
   renderThemeCards();
   renderAccentSwatches();
@@ -2603,6 +2649,8 @@ function init() {
   updateConvTitle();
 
   $("new-chat-btn").onclick = createConversation;
+  $("brand-logo").style.cursor = "pointer"; $("brand-title").style.cursor = "pointer";
+  $("brand-logo").onclick = goHome; $("brand-title").onclick = goHome;
   $("search-input").addEventListener("input", (e) => runSearch(e.target.value));
   $("compact-btn").onclick = compactConversation;
   $("conv-title").onclick = () => renameConversation(currentId);
@@ -2659,6 +2707,12 @@ function init() {
   renderStickerManage();
   renderStickerPanel();
   $("sticker-upload").onclick = () => $("stickerFile").click();
+  $("sticker-toggle").onclick = () => {
+    const box = $("sticker-manage");
+    const open = box.style.display !== "none";
+    box.style.display = open ? "none" : "flex";
+    $("sticker-toggle").textContent = open ? "展开 ▾" : "收起 ▴";
+  };
   $("stickerFile").onchange = (e) => { for (const f of e.target.files) addStickerFile(f); e.target.value = ""; };
   $("file-input").onchange = (e) => { handleTextFile(e.target.files[0]); e.target.value = ""; };
 
@@ -2755,6 +2809,12 @@ function init() {
   // Chat layout + bubble opacity
   $("layout-bubble").onclick = () => setLayout("bubble");
   $("layout-flat").onclick = () => setLayout("flat");
+  document.querySelectorAll("[data-fs]").forEach(b => b.onclick = () => {
+    settings.fontSize = b.dataset.fs; saveSettings(); applyFont(); highlightFontButtons();
+  });
+  document.querySelectorAll("[data-ff]").forEach(b => b.onclick = () => {
+    settings.fontFamily = b.dataset.ff; saveSettings(); applyFont(); highlightFontButtons();
+  });
   $("bubbleOpacity").addEventListener("input", () => {
     settings.bubbleOpacity = parseInt($("bubbleOpacity").value);
     $("bubbleOpVal").textContent = settings.bubbleOpacity;
@@ -2798,6 +2858,7 @@ function init() {
     readSettingsFromUI();
   });
 
+  goHome();   // open on the greeting home page, not jumped into an old conversation
   if (!settings.apiKey) openSettings(true);
 
   // privacy lock
