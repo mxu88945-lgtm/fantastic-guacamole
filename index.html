@@ -2121,7 +2121,12 @@ async function send() {
   renderMessages();
   touchConversation();
   scrollToBottom();
-  await generateReply();
+  try {
+    await generateReply();
+  } catch (e) {
+    console.error("[send→generateReply error]", e);
+    showToast("❌ 发送异常: " + (e.message || String(e)).slice(0, 80));
+  }
 }
 
 // Generate an assistant reply for the current messages (which must end with a user turn).
