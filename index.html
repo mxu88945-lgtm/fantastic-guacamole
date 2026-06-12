@@ -1256,7 +1256,7 @@ async function compactConversation() {
 function renderConvList() {
   const box = $("conv-list");
   box.innerHTML = "";
-  for (const c of conversations) {
+  for (const c of conversations.filter(c => c.messages.length > 0)) {
     const el = document.createElement("div");
     el.className = "conv-item" + (c.id === currentId ? " active" : "");
     el.innerHTML = `<span class="ic">💬</span><span class="name"></span>
