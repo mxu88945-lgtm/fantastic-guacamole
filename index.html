@@ -171,6 +171,12 @@
     font-size: 13px; cursor: pointer; transition: .15s;
   }
   .icon-btn:hover { border-color: var(--accent); }
+  /* Claude-style round bubble buttons in the (transparent) top header */
+  header .icon-btn {
+    width: 38px; height: 38px; padding: 0; border-radius: 50%;
+    background: var(--bg-soft); display: grid; place-items: center;
+    font-size: 15px; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,.05);
+  }
   .model-quick {
     background: var(--bg-panel); border: 1px solid var(--border);
     color: var(--text); border-radius: 9px; padding: 7px 9px;
@@ -628,12 +634,10 @@
     <div id="chat-bg"></div>
     <header>
       <button class="icon-btn" id="toggle-sidebar" title="收起/展开侧栏">☰</button>
-      <div style="min-width:0;">
-        <h1 id="conv-title" style="cursor:pointer;" title="点击重命名">新对话</h1>
-        <div class="sub" id="status-line">本地网页客户端</div>
-      </div>
+      <h1 id="conv-title" style="cursor:pointer;" title="点击重命名">新对话</h1>
       <div class="spacer"></div>
-      <button class="icon-btn" id="settings-btn">⚙️</button>
+      <button class="icon-btn" id="header-search-btn" title="搜索聊天记录">🔍</button>
+      <button class="icon-btn" id="settings-btn" title="设置">⚙️</button>
     </header>
 
     <div class="settings" id="settings-panel">
@@ -3138,9 +3142,11 @@ function updateProviderHint() {
   if (!$("model").value) $("model").placeholder = d.model;
 }
 function updateStatusLine() {
+  const el = $("status-line");
+  if (!el) return;   // header subtitle was removed (Claude-style minimal header)
   const ap = activeProvider();
   const m = settings.model || DEFAULTS[settings.provider].model;
-  $("status-line").textContent = `${ap ? ap.name + " · " : ""}${m}`;
+  el.textContent = `${ap ? ap.name + " · " : ""}${m}`;
 }
 function openSettings(force) {
   const panel = $("settings-panel");
@@ -3286,6 +3292,10 @@ function init() {
   $("search-input").addEventListener("input", (e) => runSearch(e.target.value));
   $("conv-title").onclick = () => renameConversation(currentId);
   $("toggle-sidebar").onclick = toggleSidebar;
+  $("header-search-btn").onclick = () => {
+    settings.sidebarCollapsed = false; saveSettings(); applySidebar();
+    setTimeout(() => { const s = $("search-input"); if (s) s.focus(); }, 60);
+  };
   $("backdrop").onclick = closeSidebar;
   window.addEventListener("resize", applySidebar);
   $("settings-btn").onclick = () => openSettings();
