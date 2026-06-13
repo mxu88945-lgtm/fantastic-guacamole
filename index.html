@@ -1984,27 +1984,37 @@ function renderUsage() {
   let all = [];
   try { all = JSON.parse(localStorage.getItem("jyc_usage") || "[]"); } catch (_) {}
   if (!all.length) { box.innerHTML = `<div class="hint">还没有记录～聊几句就会出现今日花费和明细。</div>`; return; }
-  const start = new Date(); start.setHours(0, 0, 0, 0);
-  const today = all.filter(e => e.ts >= start.getTime());
+  const now = new Date();
+  const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+  const dow = (now.getDay() + 6) % 7;   // 0 = Monday
+  const weekStart = new Date(now); weekStart.setHours(0, 0, 0, 0); weekStart.setDate(now.getDate() - dow);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const today = all.filter(e => e.ts >= dayStart.getTime());
   const anyCost = (arr) => arr.some(e => typeof e.cost === "number");
   const sumCost = (arr) => arr.reduce((s, e) => s + (typeof e.cost === "number" ? e.cost : 0), 0);
+  const stat = (fromTs) => { const arr = all.filter(e => e.ts >= fromTs); return { n: arr.length, cost: sumCost(arr), has: anyCost(arr) }; };
+  const cell = (label, s) => `<div style="flex:1; min-width:78px;">
+      <div style="font-size:12px; color:var(--text-dim);">${label}</div>
+      <div style="font-size:19px; font-weight:700; line-height:1.35;">${s.has ? "$" + s.cost.toFixed(3) : "—"}</div>
+      <div style="font-size:11px; color:var(--text-dim);">${s.n} 次</div>
+    </div>`;
   const byModel = {};
   today.forEach(e => {
     const m = byModel[e.model] || (byModel[e.model] = { n: 0, in: 0, cache: 0, out: 0, cost: 0, hasCost: false });
     m.n++; m.in += e.in || 0; m.cache += e.cache || 0; m.out += e.out || 0;
     if (typeof e.cost === "number") { m.cost += e.cost; m.hasCost = true; }
   });
-  const head = `<div style="display:flex; align-items:baseline; gap:10px; margin-bottom:8px;">
-      <span style="font-size:13px; color:var(--text-dim);">今日</span>
-      <span style="font-size:20px; font-weight:700;">${anyCost(today) ? "$" + sumCost(today).toFixed(3) : "—"}</span>
-      <span style="font-size:13px; color:var(--text-dim);">· ${today.length} 次</span>
+  const head = `<div style="display:flex; gap:12px; margin-bottom:10px;">
+      ${cell("今日", stat(dayStart.getTime()))}
+      ${cell("本周", stat(weekStart.getTime()))}
+      ${cell("本月", stat(monthStart.getTime()))}
     </div>`;
   const models = Object.entries(byModel).sort((a, b) => b[1].cost - a[1].cost).map(([name, m]) =>
     `<div style="font-size:12px; color:var(--text-dim); margin:2px 0;">
        <b style="color:var(--text);">${escapeHtml(name)}</b>: ${m.hasCost ? "$" + m.cost.toFixed(3) : "—"}
        <span style="opacity:.85;">(in ${fmtTok(m.in)} / cache ${fmtTok(m.cache)} / out ${fmtTok(m.out)})</span>
      </div>`).join("");
-  const recent = all.slice(-15).reverse().map(e => {
+  const recent = all.slice(-10).reverse().map(e => {
     const t = new Date(e.ts);
     const hm = String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
     const cache = e.cache ? ` · 命中${fmtTok(e.cache)}` : "";
@@ -2014,7 +2024,8 @@ function renderUsage() {
         <span style="font-weight:600; flex-shrink:0;">${fmtCost(e.cost)}</span>
       </div>`;
   }).join("");
-  box.innerHTML = head + models + `<div style="margin-top:8px; font-size:11px; color:var(--text-dim);">最近</div>` + recent;
+  box.innerHTML = head + `<div style="font-size:11px; color:var(--text-dim); margin-bottom:2px;">今日各模型</div>` + models
+    + `<div style="margin-top:8px; font-size:11px; color:var(--text-dim);">最近 10 条</div>` + recent;
 }
 
 // Non-streaming one-shot completion (used by auto-memory extraction).
