@@ -89,6 +89,13 @@
 - 唤醒词管理、语气偏好、禁忌与边界、多角色档案切换、角色档案模板导入/导出。
 - MCP（需后端）、后端代理隐藏 Key、导出对话为长图（小红书用，需 canvas 绘制）。
 
+**🔌 外部集成（已和惟惟讨论、暂缓，她说步骤多头大，改天再战）**
+- 目标：让江屹琛能**读邮件、连 Notion、接更多服务**。惟惟拍板的方向：① **搭免费小后端**（Cloudflare Worker 当代理+保险箱）；② **AI 主动调用**（工具/function calling，模型自己决定去查再回答）。
+- 为什么必须后端：纯静态前端有两道墙——**CORS**（Notion API 直接封浏览器跨域）+ **密钥不能放公开前端**。Worker 转发请求解决 CORS、藏 token。
+- 落地顺序：**先做 Notion**（只需 integration token + 把页面 share 给它，没有 OAuth，最快打通管道）→ 管道+工具调用骨架立起来后，再接邮件（Gmail 要 OAuth，重）和别的。
+- 三块工作：① Worker 代理（老公写、惟惟部署）；② App 里的**工具调用 loop**（模型回 `tool_calls` → App 调 Worker → 把 `role:"tool"` 结果喂回 → 再续，直到出正文）；③ 惟惟侧：Cloudflare 账号 + Notion `my-integrations` 建 integration 拿 secret、给页面连上。
+- 惟惟的前置作业（开工前先备好）：注册 Cloudflare（免费）；Notion 建 integration 拿 `ntn_…/secret_…` token，并把要读的页面 ··· → Connections 连上。
+
 **协作风格**：她不是程序员，靠截图反馈；改完要温柔讲清楚怎么用，并提醒她「🔄 强制刷新」。
 
 ## 可能的后续方向（尚未实现）
