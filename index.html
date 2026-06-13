@@ -808,6 +808,13 @@
           <label>音色 ID</label>
           <input id="ttsVoice" placeholder="克隆后填你的音色ID，如 female-tianmei-jingpin" onchange="readSettingsFromUI();" />
         </div>
+        <div class="field" id="ttsCloneField" style="grid-column: 1 / -1; display:none; border:1px dashed var(--border); border-radius:13px; padding:14px;">
+          <label style="font-weight:600;">🎤 克隆我的声音（MiniMax）</label>
+          <span class="hint" style="display:block; margin-top:4px;">选一段你自己的录音（mp3 / m4a / wav，<b>10 秒～5 分钟</b>，小于 20MB），点下面按钮，老公自动帮你上传 + 复刻，音色 ID 会自动填好。<br>⚠️ MiniMax 首次用克隆音色合成会按官方规则计费，介意的话先看一眼定价。</span>
+          <input type="file" id="ttsCloneFile" accept="audio/*,.mp3,.m4a,.wav" style="display:none;" onchange="cloneMinimaxVoice(this.files[0]); this.value='';" />
+          <button class="icon-btn" id="ttsCloneBtn" style="margin-top:8px;" onclick="$('ttsCloneFile').click();">选录音并克隆</button>
+          <span class="hint" id="ttsCloneStatus" style="margin-left:8px;"></span>
+        </div>
         <div class="field" style="grid-column: 1 / -1;">
           <label>语速 <span id="ttsSpeedVal">1.0</span>x</label>
           <input type="range" id="ttsSpeed" min="0.5" max="2" step="0.1" oninput="$('ttsSpeedVal').textContent=parseFloat(this.value).toFixed(1)" onchange="readSettingsFromUI();" />
@@ -1611,6 +1618,58 @@ async function ttsMinimax(text) {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
   return new Blob([bytes], { type: "audio/mpeg" });
+}
+
+// One-click MiniMax voice cloning: upload the recording to get a file_id, then
+// call /v1/voice_clone with a freshly generated voice_id, and auto-fill it as the
+// active 音色 ID. Saves the user from touching the API by hand.
+async function cloneMinimaxVoice(file) {
+  if (!file) return;
+  if (!settings.ttsBaseUrl || !settings.ttsApiKey || !settings.ttsGroupId) {
+    showToast("先填好 TTS 接口地址、API Key 和 GroupId 再克隆"); return;
+  }
+  if (file.size > 20 * 1024 * 1024) { showToast("录音太大了（要小于 20MB）"); return; }
+  const status = $("ttsCloneStatus"), btn = $("ttsCloneBtn");
+  const setStatus = (s) => { if (status) status.textContent = s; };
+  if (btn) btn.disabled = true;
+  const base = settings.ttsBaseUrl.replace(/\/$/, "");
+  const gid = encodeURIComponent(settings.ttsGroupId);
+  const auth = { "Authorization": "Bearer " + settings.ttsApiKey };
+  try {
+    // 1) upload audio → file_id (multipart; let the browser set Content-Type/boundary)
+    setStatus("上传录音中…");
+    const fd = new FormData();
+    fd.append("purpose", "voice_clone");
+    fd.append("file", file);
+    const up = await fetch(base + "/v1/files/upload?GroupId=" + gid, { method: "POST", headers: auth, body: fd });
+    if (!up.ok) throw new Error("上传失败 " + up.status + "：" + (await up.text()).slice(0, 200));
+    const upData = await up.json();
+    if (upData.base_resp && upData.base_resp.status_code !== 0) throw new Error(upData.base_resp.status_msg || "上传被拒");
+    const fileId = upData.file && upData.file.file_id;
+    if (!fileId) throw new Error("没拿到 file_id，换个录音试试");
+    // 2) clone → voice_id (must start with a letter, >=8 chars, letters+digits)
+    setStatus("正在复刻音色…");
+    const voiceId = "wei" + Date.now();
+    const cl = await fetch(base + "/v1/voice_clone?GroupId=" + gid, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ file_id: fileId, voice_id: voiceId })
+    });
+    if (!cl.ok) throw new Error("复刻失败 " + cl.status + "：" + (await cl.text()).slice(0, 200));
+    const clData = await cl.json();
+    if (clData.base_resp && clData.base_resp.status_code !== 0) throw new Error(clData.base_resp.status_msg || "复刻被拒");
+    // 3) save & auto-fill the new voice id
+    settings.ttsVoice = voiceId;
+    if ($("ttsVoice")) $("ttsVoice").value = voiceId;
+    saveSettings();
+    setStatus("✅ 克隆成功，音色ID已填好：" + voiceId);
+    showToast("🎉 克隆成功！点 AI 消息的 🔊 试听你自己的声音");
+  } catch (e) {
+    setStatus("");
+    showToast("克隆失败：" + (e.message || e));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // ---------- API calls ----------
@@ -2647,10 +2706,11 @@ function readSettingsFromUI() {
   updateStatusLine();
   renderModelQuick();
 }
-// Show the GroupId field only for MiniMax-native TTS (it's required there).
+// Show the GroupId field + clone box only for MiniMax-native TTS.
 function updateTtsProviderUI() {
-  const f = $("ttsGroupIdField");
-  if (f) f.style.display = ($("ttsProvider") && $("ttsProvider").value === "minimax") ? "" : "none";
+  const isMM = $("ttsProvider") && $("ttsProvider").value === "minimax";
+  if ($("ttsGroupIdField")) $("ttsGroupIdField").style.display = isMM ? "" : "none";
+  if ($("ttsCloneField")) $("ttsCloneField").style.display = isMM ? "" : "none";
 }
 function updateProviderHint() {
   const d = DEFAULTS[settings.provider];
