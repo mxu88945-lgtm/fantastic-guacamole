@@ -1268,7 +1268,7 @@ function switchConversation(id) {
   renderConvList();
   renderMessages();
   updateConvTitle();
-  scrollToBottom();
+  jumpToBottom();
   if (isMobile()) closeSidebar();
 }
 function createConversation() {
@@ -1606,6 +1606,16 @@ function scrollToBottom() {
   const c = $("chat");
   c.scrollTop = c.scrollHeight;
   requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; }); // again after layout settles
+}
+// Robust jump-to-bottom for opening a conversation: content height keeps changing
+// as images/avatars load, so re-scroll a few times and whenever an image finishes.
+function jumpToBottom() {
+  scrollToBottom();
+  setTimeout(scrollToBottom, 60);
+  setTimeout(scrollToBottom, 220);
+  $("chat").querySelectorAll("img").forEach(img => {
+    if (!img.complete) img.addEventListener("load", scrollToBottom, { once: true });
+  });
 }
 function showError(msg) { $("err-slot").innerHTML = `<div class="err-banner">⚠️ ${escapeHtml(msg)}</div>`; }
 function clearError() { $("err-slot").innerHTML = ""; }
