@@ -33,11 +33,12 @@
   - `jyc_current` —— 当前会话 id。
   - `jyc_messages` —— 旧版单会话历史，仅用于首次加载时迁移到 `jyc_conversations`。
 - 可选「云端账号同步」用 **Supabase**：
-  - 运行时通过 `import("https://esm.sh/@supabase/supabase-js@2")` 动态加载（仍是单文件、无构建）。
-  - 设置里填 `supabaseUrl` / `supabaseKey`（anon key，本身可公开，靠 RLS 保护）；邮箱密码登录。
-  - 同步数据存到表 `chats(user_id uuid pk, payload jsonb, updated_at)`，整 blob upsert，last-write-wins。
-  - `payload = { conversations, settings(仅 SYNCED_KEYS) }`。**apiKey 和 supabase* 配置不上云**，只留本地。
-  - 登录后 `pullCloud`（云端非空则覆盖本地，空则把本地推上去），改动经 `schedulePush` 防抖 1.5s 后 `pushCloudNow`。
+  - 运行时动态加载 `@supabase/supabase-js@2`（`loadSupabaseLib()` 多 CDN 兜底：先 esm.sh、失败再 jsdelivr `+esm`，缓解国内访问被挡；仍是单文件、无构建）。
+  - 设置里填 `supabaseUrl` / `supabaseKey`（anon / **publishable key**，本身可公开，靠 RLS 保护）；邮箱密码登录。新版 Supabase 的 key 叫 `sb_publishable_…`，`createClient` 直接能用；`getSb()` 会去掉 URL 末尾斜杠。
+  - 同步数据存到表 `chats(user_id uuid pk, payload jsonb, updated_at)`，整 blob upsert，last-write-wins。**建表 SQL**（含 RLS：每人只能读写自己那行）见下方「云账号搭建备忘」。
+  - `payload = { conversations, settings(仅 SYNCED_KEYS) }`。**apiKey 和 supabase* 配置不上云**，只留本地（换设备要重填 URL/key/各种 Key 再登录）。
+  - 登录后 `pullCloud`（云端非空则覆盖本地，空则把本地推上去），改动经 `schedulePush` 防抖 1.5s 后 `pushCloudNow`；`initCloud()` 在启动时自动恢复会话（session 存 localStorage，刷新免重登）。`doAuth()` 全程 try/catch + 「处理中…」态，任何失败都弹 toast（以前库加载失败=点了没反应）。
+  - ⚠️ **邮箱确认的 localhost 坑**：Supabase 默认 Site URL=localhost，点确认链接后会跳 `localhost` 报「拒绝连接」——但**确认其实已完成**，回 App 点登录即可。想根治：Authentication → URL Configuration 把 Site URL 改成 Pages 网址，或 Authentication → Email 关掉「Confirm email」。
 - 「自动记忆」：`settings.autoMemory` 开启后，每 2 轮成功回复调一次 `autoUpdateMemory()`（非流式 `completeOnce`）提炼新事实，追加进 `settings.memory`。
 - 支持两种 API 格式，靠 `settings.provider` 切换：
   - `openai` —— 走 `/chat/completions`，`Authorization: Bearer` 头
@@ -99,3 +100,34 @@
 - MCP 支持（纯浏览器难直连，需配后端/代理，尚未做）。
 - 后端代理（隐藏 API Key）
 - 导出对话为 Markdown
+
+## 🧩 云账号搭建备忘（保姆级，给惟惟也给接手的我）
+
+惟惟在 Supabase 免费版搭好了云同步。下次要在新项目重来、或教别人时，照这个走：
+
+1. **supabase.com** 注册 → New project（起名随意、设个数据库密码存好、Region 选 Asia-Pacific、保持 **Enable Data API** 勾选）。等项目 STATUS 变 Healthy。
+2. 左侧 **SQL Editor** → New query → 跑下面这段建表 + RLS：
+
+   ```sql
+   create table if not exists public.chats (
+     user_id uuid primary key references auth.users(id) on delete cascade,
+     payload jsonb,
+     updated_at timestamptz default now()
+   );
+   alter table public.chats enable row level security;
+   create policy "own select" on public.chats
+     for select using (auth.uid() = user_id);
+   create policy "own insert" on public.chats
+     for insert with check (auth.uid() = user_id);
+   create policy "own update" on public.chats
+     for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+   ```
+   出现「Success. No rows returned」即成功。
+3. **Project Settings → API Keys** 复制 **Publishable key**（`sb_publishable_…`，可公开）；**别用** `sb_secret_…`。Project URL 在概览页。
+4. App 设置「账号 · 多设备同步」填 URL + publishable key + 邮箱/密码 → 注册 → （遇 localhost 报错见上方坑，直接回来点登录）→ 登录即同步。
+5. 免费项目连续 7 天没访问会休眠，后台点 Restore 即恢复，数据不丢。
+
+## 📖 共同搓窝日志
+
+- **2026-06-13**：大丰收的一天。① 修好 iOS PWA 发图竞态（`imageStaging` + 发送前 await）；② `streamChat` 加临时错误自动重试；③ TTS 接上 **MiniMax 原生**（`t2a_v2`，hex→mp3）；④ **应用内一键克隆**（选录音/录屏 → WebAudio 抽音轨转 16k 单声道 WAV → 上传复刻 → 自动填 ID）；⑤ **音色库**（多音色收藏/切换/删除）；⑥ **Supabase 云同步**从零搭通（含上面的备忘）。一路惟惟截图、我改、再截图，配合得严丝合缝。
+  - 遗留：发图「图出现了但 AI 不回复」是中转/模型侧问题（惟惟暂时不管），与发送竞态无关；MiniMax 克隆受其内容审核限制（敏感素材会被 `input_sensitive` 挡，得换干净的纯说话片段）。
