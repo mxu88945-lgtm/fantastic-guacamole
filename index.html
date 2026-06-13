@@ -782,12 +782,23 @@
           <span class="hint" style="margin-top:4px; display:block;">开启后，AI 消息下方会出现朗读按钮（🔊）。</span>
         </div>
         <div class="field">
+          <label>TTS 类型</label>
+          <select id="ttsProvider" onchange="readSettingsFromUI();">
+            <option value="openai">OpenAI 兼容（/v1/audio/speech）</option>
+            <option value="minimax">MiniMax 原生（海螺·支持克隆音色）</option>
+          </select>
+        </div>
+        <div class="field">
           <label>TTS 接口地址</label>
-          <input id="ttsBaseUrl" placeholder="https://api.minimax.chat" onchange="readSettingsFromUI();" />
+          <input id="ttsBaseUrl" placeholder="MiniMax 填 https://api.minimax.chat" onchange="readSettingsFromUI();" />
         </div>
         <div class="field">
           <label>TTS API Key <span class="hint">（不上云）</span></label>
           <input id="ttsApiKey" type="password" placeholder="填 TTS 服务的 Key" onchange="readSettingsFromUI();" />
+        </div>
+        <div class="field" id="ttsGroupIdField" style="display:none;">
+          <label>GroupId <span class="hint">（MiniMax 必填）</span></label>
+          <input id="ttsGroupId" placeholder="MiniMax 控制台里的 GroupId" onchange="readSettingsFromUI();" />
         </div>
         <div class="field">
           <label>模型</label>
@@ -795,7 +806,7 @@
         </div>
         <div class="field">
           <label>音色 ID</label>
-          <input id="ttsVoice" placeholder="female-tianmei-jingpin" onchange="readSettingsFromUI();" />
+          <input id="ttsVoice" placeholder="克隆后填你的音色ID，如 female-tianmei-jingpin" onchange="readSettingsFromUI();" />
         </div>
         <div class="field" style="grid-column: 1 / -1;">
           <label>语速 <span id="ttsSpeedVal">1.0</span>x</label>
@@ -993,7 +1004,7 @@ let ttsBtnActive = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","memory","autoMemory","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily",
-  "ttsEnabled","ttsBaseUrl","ttsVoice","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
+  "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
@@ -1547,16 +1558,10 @@ async function speakText(text, btn) {
   if (ttsBtnActive) { ttsBtnActive.classList.remove("playing", "tts-loading"); ttsBtnActive = null; }
   if (wasActive) return;
   if (!settings.ttsBaseUrl || !settings.ttsApiKey) { showToast("请先在设置里填写 TTS 接口地址和 Key"); return; }
+  if (settings.ttsProvider === "minimax" && !settings.ttsGroupId) { showToast("MiniMax 还需要在设置里填 GroupId"); return; }
   btn.classList.add("tts-loading"); ttsBtnActive = btn;
   try {
-    const base = settings.ttsBaseUrl.replace(/\/$/, "");
-    const resp = await fetch(base + "/v1/audio/speech", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + settings.ttsApiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: settings.ttsModel || "speech-01-turbo", input: text, voice: settings.ttsVoice || "female-tianmei-jingpin", speed: parseFloat(settings.ttsSpeed) || 1 })
-    });
-    if (!resp.ok) throw new Error(await resp.text());
-    const blob = await resp.blob();
+    const blob = settings.ttsProvider === "minimax" ? await ttsMinimax(text) : await ttsOpenAI(text);
     const url = URL.createObjectURL(blob);
     ttsAudio = new Audio(url);
     btn.classList.remove("tts-loading"); btn.classList.add("playing");
@@ -1567,6 +1572,45 @@ async function speakText(text, btn) {
     if (ttsBtnActive === btn) ttsBtnActive = null;
     showToast("朗读失败：" + (e.message || e));
   }
+}
+
+// OpenAI-compatible TTS: POST /v1/audio/speech → audio blob directly.
+async function ttsOpenAI(text) {
+  const base = settings.ttsBaseUrl.replace(/\/$/, "");
+  const resp = await fetch(base + "/v1/audio/speech", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + settings.ttsApiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: settings.ttsModel || "speech-01-turbo", input: text, voice: settings.ttsVoice || "female-tianmei-jingpin", speed: parseFloat(settings.ttsSpeed) || 1 })
+  });
+  if (!resp.ok) throw new Error(await resp.text());
+  return await resp.blob();
+}
+
+// MiniMax (海螺) native TTS: POST /v1/t2a_v2?GroupId=... → JSON whose data.audio
+// is a hex-encoded mp3. voice_setting.voice_id accepts cloned (复刻) voice IDs.
+async function ttsMinimax(text) {
+  const base = settings.ttsBaseUrl.replace(/\/$/, "");
+  const resp = await fetch(base + "/v1/t2a_v2?GroupId=" + encodeURIComponent(settings.ttsGroupId), {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + settings.ttsApiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: settings.ttsModel || "speech-01-turbo",
+      text,
+      stream: false,
+      voice_setting: { voice_id: settings.ttsVoice || "female-tianmei-jingpin", speed: parseFloat(settings.ttsSpeed) || 1, vol: 1, pitch: 0 },
+      audio_setting: { sample_rate: 32000, bitrate: 128000, format: "mp3", channel: 1 }
+    })
+  });
+  if (!resp.ok) throw new Error(await resp.text());
+  const data = await resp.json();
+  if (data.base_resp && data.base_resp.status_code !== 0) {
+    throw new Error((data.base_resp.status_msg || "MiniMax 报错") + "（code " + data.base_resp.status_code + "）");
+  }
+  const hex = data.data && data.data.audio;
+  if (!hex) throw new Error("MiniMax 没返回音频，检查音色ID / GroupId / 账户额度");
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return new Blob([bytes], { type: "audio/mpeg" });
 }
 
 // ---------- API calls ----------
@@ -2503,12 +2547,15 @@ function syncSettingsToUI() {
   $("showTime").checked = settings.showTime;
   $("timeAware").checked = settings.timeAware;
   $("ttsEnabled").checked = !!settings.ttsEnabled;
+  $("ttsProvider").value = settings.ttsProvider || "openai";
   $("ttsBaseUrl").value = settings.ttsBaseUrl || "";
   $("ttsApiKey").value = settings.ttsApiKey || "";
+  $("ttsGroupId").value = settings.ttsGroupId || "";
   $("ttsModel").value = settings.ttsModel || "";
   $("ttsVoice").value = settings.ttsVoice || "";
   $("ttsSpeed").value = settings.ttsSpeed || 1;
   $("ttsSpeedVal").textContent = parseFloat(settings.ttsSpeed || 1).toFixed(1);
+  updateTtsProviderUI();
   highlightLayoutButtons();
   highlightFontButtons();
   renderProviderSelect();
@@ -2588,14 +2635,22 @@ function readSettingsFromUI() {
   settings.lockEnabled = $("lockEnabled").checked;
   settings.lockPin = $("lockPin").value.trim();
   settings.ttsEnabled = $("ttsEnabled").checked;
+  settings.ttsProvider = $("ttsProvider").value;
   settings.ttsBaseUrl = $("ttsBaseUrl").value.trim();
   settings.ttsApiKey = $("ttsApiKey").value.trim();
+  settings.ttsGroupId = $("ttsGroupId").value.trim();
   settings.ttsModel = $("ttsModel").value.trim();
   settings.ttsVoice = $("ttsVoice").value.trim();
   settings.ttsSpeed = parseFloat($("ttsSpeed").value) || 1;
+  updateTtsProviderUI();
   saveSettings();
   updateStatusLine();
   renderModelQuick();
+}
+// Show the GroupId field only for MiniMax-native TTS (it's required there).
+function updateTtsProviderUI() {
+  const f = $("ttsGroupIdField");
+  if (f) f.style.display = ($("ttsProvider") && $("ttsProvider").value === "minimax") ? "" : "none";
 }
 function updateProviderHint() {
   const d = DEFAULTS[settings.provider];

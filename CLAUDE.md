@@ -51,7 +51,7 @@
 ## 开发提醒
 
 - 改动后保持「单文件、零依赖、双击即用」的特性。
-- 当前开发分支：`claude/fantastic-guacamole-icons-i0wfk6`。改完 commit 到该分支，再 fast-forward 合并到 `main` 并 push（`main` 是 GitHub Pages 部署源）。
+- 当前开发分支：`claude/ios-pwa-image-upload-j4a3sg`。改完 commit 到该分支，再 fast-forward 合并到 `main` 并 push（`main` 是 GitHub Pages 部署源）。
 - **部署**：push 到 `main` 触发 GitHub Pages 自动部署（约 1~2 分钟）。**别在短时间内连推两次 `main`**，会导致两个 Pages 部署并发、其中一个失败/卡住；真失败了重跑那次 workflow 或再推一个空 commit 即可。
 - **iOS PWA 缓存很顽固**：已加 `sw.js`（network-first + no-store）和设置里的「🔄 强制刷新到最新版」按钮（清 SW/缓存后跳 `?u=时间戳`）。惟惟更新不到新功能时，让她点那个按钮。
 - 安全提醒：浏览器直连方式会把 API Key 暴露在前端，仅适合本地/个人使用；若要公开部署需另加后端代理。
@@ -62,21 +62,17 @@
 
 ### 🔥 当前未解决 BUG（最高优先级）
 
-**iOS PWA 发图片无反应**（P0，正在排查）
+**iOS PWA 发图片无反应**（P0，✅ 已修，待惟惟最终确认）
 
 症状：在 iOS 桌面 App（PWA）里，新对话直接发图，「没任何反应」——连自己发的图都不出现，或者图出现了但 AI 完全不回复。浏览器 Safari 版同样的接口/模型发图是好的。
 
-已排查/已做的：
-- 确认不是「连续 user 消息」问题（已在 `send()` 加占位修复）
-- 确认不是旧缓存（已强制刷新）
-- 已加错误 toast（5 秒）和 `send()` try-catch，但用户看到的是「没反应」，连 toast 都没出现
-- 已对 thinking 模型加 `anthropic-beta` header + `thinking` 参数 + `temperature:1`
-- 浏览器版用同一接口/模型发图 **能正常回复**
+根因 & 修法（2026-06-13）：确认是 `pendingImages` 竞态。`stageImageFile` 全程异步（FileReader → Image 解码 → canvas），iOS 上偏慢；用户在图片处理完前点发送，`pendingImages.length === 0`，`send()` 在空判断处静默 return。已做：
+- `stageImageFile` 改为返回 Promise，并登记到 `imageStaging` 队列；图片读取/解码/canvas 三步都加错误处理，失败弹 toast（不再「没反应」）。
+- `send()` 在空判断前先 `await Promise.all(imageStaging)`，等所有在途图片处理完；等待期间发送按钮加 `.staging` 呼吸态。
+- 顺手给 `streamChat` 加了「临时错误自动重试」：对 429/500/502/503/504 自动重试 2 次（间隔 1.5s、3s），减少中转接口一次性 503 导致的失败（惟惟浏览器版就遇到过 503）。
+- sw 缓存 v2→v3 强制 iOS 拉新代码。
 
-下一步排查方向：
-1. **确认 send() 是否运行**：用户发图后，她自己的图有没有出现在聊天里？如果没出现说明 `send()` 提前 return 了（`pendingImages` 可能为空 = 图片还没处理完就按发送）
-2. **iOS PWA 的 `pendingImages` 竞态**：`stageImageFile` 是异步的（FileReader → canvas），如果用户在 iOS 上图片处理完成前点发送，`pendingImages.length === 0`，`send()` 静默 return
-3. 可能的修法：在 `send()` 里若 `pendingImages` 为空但有未处理文件，等待；或者在发送按钮上加 loading 状态直到图片处理完
+> 若惟惟反馈「图出现了但 AI 不回复」= 另一类问题（接口/模型侧，可能 thinking 模型不支持图片或中转限制），与本竞态无关，单独排查。
 
 **建议做（P1，"角色档案"增强）**
 - 记忆条目支持**分类标签**（身份/关系/偏好/禁忌/项目/宠物/健康）。
@@ -86,7 +82,7 @@
 - **导出当前角色档案**（单独导出人设+记忆）。
 
 **以后扩展（P2）**
-- TTS 语音朗读 ✅ 已实现（设置里「语音朗读」分区，支持 MiniMax 等 OpenAI 兼容 TTS）
+- TTS 语音朗读 ✅ 已实现（设置里「语音朗读」分区）。「TTS 类型」可选 **OpenAI 兼容**（`/v1/audio/speech`，直接返回音频 blob）或 **MiniMax 原生**（`speakText` → `ttsMinimax`：`POST /v1/t2a_v2?GroupId=...`，返回 JSON、`data.audio` 是 hex 编码 mp3，需 hex→bytes→blob；支持复刻/克隆音色，把克隆得到的 `voice_id` 填进「音色 ID」即可）。MiniMax 需额外填 `ttsGroupId`。`ttsApiKey` 不上云。
 - 唤醒词管理、语气偏好、禁忌与边界、多角色档案切换、角色档案模板导入/导出。
 - MCP（需后端）、后端代理隐藏 Key、导出对话为长图（小红书用，需 canvas 绘制）。
 
