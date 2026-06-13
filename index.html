@@ -882,10 +882,16 @@
           </label>
           <span class="hint">决定 AI 如何理解身份、关系、语气与边界。</span>
           <textarea id="systemPrompt" placeholder="你叫江屹琛，对用户亲切、口语化……" style="margin-top:6px;"></textarea>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px;">
-            <input type="checkbox" id="emojiStyle" style="width:auto;" onchange="readSettingsFromUI();" />
-            <span>偶尔用颜文字 / 表情 <span class="hint" style="font-weight:400;">如 (๑&gt;ᴗ&lt;๑)、🥰☺️😉 —— 让语气更生动</span></span>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
+            <span style="font-weight:500;">表情风格</span>
+            <select id="emojiStyle" onchange="readSettingsFromUI();" style="width:auto; flex:1; min-width:140px;">
+              <option value="off">不用表情（纯文字）</option>
+              <option value="cool">克制高冷（极少用）</option>
+              <option value="normal">适中（偶尔点缀）</option>
+              <option value="cute">可爱满满（多颜文字+撒娇）</option>
+            </select>
           </label>
+          <span class="hint" style="display:block;">控制江屹琛回复里颜文字 / emoji（如 (๑&gt;ᴗ&lt;๑)、🥰）的用量与语气。</span>
         </div>
 
         <div class="field" style="grid-column: 1 / -1;">
@@ -992,7 +998,7 @@ let settings = {
   temperature: 0.7,
   maxTokens: 2048,
   systemPrompt: "",
-  emojiStyle: true,
+  emojiStyle: "normal",   // off | cool | normal | cute
   memory: "",
   autoMemory: false,
   theme: "dark",
@@ -1819,6 +1825,18 @@ function sendContent(m) {
   }
   return m.content;
 }
+// Map the chosen 表情风格 preset to a system-prompt note (handles legacy boolean).
+function emojiStyleNote(style) {
+  if (style === true) style = "normal";        // migrate old boolean
+  if (style === false) style = "off";
+  switch (style) {
+    case "off": return "";
+    case "cool": return "表达风格：语气沉稳内敛，几乎不用表情；只在极个别恰当处用一个克制的 emoji 或颜文字，绝不刻意、不卖萌。";
+    case "cute": return "表达风格：语气活泼黏人、爱撒娇，多用可爱的颜文字（如 (๑>ᴗ<๑)、(´｡• ω •｡`)、(*≧▽≦)、>﹏<、ฅ՞•ﻌ•՞ฅ）和 emoji（🥰😚🫶✨🥹😍）让回复甜甜软软的；但仍要读着自然、别整句堆砌成表情墙。";
+    case "normal":
+    default: return "表达风格：在合适的时候自然地穿插少量颜文字（如 (๑>ᴗ<๑)、(*≧ω≦)、( •̀ ω •́ )✧）和 emoji（🥹☺️😍🥰😏）来传递情绪、让语气更生动。但要适度——别每句都用、别堆砌，自然为主。";
+  }
+}
 async function streamChat(onDelta, onReasoning) {
   onReasoning = onReasoning || (() => {});
   const isAnthropic = settings.provider === "anthropic";
@@ -1827,10 +1845,8 @@ async function streamChat(onDelta, onReasoning) {
   abortController = new AbortController();
 
   let systemText = settings.systemPrompt || "";
-  if (settings.emojiStyle !== false) {
-    const note = "表达风格：在合适的时候自然地穿插少量颜文字（如 (๑>ᴗ<๑)、(´;ω;`)、(*≧ω≦)、( •̀ ω •́ )✧ 等）和系统 emoji 表情（如 🥹☺️😉😍🥰🤨😏 等）来传递情绪、让语气更生动可爱。但要适度——别每句都用、别堆砌，自然为主。";
-    systemText = systemText ? systemText + "\n\n" + note : note;
-  }
+  const emojiNote = emojiStyleNote(settings.emojiStyle);
+  if (emojiNote) systemText = systemText ? systemText + "\n\n" + emojiNote : emojiNote;
   if (settings.memory && settings.memory.trim()) {
     const mem = "以下是需要长期记住的信息（用户的长期记忆）：\n" + settings.memory.trim();
     systemText = systemText ? systemText + "\n\n" + mem : mem;
@@ -2794,7 +2810,8 @@ function syncSettingsToUI() {
   $("maxTokens").value = settings.maxTokens;
   $("modelList").value = settings.modelList;
   $("systemPrompt").value = settings.systemPrompt;
-  $("emojiStyle").checked = settings.emojiStyle !== false;
+  $("emojiStyle").value = (settings.emojiStyle === true || settings.emojiStyle === undefined) ? "normal"
+    : (settings.emojiStyle === false ? "off" : settings.emojiStyle);
   $("memory").value = settings.memory;
   renderFavorites();
   $("autoMemory").checked = settings.autoMemory;
@@ -2893,7 +2910,7 @@ function readSettingsFromUI() {
   settings.temperature = parseFloat($("temperature").value);
   settings.maxTokens = parseInt($("maxTokens").value) || 2048;
   settings.systemPrompt = $("systemPrompt").value;
-  settings.emojiStyle = $("emojiStyle").checked;
+  settings.emojiStyle = $("emojiStyle").value;
   settings.memory = $("memory").value;
   settings.autoMemory = $("autoMemory").checked;
   settings.supabaseUrl = $("sbUrl").value.trim();
