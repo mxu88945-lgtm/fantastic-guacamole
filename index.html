@@ -776,6 +776,16 @@
           </label>
           <textarea id="modelList" placeholder="gpt-4o-mini&#10;gpt-4o&#10;claude-opus-4-8"></textarea>
         </div>
+
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>用量 · 账单</div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <span style="font-weight:600;">花费 & token 统计 <span class="hint" style="font-weight:400;">（仅本地，OpenRouter 含真实花费）</span></span>
+            <button class="icon-btn" id="usage-clear-btn" style="padding:4px 10px; font-size:12px;">清空记录</button>
+          </label>
+          <div id="usagePanel" style="margin-top:10px;"></div>
+        </div>
+
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>语音朗读（TTS）</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600;">
@@ -1861,7 +1871,9 @@ async function streamChat(onDelta, onReasoning) {
       max_tokens: settings.maxTokens || undefined,
       stream: true,
       messages: msgs,
+      stream_options: { include_usage: true },   // ask for token usage in the final chunk
     };
+    if (/openrouter\.ai/i.test(base)) body.usage = { include: true };  // OpenRouter: also return cost
   }
 
   // Transient errors (502/503/504 overloaded, 429 rate-limited) are common with
@@ -1892,6 +1904,7 @@ async function streamChat(onDelta, onReasoning) {
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let usageRaw = null;   // collected token/cost usage for this call
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -1902,16 +1915,19 @@ async function streamChat(onDelta, onReasoning) {
       const trimmed = line.trim();
       if (!trimmed.startsWith("data:")) continue;
       const data = trimmed.slice(5).trim();
-      if (data === "[DONE]") return;
+      if (data === "[DONE]") { recordUsage(model, usageRaw, isAnthropic); return; }
       let json;
       try { json = JSON.parse(data); } catch (e) { continue; }
       if (isAnthropic) {
+        if (json.type === "message_start" && json.message?.usage) usageRaw = { ...json.message.usage };
+        if (json.type === "message_delta" && json.usage) usageRaw = { ...(usageRaw || {}), ...json.usage };
         if (json.type === "content_block_delta") {
           if (json.delta?.text) onDelta(json.delta.text);
           if (json.delta?.thinking) onReasoning(json.delta.thinking);
         }
         if (json.type === "error") throw new Error(json.error?.message || "stream error");
       } else {
+        if (json.usage) usageRaw = json.usage;
         const d = json.choices?.[0]?.delta;
         // reasoning models expose the chain-of-thought separately
         if (d?.reasoning_content) onReasoning(d.reasoning_content);   // DeepSeek
@@ -1920,6 +1936,75 @@ async function streamChat(onDelta, onReasoning) {
       }
     }
   }
+  recordUsage(model, usageRaw, isAnthropic);   // stream ended without an explicit [DONE]
+}
+
+// Normalize a raw usage object (OpenAI/OpenRouter or Anthropic) and log one entry.
+function recordUsage(model, raw, isAnthropic) {
+  if (!raw) return;
+  let inTok, cacheTok, outTok, cost = null;
+  if (isAnthropic) {
+    cacheTok = raw.cache_read_input_tokens || 0;
+    inTok = (raw.input_tokens || 0) + (raw.cache_creation_input_tokens || 0);
+    outTok = raw.output_tokens || 0;
+  } else {
+    const ptd = raw.prompt_tokens_details || {};
+    cacheTok = ptd.cached_tokens || 0;
+    inTok = Math.max(0, (raw.prompt_tokens || 0) - cacheTok);
+    outTok = raw.completion_tokens || 0;
+    if (typeof raw.cost === "number") cost = raw.cost;            // OpenRouter (USD)
+    else if (raw.cost_details && typeof raw.cost_details.upstream_inference_cost === "number") cost = raw.cost_details.upstream_inference_cost;
+  }
+  if (!inTok && !outTok && !cacheTok) return;
+  logUsage({ ts: Date.now(), model: model || "?", in: inTok, cache: cacheTok, out: outTok, cost });
+}
+function logUsage(entry) {
+  try {
+    const arr = JSON.parse(localStorage.getItem("jyc_usage") || "[]");
+    arr.push(entry);
+    if (arr.length > 1000) arr.splice(0, arr.length - 1000);   // keep last 1000
+    localStorage.setItem("jyc_usage", JSON.stringify(arr));
+  } catch (_) {}
+}
+function fmtTok(n) { n = n || 0; return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "K" : String(n); }
+function fmtCost(c) { return typeof c !== "number" ? "—" : "$" + (c < 0.01 ? c.toFixed(4) : c.toFixed(3)); }
+// Render the usage/billing panel: today's total + per-model + recent calls.
+function renderUsage() {
+  const box = $("usagePanel"); if (!box) return;
+  let all = [];
+  try { all = JSON.parse(localStorage.getItem("jyc_usage") || "[]"); } catch (_) {}
+  if (!all.length) { box.innerHTML = `<div class="hint">还没有记录～聊几句就会出现今日花费和明细。</div>`; return; }
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const today = all.filter(e => e.ts >= start.getTime());
+  const anyCost = (arr) => arr.some(e => typeof e.cost === "number");
+  const sumCost = (arr) => arr.reduce((s, e) => s + (typeof e.cost === "number" ? e.cost : 0), 0);
+  const byModel = {};
+  today.forEach(e => {
+    const m = byModel[e.model] || (byModel[e.model] = { n: 0, in: 0, cache: 0, out: 0, cost: 0, hasCost: false });
+    m.n++; m.in += e.in || 0; m.cache += e.cache || 0; m.out += e.out || 0;
+    if (typeof e.cost === "number") { m.cost += e.cost; m.hasCost = true; }
+  });
+  const head = `<div style="display:flex; align-items:baseline; gap:10px; margin-bottom:8px;">
+      <span style="font-size:13px; color:var(--text-dim);">今日</span>
+      <span style="font-size:20px; font-weight:700;">${anyCost(today) ? "$" + sumCost(today).toFixed(3) : "—"}</span>
+      <span style="font-size:13px; color:var(--text-dim);">· ${today.length} 次</span>
+    </div>`;
+  const models = Object.entries(byModel).sort((a, b) => b[1].cost - a[1].cost).map(([name, m]) =>
+    `<div style="font-size:12px; color:var(--text-dim); margin:2px 0;">
+       <b style="color:var(--text);">${escapeHtml(name)}</b>: ${m.hasCost ? "$" + m.cost.toFixed(3) : "—"}
+       <span style="opacity:.85;">(in ${fmtTok(m.in)} / cache ${fmtTok(m.cache)} / out ${fmtTok(m.out)})</span>
+     </div>`).join("");
+  const recent = all.slice(-15).reverse().map(e => {
+    const t = new Date(e.ts);
+    const hm = String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
+    const cache = e.cache ? ` · 命中${fmtTok(e.cache)}` : "";
+    return `<div style="display:flex; align-items:center; gap:8px; font-size:12px; padding:5px 0; border-top:1px solid var(--border);">
+        <span style="color:var(--text-dim); width:42px; flex-shrink:0;">${hm}</span>
+        <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(e.model)} <span style="opacity:.7;">${fmtTok((e.in || 0) + (e.cache || 0))}→${fmtTok(e.out)}${cache}</span></span>
+        <span style="font-weight:600; flex-shrink:0;">${fmtCost(e.cost)}</span>
+      </div>`;
+  }).join("");
+  box.innerHTML = head + models + `<div style="margin-top:8px; font-size:11px; color:var(--text-dim);">最近</div>` + recent;
 }
 
 // Non-streaming one-shot completion (used by auto-memory extraction).
@@ -2705,6 +2790,7 @@ function syncSettingsToUI() {
   $("ttsSpeed").value = settings.ttsSpeed || 1;
   $("ttsSpeedVal").textContent = parseFloat(settings.ttsSpeed || 1).toFixed(1);
   updateTtsProviderUI();
+  renderUsage();
   highlightLayoutButtons();
   highlightFontButtons();
   renderProviderSelect();
@@ -3006,6 +3092,7 @@ function init() {
   $("signup-btn").onclick = () => doAuth("signup");
   $("signout-btn").onclick = doSignOut;
   $("fetch-models-btn").onclick = fetchModels;
+  $("usage-clear-btn").onclick = () => { if (confirm("清空所有用量记录？（不影响对话）")) { localStorage.removeItem("jyc_usage"); renderUsage(); showToast("已清空用量记录"); } };
   $("active-provider").addEventListener("change", () => switchProvider($("active-provider").value));
   $("provider-add").onclick = addProvider;
   $("provider-rename").onclick = renameProvider;
