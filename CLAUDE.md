@@ -83,6 +83,8 @@
 
 **以后扩展（P2）**
 - TTS 语音朗读 ✅ 已实现（设置里「语音朗读」分区）。「TTS 类型」可选 **OpenAI 兼容**（`/v1/audio/speech`，直接返回音频 blob）或 **MiniMax 原生**（`speakText` → `ttsMinimax`：`POST /v1/t2a_v2?GroupId=...`，返回 JSON、`data.audio` 是 hex 编码 mp3，需 hex→bytes→blob；支持复刻/克隆音色，把克隆得到的 `voice_id` 填进「音色 ID」即可）。MiniMax 需额外填 `ttsGroupId`。`ttsApiKey` 不上云。
+  - **应用内一键克隆**（`cloneMinimaxVoice`）：选录音/录屏 → `extractAudioToWav`（WebAudio 解码 + OfflineAudioContext 重采样到 16k 单声道 WAV，自动从视频抽音轨）→ `POST /v1/files/upload`（multipart, purpose=voice_clone）拿 `file_id` → `POST /v1/voice_clone`（voice_id 须字母开头、≥8 位、字母+数字）→ 自动填回音色 ID。
+  - **音色库**（`settings.ttsVoices`=[{id,name,voiceId}]，`renderTtsVoices()`）：每次克隆按用户起的名存一条，可点「用这个」切换 active 音色、可删除；旧的单一 `ttsVoice` 会被迁移进库。
 - 唤醒词管理、语气偏好、禁忌与边界、多角色档案切换、角色档案模板导入/导出。
 - MCP（需后端）、后端代理隐藏 Key、导出对话为长图（小红书用，需 canvas 绘制）。
 

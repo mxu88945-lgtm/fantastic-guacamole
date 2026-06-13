@@ -812,8 +812,14 @@
           <label style="font-weight:600;">🎤 克隆我的声音（MiniMax）</label>
           <span class="hint" style="display:block; margin-top:4px;">选一段录音<b>或录屏视频</b>都行（mp3/m4a/wav/mp4/mov…），老公会自动把声音抽出来、转成 MiniMax 要的格式再克隆。素材里说话部分请<b>清楚、10 秒以上、5 分钟以内</b>，音色 ID 成功后会自动填好。<br>⚠️ MiniMax 首次用克隆音色合成会按官方规则计费；克隆他人声音请仅自己使用。</span>
           <input type="file" id="ttsCloneFile" accept="audio/*,video/*" style="display:none;" onchange="cloneMinimaxVoice(this.files[0]); this.value='';" />
+          <input id="ttsCloneName" placeholder="给这个音色起个名，如：温柔御姐" style="margin-top:8px;" />
           <button class="icon-btn" id="ttsCloneBtn" style="margin-top:8px;" onclick="$('ttsCloneFile').click();">选录音/录屏并克隆</button>
           <span class="hint" id="ttsCloneStatus" style="margin-left:8px;"></span>
+        </div>
+        <div class="field" id="ttsVoiceLibField" style="grid-column: 1 / -1; display:none;">
+          <label>🎨 我的音色库 <span class="hint">（点「用这个」切换）</span></label>
+          <div id="ttsVoiceList" style="display:flex; flex-direction:column; gap:6px; margin-top:6px;"></div>
+          <span class="hint" id="ttsVoiceLibEmpty" style="display:none;">还没有保存的音色，克隆一个就会出现在这里～</span>
         </div>
         <div class="field" style="grid-column: 1 / -1;">
           <label>语速 <span id="ttsSpeedVal">1.0</span>x</label>
@@ -1011,7 +1017,7 @@ let ttsBtnActive = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","memory","autoMemory","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily",
-  "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
+  "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
@@ -1697,12 +1703,17 @@ async function cloneMinimaxVoice(file) {
     if (!cl.ok) throw new Error("复刻失败 " + cl.status + "：" + (await cl.text()).slice(0, 200));
     const clData = await cl.json();
     if (clData.base_resp && clData.base_resp.status_code !== 0) throw new Error(clData.base_resp.status_msg || "复刻被拒");
-    // 3) save & auto-fill the new voice id
+    // 3) save into the voice library, set active, auto-fill the id
+    settings.ttsVoices = settings.ttsVoices || [];
+    const nm = ($("ttsCloneName") && $("ttsCloneName").value.trim()) || ("音色" + (settings.ttsVoices.length + 1));
+    settings.ttsVoices.push({ id: uid(), name: nm, voiceId });
     settings.ttsVoice = voiceId;
     if ($("ttsVoice")) $("ttsVoice").value = voiceId;
+    if ($("ttsCloneName")) $("ttsCloneName").value = "";
     saveSettings();
-    setStatus("✅ 克隆成功，音色ID已填好：" + voiceId);
-    showToast("🎉 克隆成功！点 AI 消息的 🔊 试听你自己的声音");
+    renderTtsVoices();
+    setStatus("✅ 克隆成功，已存入音色库：" + nm);
+    showToast("🎉 克隆成功「" + nm + "」！点 AI 消息的 🔊 试听");
   } catch (e) {
     setStatus("");
     showToast("克隆失败：" + (e.message || e));
@@ -2745,11 +2756,48 @@ function readSettingsFromUI() {
   updateStatusLine();
   renderModelQuick();
 }
-// Show the GroupId field + clone box only for MiniMax-native TTS.
+// Show the GroupId field + clone box + voice library only for MiniMax-native TTS.
 function updateTtsProviderUI() {
   const isMM = $("ttsProvider") && $("ttsProvider").value === "minimax";
   if ($("ttsGroupIdField")) $("ttsGroupIdField").style.display = isMM ? "" : "none";
   if ($("ttsCloneField")) $("ttsCloneField").style.display = isMM ? "" : "none";
+  if ($("ttsVoiceLibField")) $("ttsVoiceLibField").style.display = isMM ? "" : "none";
+  if (isMM) renderTtsVoices();
+}
+
+// Render the saved cloned-voice library: switch active voice or delete entries.
+function renderTtsVoices() {
+  const list = $("ttsVoiceList"); if (!list) return;
+  settings.ttsVoices = settings.ttsVoices || [];
+  // Migrate a pre-library active voice into the list so it isn't lost.
+  if (settings.ttsVoice && !settings.ttsVoices.some(v => v.voiceId === settings.ttsVoice)) {
+    settings.ttsVoices.unshift({ id: uid(), name: "当前音色", voiceId: settings.ttsVoice });
+  }
+  const voices = settings.ttsVoices;
+  list.innerHTML = "";
+  if ($("ttsVoiceLibEmpty")) $("ttsVoiceLibEmpty").style.display = voices.length ? "none" : "block";
+  voices.forEach((v) => {
+    const active = settings.ttsVoice === v.voiceId;
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border); border-radius:10px;" + (active ? "outline:2px solid var(--accent);" : "");
+    const name = document.createElement("span");
+    name.style.cssText = "flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+    name.textContent = (active ? "✅ " : "") + v.name;
+    const use = document.createElement("button");
+    use.className = "icon-btn"; use.textContent = active ? "使用中" : "用这个"; use.disabled = active;
+    use.onclick = () => { settings.ttsVoice = v.voiceId; if ($("ttsVoice")) $("ttsVoice").value = v.voiceId; saveSettings(); renderTtsVoices(); showToast("已切换到：" + v.name); };
+    const del = document.createElement("button");
+    del.className = "icon-btn"; del.textContent = "✕"; del.title = "从音色库删除";
+    del.onclick = () => {
+      if (!confirm("从音色库删除「" + v.name + "」？\n（不影响 MiniMax 上的克隆，重填 ID 还能找回）")) return;
+      settings.ttsVoices = settings.ttsVoices.filter(x => x.voiceId !== v.voiceId);
+      if (settings.ttsVoice === v.voiceId) { settings.ttsVoice = settings.ttsVoices[0] ? settings.ttsVoices[0].voiceId : ""; if ($("ttsVoice")) $("ttsVoice").value = settings.ttsVoice; }
+      saveSettings(); renderTtsVoices();
+    };
+    row.appendChild(name); row.appendChild(use); row.appendChild(del);
+    list.appendChild(row);
+  });
+  saveSettings();
 }
 function updateProviderHint() {
   const d = DEFAULTS[settings.provider];
