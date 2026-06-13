@@ -2907,10 +2907,16 @@ function readSettingsFromUI() {
 // Show the GroupId field + clone box + voice library only for MiniMax-native TTS.
 function updateTtsProviderUI() {
   const isMM = $("ttsProvider") && $("ttsProvider").value === "minimax";
-  if ($("ttsGroupIdField")) $("ttsGroupIdField").style.display = isMM ? "" : "none";
-  if ($("ttsCloneField")) $("ttsCloneField").style.display = isMM ? "" : "none";
-  if ($("ttsVoiceLibField")) $("ttsVoiceLibField").style.display = isMM ? "" : "none";
-  if (isMM) renderTtsVoices();
+  // Respect the accordion: if the TTS section is collapsed, keep its fields hidden
+  // (otherwise these would spill out under a collapsed header).
+  const ttsTitle = [...document.querySelectorAll(".settings-inner > .section-title")]
+    .find(t => t.textContent.includes("语音朗读"));
+  const collapsed = ttsTitle && ttsTitle.classList.contains("collapsed");
+  const showMM = isMM && !collapsed;
+  if ($("ttsGroupIdField")) $("ttsGroupIdField").style.display = showMM ? "" : "none";
+  if ($("ttsCloneField")) $("ttsCloneField").style.display = showMM ? "" : "none";
+  if ($("ttsVoiceLibField")) $("ttsVoiceLibField").style.display = showMM ? "" : "none";
+  if (showMM) renderTtsVoices();
 }
 
 // Render the saved cloned-voice library: switch active voice or delete entries.
@@ -2980,6 +2986,9 @@ function setupAccordion() {
     const apply = (collapsed) => {
       items.forEach(it => it.style.display = collapsed ? "none" : "");
       title.classList.toggle("collapsed", collapsed);
+      // TTS has provider-conditional fields (GroupId/克隆/音色库) — re-sync them
+      // so expanding doesn't force-show fields that should stay hidden.
+      if (key.includes("语音朗读")) updateTtsProviderUI();
     };
     // default: collapse everything except 模型与服务 (where the API key lives)
     const def = !key.includes("模型与服务");
