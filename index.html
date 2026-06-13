@@ -145,7 +145,8 @@
   }
   .main > header, .main > .chat, .main > .composer-wrap { position: relative; z-index: 1; }
   .main > .chat { background: transparent; }
-  .main > header, .main > .composer-wrap { background: var(--bg-soft); }
+  .main > header { background: var(--bg-soft); }
+  .main > .composer-wrap { background: transparent; }
 
   /* Header */
   header {
@@ -389,8 +390,8 @@
 
   /* Composer */
   .composer-wrap {
-    flex-shrink: 0; background: var(--bg-soft);
-    border-top: 1px solid var(--border); padding: 14px 18px;
+    flex-shrink: 0; background: transparent;
+    padding: 14px 18px;
     padding-bottom: calc(14px + env(safe-area-inset-bottom));
   }
   .composer {
