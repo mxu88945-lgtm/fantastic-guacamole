@@ -333,6 +333,7 @@
   }
   .msg-act svg { width: 17px; height: 17px; }
   .msg-act:hover { color: var(--accent); background: var(--item-active); }
+  .msg-tokens { margin-left: auto; align-self: center; font-size: 11px; color: var(--text-dim); white-space: nowrap; }
   .msg-act.playing { color: var(--accent); }
   .msg-act.tts-loading { opacity: .45; pointer-events: none; animation: tts-pulse .8s ease-in-out infinite; }
   @keyframes tts-pulse { 0%,100%{opacity:.45} 50%{opacity:.2} }
@@ -1024,6 +1025,8 @@ let settings = {
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
 let imageStaging = [];    // in-flight stageImageFile() promises (iOS PWA race fix)
+let lastCallUsage = null; // usage of the most recent streamChat call (for token label)
+let stickBottom = true;   // whether streaming should keep auto-scrolling to bottom
 
 // ---------- Cloud (Supabase) runtime state ----------
 let sb = null;          // supabase client
@@ -1488,7 +1491,7 @@ function renderMessages() {
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
     const isLast = i === messages.length - 1;
-    const el = makeMsgEl(m.role, m.content, { actions: true, isLast, reasoning: m.reasoning, ts: m.ts });
+    const el = makeMsgEl(m.role, m.content, { actions: true, isLast, reasoning: m.reasoning, ts: m.ts, tokens: m.tokens });
     el.dataset.idx = i;
     if (m.id) el.dataset.mid = m.id;
     if (m.id && settings.favorites.some(f => f.id === m.id)) el.classList.add("starred");
@@ -1587,7 +1590,7 @@ function makeMsgEl(role, content, opts) {
     if (settings.ttsEnabled) {
       const speakBtn = document.createElement("button");
       speakBtn.className = "msg-act"; speakBtn.title = "朗读";
-      speakBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
+      speakBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
       speakBtn.onclick = () => speakText(text, speakBtn);
       bar.appendChild(speakBtn);
     }
@@ -1597,6 +1600,12 @@ function makeMsgEl(role, content, opts) {
       reBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>`;
       reBtn.onclick = regenerate;
       bar.appendChild(reBtn);
+    }
+    if (opts.tokens) {
+      const tk = document.createElement("span");
+      tk.className = "msg-tokens";
+      tk.textContent = Number(opts.tokens).toLocaleString() + " tokens";
+      bar.appendChild(tk);
     }
     container.appendChild(bar);
   }
@@ -1915,6 +1924,7 @@ async function streamChat(onDelta, onReasoning) {
   const decoder = new TextDecoder();
   let buffer = "";
   let usageRaw = null;   // collected token/cost usage for this call
+  lastCallUsage = null;  // reset; recordUsage() will set it if the API reports usage
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -1966,6 +1976,7 @@ function recordUsage(model, raw, isAnthropic) {
     else if (raw.cost_details && typeof raw.cost_details.upstream_inference_cost === "number") cost = raw.cost_details.upstream_inference_cost;
   }
   if (!inTok && !outTok && !cacheTok) return;
+  lastCallUsage = { in: inTok, cache: cacheTok, out: outTok, total: inTok + cacheTok + outTok, cost };
   logUsage({ ts: Date.now(), model: model || "?", in: inTok, cache: cacheTok, out: outTok, cost });
 }
 function logUsage(entry) {
@@ -2487,13 +2498,14 @@ async function generateReply() {
   $("messages").appendChild(el);
   const bubble = el.querySelector(".bubble");
   bubble.innerHTML = TYPING_HTML;
+  stickBottom = true;          // a fresh reply starts pinned to the bottom
   scrollToBottom();
   setSending(true);
   const paint = () => {
     const empty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim();
     bubble.innerHTML = empty ? TYPING_HTML
       : bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, true) + '<span class="cursor"></span>';
-    scrollToBottom();
+    if (stickBottom) scrollToBottom();   // don't yank the view if the user scrolled up to read history
   };
 
   let replied = false;
@@ -2509,6 +2521,7 @@ async function generateReply() {
       showToast("❌ 空回复（可能不支持图片/thinking 冲突）", 5000);
     } else {
       bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning);
+      if (lastCallUsage && lastCallUsage.total) assistantMsg.tokens = lastCallUsage.total;
       replied = true;
     }
   } catch (e) {
@@ -2525,7 +2538,7 @@ async function generateReply() {
     abortController = null;
     saveConversations();
     renderMessages();   // re-render so per-message actions (copy / regenerate) show
-    scrollToBottom();
+    if (stickBottom) scrollToBottom();   // respect the user reading history
   }
 
   if (replied && settings.autoMemory) {
@@ -3199,12 +3212,13 @@ function init() {
   });
 
   // Scroll-to-bottom button
-  $("scroll-bottom-btn").onclick = scrollToBottom;
+  $("scroll-bottom-btn").onclick = () => { stickBottom = true; scrollToBottom(); };
   $("chat").addEventListener("scroll", () => {
     const c = $("chat");
-    const far = c.scrollHeight - c.scrollTop - c.clientHeight > 240;
-    $("scroll-bottom-btn").classList.toggle("show", far);
-  });
+    const fromBottom = c.scrollHeight - c.scrollTop - c.clientHeight;
+    $("scroll-bottom-btn").classList.toggle("show", fromBottom > 240);
+    stickBottom = fromBottom < 140;   // scrolled up to read history → stop auto-following
+  }, { passive: true });
 
   // Message long-press / right-click menu
   const messagesEl = $("messages");
