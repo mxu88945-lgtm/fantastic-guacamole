@@ -85,6 +85,12 @@
     display: grid; place-items: center; font-weight: 700; color: #fff;
   }
   .sidebar .brand .title { font-size: 14px; font-weight: 600; }
+  .role-quick {
+    margin: 12px 12px 0; padding: 9px 10px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg-panel);
+    color: var(--text); font-size: 13px; font-weight: 600; font-family: inherit;
+    cursor: pointer; width: calc(100% - 24px);
+  }
   .new-chat-btn {
     margin: 12px; padding: 10px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--bg-panel);
@@ -610,6 +616,7 @@
       <div class="logo" id="brand-logo">江</div>
       <div class="title" id="brand-title">江屹琛 · Chat</div>
     </div>
+    <select class="role-quick" id="role-quick" title="切换角色"></select>
     <button class="new-chat-btn" id="new-chat-btn">＋ 新对话</button>
     <input id="search-input" placeholder="🔍 搜索聊天记录…" />
     <div class="conv-list" id="conv-list"></div>
@@ -1112,6 +1119,15 @@ function loadState() {
   }
   if (!settings.roles.find(r => r.id === settings.activeRoleId))
     settings.activeRoleId = settings.roles[0].id;
+  // tag any conversation that predates roles with the default/active role
+  conversations.forEach(c => { if (!c.roleId) c.roleId = settings.activeRoleId; });
+  // reopen where we left off: make the open conversation's role the active one + load its persona
+  const _cur = currentConv();
+  if (_cur && _cur.roleId && settings.roles.find(r => r.id === _cur.roleId)) {
+    settings.activeRoleId = _cur.roleId;
+    const _r = activeRole();
+    ROLE_FIELDS.forEach(f => { if (_r[f] !== undefined) settings[f] = _r[f]; });
+  }
   // give every message a stable id (for starring / deleting)
   for (const c of conversations) for (const m of c.messages) if (!m.id) m.id = uid();
 }
@@ -1126,14 +1142,25 @@ function mirrorActiveRole() {
 function applyRole(id) {
   const r = (settings.roles || []).find(x => x.id === id);
   if (!r) return;
+  if (abortController) abortController.abort();
   settings.activeRoleId = id;
   ROLE_FIELDS.forEach(f => { if (r[f] !== undefined) settings[f] = r[f]; });
   saveSettings();
+  // switch into this role's own conversation list (most recent, else a fresh one)
+  const rc = conversations.filter(c => c.roleId === id);
+  let target = rc.filter(c => c.messages.length).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || rc[0];
+  if (!target) { target = newConversation(); conversations.unshift(target); }
+  currentId = target.id;
+  messages = currentConv().messages;
+  saveConversations();
   syncSettingsToUI();
   updateBrand();
-  applyTheme();
+  renderConvList();
   renderMessages();
+  updateConvTitle();
   renderRoles();
+  jumpToBottom();
+  if (isMobile()) closeSidebar();
   showToast("已切换角色：" + r.name);
 }
 function addRole() {
@@ -1293,8 +1320,23 @@ async function pullCloud() {
     if (!settings.providers.find(p => p.id === settings.activeProviderId))
       settings.activeProviderId = settings.providers[0].id;
     mirrorActiveToFlat();
+    // ensure roles exist + every conversation is tagged with a role
+    if (!Array.isArray(settings.roles) || !settings.roles.length) {
+      const r = { id: uid(), name: settings.aiName || "江屹琛" };
+      ROLE_FIELDS.forEach(f => r[f] = settings[f]);
+      settings.roles = [r]; settings.activeRoleId = r.id;
+    }
+    if (!settings.roles.find(r => r.id === settings.activeRoleId)) settings.activeRoleId = settings.roles[0].id;
+    conversations.forEach(c => { if (!c.roleId) c.roleId = settings.activeRoleId; });
     { const ne = conversations.filter(c => c.messages.length > 0).sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0))[0];
       currentId = (ne || conversations[0]).id; }
+    // align active role with the conversation we're opening, and load its persona
+    const cc = currentConv();
+    if (cc && cc.roleId && settings.roles.find(r => r.id === cc.roleId)) {
+      settings.activeRoleId = cc.roleId;
+      const rr = activeRole();
+      ROLE_FIELDS.forEach(f => { if (rr[f] !== undefined) settings[f] = rr[f]; });
+    }
     messages = currentConv().messages;
     localStorage.setItem("jyc_conversations", JSON.stringify(conversations));
     localStorage.setItem("jyc_current", currentId);
@@ -1327,9 +1369,11 @@ async function pushCloudNow() {
 }
 
 function newConversation() {
-  return { id: uid(), title: "新对话", messages: [], updatedAt: Date.now() };
+  return { id: uid(), title: "新对话", messages: [], updatedAt: Date.now(), roleId: settings.activeRoleId };
 }
 function currentConv() { return conversations.find(c => c.id === currentId); }
+// Conversations belonging to the currently active role.
+function roleConvs() { return conversations.filter(c => c.roleId === settings.activeRoleId); }
 // A message's content may be a string, or an array of parts (text + images).
 function messageText(m) {
   if (typeof m.content === "string") return m.content;
@@ -1370,10 +1414,10 @@ function createConversation() {
 // Land on the greeting home page. Keep exactly one empty conversation; purge any extras.
 function goHome() {
   if (abortController) abortController.abort();
-  let empty = conversations.find(c => c.messages.length === 0);
+  let empty = conversations.find(c => c.roleId === settings.activeRoleId && c.messages.length === 0);
   if (!empty) { empty = newConversation(); conversations.unshift(empty); }
-  // Remove every other empty conversation so they don't pile up
-  conversations = conversations.filter(c => c.messages.length > 0 || c.id === empty.id);
+  // Remove other empty conversations of THIS role so they don't pile up (leave other roles' alone)
+  conversations = conversations.filter(c => c.messages.length > 0 || c.id === empty.id || c.roleId !== settings.activeRoleId);
   saveConversations();
   switchConversation(empty.id);
 }
@@ -1382,8 +1426,11 @@ function deleteConversation(id, ev) {
   const conv = conversations.find(c => c.id === id);
   if (conv && conv.messages.length && !confirm("确定删除这个对话？")) return;
   conversations = conversations.filter(c => c.id !== id);
-  if (conversations.length === 0) conversations.unshift(newConversation());
-  if (id === currentId) { currentId = conversations[0].id; messages = currentConv().messages; }
+  if (id === currentId) {
+    let rc = roleConvs();
+    if (!rc.length) { const nc = newConversation(); conversations.unshift(nc); rc = [nc]; }
+    currentId = rc[0].id; messages = currentConv().messages;
+  }
   saveConversations();
   renderConvList(); renderMessages(); updateConvTitle();
 }
@@ -1404,7 +1451,7 @@ function runSearch(q) {
   const box = $("conv-list");
   box.innerHTML = "";
   const results = [];
-  for (const c of conversations) {
+  for (const c of roleConvs()) {
     for (const m of c.messages) {
       const text = messageText(m);
       const pos = text.toLowerCase().indexOf(q);
@@ -1451,10 +1498,21 @@ async function compactConversation() {
   showToast("✅ 已压缩，腾出空间啦");
 }
 
+function renderRoleQuick() {
+  const sel = $("role-quick"); if (!sel) return;
+  sel.innerHTML = "";
+  (settings.roles || []).forEach(r => {
+    const o = document.createElement("option");
+    o.value = r.id; o.textContent = "🎭 " + r.name;
+    if (r.id === settings.activeRoleId) o.selected = true;
+    sel.appendChild(o);
+  });
+}
 function renderConvList() {
+  renderRoleQuick();
   const box = $("conv-list");
   box.innerHTML = "";
-  for (const c of conversations.filter(c => c.messages.length > 0)) {
+  for (const c of roleConvs().filter(c => c.messages.length > 0)) {
     const el = document.createElement("div");
     el.className = "conv-item" + (c.id === currentId ? " active" : "");
     el.innerHTML = `<span class="ic">💬</span><span class="name"></span>
@@ -3214,6 +3272,7 @@ function init() {
   updateConvTitle();
 
   $("new-chat-btn").onclick = createConversation;
+  $("role-quick").onchange = (e) => applyRole(e.target.value);
   $("brand-logo").style.cursor = "pointer"; $("brand-title").style.cursor = "pointer";
   $("brand-logo").onclick = goHome; $("brand-title").onclick = goHome;
   $("search-input").addEventListener("input", (e) => runSearch(e.target.value));
