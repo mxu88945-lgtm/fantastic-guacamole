@@ -843,6 +843,16 @@
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>角色档案</div>
 
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="font-weight:600;">🎭 角色库 <span class="hint" style="font-weight:400;">（人设+音色+记忆 打包，一键切换）</span></label>
+          <div id="roleList" style="display:flex; flex-direction:column; gap:6px; margin-top:8px;"></div>
+          <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+            <input id="roleName" placeholder="新角色名，如：磁性男A" style="flex:1; min-width:140px;" />
+            <button class="icon-btn" id="role-add-btn">＋ 存为新角色</button>
+          </div>
+          <span class="hint" style="display:block; margin-top:6px;">切换角色会一起换掉「核心人设 / 音色 / 长期记忆 / 名字头像」。下面的编辑会自动存进「使用中」的角色。</span>
+        </div>
+
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">身份信息</label>
           <span class="hint">设置你和 AI 的名称、头像与显示方式。</span>
           <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:12px;">
@@ -1013,6 +1023,8 @@ let settings = {
   supabaseKey: "",
   providers: [],          // [{id,name,provider,baseUrl,apiKey,model,modelList}]
   activeProviderId: "",
+  roles: [],              // [{id,name,systemPrompt,aiName,aiAvatar,memory,ttsVoice,emojiStyle}] — persona bundles
+  activeRoleId: "",
   userName: "你",
   userAvatar: "你",
   aiName: "江屹琛",
@@ -1042,7 +1054,7 @@ let pushTimer = null;
 let ttsAudio = null;
 let ttsBtnActive = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","emojiStyle","memory","autoMemory","themeName","accent",
+  "systemPrompt","emojiStyle","memory","autoMemory","roles","activeRoleId","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
@@ -1091,8 +1103,76 @@ function loadState() {
   if (!settings.providers.find(p => p.id === settings.activeProviderId))
     settings.activeProviderId = settings.providers[0].id;
   mirrorActiveToFlat();
+  // seed a default role from the current persona if none exist
+  if (!Array.isArray(settings.roles) || settings.roles.length === 0) {
+    const r = { id: uid(), name: settings.aiName || "江屹琛" };
+    ROLE_FIELDS.forEach(f => r[f] = settings[f]);
+    settings.roles = [r];
+    settings.activeRoleId = r.id;
+  }
+  if (!settings.roles.find(r => r.id === settings.activeRoleId))
+    settings.activeRoleId = settings.roles[0].id;
   // give every message a stable id (for starring / deleting)
   for (const c of conversations) for (const m of c.messages) if (!m.id) m.id = uid();
+}
+// Persona fields bundled into a switchable 角色.
+const ROLE_FIELDS = ["systemPrompt", "aiName", "aiAvatar", "memory", "ttsVoice", "emojiStyle"];
+function activeRole() { return (settings.roles || []).find(r => r.id === settings.activeRoleId); }
+// Keep the active role in sync with the live persona fields (so edits aren't lost).
+function mirrorActiveRole() {
+  const r = activeRole();
+  if (r) ROLE_FIELDS.forEach(f => { r[f] = settings[f]; });
+}
+function applyRole(id) {
+  const r = (settings.roles || []).find(x => x.id === id);
+  if (!r) return;
+  settings.activeRoleId = id;
+  ROLE_FIELDS.forEach(f => { if (r[f] !== undefined) settings[f] = r[f]; });
+  saveSettings();
+  syncSettingsToUI();
+  updateBrand();
+  applyTheme();
+  renderMessages();
+  renderRoles();
+  showToast("已切换角色：" + r.name);
+}
+function addRole() {
+  const name = ($("roleName") && $("roleName").value.trim()) || ("角色" + ((settings.roles || []).length + 1));
+  const r = { id: uid(), name };
+  ROLE_FIELDS.forEach(f => r[f] = settings[f]);   // snapshot current persona
+  settings.roles = settings.roles || [];
+  settings.roles.push(r);
+  settings.activeRoleId = r.id;
+  if ($("roleName")) $("roleName").value = "";
+  saveSettings();
+  renderRoles();
+  showToast("已新建角色：" + name + "（基于当前人设，可继续编辑）");
+}
+function renderRoles() {
+  const list = $("roleList"); if (!list) return;
+  list.innerHTML = "";
+  (settings.roles || []).forEach(r => {
+    const active = r.id === settings.activeRoleId;
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border); border-radius:10px;" + (active ? "outline:2px solid var(--accent);" : "");
+    const name = document.createElement("span");
+    name.style.cssText = "flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+    name.textContent = (active ? "✅ " : "") + r.name;
+    const use = document.createElement("button");
+    use.className = "icon-btn"; use.textContent = active ? "使用中" : "用这个"; use.disabled = active;
+    use.onclick = () => applyRole(r.id);
+    const del = document.createElement("button");
+    del.className = "icon-btn"; del.textContent = "✕"; del.title = "删除角色";
+    del.onclick = () => {
+      if ((settings.roles || []).length <= 1) { showToast("至少保留一个角色"); return; }
+      if (!confirm("删除角色「" + r.name + "」？\n（它的人设/记忆/音色绑定会一起删掉，对话不受影响）")) return;
+      settings.roles = settings.roles.filter(x => x.id !== r.id);
+      if (settings.activeRoleId === r.id) applyRole(settings.roles[0].id);
+      else { saveSettings(); renderRoles(); }
+    };
+    row.appendChild(name); row.appendChild(use); row.appendChild(del);
+    list.appendChild(row);
+  });
 }
 function activeProvider() {
   return settings.providers.find(p => p.id === settings.activeProviderId) || settings.providers[0];
@@ -1104,6 +1184,7 @@ function mirrorActiveToFlat() {
   settings.apiKey = p.apiKey; settings.model = p.model; settings.modelList = p.modelList;
 }
 function saveSettings() {
+  mirrorActiveRole();
   localStorage.setItem("jyc_settings", JSON.stringify(settings));
   schedulePush();
 }
@@ -2842,6 +2923,7 @@ function syncSettingsToUI() {
   $("ttsSpeedVal").textContent = parseFloat(settings.ttsSpeed || 1).toFixed(1);
   updateTtsProviderUI();
   renderUsage();
+  renderRoles();
   highlightLayoutButtons();
   highlightFontButtons();
   renderProviderSelect();
@@ -3153,6 +3235,7 @@ function init() {
   $("signout-btn").onclick = doSignOut;
   $("fetch-models-btn").onclick = fetchModels;
   $("usage-clear-btn").onclick = () => { if (confirm("清空所有用量记录？（不影响对话）")) { localStorage.removeItem("jyc_usage"); renderUsage(); showToast("已清空用量记录"); } };
+  $("role-add-btn").onclick = addRole;
   $("active-provider").addEventListener("change", () => switchProvider($("active-provider").value));
   $("provider-add").onclick = addProvider;
   $("provider-rename").onclick = renameProvider;
