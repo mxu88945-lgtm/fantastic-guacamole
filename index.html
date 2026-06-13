@@ -1672,13 +1672,29 @@ async function streamChat(onDelta, onReasoning) {
     };
   }
 
-  const resp = await fetch(url, {
-    method: "POST", headers, body: JSON.stringify(body), signal: abortController.signal,
-  });
-  if (!resp.ok) {
-    let detail = "";
-    try { detail = JSON.stringify(await resp.json()); } catch (e) { detail = await resp.text().catch(()=>""); }
-    throw new Error(`HTTP ${resp.status} — ${detail.slice(0, 400)}`);
+  // Transient errors (502/503/504 overloaded, 429 rate-limited) are common with
+  // relay providers and usually clear in a few seconds. Retry a couple times with
+  // backoff before surfacing the error, so the user rarely sees a one-off blip.
+  const TRANSIENT = new Set([429, 500, 502, 503, 504]);
+  const MAX_ATTEMPTS = 3;
+  let resp, lastDetail = "";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    resp = await fetch(url, {
+      method: "POST", headers, body: JSON.stringify(body), signal: abortController.signal,
+    });
+    if (resp.ok) break;
+    lastDetail = "";
+    try { lastDetail = JSON.stringify(await resp.json()); } catch (e) { lastDetail = await resp.text().catch(()=>""); }
+    if (TRANSIENT.has(resp.status) && attempt < MAX_ATTEMPTS) {
+      const wait = attempt * 1500; // 1.5s, then 3s
+      showToast(`接口繁忙(${resp.status})，${wait/1000}秒后自动重试…(${attempt}/${MAX_ATTEMPTS - 1})`, wait + 400);
+      await new Promise((res, rej) => {
+        const t = setTimeout(res, wait);
+        abortController.signal.addEventListener("abort", () => { clearTimeout(t); rej(new DOMException("Aborted", "AbortError")); }, { once: true });
+      });
+      continue;
+    }
+    throw new Error(`HTTP ${resp.status} — ${lastDetail.slice(0, 400)}`);
   }
 
   const reader = resp.body.getReader();
