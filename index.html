@@ -634,7 +634,6 @@
     <div id="chat-bg"></div>
     <header>
       <button class="icon-btn" id="toggle-sidebar" title="收起/展开侧栏">☰</button>
-      <h1 id="conv-title" style="cursor:pointer;" title="点击重命名">新对话</h1>
       <div class="spacer"></div>
       <button class="icon-btn" id="header-search-btn" title="搜索聊天记录">🔍</button>
       <button class="icon-btn" id="settings-btn" title="设置">⚙️</button>
@@ -1340,21 +1339,18 @@ async function pullCloud() {
     }
     if (!settings.roles.find(r => r.id === settings.activeRoleId)) settings.activeRoleId = settings.roles[0].id;
     conversations.forEach(c => { if (!c.roleId) c.roleId = settings.activeRoleId; });
+    // keep the active role on the most recent conversation's role (for a sensible greeting)
     { const ne = conversations.filter(c => c.messages.length > 0).sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0))[0];
-      currentId = (ne || conversations[0]).id; }
-    // align active role with the conversation we're opening, and load its persona
-    const cc = currentConv();
-    if (cc && cc.roleId && settings.roles.find(r => r.id === cc.roleId)) {
-      settings.activeRoleId = cc.roleId;
-      const rr = activeRole();
-      ROLE_FIELDS.forEach(f => { if (rr[f] !== undefined) settings[f] = rr[f]; });
-    }
-    messages = currentConv().messages;
+      if (ne && ne.roleId && settings.roles.find(r => r.id === ne.roleId)) {
+        settings.activeRoleId = ne.roleId;
+        const rr = activeRole();
+        ROLE_FIELDS.forEach(f => { if (rr[f] !== undefined) settings[f] = rr[f]; });
+      } }
     localStorage.setItem("jyc_conversations", JSON.stringify(conversations));
-    localStorage.setItem("jyc_current", currentId);
     saveSettings();
     applyingCloud = false;
-    applyTheme(); syncSettingsToUI(); renderConvList(); renderMessages(); updateConvTitle();
+    applyTheme(); syncSettingsToUI();
+    goHome();   // land on a clean greeting page; synced history sits in the sidebar (don't yank into an old chat stuck at the top)
     showToast("☁️ 已从云端同步");
   } else {
     // cloud empty → push current local data up
@@ -1548,7 +1544,7 @@ function renameConversation(id, ev) {
   renderConvList(); updateConvTitle();
 }
 function updateConvTitle() {
-  $("conv-title").textContent = currentConv().title || "新对话";
+  const ct = $("conv-title"); if (ct) ct.textContent = (currentConv() && currentConv().title) || "新对话";
 }
 
 // ---------- Minimal markdown ----------
@@ -3290,7 +3286,7 @@ function init() {
   $("brand-logo").style.cursor = "pointer"; $("brand-title").style.cursor = "pointer";
   $("brand-logo").onclick = goHome; $("brand-title").onclick = goHome;
   $("search-input").addEventListener("input", (e) => runSearch(e.target.value));
-  $("conv-title").onclick = () => renameConversation(currentId);
+  if ($("conv-title")) $("conv-title").onclick = () => renameConversation(currentId);
   $("toggle-sidebar").onclick = toggleSidebar;
   $("header-search-btn").onclick = () => {
     settings.sidebarCollapsed = false; saveSettings(); applySidebar();
