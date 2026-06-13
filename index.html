@@ -385,6 +385,7 @@
   .empty-state .big { font-size: 40px; margin-bottom: 12px; }
   .empty-state .greet { font-size: 30px; color: var(--text); font-weight: 400; letter-spacing: .3px;
     font-family: Georgia, "Songti SC", "Times New Roman", serif; }
+  .empty-state .greet-name { font-size: .76em; }
 
   /* Composer */
   .composer-wrap {
@@ -1460,7 +1461,7 @@ function greetingText() {
 function renderMessages() {
   const box = $("messages");
   if (messages.length === 0) {
-    const who = (settings.userName && settings.userName !== "你") ? ", " + escapeHtml(settings.userName) : "";
+    const who = (settings.userName && settings.userName !== "你") ? `<span class="greet-name">, ${escapeHtml(settings.userName)}</span>` : "";
     box.innerHTML = `<div class="empty-state">
       <div class="greet">${greetingText()}${who}</div>
       <div style="margin-top:6px;font-size:12px;">${settings.apiKey ? "给" + escapeHtml(settings.aiName || "江屹琛") + "发条消息，开始聊天吧" : "第一次用记得先点右上角 ⚙️ 填好 API Key 哦"}</div>
