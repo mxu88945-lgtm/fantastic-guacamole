@@ -1087,11 +1087,27 @@ function saveConversations() {
 }
 
 // ---------- Cloud sync (Supabase) ----------
+let sbLib = null;
+// Load the supabase-js ESM bundle, trying multiple CDNs (some are blocked/slow
+// in mainland China). Throws a clear error if none load, so callers can surface it.
+async function loadSupabaseLib() {
+  if (sbLib) return sbLib;
+  const cdns = [
+    "https://esm.sh/@supabase/supabase-js@2",
+    "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm",
+  ];
+  let lastErr;
+  for (const url of cdns) {
+    try { const m = await import(url); if (m && m.createClient) { sbLib = m; return m; } }
+    catch (e) { lastErr = e; }
+  }
+  throw new Error("加载云同步库失败（网络/CDN 可能被挡）：" + (lastErr && lastErr.message || lastErr));
+}
 async function getSb() {
   if (sb) return sb;
   if (!settings.supabaseUrl || !settings.supabaseKey) return null;
-  const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-  sb = createClient(settings.supabaseUrl, settings.supabaseKey);
+  const { createClient } = await loadSupabaseLib();
+  sb = createClient(settings.supabaseUrl.replace(/\/+$/, ""), settings.supabaseKey);
   return sb;
 }
 function setAuthStatus(text, loggedIn) {
@@ -1101,32 +1117,44 @@ function setAuthStatus(text, loggedIn) {
   $("signup-btn").style.display = loggedIn ? "none" : "";
 }
 async function initCloud() {
-  const client = await getSb();
-  if (!client) return;
-  const { data } = await client.auth.getSession();
-  if (data.session) {
-    cloudUser = data.session.user;
-    setAuthStatus("已登录：" + cloudUser.email, true);
-    await pullCloud();
-  }
+  try {
+    const client = await getSb();
+    if (!client) return;
+    const { data } = await client.auth.getSession();
+    if (data.session) {
+      cloudUser = data.session.user;
+      setAuthStatus("已登录：" + cloudUser.email, true);
+      await pullCloud();
+    }
+  } catch (e) { console.warn("initCloud failed:", e); }
 }
 async function doAuth(mode) {
   readSettingsFromUI();
-  const client = await getSb();
-  if (!client) { showToast("请先填 Supabase URL 和 anon key"); return; }
+  if (!settings.supabaseUrl || !settings.supabaseKey) { showToast("请先填 Supabase URL 和 anon/publishable key"); return; }
   const email = $("authEmail").value.trim();
   const password = $("authPass").value;
-  if (!email || !password) { showToast("请填邮箱和密码"); return; }
-  const fn = mode === "signup" ? "signUp" : "signInWithPassword";
-  const { data, error } = await client.auth[fn]({ email, password });
-  if (error) { showToast("失败：" + error.message); return; }
-  if (mode === "signup" && !data.session) {
-    showToast("注册成功，请去邮箱点确认链接后再登录"); return;
+  if (!email || !password) { showToast("请填邮箱和密码（密码至少 6 位）"); return; }
+  const btn = mode === "signup" ? $("signup-btn") : $("signin-btn");
+  const old = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "处理中…"; }
+  try {
+    const client = await getSb();
+    if (!client) { showToast("云同步未配置"); return; }
+    const fn = mode === "signup" ? "signUp" : "signInWithPassword";
+    const { data, error } = await client.auth[fn]({ email, password });
+    if (error) { showToast((mode === "signup" ? "注册失败：" : "登录失败：") + error.message); return; }
+    if (mode === "signup" && !data.session) {
+      showToast("注册成功，请去邮箱点确认链接后再回来登录"); return;
+    }
+    cloudUser = data.user;
+    setAuthStatus("已登录：" + cloudUser.email, true);
+    showToast("登录成功，正在同步…");
+    await pullCloud();
+  } catch (e) {
+    showToast("出错：" + (e.message || String(e)));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
   }
-  cloudUser = data.user;
-  setAuthStatus("已登录：" + cloudUser.email, true);
-  showToast("登录成功，正在同步…");
-  await pullCloud();
 }
 async function doSignOut() {
   const client = await getSb();
