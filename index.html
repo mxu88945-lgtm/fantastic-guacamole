@@ -871,6 +871,10 @@
           </label>
           <span class="hint">决定 AI 如何理解身份、关系、语气与边界。</span>
           <textarea id="systemPrompt" placeholder="你叫江屹琛，对用户亲切、口语化……" style="margin-top:6px;"></textarea>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px;">
+            <input type="checkbox" id="emojiStyle" style="width:auto;" onchange="readSettingsFromUI();" />
+            <span>偶尔用颜文字 / 表情 <span class="hint" style="font-weight:400;">如 (๑&gt;ᴗ&lt;๑)、🥰☺️😉 —— 让语气更生动</span></span>
+          </label>
         </div>
 
         <div class="field" style="grid-column: 1 / -1;">
@@ -977,6 +981,7 @@ let settings = {
   temperature: 0.7,
   maxTokens: 2048,
   systemPrompt: "",
+  emojiStyle: true,
   memory: "",
   autoMemory: false,
   theme: "dark",
@@ -1018,7 +1023,7 @@ let pushTimer = null;
 let ttsAudio = null;
 let ttsBtnActive = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","memory","autoMemory","themeName","accent",
+  "systemPrompt","emojiStyle","memory","autoMemory","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
@@ -1793,6 +1798,10 @@ async function streamChat(onDelta, onReasoning) {
   abortController = new AbortController();
 
   let systemText = settings.systemPrompt || "";
+  if (settings.emojiStyle !== false) {
+    const note = "表达风格：在合适的时候自然地穿插少量颜文字（如 (๑>ᴗ<๑)、(´;ω;`)、(*≧ω≦)、( •̀ ω •́ )✧ 等）和系统 emoji 表情（如 🥹☺️😉😍🥰🤨😏 等）来传递情绪、让语气更生动可爱。但要适度——别每句都用、别堆砌，自然为主。";
+    systemText = systemText ? systemText + "\n\n" + note : note;
+  }
   if (settings.memory && settings.memory.trim()) {
     const mem = "以下是需要长期记住的信息（用户的长期记忆）：\n" + settings.memory.trim();
     systemText = systemText ? systemText + "\n\n" + mem : mem;
@@ -2666,6 +2675,7 @@ function syncSettingsToUI() {
   $("maxTokens").value = settings.maxTokens;
   $("modelList").value = settings.modelList;
   $("systemPrompt").value = settings.systemPrompt;
+  $("emojiStyle").checked = settings.emojiStyle !== false;
   $("memory").value = settings.memory;
   renderFavorites();
   $("autoMemory").checked = settings.autoMemory;
@@ -2763,6 +2773,7 @@ function readSettingsFromUI() {
   settings.temperature = parseFloat($("temperature").value);
   settings.maxTokens = parseInt($("maxTokens").value) || 2048;
   settings.systemPrompt = $("systemPrompt").value;
+  settings.emojiStyle = $("emojiStyle").checked;
   settings.memory = $("memory").value;
   settings.autoMemory = $("autoMemory").checked;
   settings.supabaseUrl = $("sbUrl").value.trim();
