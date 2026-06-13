@@ -1164,16 +1164,24 @@ function applyRole(id) {
   showToast("已切换角色：" + r.name);
 }
 function addRole() {
-  const name = ($("roleName") && $("roleName").value.trim()) || ("角色" + ((settings.roles || []).length + 1));
-  const r = { id: uid(), name };
-  ROLE_FIELDS.forEach(f => r[f] = settings[f]);   // snapshot current persona
+  const name = ($("roleName") && $("roleName").value.trim());
+  if (!name) { showToast("先给新角色起个名～"); return; }
+  // a fresh, BLANK role (not a copy): name + auto avatar, empty 人设/记忆/音色
+  const r = {
+    id: uid(), name,
+    systemPrompt: "",
+    aiName: name,
+    aiAvatar: ([...name][0] || "AI"),
+    memory: "",
+    ttsVoice: "",
+    emojiStyle: settings.emojiStyle || "normal",
+  };
   settings.roles = settings.roles || [];
   settings.roles.push(r);
-  settings.activeRoleId = r.id;
   if ($("roleName")) $("roleName").value = "";
-  saveSettings();
-  renderRoles();
-  showToast("已新建角色：" + name + "（基于当前人设，可继续编辑）");
+  saveSettings();          // saves edits into the *current* role first
+  applyRole(r.id);         // switch into the new blank role so she can fill it
+  showToast("已新建空白角色「" + name + "」，下面填它的人设吧～");
 }
 function renderRoles() {
   const list = $("roleList"); if (!list) return;
