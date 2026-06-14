@@ -836,6 +836,13 @@
             <span>开启图片转述 <span class="hint" style="font-weight:400;">（发图时自动先读图→文字）</span></span>
           </label>
         </div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="font-weight:600;">🎨 文生图（让 TA 画图）</label>
+          <span class="hint" style="display:block; margin-top:4px;">在输入框写要画什么 → 点「＋」→「生成图片」，TA 就画给你。需要一个支持画图的接口（标准 <code>/v1/images/generations</code>，如 Grok / DALL·E / gpt-image 等）。</span>
+          <input id="imageModel" placeholder="画图模型 id，如 grok-2-image / dall-e-3 / gpt-image-1" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+          <input id="imageBaseUrl" placeholder="画图接口地址（选填，留空就用当前接口）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+          <input id="imageApiKey" type="password" placeholder="画图 API Key（选填，不上云；留空用当前接口）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+        </div>
 
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>用量 · 账单</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
@@ -1035,6 +1042,7 @@
         <button data-act="sticker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 10h.01M15 10h.01M8 15s1.5 2 4 2 4-2 4-2"/></svg>表情包</button>
         <button data-act="file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>文件</button>
         <button data-act="silent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg><span id="silent-label">旁白模式：只记录不回复</span></button>
+        <button data-act="draw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2.5 2.5 0 0 0 2.5-2.5c0-.6-.2-1.1-.6-1.5-.4-.4-.6-.9-.6-1.5A2.5 2.5 0 0 1 15.8 14H18a4 4 0 0 0 4-4 8 8 0 0 0-10-8Z"/></svg>生成图片</button>
       </div>
       <div class="composer">
         <input type="file" id="attach-file" accept="image/*" multiple style="display:none;" />
@@ -1077,6 +1085,9 @@ let settings = {
   proactiveGreet: true,   // 久未聊天再打开时，AI 主动招呼
   visionModel: "",        // 读图(视觉)模型 id，用于把图片转述成文字
   visionRelay: false,     // 开启后：发图先用视觉模型读成文字，再喂给当前模型
+  imageModel: "",         // 文生图模型 id（/v1/images/generations）
+  imageBaseUrl: "",       // 画图接口地址（留空用当前接口）
+  imageApiKey: "",        // 画图 Key（留空用当前接口；不上云）
   memory: "",
   autoMemory: false,
   theme: "dark",
@@ -1122,7 +1133,7 @@ let pushTimer = null;
 let ttsAudio = null;
 let ttsBtnActive = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionRelay","memory","autoMemory","roles","activeRoleId","themeName","accent",
+  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionRelay","imageModel","imageBaseUrl","memory","autoMemory","roles","activeRoleId","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
@@ -2302,6 +2313,46 @@ async function describeImage(dataUrl) {
   return isAnthropic ? (data.content || []).map(c => c.text || "").join("").trim()
     : (data.choices?.[0]?.message?.content || "").trim();
 }
+// Text-to-image via the standard OpenAI-style /v1/images/generations endpoint.
+async function generateImage(prompt) {
+  const base = (settings.imageBaseUrl || settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
+  const key = settings.imageApiKey || settings.apiKey;
+  const resp = await fetch(base + "/v1/images/generations", {
+    method: "POST",
+    headers: { "content-type": "application/json", "authorization": "Bearer " + key },
+    body: JSON.stringify({ model: settings.imageModel, prompt, n: 1 }),
+  });
+  if (!resp.ok) throw new Error("HTTP " + resp.status + " " + (await resp.text().catch(() => "")).slice(0, 160));
+  const data = await resp.json();
+  const d = (data.data && data.data[0]) || {};
+  if (d.b64_json) return "data:image/png;base64," + d.b64_json;
+  if (d.url) return d.url;
+  // some providers return the image inside a chat-style message
+  const alt = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+  if (alt) return alt;
+  throw new Error("没拿到图片（该接口可能不支持画图）");
+}
+// "+" → 生成图片: use the composer text as the prompt, show result as TA's reply.
+async function drawImage() {
+  $("plus-menu").classList.remove("show");
+  const input = $("input");
+  const prompt = input.value.trim();
+  if (!prompt) { showToast("先在输入框写要画什么～"); return; }
+  if (!settings.imageModel) { showToast("先在 ⚙️设置→模型与服务 填「画图模型」"); openSettings(true); return; }
+  if (!(settings.imageApiKey || settings.apiKey)) { showToast("先填 API Key"); return; }
+  messages.push({ id: uid(), role: "user", content: "🎨 画：" + prompt, ts: Date.now() });
+  const am = { id: uid(), role: "assistant", content: "🎨 生成中…", ts: Date.now() };
+  messages.push(am);
+  input.value = ""; autoResize();
+  renderMessages(); touchConversation(); scrollToBottom(); markSeen();
+  try {
+    const dataUrl = await generateImage(prompt);
+    am.content = [{ type: "image", dataUrl, mediaType: "image/png" }];
+  } catch (e) {
+    am.content = "🎨 画图失败：" + (e.message || String(e)).slice(0, 100);
+  }
+  saveConversations(); renderMessages(); jumpToBottom();
+}
 // What to actually send for a stored message: if an assistant turn's visible reply
 // ended up only in the reasoning channel, send that so the model keeps full context.
 function sendContent(m) {
@@ -3362,6 +3413,9 @@ function syncSettingsToUI() {
   $("modelList").value = settings.modelList;
   $("visionModel").value = settings.visionModel || "";
   $("visionRelay").checked = !!settings.visionRelay;
+  $("imageModel").value = settings.imageModel || "";
+  $("imageBaseUrl").value = settings.imageBaseUrl || "";
+  $("imageApiKey").value = settings.imageApiKey || "";
   $("systemPrompt").value = settings.systemPrompt;
   $("emojiStyle").value = (settings.emojiStyle === true || settings.emojiStyle === undefined) ? "normal"
     : (settings.emojiStyle === false ? "off" : settings.emojiStyle);
@@ -3466,6 +3520,9 @@ function readSettingsFromUI() {
   settings.maxTokens = parseInt($("maxTokens").value) || 2048;
   settings.visionModel = $("visionModel").value.trim();
   settings.visionRelay = $("visionRelay").checked;
+  settings.imageModel = $("imageModel").value.trim();
+  settings.imageBaseUrl = $("imageBaseUrl").value.trim();
+  settings.imageApiKey = $("imageApiKey").value.trim();
   settings.systemPrompt = $("systemPrompt").value;
   settings.emojiStyle = $("emojiStyle").value;
   settings.proactiveGreet = $("proactiveGreet").checked;
@@ -3804,6 +3861,7 @@ function init() {
       else if (act === "file") $("file-input").click();
       else if (act === "compact") compactConversation();
       else if (act === "export") openExportDialog();
+      else if (act === "draw") drawImage();
       else if (act === "silent") { settings.silentMode = !settings.silentMode; saveSettings(); updateSilentUI(); showToast(settings.silentMode ? "🔇 旁白模式开启：只记录，AI 不回复" : "已退出旁白模式"); }
     };
   });
