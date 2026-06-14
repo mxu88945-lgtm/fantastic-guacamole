@@ -162,8 +162,8 @@
   .main > header {
     position: absolute; top: 0; left: 0; right: 0; z-index: 5;
     background: color-mix(in srgb, var(--bg) 8%, transparent);
-    backdrop-filter: blur(20px) saturate(1.7);
-    -webkit-backdrop-filter: blur(20px) saturate(1.7);
+    backdrop-filter: blur(20px) saturate(1.15);
+    -webkit-backdrop-filter: blur(20px) saturate(1.15);
   }
   .main > .chat { padding-top: calc(58px + env(safe-area-inset-top)); }
   .main > .composer-wrap { background: transparent; }
@@ -3177,9 +3177,16 @@ function applyTheme() {
   document.documentElement.setAttribute("data-theme", t.dark ? "dark" : "light");
   const root = document.documentElement;
   for (const k in t.vars) root.style.setProperty("--" + k, t.vars[k]);
-  // keep the iOS status-bar / PWA chrome color in sync with the theme (no more black strip)
-  const tc = document.querySelector('meta[name="theme-color"]');
-  if (tc && t.vars.bg) tc.content = t.vars.bg;
+  // keep the iOS status-bar / PWA chrome color in sync with the theme (no more black strip).
+  // Re-insert the meta (not just set .content) to nudge iOS into re-reading it on theme switch.
+  if (t.vars.bg) {
+    const old = document.querySelector('meta[name="theme-color"]');
+    if (old) old.remove();
+    const tc = document.createElement("meta");
+    tc.setAttribute("name", "theme-color");
+    tc.setAttribute("content", t.vars.bg);
+    document.head.appendChild(tc);
+  }
   applyAccent();
   applyChatBg();
   applyBubbleStyle();
