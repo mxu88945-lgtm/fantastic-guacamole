@@ -1445,9 +1445,13 @@ function cvAvatar(ctx, x, y, size, img, avText, accent) {
   }
   ctx.restore();
 }
-async function exportChatImage() {
+function exportableMsgs() {
   const conv = currentConv();
-  const msgs = (conv ? conv.messages : []).filter(m => (m.role === "user" || m.role === "assistant") && (exportPlainBody(m) || exportMsgPics(m).length));
+  return (conv ? conv.messages : []).filter(m => (m.role === "user" || m.role === "assistant") && (exportPlainBody(m) || exportMsgPics(m).length));
+}
+async function exportChatImage(msgsOverride) {
+  const conv = currentConv();
+  const msgs = msgsOverride || exportableMsgs();
   if (!msgs.length) { showToast("这个对话还没有内容可导出～"); return; }
   $("plus-menu").classList.remove("show");
   showToast("正在生成长图…");
@@ -1480,7 +1484,7 @@ async function exportChatImage() {
       for (const ps of picSizes) bodyH += ps.h + 8;
       blocks.push({ isUser, lines, picSizes, hasText: lines.length > 0, blockH: 20 + bodyH + 16 });
     }
-    const headerH = 72, footerH = 46;
+    const headerH = 72, footerH = 22;
     let totalH = headerH + footerH;
     for (const b of blocks) totalH += b.blockH;
 
@@ -1534,9 +1538,6 @@ async function exportChatImage() {
       }
       y += b.blockH;
     }
-    ctx.fillStyle = colDim; ctx.font = fontName; ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("✦ 江屹琛 · Chat ✦", W / 2, totalH - footerH + 16);
-
     canvas.toBlob(blob => { if (blob) showImagePreview(blob); else showToast("生成失败，对话可能太长了"); }, "image/png");
   } catch (e) {
     console.error("[exportChatImage]", e);
@@ -1575,6 +1576,47 @@ function showImagePreview(blob) {
   bar.appendChild(shareBtn); bar.appendChild(closeBtn);
   ov.appendChild(bar); ov.appendChild(hint); ov.appendChild(img);
   document.body.appendChild(ov);
+}
+// Let the user pick which slice of the conversation to export (manual length control).
+function openExportDialog() {
+  $("plus-menu").classList.remove("show");
+  const all = exportableMsgs();
+  if (!all.length) { showToast("这个对话还没有内容可导出～"); return; }
+  const snip = (m) => (m.role === "user" ? "我：" : "TA：") + (exportPlainBody(m) || "[图片]").replace(/\s+/g, " ").slice(0, 16);
+  const ov = document.createElement("div");
+  ov.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px;";
+  const card = document.createElement("div");
+  card.style.cssText = "background:var(--bg-soft);color:var(--text);border-radius:16px;padding:18px;width:100%;max-width:420px;box-shadow:0 10px 40px rgba(0,0,0,.3);";
+  const mkSel = (def) => {
+    const s = document.createElement("select");
+    s.style.cssText = "width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:var(--bg-panel);color:var(--text);font-size:13px;margin-top:4px;font-family:inherit;";
+    all.forEach((m, i) => { const o = document.createElement("option"); o.value = i; o.textContent = (i + 1) + ". " + snip(m); s.appendChild(o); });
+    s.value = def; return s;
+  };
+  const startSel = mkSel(Math.max(0, all.length - 10));
+  const endSel = mkSel(all.length - 1);
+  const count = document.createElement("div");
+  count.style.cssText = "font-size:12px;color:var(--text-dim);margin-top:10px;";
+  const upd = () => {
+    const s = +startSel.value, e = +endSel.value;
+    count.textContent = s > e ? "⚠️ 起点不能在终点之后" : ("将导出第 " + (s + 1) + " ～ " + (e + 1) + " 条，共 " + (e - s + 1) + " 条");
+  };
+  startSel.onchange = upd; endSel.onchange = upd;
+  const h = document.createElement("div"); h.textContent = "🖼️ 导出长图 · 选范围"; h.style.cssText = "font-weight:700;font-size:15px;margin-bottom:10px;";
+  const l1 = document.createElement("div"); l1.textContent = "从哪条开始"; l1.style.cssText = "font-size:12px;color:var(--text-dim);";
+  const l2 = document.createElement("div"); l2.textContent = "到哪条结束"; l2.style.cssText = "font-size:12px;color:var(--text-dim);margin-top:10px;";
+  const bar = document.createElement("div"); bar.style.cssText = "display:flex;gap:10px;justify-content:flex-end;margin-top:14px;";
+  const cancel = document.createElement("button"); cancel.textContent = "取消";
+  const go = document.createElement("button"); go.textContent = "导出";
+  cancel.style.cssText = "padding:9px 18px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;background:var(--bg-panel);color:var(--text);border:1px solid var(--border);";
+  go.style.cssText = "padding:9px 18px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;background:var(--accent);color:#fff;border:none;";
+  const close = () => { try { document.body.removeChild(ov); } catch (_) {} };
+  cancel.onclick = close; ov.onclick = (e) => { if (e.target === ov) close(); };
+  go.onclick = () => { const s = +startSel.value, e = +endSel.value; if (s > e) { showToast("起点不能在终点之后"); return; } close(); exportChatImage(all.slice(s, e + 1)); };
+  card.appendChild(h); card.appendChild(l1); card.appendChild(startSel); card.appendChild(l2); card.appendChild(endSel); card.appendChild(count);
+  bar.appendChild(cancel); bar.appendChild(go); card.appendChild(bar);
+  ov.appendChild(card); document.body.appendChild(ov);
+  upd();
 }
 function deriveTitle(msgs) {
   const first = msgs.find(m => m.role === "user");
@@ -3558,7 +3600,7 @@ function init() {
       else if (act === "sticker") $("sticker-panel").classList.toggle("show");
       else if (act === "file") $("file-input").click();
       else if (act === "compact") compactConversation();
-      else if (act === "export") exportChatImage();
+      else if (act === "export") openExportDialog();
     };
   });
   document.addEventListener("click", (e) => {
