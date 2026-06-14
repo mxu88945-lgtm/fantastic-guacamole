@@ -364,7 +364,7 @@
     line-height: 1.55; font-size: 12.5px; padding-left: 11px;
     border-left: 2px solid var(--border);
   }
-  .msg-actions { display: flex; gap: 8px; margin-top: 6px; opacity: .6; transition: .15s; }
+  .msg-actions { display: flex; gap: 1px; margin-top: 6px; opacity: .6; transition: .15s; }
   @media (hover: hover) {
     .msg-actions { opacity: 0; }
     .msg:hover .msg-actions { opacity: 1; }
@@ -372,9 +372,9 @@
   .msg-act {
     background: none; border: none; color: var(--text-dim);
     border-radius: 8px; padding: 4px; cursor: pointer;
-    display: grid; place-items: center; width: 30px; height: 30px;
+    display: grid; place-items: center; width: 26px; height: 26px;
   }
-  .msg-act svg { width: 17px; height: 17px; }
+  .msg-act svg { width: 16px; height: 16px; }
   .msg-act:hover { color: var(--accent); background: var(--item-active); }
   .msg-tokens { align-self: center; font-size: 11px; color: var(--text-dim); white-space: nowrap; margin-left: 2px; }
   .msg-act.playing { color: var(--accent); }
@@ -952,6 +952,10 @@
             </select>
           </label>
           <span class="hint" style="display:block;">控制江屹琛回复里颜文字 / emoji（如 (๑&gt;ᴗ&lt;๑)、🥰）的用量与语气。</span>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:12px;">
+            <input type="checkbox" id="proactiveGreet" style="width:auto;" onchange="readSettingsFromUI();" />
+            <span>🌙 久未聊天时，TA 主动招呼我 <span class="hint" style="font-weight:400;">（隔约 3 小时再打开，会收到一句问候）</span></span>
+          </label>
         </div>
 
         <div class="field" style="grid-column: 1 / -1;">
@@ -1013,6 +1017,7 @@
     </button>
     <div class="composer-wrap">
       <div id="err-slot"></div>
+      <div id="silent-chip" style="display:none; max-width:820px; margin:0 auto 8px; font-size:12px; color:var(--text-dim); background:var(--bg-panel); border:1px solid var(--border); border-radius:10px; padding:7px 10px; text-align:center;">🔇 旁白模式 · 只记录，AI 不回复 · <span id="silent-off" style="color:var(--accent); cursor:pointer; font-weight:600;">退出</span></div>
       <div id="attach-preview" style="max-width:820px; margin:0 auto 8px; display:none; gap:8px; flex-wrap:wrap;"></div>
       <div id="emoji-panel"></div>
       <div id="sticker-panel"></div>
@@ -1022,6 +1027,7 @@
         <button data-act="file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>文件</button>
         <button data-act="compact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 11h12"/><path d="M3 16h7"/></svg>压缩当前对话</button>
         <button data-act="export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/><path d="M12 3v6"/><path d="M9 6l3-3 3 3"/></svg>导出长图</button>
+        <button data-act="silent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg><span id="silent-label">旁白模式：只记录不回复</span></button>
       </div>
       <div class="composer">
         <input type="file" id="attach-file" accept="image/*" multiple style="display:none;" />
@@ -1060,6 +1066,8 @@ let settings = {
   maxTokens: 2048,
   systemPrompt: "",
   emojiStyle: "normal",   // off | cool | normal | cute
+  silentMode: false,      // 旁白：发消息只记录、不触发 AI 回复
+  proactiveGreet: true,   // 久未聊天再打开时，AI 主动招呼
   memory: "",
   autoMemory: false,
   theme: "dark",
@@ -1105,7 +1113,7 @@ let pushTimer = null;
 let ttsAudio = null;
 let ttsBtnActive = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","emojiStyle","memory","autoMemory","roles","activeRoleId","themeName","accent",
+  "systemPrompt","emojiStyle","proactiveGreet","memory","autoMemory","roles","activeRoleId","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
@@ -1900,9 +1908,14 @@ function setAvatarValue(role, v) {
 }
 function updateBrand() {
   const aiNm = settings.aiName || "江屹琛";
-  $("input").placeholder = "Message " + aiNm;
   $("brand-title").textContent = aiNm + " · Chat";
   if (!isImageRef(settings.aiAvatar)) $("brand-logo").textContent = (settings.aiAvatar || aiNm).slice(0, 1);
+  updateSilentUI();
+}
+function updateSilentUI() {
+  const on = !!settings.silentMode;
+  const chip = $("silent-chip"); if (chip) chip.style.display = on ? "" : "none";
+  const inp = $("input"); if (inp) inp.placeholder = on ? "🔇 旁白模式 · 只记录（AI 不回复）" : ("Message " + (settings.aiName || "江屹琛"));
 }
 function greetingText() {
   const h = new Date().getHours();
@@ -2900,7 +2913,8 @@ async function send() {
     btn.disabled = false; btn.classList.remove("staging");
   }
   if (!text && pendingImages.length === 0) return;
-  if (!settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
+  const silent = !!settings.silentMode;
+  if (!silent && !settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
   clearError();
 
   // Build user message: plain string when no attachments, else a parts array
@@ -2914,8 +2928,8 @@ async function send() {
     userContent = text;
   }
   // If the last message is already from user (previous reply failed), insert a placeholder
-  // so the API always sees alternating user/assistant turns.
-  if (messages.length > 0 && messages[messages.length - 1].role === "user") {
+  // so the API always sees alternating user/assistant turns. (skip in 旁白/silent mode)
+  if (!silent && messages.length > 0 && messages[messages.length - 1].role === "user") {
     messages.push({ id: uid(), role: "assistant", content: "（无回复）", ts: Date.now() });
   }
   messages.push({ id: uid(), role: "user", content: userContent, ts: Date.now() });
@@ -2924,6 +2938,8 @@ async function send() {
   renderMessages();
   touchConversation();
   scrollToBottom();
+  markSeen();
+  if (silent) return;   // 旁白模式：只记录，不触发 AI 回复
   try {
     await generateReply();
   } catch (e) {
@@ -2932,10 +2948,43 @@ async function send() {
   }
 }
 
+// ---------- Proactive "welcome back" greeting (zero-backend: fires on app open/visible) ----------
+const GREET_GAP_MS = 3 * 3600 * 1000;   // greet if away ≥ 3 hours
+function markSeen() { try { localStorage.setItem("jyc_lastseen", String(Date.now())); } catch (_) {} }
+async function greetProactively(hours) {
+  if (abortController || !settings.apiKey) return;
+  const conv = currentConv();
+  if (!conv || conv.messages.length) return;   // only drop a hello into a fresh/empty chat
+  let sys = settings.systemPrompt || "";
+  const en = emojiStyleNote(settings.emojiStyle); if (en) sys += "\n\n" + en;
+  if (settings.memory && settings.memory.trim()) sys += "\n\n以下是需要长期记住的信息（用户的长期记忆）：\n" + settings.memory.trim();
+  sys += `\n\n【场景】用户隔了大约 ${hours} 小时后刚打开和你的聊天。请你主动、自然、温柔地跟 ta 打个招呼、关心一句，像有点想 ta 了，别太长（1~3 句）。`;
+  try {
+    const out = await completeOnce(sys, "（我回来了，主动跟我说句话吧～）", 400);
+    if (out && out.trim() && currentConv() === conv && !conv.messages.length) {
+      conv.messages.push({ id: uid(), role: "assistant", content: out.trim(), ts: Date.now() });
+      messages = conv.messages;
+      touchConversation();
+      renderMessages(); jumpToBottom();
+    }
+  } catch (_) {}
+}
+function maybeProactiveGreet() {
+  if (settings.proactiveGreet === false || !settings.apiKey) { markSeen(); return; }
+  const last = +(localStorage.getItem("jyc_lastseen") || 0);
+  const gap = Date.now() - last;
+  markSeen();
+  if (last && gap > GREET_GAP_MS) {
+    const conv = currentConv();
+    if (conv && !conv.messages.length) setTimeout(() => greetProactively(Math.round(gap / 3600000)), 700);
+  }
+}
+
 // Generate an assistant reply for the current messages (which must end with a user turn).
 async function generateReply() {
   if (abortController) return;
   clearError();
+  markSeen();
   const assistantMsg = { id: uid(), role: "assistant", content: "", reasoning: "", ts: Date.now() };
   messages.push(assistantMsg);
   const el = makeMsgEl("assistant", "");
@@ -3248,6 +3297,7 @@ function syncSettingsToUI() {
   $("systemPrompt").value = settings.systemPrompt;
   $("emojiStyle").value = (settings.emojiStyle === true || settings.emojiStyle === undefined) ? "normal"
     : (settings.emojiStyle === false ? "off" : settings.emojiStyle);
+  $("proactiveGreet").checked = settings.proactiveGreet !== false;
   $("memory").value = settings.memory;
   renderFavorites();
   $("autoMemory").checked = settings.autoMemory;
@@ -3348,6 +3398,7 @@ function readSettingsFromUI() {
   settings.maxTokens = parseInt($("maxTokens").value) || 2048;
   settings.systemPrompt = $("systemPrompt").value;
   settings.emojiStyle = $("emojiStyle").value;
+  settings.proactiveGreet = $("proactiveGreet").checked;
   settings.memory = $("memory").value;
   settings.autoMemory = $("autoMemory").checked;
   settings.supabaseUrl = $("sbUrl").value.trim();
@@ -3683,8 +3734,10 @@ function init() {
       else if (act === "file") $("file-input").click();
       else if (act === "compact") compactConversation();
       else if (act === "export") openExportDialog();
+      else if (act === "silent") { settings.silentMode = !settings.silentMode; saveSettings(); updateSilentUI(); showToast(settings.silentMode ? "🔇 旁白模式开启：只记录，AI 不回复" : "已退出旁白模式"); }
     };
   });
+  $("silent-off").onclick = () => { settings.silentMode = false; saveSettings(); updateSilentUI(); showToast("已退出旁白模式"); };
   document.addEventListener("click", (e) => {
     const inUI = $("plus-menu").contains(e.target) || $("emoji-panel").contains(e.target)
       || $("sticker-panel").contains(e.target) || e.target.closest("#plus-btn");
@@ -3817,6 +3870,10 @@ function init() {
 
   // restore cloud session (if previously logged in) and sync
   initCloud().catch(e => console.warn("cloud init:", e));
+
+  // proactive "welcome back" greeting: on first load + whenever the PWA resumes
+  document.addEventListener("visibilitychange", () => { if (document.hidden) markSeen(); else maybeProactiveGreet(); });
+  setTimeout(maybeProactiveGreet, 2000);
 }
 init();
 
