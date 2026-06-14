@@ -785,7 +785,8 @@
             常用模型列表（每行一个，会出现在顶部下拉里）
             <button class="icon-btn" id="fetch-models-btn" style="padding:4px 10px; font-size:12px;">📥 拉取可用模型</button>
           </label>
-          <textarea id="modelList" placeholder="gpt-4o-mini&#10;gpt-4o&#10;claude-opus-4-8"></textarea>
+          <textarea id="modelList" placeholder="claude-opus-4-8-thinking | K-极·Opus 4.8&#10;xiaomi/mimo-v2.5-pro | 小米 Mimo&#10;gpt-4o"></textarea>
+          <span class="hint" style="display:block;">想给模型起个好认的显示名？用 <b>模型id | 显示名</b>（中间一根竖线 |），下拉里就显示别名、调用仍用真实 id。不写竖线就直接显示原 id。</span>
         </div>
 
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>用量 · 账单</div>
@@ -1422,6 +1423,21 @@ function exportWrap(ctx, text, maxWidth) {
   }
   return lines;
 }
+function cvParseColor(c) {
+  c = (c || "").trim();
+  if (c[0] === "#") {
+    let h = c.slice(1);
+    if (h.length === 3) h = h.split("").map(x => x + x).join("");
+    const n = parseInt(h, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const m = c.match(/(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+  return m ? [+m[1], +m[2], +m[3]] : [255, 255, 255];
+}
+function cvMix(a, b, t) {
+  const A = cvParseColor(a), B = cvParseColor(b);
+  return `rgb(${Math.round(A[0]*t+B[0]*(1-t))},${Math.round(A[1]*t+B[1]*(1-t))},${Math.round(A[2]*t+B[2]*(1-t))})`;
+}
 function cvRoundRect(ctx, x, y, w, h, r) {
   r = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -1459,7 +1475,9 @@ async function exportChatImage(msgsOverride) {
     const css = getComputedStyle(document.documentElement);
     const V = (n, d) => (css.getPropertyValue(n).trim() || d);
     const colBg = V("--bg", "#f5f4ef"), colText = V("--text", "#333"), colDim = V("--text-dim", "#888"),
-      colAccent = V("--accent", "#d97757"), colBorder = V("--border", "#ddd"), colAi = V("--bg-soft", "#fff");
+      colAccent = V("--accent", "#d97757"), colBorder = V("--border", "#ddd");
+    const colAiBubble = V("--assistant-bubble", V("--bg-soft", "#fff"));
+    const colUserBubble = cvMix(colAccent, colAiBubble, 0.16);   // match the app's subtle user bubble
     const W = 720, padX = 20, avatar = 38, gap = 10, bubblePad = 12, lineH = 24;
     const bubbleMax = W - padX * 2 - avatar - gap - 8;
     const fontBody = "16px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif";
@@ -1522,9 +1540,9 @@ async function exportChatImage(msgsOverride) {
       if (b.hasText) {
         const bh = b.lines.length * lineH + bubblePad * 2;
         cvRoundRect(ctx, bx, by, bw, bh, 14);
-        ctx.fillStyle = isUser ? colAccent : colAi; ctx.fill();
-        if (!isUser) { ctx.strokeStyle = colBorder; ctx.lineWidth = 1; ctx.stroke(); }
-        ctx.fillStyle = isUser ? "#fff" : colText; ctx.textBaseline = "top"; ctx.font = fontBody;
+        ctx.fillStyle = isUser ? colUserBubble : colAiBubble; ctx.fill();
+        ctx.strokeStyle = colBorder; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = colText; ctx.textBaseline = "top"; ctx.font = fontBody;
         let ty = by + bubblePad;
         for (const ln of b.lines) { ctx.fillText(ln, bx + bubblePad, ty); ty += lineH; }
         by += bh + 8;
@@ -3132,11 +3150,18 @@ function renderAccentSwatches() {
 }
 
 // ---------- Model quick switcher ----------
+// A model line is either "model-id" or "model-id | 显示名"（别名只用于展示，调用仍用 id）。
+function parseModelLine(line) {
+  const i = (line || "").indexOf("|");
+  if (i > 0) { const id = line.slice(0, i).trim(), label = line.slice(i + 1).trim(); if (id && label) return { id, label }; }
+  const id = (line || "").trim(); return { id, label: id };
+}
 function getModelList() {
   const fromText = (settings.modelList || "").split("\n").map(s => s.trim()).filter(Boolean);
-  const list = [...new Set(fromText)];
+  const seen = new Set(); const list = [];
+  for (const line of fromText) { const id = parseModelLine(line).id; if (id && !seen.has(id)) { seen.add(id); list.push(line); } }
   const cur = settings.model || DEFAULTS[settings.provider].model;
-  if (cur && !list.includes(cur)) list.unshift(cur);
+  if (cur && !seen.has(cur)) list.unshift(cur);
   return list;
 }
 function renderModelQuick() {
@@ -3145,15 +3170,16 @@ function renderModelQuick() {
   const fill = (sel, withCustom) => {
     if (!sel) return;
     sel.innerHTML = "";
-    for (const m of list) {
+    for (const raw of list) {
+      const { id, label } = parseModelLine(raw);
       const opt = document.createElement("option");
-      opt.value = m; opt.textContent = m;
-      if (m === cur) opt.selected = true;
+      opt.value = id; opt.textContent = label;
+      if (id === cur) opt.selected = true;
       sel.appendChild(opt);
     }
     if (withCustom) {
       // if the current model isn't in the list (manually typed), show it as selected
-      if (cur && !list.includes(cur)) {
+      if (cur && !list.some(raw => parseModelLine(raw).id === cur)) {
         const opt = document.createElement("option");
         opt.value = cur; opt.textContent = cur + "（自定义）"; opt.selected = true;
         sel.insertBefore(opt, sel.firstChild);
