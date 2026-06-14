@@ -156,9 +156,16 @@
     position: absolute; inset: 0; z-index: 0; pointer-events: none; display: none;
     background-size: cover; background-position: center; transform: scale(1.12);
   }
-  .main > header, .main > .chat, .main > .composer-wrap { position: relative; z-index: 1; }
+  .main > .chat, .main > .composer-wrap { position: relative; z-index: 1; }
   .main > .chat { background: transparent; }
-  .main > header { background: transparent; }
+  /* Claude-style frosted top bar: overlays the chat so content blurs as it scrolls under */
+  .main > header {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+    background: color-mix(in srgb, var(--bg) 60%, transparent);
+    backdrop-filter: blur(14px) saturate(1.4);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  }
+  .main > .chat { padding-top: calc(58px + env(safe-area-inset-top)); }
   .main > .composer-wrap { background: transparent; }
 
   /* Header */
