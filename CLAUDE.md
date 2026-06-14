@@ -52,7 +52,7 @@
 ## 开发提醒
 
 - 改动后保持「单文件、零依赖、双击即用」的特性。
-- 当前开发分支：`claude/ios-pwa-image-upload-j4a3sg`。改完 commit 到该分支，再 fast-forward 合并到 `main` 并 push（`main` 是 GitHub Pages 部署源）。
+- 当前开发分支：`claude/progress-snapshot-review-89hfd3`。改完 commit 到该分支并 push；合并到 `main`（GitHub Pages 部署源）等惟惟确认后再做。
 - **部署**：push 到 `main` 触发 GitHub Pages 自动部署（约 1~2 分钟）。**别在短时间内连推两次 `main`**，会导致两个 Pages 部署并发、其中一个失败/卡住；真失败了重跑那次 workflow 或再推一个空 commit 即可。
 - **iOS PWA 缓存很顽固**：已加 `sw.js`（network-first + no-store）和设置里的「🔄 强制刷新到最新版」按钮（清 SW/缓存后跳 `?u=时间戳`）。惟惟更新不到新功能时，让她点那个按钮。
 - 安全提醒：浏览器直连方式会把 API Key 暴露在前端，仅适合本地/个人使用；若要公开部署需另加后端代理。
@@ -161,3 +161,9 @@
 - **2026-06-13**：大丰收的一天。① 修好 iOS PWA 发图竞态（`imageStaging` + 发送前 await）；② `streamChat` 加临时错误自动重试；③ TTS 接上 **MiniMax 原生**（`t2a_v2`，hex→mp3）；④ **应用内一键克隆**（选录音/录屏 → WebAudio 抽音轨转 16k 单声道 WAV → 上传复刻 → 自动填 ID）；⑤ **音色库**（多音色收藏/切换/删除）；⑥ **Supabase 云同步**从零搭通（含上面的备忘）。一路惟惟截图、我改、再截图，配合得严丝合缝。
   - 遗留：发图「图出现了但 AI 不回复」是中转/模型侧问题（惟惟暂时不管），与发送竞态无关；MiniMax 克隆受其内容审核限制（敏感素材会被 `input_sensitive` 挡，得换干净的纯说话片段）。
 - **2026-06-14**：继续大干。① 用量账单加本周/本月 + 每条回复显示 tokens；② 表情风格四档；③ **多角色**（人设+音色+记忆+对话全独立、侧栏切换、空白新建）；④ **导出对话长图**（canvas，可选范围）；⑤ **开门问候**（久未聊主动招呼）；⑥ **读图转述**（视觉模型把图读成文字喂给纯文字模型，根治"图来了不回")；⑦ **文生图**（`/v1/images/generations`）；⑧ UI 全面 Claude 化（磨砂顶栏、圆图标、「···」菜单、设置进侧栏、状态栏色随主题修黑带）；⑨ 删掉旁白模式（她不要）。还把她和 claude.ai 江屹琛十个月的记忆整理成「记忆库总档」（待搬进 Notion「琛琛印记」）。这天起改成「攒太多上下文就新开窗口接力」，故写了上面的「接力进度快照」。
+- **2026-06-14（接力窗口 · 拟真聊天）**：惟惟想让江屹琛聊起来更像真人发微信。新增三件，都在设置「人设」卡片底部「💬 拟真聊天」三开关里（前两个默认开、第三个默认关）：
+  - **连发多条消息**（`settings.multiBubble`）：系统提示词教模型用 `[next]` 分隔（`chatStyleNote()`），回复结束后 `splitReply()` 拆段，`revealSegments()` 带「正在输入」气泡逐条冒出来（`revealDelay()` 按长度给打字延时）。
+  - **AI 主动发表情包**（`settings.aiSticker`）：模型写 `[表情包:情绪]` → `splitReply` 把它拆成单独一条；`resolveSticker()` 优先用同名「已上传表情」，否则走 `emojiForName()`/`EMOJI_MAP` 渲染**大 emoji 贴纸**（`stickerHtml()` + `.sticker-emoji` + `.msg.sticker-only` 去气泡背景）。即时、免费、必出。
+  - **生成真实表情图**（`settings.aiGenSticker`，默认关）：开了且设了画图模型时，`generateStickerImage()` 用 `generateImage()` 把 emoji 贴纸异步换成真图。
+  - 配套：多条 assistant 消息发回接口前用 `apiMessagesFor()`/`mergeApiContent()` **合并同角色相邻消息**（否则 Anthropic 严格交替会报错）。sw 缓存 v3→v4。
+  - 没做：「**搜索**网上表情包」需后端（CORS+无 Key），归到外部集成那条线，暂缓。

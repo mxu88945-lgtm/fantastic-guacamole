@@ -509,6 +509,10 @@
   #sticker-panel img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; cursor: pointer; }
   #sticker-panel img:hover { outline: 2px solid var(--accent); }
   .sticker-img { max-width: 140px; max-height: 140px; display: block; }
+  .sticker-emoji { font-size: 56px; line-height: 1.15; display: inline-block; }
+  /* a message that's only a sticker floats without a bubble, like a real chat sticker */
+  .msg.sticker-only .bubble { background: none !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
+  .msg.sticker-only .sticker-img { max-width: 120px; max-height: 120px; }
   .sticker-manage-item { position: relative; width: 64px; }
   .sticker-manage-item img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); }
   .sticker-manage-item .rm {
@@ -972,6 +976,21 @@
             <input type="checkbox" id="proactiveGreet" style="width:auto;" onchange="readSettingsFromUI();" />
             <span>🌙 久未聊天时，TA 主动招呼我 <span class="hint" style="font-weight:400;">（隔约 3 小时再打开，会收到一句问候）</span></span>
           </label>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+            <span style="font-weight:500;display:block;margin-bottom:4px;">💬 拟真聊天</span>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;">
+              <input type="checkbox" id="multiBubble" style="width:auto;" onchange="readSettingsFromUI();" />
+              <span>TA 可以像真人发微信那样连发好几条短消息 <span class="hint" style="font-weight:400;">（逐条冒出来，带「正在输入」）</span></span>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;">
+              <input type="checkbox" id="aiSticker" style="width:auto;" onchange="readSettingsFromUI();" />
+              <span>TA 可以主动发表情包 <span class="hint" style="font-weight:400;">（单独成一条气泡，用 emoji 大贴纸；有同名上传表情就用你的）</span></span>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;">
+              <input type="checkbox" id="aiGenSticker" style="width:auto;" onchange="readSettingsFromUI();" />
+              <span>进一步：用画图模型把表情包生成成真实图片 <span class="hint" style="font-weight:400;">（较慢、耗额度，需先设「画图模型」）</span></span>
+            </label>
+          </div>
         </div>
 
         <div class="field" style="grid-column: 1 / -1;">
@@ -1116,6 +1135,9 @@ let settings = {
   fontFamily: "default",  // default | kai | song
   stickers: [],           // [{id, name, dataUrl}] image stickers / 表情包
   favorites: [],          // [{id, who, text, ts}] starred quotes / 语录集
+  multiBubble: true,      // 像真人发消息：把回复拆成多条气泡（[next] 分隔），逐条冒出来
+  aiSticker: true,        // AI 主动发表情：[表情包:情绪] 单独成一条气泡（emoji 大贴纸 / 已上传的同名表情）
+  aiGenSticker: false,    // 进一步用画图模型把表情包生成成真实图片（较慢、耗额度，默认关）
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
@@ -1132,7 +1154,7 @@ let ttsAudio = null;
 let ttsBtnActive = null;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionRelay","imageModel","imageBaseUrl","memory","autoMemory","roles","activeRoleId","themeName","accent",
-  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily",
+  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
@@ -1987,13 +2009,19 @@ function thinkBlockHtml(reasoning) {
 function stickerImg(s) {
   return `<img class="sticker-img" src="${escapeHtml(s.dataUrl)}" alt="${escapeHtml(s.name)}" title="${escapeHtml(s.name)}">`;
 }
+// Render a sticker part: an uploaded image if present, otherwise a big emoji "sticker".
+function stickerHtml(p) {
+  if (p && p.dataUrl) return stickerImg(p);
+  const emoji = (p && p.emoji) || emojiForName(p && p.name);
+  return `<span class="sticker-emoji" title="${escapeHtml((p && p.name) || "")}">${escapeHtml(emoji)}</span>`;
+}
 function bubbleHtml(role, content, reasoning, streaming) {
   let imgs = "", text = content;
   if (Array.isArray(content)) {
     imgs = content.filter(p => p.type === "image")
       .map(p => `<img class="msg-img" src="${escapeHtml(p.dataUrl)}" onclick="window.open(this.src)" alt="">`).join("");
     imgs += content.filter(p => p.type === "sticker")
-      .map(p => stickerImg(p)).join("");
+      .map(p => stickerHtml(p)).join("");
     text = content.filter(p => p.type === "text").map(p => p.text).join("\n");
   }
   let thinkHtml = "", answer = text;
@@ -2012,10 +2040,8 @@ function bubbleHtml(role, content, reasoning, streaming) {
     : "";
   // turn [贴纸:名字] tokens in the assistant's reply into the actual sticker image
   if (role === "assistant") {
-    textHtml = textHtml.replace(/\[贴纸[:：]\s*([^\]]+)\]/g, (m, name) => {
-      const s = stickerByName(name);
-      return s ? stickerImg(s) : m;
-    });
+    textHtml = textHtml.replace(/\[(?:贴纸|表情包|表情|sticker)[:：]\s*([^\]]+)\]/gi, (m, name) =>
+      stickerHtml(resolveSticker(name.trim())));
   }
   return imgs + thinkHtml + textHtml;
 }
@@ -2030,7 +2056,8 @@ function makeMsgEl(role, content, opts) {
   opts = opts || {};
   const flat = settings.chatLayout === "flat";
   const el = document.createElement("div");
-  el.className = "msg " + role + (flat ? " flat" : "");
+  const stickerOnly = Array.isArray(content) && content.length > 0 && content.every(p => p.type === "sticker");
+  el.className = "msg " + role + (flat ? " flat" : "") + (stickerOnly ? " sticker-only" : "");
   const timeHtml = (settings.showTime && opts.ts) ? `<span class="msg-time">${formatTime(opts.ts)}</span>` : "";
   const nameHtml = escapeHtml(nameFor(role)) + timeHtml;
   if (flat) {
@@ -2283,6 +2310,25 @@ function toApiContent(content, isAnthropic) {
     return { type: "image_url", image_url: { url: p.dataUrl } };
   });
 }
+// Merge two already-converted (toApiContent) contents of the SAME role into one.
+function mergeApiContent(a, b) {
+  if (typeof a === "string" && typeof b === "string") return (a + "\n" + b).replace(/^\n+/, "").trim();
+  const arr = (x) => typeof x === "string" ? (x.trim() ? [{ type: "text", text: x }] : []) : (Array.isArray(x) ? x : []);
+  return [...arr(a), ...arr(b)];
+}
+// Build the wire-format message list, coalescing consecutive same-role turns.
+// (Multi-bubble replies store several assistant messages; APIs — esp. Anthropic —
+// need strictly alternating roles, so we glue neighbours back together here.)
+function apiMessagesFor(isAnthropic) {
+  const out = [];
+  for (const m of messages) {
+    const content = toApiContent(sendContent(m), isAnthropic);
+    const last = out[out.length - 1];
+    if (last && last.role === m.role) last.content = mergeApiContent(last.content, content);
+    else out.push({ role: m.role, content });
+  }
+  return out;
+}
 // Vision relay: ask a dedicated image-capable model to describe an image, so the
 // (possibly text-only) main model can work from the text instead of the picture.
 async function describeImage(dataUrl) {
@@ -2372,6 +2418,18 @@ function emojiStyleNote(style) {
     default: return "表达风格：在合适的时候自然地穿插少量颜文字（如 (๑>ᴗ<๑)、(*≧ω≦)、( •̀ ω •́ )✧）和 emoji（🥹☺️😍🥰😏）来传递情绪、让语气更生动。但要适度——别每句都用、别堆砌，自然为主。";
   }
 }
+// System-prompt note teaching the model to text like a real person:
+// split a reply into several short bubbles ([next]) and send standalone stickers.
+function chatStyleNote() {
+  const parts = [];
+  if (settings.multiBubble) {
+    parts.push("【像真人发消息】你可以像在手机上聊天那样，把一次回复拆成几条简短的消息连着发。需要分条时，在每两条消息之间单独写一个 `[next]` 作分隔（例如：在吗～[next]刚看到你消息[next]想你了）。自然为主、别滥用，通常 1~4 条；不需要分条时就正常发一条。");
+  }
+  if (settings.aiSticker) {
+    parts.push("【发表情包】你可以主动发表情来传情绪。想发时单独写成 `[表情包:情绪]`，方括号里写一个情绪或简短描述（如 [表情包:开心]、[表情包:比心]、[表情包:无语]、[表情包:委屈]、[表情包:晚安]），系统会显示成一张单独的表情。表情包要单独成一条、别塞在句子中间；也可直接发 emoji。别每条都发，恰到好处即可。");
+  }
+  return parts.join("\n");
+}
 async function streamChat(onDelta, onReasoning) {
   onReasoning = onReasoning || (() => {});
   const isAnthropic = settings.provider === "anthropic";
@@ -2382,6 +2440,8 @@ async function streamChat(onDelta, onReasoning) {
   let systemText = settings.systemPrompt || "";
   const emojiNote = emojiStyleNote(settings.emojiStyle);
   if (emojiNote) systemText = systemText ? systemText + "\n\n" + emojiNote : emojiNote;
+  const styleNote = chatStyleNote();
+  if (styleNote) systemText = systemText ? systemText + "\n\n" + styleNote : styleNote;
   if (settings.memory && settings.memory.trim()) {
     const mem = "以下是需要长期记住的信息（用户的长期记忆）：\n" + settings.memory.trim();
     systemText = systemText ? systemText + "\n\n" + mem : mem;
@@ -2418,7 +2478,7 @@ async function streamChat(onDelta, onReasoning) {
       // thinking models require temperature=1; for others use the user's setting
       temperature: isThinking ? 1 : settings.temperature,
       stream: true,
-      messages: messages.map(m => ({ role: m.role, content: toApiContent(sendContent(m), true) })),
+      messages: apiMessagesFor(true),
     };
     if (isThinking) {
       const thinkBudget = 8000;
@@ -2434,7 +2494,7 @@ async function streamChat(onDelta, onReasoning) {
     };
     const msgs = [];
     if (systemText) msgs.push({ role: "system", content: systemText });
-    msgs.push(...messages.map(m => ({ role: m.role, content: toApiContent(sendContent(m), false) })));
+    msgs.push(...apiMessagesFor(false));
     body = {
       model,
       temperature: settings.temperature,
@@ -2824,6 +2884,118 @@ function stickerByName(name) {
   const n = (name || "").trim().toLowerCase();
   return settings.stickers.find(s => s.name.toLowerCase() === n);
 }
+// ---------- AI stickers (emoji-based, zero upload) ----------
+const EMOJI_MAP = {
+  "开心":"😄","高兴":"😄","笑":"😄","哈哈":"😆","大笑":"😂","笑哭":"😂","乐":"😄",
+  "爱你":"🥰","喜欢":"🥰","爱":"❤️","比心":"🫶","么么":"😘","亲亲":"😘","亲":"😘","心动":"😍",
+  "害羞":"☺️","羞":"☺️","甜":"🥰","脸红":"😳",
+  "哭":"😭","难过":"😢","伤心":"😢","流泪":"😢","委屈":"🥺","可怜":"🥺","求":"🥺","求求":"🥺",
+  "生气":"😠","怒":"😡","气":"😤","哼":"😤","愤怒":"😡",
+  "无语":"😑","无奈":"😮‍💨","叹气":"😮‍💨","汗":"😅","尴尬":"😅",
+  "惊讶":"😮","震惊":"😱","吃惊":"😲",
+  "思考":"🤔","想":"🤔","疑惑":"🤨","问号":"❓",
+  "困":"😴","累":"😮‍💨","晚安":"🌙","睡":"😴","早安":"🌞",
+  "调皮":"😜","坏笑":"😏","得意":"😏","坏":"😈","吐舌":"😝",
+  "酷":"😎","帅":"😎","墨镜":"😎",
+  "害怕":"😨","怕":"😨","冷":"🥶",
+  "翻白眼":"🙄","白眼":"🙄",
+  "抱抱":"🤗","抱":"🤗","拥抱":"🤗",
+  "赞":"👍","点赞":"👍","好":"👍","ok":"👌","耶":"✌️","胜利":"✌️","加油":"💪","努力":"💪",
+  "庆祝":"🎉","撒花":"🎉","开心庆祝":"🥳","生日":"🎂",
+  "花":"💐","玫瑰":"🌹","星星":"✨","闪":"✨",
+  "饿":"🤤","吃":"😋","好吃":"😋","馋":"🤤",
+  "拜拜":"👋","再见":"👋","你好":"👋","招手":"👋","嗨":"👋",
+  "晕":"😵","懵":"😵‍💫","炸":"🤯",
+  "鄙视":"😒","嫌弃":"😒","切":"😒",
+  "捂脸":"🤦","捂嘴":"🤭","偷笑":"🤭",
+  "收到":"🫡","敬礼":"🫡","祈祷":"🙏","拜托":"🙏","谢谢":"🙏",
+};
+// Pull the first emoji out of a string, if any (so the model can also just send an emoji).
+function firstEmoji(str) {
+  const m = (str || "").match(/\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*/u);
+  return m ? m[0] : "";
+}
+function emojiForName(name) {
+  const n = (name || "").trim();
+  if (!n) return "😊";
+  const direct = firstEmoji(n);
+  if (direct) return direct;
+  const key = n.toLowerCase();
+  if (EMOJI_MAP[n]) return EMOJI_MAP[n];
+  if (EMOJI_MAP[key]) return EMOJI_MAP[key];
+  for (const k in EMOJI_MAP) { if (n.includes(k)) return EMOJI_MAP[k]; }
+  return "😊";
+}
+// Turn a [表情包:名字] into a sticker part: prefer an uploaded same-name sticker, else emoji.
+function resolveSticker(name) {
+  const up = stickerByName(name);
+  if (up) return { type: "sticker", name: up.name, dataUrl: up.dataUrl };
+  return { type: "sticker", name: name, emoji: emojiForName(name) };
+}
+// Split a finished reply into ordered segments — text bubbles and standalone stickers.
+// multi: honor [next] separators; sticker: pull [表情包:x] tokens into their own bubble.
+function splitReply(text, multi, sticker) {
+  if (typeof text !== "string" || !text.trim()) return [{ kind: "text", text: text || "" }];
+  const MARK = "\u0000";       // segment boundary marker (never appears in normal text)
+  const STK = "\u0001";        // sticker-segment prefix
+  let t = text;
+  if (multi) t = t.replace(/\s*\[\s*(?:next|下一条|下一句|下一段)\s*\]\s*/gi, MARK);
+  if (sticker) t = t.replace(/\[\s*(?:表情包|表情|贴纸|sticker)\s*[:：]\s*([^\]\n]+?)\s*\]/gi,
+    (m, name) => MARK + STK + name.trim() + MARK);
+  const segs = [];
+  for (let p of t.split(MARK)) {
+    if (!p) continue;
+    if (p[0] === STK) { const nm = p.slice(1).trim(); if (nm) segs.push({ kind: "sticker", name: nm }); continue; }
+    p = p.trim();
+    if (p) segs.push({ kind: "text", text: p });
+  }
+  return segs.length ? segs : [{ kind: "text", text: text }];
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+// How long to "type" before a segment appears, so multi-bubble replies feel human.
+function revealDelay(seg) {
+  if (seg.kind === "sticker") return 450;
+  return Math.min(1500, 320 + ((seg.text || "").length) * 28);
+}
+// Reveal multi-bubble / sticker segments one at a time, with a typing indicator between.
+async function revealSegments(segments, baseMsg) {
+  for (let i = 0; i < segments.length; i++) {
+    if (abortController && abortController.signal.aborted) break;
+    const seg = segments[i];
+    const tEl = makeMsgEl("assistant", "");
+    tEl.querySelector(".bubble").innerHTML = TYPING_HTML;
+    $("messages").appendChild(tEl);
+    if (stickBottom) scrollToBottom();
+    await sleep(revealDelay(seg));
+    tEl.remove();
+    if (abortController && abortController.signal.aborted) break;
+    let msg;
+    if (seg.kind === "sticker") {
+      msg = { id: uid(), role: "assistant", content: [resolveSticker(seg.name)], ts: Date.now() };
+    } else {
+      msg = { id: uid(), role: "assistant", content: seg.text, ts: Date.now() };
+      if (i === 0 && baseMsg.reasoning) msg.reasoning = baseMsg.reasoning;
+    }
+    messages.push(msg);
+    renderMessages();
+    if (stickBottom) scrollToBottom();
+    if (seg.kind === "sticker" && settings.aiGenSticker && settings.imageModel && !msg.content[0].dataUrl) {
+      generateStickerImage(msg);   // fire-and-forget: swap the emoji for a real generated image
+    }
+  }
+  if (baseMsg.tokens) {
+    const last = messages[messages.length - 1];
+    if (last && last.role === "assistant") last.tokens = baseMsg.tokens;
+  }
+}
+// Optionally turn an emoji sticker into a real generated image (画图模型), in place.
+async function generateStickerImage(msg) {
+  try {
+    const name = msg.content[0].name || "开心";
+    const url = await generateImage("可爱的聊天表情包贴纸，表达「" + name + "」的情绪，卡通 Q 版，干净背景，单个主体，高清");
+    if (url) { msg.content[0].dataUrl = url; saveConversations(); renderMessages(); if (stickBottom) scrollToBottom(); }
+  } catch (e) { console.warn("gen sticker failed", e); }
+}
 // stage a sticker so it can be sent together with text (press send to actually send)
 function stageSticker(s) {
   pendingImages.push({ type: "sticker", name: s.name, dataUrl: s.dataUrl });
@@ -3118,8 +3290,19 @@ async function generateReply() {
       showError("模型返回了空回复。可能原因：thinking 模型不支持图片输入、temperature 设置有冲突，或接口限制。请打开浏览器控制台查看详细错误。");
       showToast("❌ 空回复（可能不支持图片/thinking 冲突）", 5000);
     } else {
-      bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning);
       if (lastCallUsage && lastCallUsage.total) assistantMsg.tokens = lastCallUsage.total;
+      // Texting like a real person: split the finished reply into multiple bubbles
+      // and standalone stickers, then reveal them one at a time.
+      const segs = (settings.multiBubble || settings.aiSticker)
+        ? splitReply(assistantMsg.content, settings.multiBubble, settings.aiSticker) : null;
+      const multi = segs && (segs.length > 1 || (segs.length === 1 && segs[0].kind === "sticker"));
+      if (multi) {
+        messages.pop(); el.remove();          // drop the single temp bubble
+        await revealSegments(segs, assistantMsg);
+      } else {
+        if (segs && segs.length === 1 && segs[0].kind === "text") assistantMsg.content = segs[0].text;
+        bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning);
+      }
       replied = true;
     }
   } catch (e) {
@@ -3418,6 +3601,9 @@ function syncSettingsToUI() {
   $("emojiStyle").value = (settings.emojiStyle === true || settings.emojiStyle === undefined) ? "normal"
     : (settings.emojiStyle === false ? "off" : settings.emojiStyle);
   $("proactiveGreet").checked = settings.proactiveGreet !== false;
+  $("multiBubble").checked = settings.multiBubble !== false;
+  $("aiSticker").checked = settings.aiSticker !== false;
+  $("aiGenSticker").checked = !!settings.aiGenSticker;
   $("memory").value = settings.memory;
   renderFavorites();
   $("autoMemory").checked = settings.autoMemory;
@@ -3524,6 +3710,9 @@ function readSettingsFromUI() {
   settings.systemPrompt = $("systemPrompt").value;
   settings.emojiStyle = $("emojiStyle").value;
   settings.proactiveGreet = $("proactiveGreet").checked;
+  settings.multiBubble = $("multiBubble").checked;
+  settings.aiSticker = $("aiSticker").checked;
+  settings.aiGenSticker = $("aiGenSticker").checked;
   settings.memory = $("memory").value;
   settings.autoMemory = $("autoMemory").checked;
   settings.supabaseUrl = $("sbUrl").value.trim();
