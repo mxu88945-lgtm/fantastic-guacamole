@@ -981,6 +981,7 @@
         <button data-act="sticker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 10h.01M15 10h.01M8 15s1.5 2 4 2 4-2 4-2"/></svg>表情包</button>
         <button data-act="file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>文件</button>
         <button data-act="compact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 11h12"/><path d="M3 16h7"/></svg>压缩当前对话</button>
+        <button data-act="export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/><path d="M12 3v6"/><path d="M9 6l3-3 3 3"/></svg>导出长图</button>
       </div>
       <div class="composer">
         <input type="file" id="attach-file" accept="image/*" multiple style="display:none;" />
@@ -1393,6 +1394,187 @@ function messageText(m) {
 function messageImages(m) {
   if (Array.isArray(m.content)) return m.content.filter(p => p.type === "image");
   return [];
+}
+
+// ---------- Export conversation as a long image (canvas, zero-dep, iOS-safe) ----------
+function exportMsgPics(m) {
+  if (Array.isArray(m.content)) return m.content.filter(p => (p.type === "image" || p.type === "sticker") && p.dataUrl);
+  return [];
+}
+function exportPlainBody(m) {
+  let t;
+  if (typeof m.content === "string") t = m.content;
+  else if (Array.isArray(m.content)) t = m.content.filter(p => p.type === "text").map(p => p.text).join("\n");
+  else t = "";
+  return (t || "").replace(/```[\w]*\n?/g, "").replace(/`/g, "").replace(/\*\*/g, "").replace(/^#+\s/gm, "").trim();
+}
+function exportWrap(ctx, text, maxWidth) {
+  const lines = [];
+  for (const para of text.split("\n")) {
+    if (para === "") { lines.push(""); continue; }
+    let line = "";
+    for (const ch of para) {
+      const test = line + ch;
+      if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = ch; }
+      else line = test;
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+function cvRoundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function cvAvatar(ctx, x, y, size, img, avText, accent) {
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2); ctx.clip();
+  if (img) { ctx.drawImage(img, x, y, size, size); }
+  else {
+    ctx.fillStyle = accent; ctx.fillRect(x, y, size, size);
+    ctx.fillStyle = "#fff"; ctx.font = "600 18px -apple-system,'PingFang SC',sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText([...(avText || "?")][0] || "?", x + size / 2, y + size / 2 + 1);
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  }
+  ctx.restore();
+}
+async function exportChatImage() {
+  const conv = currentConv();
+  const msgs = (conv ? conv.messages : []).filter(m => (m.role === "user" || m.role === "assistant") && (exportPlainBody(m) || exportMsgPics(m).length));
+  if (!msgs.length) { showToast("这个对话还没有内容可导出～"); return; }
+  $("plus-menu").classList.remove("show");
+  showToast("正在生成长图…");
+  try {
+    const css = getComputedStyle(document.documentElement);
+    const V = (n, d) => (css.getPropertyValue(n).trim() || d);
+    const colBg = V("--bg", "#f5f4ef"), colText = V("--text", "#333"), colDim = V("--text-dim", "#888"),
+      colAccent = V("--accent", "#d97757"), colBorder = V("--border", "#ddd"), colAi = V("--bg-soft", "#fff");
+    const W = 720, padX = 20, avatar = 38, gap = 10, bubblePad = 12, lineH = 24;
+    const bubbleMax = W - padX * 2 - avatar - gap - 8;
+    const fontBody = "16px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif";
+    const fontName = "12px -apple-system,'PingFang SC',sans-serif";
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const loadImg = (src) => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+    const picCache = new Map();
+    for (const m of msgs) for (const p of exportMsgPics(m)) if (!picCache.has(p.dataUrl)) picCache.set(p.dataUrl, await loadImg(p.dataUrl));
+    const aiAvImg = isImageRef(settings.aiAvatar) ? await loadImg(settings.aiAvatar) : null;
+    const userAvImg = isImageRef(settings.userAvatar) ? await loadImg(settings.userAvatar) : null;
+
+    ctx.font = fontBody;
+    const blocks = [];
+    for (const m of msgs) {
+      const isUser = m.role === "user";
+      const text = exportPlainBody(m);
+      const lines = text ? exportWrap(ctx, text, bubbleMax - bubblePad * 2) : [];
+      const pics = exportMsgPics(m).map(p => picCache.get(p.dataUrl)).filter(Boolean);
+      const picSizes = pics.map(im => { const w = Math.min(bubbleMax, im.naturalWidth || 240); const h = w * (im.naturalHeight || 180) / (im.naturalWidth || 240); return { im, w, h }; });
+      let bodyH = lines.length ? lines.length * lineH + bubblePad * 2 : 0;
+      for (const ps of picSizes) bodyH += ps.h + 8;
+      blocks.push({ isUser, lines, picSizes, hasText: lines.length > 0, blockH: 20 + bodyH + 16 });
+    }
+    const headerH = 72, footerH = 46;
+    let totalH = headerH + footerH;
+    for (const b of blocks) totalH += b.blockH;
+
+    let scale = 2;
+    while (W * scale * totalH * scale > 16000000 && scale > 1) scale -= 0.5;
+    canvas.width = Math.round(W * scale); canvas.height = Math.round(totalH * scale);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = colBg; ctx.fillRect(0, 0, W, totalH);
+
+    ctx.textBaseline = "top"; ctx.textAlign = "left";
+    ctx.fillStyle = colText; ctx.font = "600 20px -apple-system,'PingFang SC',sans-serif";
+    const title = (conv.title && conv.title !== "新对话") ? conv.title : (settings.aiName || "江屹琛");
+    ctx.fillText(title, padX, 22);
+    ctx.fillStyle = colDim; ctx.font = fontName;
+    ctx.fillText(new Date().toLocaleDateString("zh-CN") + " · " + (settings.aiName || "江屹琛") + " · Chat", padX, 48);
+
+    let y = headerH;
+    for (const b of blocks) {
+      const isUser = b.isUser;
+      const name = isUser ? (settings.userName || "你") : (settings.aiName || "江屹琛");
+      const avTxt = isUser ? settings.userAvatar : settings.aiAvatar;
+      const avImg = isUser ? userAvImg : aiAvImg;
+      const avX = isUser ? (W - padX - avatar) : padX;
+      cvAvatar(ctx, avX, y, avatar, avImg, avTxt || name, colAccent);
+      ctx.font = fontName; ctx.fillStyle = colDim; ctx.textBaseline = "top";
+      const nameW = ctx.measureText(name).width;
+      ctx.fillText(name, isUser ? (avX - gap - nameW) : (avX + avatar + gap), y + 2);
+      let by = y + 20;
+      ctx.font = fontBody;
+      let contentW = 0;
+      for (const ln of b.lines) contentW = Math.max(contentW, ctx.measureText(ln).width);
+      for (const ps of b.picSizes) contentW = Math.max(contentW, ps.w);
+      const bw = Math.min(bubbleMax, contentW + (b.hasText ? bubblePad * 2 : 0));
+      const bx = isUser ? (avX - gap - bw) : (avX + avatar + gap);
+      if (b.hasText) {
+        const bh = b.lines.length * lineH + bubblePad * 2;
+        cvRoundRect(ctx, bx, by, bw, bh, 14);
+        ctx.fillStyle = isUser ? colAccent : colAi; ctx.fill();
+        if (!isUser) { ctx.strokeStyle = colBorder; ctx.lineWidth = 1; ctx.stroke(); }
+        ctx.fillStyle = isUser ? "#fff" : colText; ctx.textBaseline = "top"; ctx.font = fontBody;
+        let ty = by + bubblePad;
+        for (const ln of b.lines) { ctx.fillText(ln, bx + bubblePad, ty); ty += lineH; }
+        by += bh + 8;
+      }
+      for (const ps of b.picSizes) {
+        const ix = isUser ? (avX - gap - ps.w) : (avX + avatar + gap);
+        ctx.save(); cvRoundRect(ctx, ix, by, ps.w, ps.h, 10); ctx.clip();
+        ctx.drawImage(ps.im, ix, by, ps.w, ps.h); ctx.restore();
+        ctx.strokeStyle = "rgba(0,0,0,.06)"; ctx.lineWidth = 1; cvRoundRect(ctx, ix, by, ps.w, ps.h, 10); ctx.stroke();
+        by += ps.h + 8;
+      }
+      y += b.blockH;
+    }
+    ctx.fillStyle = colDim; ctx.font = fontName; ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("✦ 江屹琛 · Chat ✦", W / 2, totalH - footerH + 16);
+
+    canvas.toBlob(blob => { if (blob) showImagePreview(blob); else showToast("生成失败，对话可能太长了"); }, "image/png");
+  } catch (e) {
+    console.error("[exportChatImage]", e);
+    showToast("生成失败：" + (e.message || e).slice(0, 60));
+  }
+}
+function showImagePreview(blob) {
+  const url = URL.createObjectURL(blob);
+  const ov = document.createElement("div");
+  ov.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.86);display:flex;flex-direction:column;align-items:center;padding:14px;overflow:auto;";
+  const bar = document.createElement("div");
+  bar.style.cssText = "display:flex;gap:10px;margin-bottom:8px;position:sticky;top:0;";
+  const shareBtn = document.createElement("button");
+  shareBtn.textContent = "📤 分享 / 保存";
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "✕ 关闭";
+  for (const b of [shareBtn, closeBtn]) b.style.cssText = "padding:10px 18px;border-radius:10px;border:none;font-size:14px;font-weight:600;cursor:pointer;";
+  shareBtn.style.background = "#fff"; shareBtn.style.color = "#222";
+  closeBtn.style.background = "rgba(255,255,255,.2)"; closeBtn.style.color = "#fff";
+  const hint = document.createElement("div");
+  hint.textContent = "长按图片可保存到相册";
+  hint.style.cssText = "color:#fff;font-size:12px;opacity:.8;margin-bottom:8px;";
+  const img = document.createElement("img");
+  img.src = url; img.style.cssText = "max-width:100%;height:auto;border-radius:10px;box-shadow:0 8px 34px rgba(0,0,0,.5);";
+  const close = () => { try { document.body.removeChild(ov); } catch (_) {} URL.revokeObjectURL(url); };
+  closeBtn.onclick = close;
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  shareBtn.onclick = async () => {
+    const file = new File([blob], "jyc-chat.png", { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); } catch (_) {}
+    } else {
+      const a = document.createElement("a"); a.href = url; a.download = "jyc-chat.png"; a.click();
+    }
+  };
+  bar.appendChild(shareBtn); bar.appendChild(closeBtn);
+  ov.appendChild(bar); ov.appendChild(hint); ov.appendChild(img);
+  document.body.appendChild(ov);
 }
 function deriveTitle(msgs) {
   const first = msgs.find(m => m.role === "user");
@@ -3376,6 +3558,7 @@ function init() {
       else if (act === "sticker") $("sticker-panel").classList.toggle("show");
       else if (act === "file") $("file-input").click();
       else if (act === "compact") compactConversation();
+      else if (act === "export") exportChatImage();
     };
   });
   document.addEventListener("click", (e) => {
