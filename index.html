@@ -138,6 +138,13 @@
     .conv-item .act:hover { opacity: 1; color: var(--accent); }
     .conv-item .act.del:hover { color: var(--danger); }
   }
+  .side-settings-btn {
+    margin: 6px 12px; padding: 10px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg-panel);
+    color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 6px; transition: .15s;
+  }
+  .side-settings-btn:hover { border-color: var(--accent); color: var(--accent); }
   .sidebar .foot {
     padding: 10px 12px; border-top: 1px solid var(--border);
     font-size: 11px; color: var(--text-dim); text-align: center;
@@ -345,7 +352,7 @@
   }
   .msg-act svg { width: 17px; height: 17px; }
   .msg-act:hover { color: var(--accent); background: var(--item-active); }
-  .msg-tokens { margin-left: auto; align-self: center; font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+  .msg-tokens { align-self: center; font-size: 11px; color: var(--text-dim); white-space: nowrap; margin-left: 2px; }
   .msg-act.playing { color: var(--accent); }
   .msg-act.tts-loading { opacity: .45; pointer-events: none; animation: tts-pulse .8s ease-in-out infinite; }
   @keyframes tts-pulse { 0%,100%{opacity:.45} 50%{opacity:.2} }
@@ -626,6 +633,7 @@
     <button class="new-chat-btn" id="new-chat-btn">＋ 新对话</button>
     <input id="search-input" placeholder="🔍 搜索聊天记录…" />
     <div class="conv-list" id="conv-list"></div>
+    <button class="side-settings-btn" id="sidebar-settings-btn">⚙️ 设置</button>
     <div class="foot">数据仅存于本地浏览器</div>
   </aside>
 
@@ -636,7 +644,7 @@
       <button class="icon-btn" id="toggle-sidebar" title="收起/展开侧栏">☰</button>
       <div class="spacer"></div>
       <button class="icon-btn" id="header-search-btn" title="搜索聊天记录">🔍</button>
-      <button class="icon-btn" id="settings-btn" title="设置">⚙️</button>
+      <button class="icon-btn" id="header-new-btn" title="新对话">＋</button>
     </header>
 
     <div class="settings" id="settings-panel">
@@ -3544,7 +3552,8 @@ function init() {
   };
   $("backdrop").onclick = closeSidebar;
   window.addEventListener("resize", applySidebar);
-  $("settings-btn").onclick = () => openSettings();
+  $("sidebar-settings-btn").onclick = () => { openSettings(); if (isMobile()) closeSidebar(); };
+  $("header-new-btn").onclick = createConversation;
   $("settings-close").onclick = closeSettings;
   document.querySelectorAll("[data-edit]").forEach(btn =>
     btn.onclick = () => openBigEditor(btn.dataset.edit, btn.dataset.title));
