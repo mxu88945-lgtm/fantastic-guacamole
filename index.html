@@ -161,9 +161,9 @@
   /* Claude-style frosted top bar: overlays the chat so content blurs as it scrolls under */
   .main > header {
     position: absolute; top: 0; left: 0; right: 0; z-index: 5;
-    background: color-mix(in srgb, var(--bg) 25%, transparent);
-    backdrop-filter: blur(16px) saturate(1.5);
-    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    background: color-mix(in srgb, var(--bg) 15%, transparent);
+    backdrop-filter: blur(18px) saturate(1.6);
+    -webkit-backdrop-filter: blur(18px) saturate(1.6);
   }
   .main > .chat { padding-top: calc(58px + env(safe-area-inset-top)); }
   .main > .composer-wrap { background: transparent; }
