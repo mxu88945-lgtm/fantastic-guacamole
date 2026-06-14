@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="江屹琛" />
-<meta name="theme-color" content="#0f1117" />
+<meta name="theme-color" content="#f5f4ef" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="icon" type="image/png" href="apple-touch-icon.png" />
 <title>江屹琛 · Chat</title>
@@ -161,9 +161,9 @@
   /* Claude-style frosted top bar: overlays the chat so content blurs as it scrolls under */
   .main > header {
     position: absolute; top: 0; left: 0; right: 0; z-index: 5;
-    background: color-mix(in srgb, var(--bg) 15%, transparent);
-    backdrop-filter: blur(18px) saturate(1.6);
-    -webkit-backdrop-filter: blur(18px) saturate(1.6);
+    background: color-mix(in srgb, var(--bg) 8%, transparent);
+    backdrop-filter: blur(20px) saturate(1.7);
+    -webkit-backdrop-filter: blur(20px) saturate(1.7);
   }
   .main > .chat { padding-top: calc(58px + env(safe-area-inset-top)); }
   .main > .composer-wrap { background: transparent; }
@@ -3177,6 +3177,9 @@ function applyTheme() {
   document.documentElement.setAttribute("data-theme", t.dark ? "dark" : "light");
   const root = document.documentElement;
   for (const k in t.vars) root.style.setProperty("--" + k, t.vars[k]);
+  // keep the iOS status-bar / PWA chrome color in sync with the theme (no more black strip)
+  const tc = document.querySelector('meta[name="theme-color"]');
+  if (tc && t.vars.bg) tc.content = t.vars.bg;
   applyAccent();
   applyChatBg();
   applyBubbleStyle();
