@@ -89,11 +89,16 @@
     display: grid; place-items: center; font-weight: 700; color: #fff;
   }
   .sidebar .brand .title { font-size: 14px; font-weight: 600; }
+  .role-quick-wrap { position: relative; margin: 12px 12px 0; }
+  .role-quick-icon {
+    position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+    width: 15px; height: 15px; color: var(--text-dim); pointer-events: none;
+  }
   .role-quick {
-    margin: 12px 12px 0; padding: 9px 10px; border-radius: 10px;
+    padding: 9px 10px 9px 33px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--bg-panel);
     color: var(--text); font-size: 13px; font-weight: 600; font-family: inherit;
-    cursor: pointer; width: calc(100% - 24px);
+    cursor: pointer; width: 100%;
   }
   .new-chat-btn {
     margin: 12px; padding: 10px; border-radius: 10px;
@@ -661,7 +666,10 @@
       <div class="logo" id="brand-logo">江</div>
       <div class="title" id="brand-title">江屹琛 · Chat</div>
     </div>
-    <select class="role-quick" id="role-quick" title="切换角色"></select>
+    <div class="role-quick-wrap">
+      <svg class="role-quick-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
+      <select class="role-quick" id="role-quick" title="切换角色"></select>
+    </div>
     <button class="new-chat-btn" id="new-chat-btn">＋ 新对话</button>
     <input id="search-input" placeholder="🔍 搜索聊天记录…" />
     <div class="conv-list" id="conv-list"></div>
@@ -1846,7 +1854,7 @@ function renderRoleQuick() {
   sel.innerHTML = "";
   (settings.roles || []).forEach(r => {
     const o = document.createElement("option");
-    o.value = r.id; o.textContent = "🎭 " + r.name;
+    o.value = r.id; o.textContent = r.name;
     if (r.id === settings.activeRoleId) o.selected = true;
     sel.appendChild(o);
   });
