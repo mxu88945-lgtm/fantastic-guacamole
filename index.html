@@ -734,7 +734,6 @@
     </div>
     <input id="search-input" placeholder="🔍 搜索聊天记录…" />
     <div class="conv-list" id="conv-list"></div>
-    <button class="side-entry" id="cycle-btn">🌸 经期记录</button>
     <div class="foot">数据仅存于本地浏览器</div>
   </aside>
 
@@ -755,7 +754,7 @@
       </div>
     </header>
 
-    <div class="settings" id="cycle-panel">
+    <div class="settings" id="cycle-panel" style="z-index:61;">
       <div class="settings-header">
         <span>🌸 经期记录</span>
         <button class="mini-btn primary" id="cycle-close">✓ 完成</button>
@@ -993,8 +992,17 @@
           <input type="range" id="ttsSpeed" min="0.5" max="2" step="0.1" oninput="$('ttsSpeedVal').textContent=parseFloat(this.value).toFixed(1)" onchange="readSettingsFromUI();" />
         </div>
 
-        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>角色档案</div>
+        <div class="section-title">🌸 经期记录</div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="cycleEnabled" style="width:auto;" onchange="cycleData().enabled=this.checked; saveSettings();" />
+            <span style="font-weight:600;">开启经期记录 <span class="hint" style="font-weight:400;">（江屹琛会按你的周期主动关心你）</span></span>
+          </label>
+          <span class="hint" style="display:block;margin-top:6px;">记录经期、预测下次、可补记过往几个月；数据只存本地/你的云账号。</span>
+          <button class="icon-btn" id="open-cycle-btn" style="margin-top:10px;">🌸 打开经期记录</button>
+        </div>
 
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>角色档案</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🎭 角色库 <span class="hint" style="font-weight:400;">（人设+音色+记忆 打包，一键切换）</span></label>
           <div id="roleList" style="display:flex; flex-direction:column; gap:6px; margin-top:8px;"></div>
@@ -3455,6 +3463,18 @@ function deletePeriod(start) {
   c.log = c.log.filter(e => e.start !== start);
   saveSettings(); renderCycle();
 }
+// Backfill a past period as a start~end range (end optional).
+function addPeriodRange() {
+  const s = $("cycle-bf-start").value;
+  const e = $("cycle-bf-end").value || null;
+  if (!s) { showToast("先选开始日期"); return; }
+  if (e && parseYmd(e) < parseYmd(s)) { showToast("结束日期不能早于开始"); return; }
+  const c = cycleData();
+  if (c.log.some(x => x.start === s)) { showToast("这天已经记过了"); return; }
+  c.log.push({ start: s, end: e });
+  saveSettings(); renderCycle();
+  showToast("补记好啦：" + s + (e ? " ~ " + e : ""));
+}
 function openCyclePanel() {
   $("cycle-panel").classList.add("open");
   cycleCalRef = todayMid();
@@ -3517,11 +3537,14 @@ function renderCycle() {
       <div class="cycle-status">${statusHtml}</div>
       ${btnHtml}
       <div class="field">
-        <label>补记某天开始（忘了记可以选日期）</label>
-        <div style="display:flex;gap:8px;">
-          <input type="date" id="cycle-date" max="${ymd(today)}" style="flex:1;" />
-          <button class="icon-btn" onclick="logPeriodStart($('cycle-date').value)">记开始</button>
+        <label>补记过往记录（把过去几个月一段段加进来，预测会更准）</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          <input type="date" id="cycle-bf-start" max="${ymd(today)}" style="flex:1;min-width:120px;" />
+          <span style="color:var(--text-dim);">~</span>
+          <input type="date" id="cycle-bf-end" max="${ymd(today)}" style="flex:1;min-width:120px;" />
+          <button class="icon-btn" onclick="addPeriodRange()">添加</button>
         </div>
+        <span class="hint" style="display:block;">选「开始 ~ 结束」日期 → 添加。想补三个月就一段段加；结束留空的话按平均经期估算。</span>
       </div>
       <div class="cycle-status" style="padding:14px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
@@ -3984,6 +4007,7 @@ function syncSettingsToUI() {
   $("multiBubble").checked = settings.multiBubble !== false;
   $("aiSticker").checked = settings.aiSticker !== false;
   $("aiGenSticker").checked = !!settings.aiGenSticker;
+  $("cycleEnabled").checked = cycleData().enabled !== false;
   $("memory").value = settings.memory;
   renderFavorites();
   $("autoMemory").checked = settings.autoMemory;
@@ -4374,7 +4398,7 @@ function init() {
   $("backdrop").onclick = closeSidebar;
   window.addEventListener("resize", applySidebar);
   $("sidebar-settings-btn").onclick = () => { openSettings(); if (isMobile()) closeSidebar(); };
-  $("cycle-btn").onclick = () => { openCyclePanel(); if (isMobile()) closeSidebar(); };
+  $("open-cycle-btn").onclick = openCyclePanel;
   $("cycle-close").onclick = closeCyclePanel;
   $("header-new-btn").onclick = createConversation;
   $("header-more-btn").onclick = (e) => {
