@@ -189,6 +189,35 @@
     padding: 10px 12px; border-top: 1px solid var(--border);
     font-size: 11px; color: var(--text-dim); text-align: center;
   }
+  .side-entry {
+    margin: 8px 12px 0; padding: 9px 12px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg-panel);
+    color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; gap: 7px; transition: .15s; text-align: left;
+  }
+  .side-entry:hover { border-color: var(--accent); }
+  /* 经期记录 panel bits */
+  .cycle-status { border:1px solid var(--border); border-radius:14px; padding:16px; background:var(--bg-panel); }
+  .cycle-big { font-size:30px; font-weight:800; line-height:1.1; }
+  .cycle-log-btn {
+    width:100%; padding:14px; border:none; border-radius:14px; cursor:pointer;
+    font-size:15px; font-weight:700; color:#fff; background:var(--accent); transition:.15s;
+  }
+  .cycle-log-btn.end { background:var(--text-dim); }
+  .cycle-cal { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .cycle-cal .h { font-size:11px; color:var(--text-dim); text-align:center; padding:3px 0; }
+  .cycle-cal .d {
+    aspect-ratio:1; display:grid; place-items:center; border-radius:50%;
+    font-size:13px; color:var(--text); position:relative; cursor:pointer;
+  }
+  .cycle-cal .d.empty { cursor:default; }
+  .cycle-cal .d.today { outline:2px solid var(--accent); }
+  .cycle-cal .d.period { background:var(--accent); color:#fff; }
+  .cycle-cal .d.predict { background:var(--accent-soft); color:var(--text); border:1px dashed var(--accent); }
+  .cycle-cal .d.ovu { background:transparent; box-shadow:inset 0 0 0 2px #6fae8d55; }
+  .cycle-legend { display:flex; gap:14px; font-size:11px; color:var(--text-dim); flex-wrap:wrap; }
+  .cycle-legend i { width:11px; height:11px; border-radius:50%; display:inline-block; vertical-align:-1px; margin-right:4px; }
+  .cycle-hist-row { display:flex; align-items:center; gap:8px; font-size:13px; padding:7px 0; border-top:1px solid var(--border); }
 
   /* Main column */
   .main { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
@@ -705,6 +734,7 @@
     </div>
     <input id="search-input" placeholder="🔍 搜索聊天记录…" />
     <div class="conv-list" id="conv-list"></div>
+    <button class="side-entry" id="cycle-btn">🌸 经期记录</button>
     <div class="foot">数据仅存于本地浏览器</div>
   </aside>
 
@@ -724,6 +754,14 @@
         <button data-hact="delete" class="danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>删除对话</button>
       </div>
     </header>
+
+    <div class="settings" id="cycle-panel">
+      <div class="settings-header">
+        <span>🌸 经期记录</span>
+        <button class="mini-btn primary" id="cycle-close">✓ 完成</button>
+      </div>
+      <div class="settings-inner" id="cycle-inner" style="display:block;"></div>
+    </div>
 
     <div class="settings" id="settings-panel">
       <div class="settings-header">
@@ -1184,6 +1222,7 @@ let settings = {
   aiSticker: true,        // AI 主动发表情：[表情包:情绪] 单独成一条气泡（emoji 大贴纸 / 已上传的同名表情）
   aiGenSticker: false,    // 进一步用画图模型把表情包生成成真实图片（较慢、耗额度，默认关）
   ttsConfigs: {},         // 每种 TTS 服务各自的配置 {provider: {ttsBaseUrl,ttsApiKey,ttsGroupId,ttsModel,ttsVoice,ttsSpeed}}，切换不互相覆盖
+  cycle: { enabled: true, log: [], cycleLen: 28, periodLen: 5, remindBefore: 3 }, // 经期记录：log=[{start:"YYYY-MM-DD",end:"YYYY-MM-DD"|null}]
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
@@ -1201,7 +1240,7 @@ let ttsBtnActive = null;
 let ttsPrevProvider = null;   // remembers the active TTS provider so switching can save/restore per-provider config
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionRelay","imageModel","imageBaseUrl","memory","autoMemory","roles","activeRoleId","themeName","accent",
-  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker",
+  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
@@ -2522,6 +2561,8 @@ async function streamChat(onDelta, onReasoning) {
   if (emojiNote) systemText = systemText ? systemText + "\n\n" + emojiNote : emojiNote;
   const styleNote = chatStyleNote();
   if (styleNote) systemText = systemText ? systemText + "\n\n" + styleNote : styleNote;
+  const cycleNote = cycleSystemNote();
+  if (cycleNote) systemText = systemText ? systemText + "\n\n" + cycleNote : cycleNote;
   if (settings.memory && settings.memory.trim()) {
     const mem = "以下是需要长期记住的信息（用户的长期记忆）：\n" + settings.memory.trim();
     systemText = systemText ? systemText + "\n\n" + mem : mem;
@@ -3337,6 +3378,260 @@ function maybeProactiveGreet() {
   }
 }
 
+// ============ 经期记录（生理期） ============
+function cycleData() {
+  if (!settings.cycle) settings.cycle = { enabled: true, log: [], cycleLen: 28, periodLen: 5, remindBefore: 3 };
+  if (!Array.isArray(settings.cycle.log)) settings.cycle.log = [];
+  return settings.cycle;
+}
+function ymd(d) {
+  const z = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
+}
+function parseYmd(s) { const [y, m, d] = (s || "").split("-").map(Number); return new Date(y, (m || 1) - 1, d || 1); }
+function dayDiff(a, b) { return Math.round((a - b) / 86400000); }  // a,b: Date at local midnight
+function todayMid() { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+// Sorted ascending list of valid period entries.
+function cycleLogSorted() {
+  return cycleLogValid().slice().sort((a, b) => parseYmd(a.start) - parseYmd(b.start));
+}
+function cycleLogValid() { return cycleData().log.filter(e => e && e.start); }
+// Compute stats / prediction / current phase.
+function cycleStats() {
+  const c = cycleData();
+  const log = cycleLogSorted();
+  const today = todayMid();
+  // average period length from entries that have an end
+  const lens = log.filter(e => e.end).map(e => dayDiff(parseYmd(e.end), parseYmd(e.start)) + 1).filter(n => n > 0 && n < 15);
+  const avgPeriod = lens.length ? Math.round(lens.reduce((a, b) => a + b, 0) / lens.length) : (c.periodLen || 5);
+  // average cycle from gaps between consecutive starts
+  const gaps = [];
+  for (let i = 1; i < log.length; i++) { const g = dayDiff(parseYmd(log[i].start), parseYmd(log[i - 1].start)); if (g >= 15 && g <= 60) gaps.push(g); }
+  const avgCycle = gaps.length ? Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length) : (c.cycleLen || 28);
+  const last = log[log.length - 1] || null;
+  let inPeriod = false, periodDay = 0;
+  if (last) {
+    const ls = parseYmd(last.start);
+    if (last.end) { const le = parseYmd(last.end); if (today >= ls && today <= le) { inPeriod = true; periodDay = dayDiff(today, ls) + 1; } }
+    else { const d = dayDiff(today, ls); if (d >= 0 && d < avgPeriod + 2) { inPeriod = true; periodDay = d + 1; } }  // open entry: assume ongoing within ~period length
+  }
+  let nextStart = null, daysUntil = null;
+  if (last) {
+    nextStart = parseYmd(last.start); nextStart.setDate(nextStart.getDate() + avgCycle);
+    // if predicted next is already in the past, roll forward
+    while (dayDiff(nextStart, today) < -2) nextStart.setDate(nextStart.getDate() + avgCycle);
+    daysUntil = dayDiff(nextStart, today);
+  }
+  // phase
+  let phase = "普通", phaseNote = "";
+  const ovuOffset = nextStart ? dayDiff(nextStart, today) - 14 : null;  // ~14 days before next period = ovulation
+  if (inPeriod) { phase = "经期中"; phaseNote = "身体比较累，多休息～"; }
+  else if (daysUntil != null && daysUntil <= (c.remindBefore || 3) && daysUntil >= 0) { phase = "经期前期"; phaseNote = "快来了，注意保暖、备好用品"; }
+  else if (ovuOffset != null && Math.abs(ovuOffset) <= 1) { phase = "排卵期"; phaseNote = "身体状态不错"; }
+  else { phase = "平稳期"; phaseNote = "身体状态良好"; }
+  return { avgPeriod, avgCycle, last, inPeriod, periodDay, nextStart, daysUntil, phase, phaseNote, count: log.length };
+}
+// Mark today (or a chosen date) as a period start / end.
+function logPeriodStart(dateStr) {
+  const c = cycleData();
+  const ds = dateStr || ymd(todayMid());
+  // close any open entry first if it makes sense; then add new start (avoid exact duplicate)
+  if (c.log.some(e => e.start === ds)) { showToast("这天已经记过了"); return; }
+  c.log.push({ start: ds, end: null });
+  saveSettings(); renderCycle();
+  showToast("🌸 记好啦：" + ds + " 经期开始");
+}
+function logPeriodEnd(dateStr) {
+  const log = cycleLogSorted();
+  const open = [...log].reverse().find(e => !e.end);
+  if (!open) { showToast("没有进行中的经期可结束"); return; }
+  open.end = dateStr || ymd(todayMid());
+  if (parseYmd(open.end) < parseYmd(open.start)) { open.end = open.start; }
+  saveSettings(); renderCycle();
+  showToast("记好啦：经期结束 " + open.end);
+}
+function deletePeriod(start) {
+  const c = cycleData();
+  c.log = c.log.filter(e => e.start !== start);
+  saveSettings(); renderCycle();
+}
+function openCyclePanel() {
+  $("cycle-panel").classList.add("open");
+  cycleCalRef = todayMid();
+  renderCycle();
+}
+function closeCyclePanel() { $("cycle-panel").classList.remove("open"); }
+let cycleCalRef = null;  // which month the calendar is showing (a Date)
+// Is a given Date inside any logged period? (open entries count up to avg period length)
+function dayIsPeriod(d, st) {
+  for (const e of cycleLogValid()) {
+    const s = parseYmd(e.start);
+    const end = e.end ? parseYmd(e.end) : (() => { const x = new Date(s); x.setDate(x.getDate() + (st.avgPeriod - 1)); return x; })();
+    if (d >= s && d <= end) return true;
+  }
+  return false;
+}
+function renderCycle() {
+  const box = $("cycle-inner"); if (!box) return;
+  const c = cycleData();
+  const st = cycleStats();
+  const today = todayMid();
+  const openOngoing = cycleLogSorted().slice().reverse().find(e => !e.end);
+  // status line
+  let statusHtml;
+  if (st.inPeriod) {
+    statusHtml = `<div style="color:var(--text-dim);font-size:13px;">当前 · 经期中</div>
+      <div class="cycle-big">第 ${st.periodDay} 天</div>
+      <div style="color:var(--text-dim);font-size:13px;margin-top:4px;">${escapeHtml(st.phaseNote)}</div>`;
+  } else if (st.daysUntil != null) {
+    statusHtml = `<div style="color:var(--text-dim);font-size:13px;">距离下次经期还有</div>
+      <div class="cycle-big">${st.daysUntil} <span style="font-size:15px;font-weight:600;">天</span></div>
+      <div style="color:var(--text-dim);font-size:13px;margin-top:4px;">预计开始：${ymd(st.nextStart)} · ${escapeHtml(st.phase)}</div>`;
+  } else {
+    statusHtml = `<div class="cycle-big" style="font-size:18px;">还没有记录哦</div>
+      <div style="color:var(--text-dim);font-size:13px;margin-top:6px;">点下面「经期来了」记下第一次，之后就能帮你预测啦～</div>`;
+  }
+  // big action button
+  const btnHtml = openOngoing
+    ? `<button class="cycle-log-btn end" onclick="logPeriodEnd()">🩸 经期结束了（今天）</button>`
+    : `<button class="cycle-log-btn" onclick="logPeriodStart()">🩸 经期来了（记录今天）</button>`;
+  // calendar
+  const ref = cycleCalRef || today;
+  const calHtml = renderCycleCalendar(ref.getFullYear(), ref.getMonth(), st);
+  // stats
+  const statsHtml = st.count ? `<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;">
+      <div><span style="color:var(--text-dim);">平均周期</span> <b>${st.avgCycle} 天</b></div>
+      <div><span style="color:var(--text-dim);">平均经期</span> <b>${st.avgPeriod} 天</b></div>
+      <div><span style="color:var(--text-dim);">已记录</span> <b>${st.count} 次</b></div>
+    </div>` : "";
+  // history
+  const histHtml = cycleLogSorted().slice().reverse().slice(0, 12).map(e => {
+    const len = e.end ? (dayDiff(parseYmd(e.end), parseYmd(e.start)) + 1) + " 天" : "进行中";
+    return `<div class="cycle-hist-row">
+        <span style="flex:1;">${e.start}${e.end ? " ~ " + e.end : ""} <span style="color:var(--text-dim);">(${len})</span></span>
+        <button class="icon-btn" style="padding:3px 8px;font-size:12px;" onclick="deletePeriod('${e.start}')">删</button>
+      </div>`;
+  }).join("");
+  box.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px;max-width:520px;margin:0 auto;">
+      <div class="cycle-status">${statusHtml}</div>
+      ${btnHtml}
+      <div class="field">
+        <label>补记某天开始（忘了记可以选日期）</label>
+        <div style="display:flex;gap:8px;">
+          <input type="date" id="cycle-date" max="${ymd(today)}" style="flex:1;" />
+          <button class="icon-btn" onclick="logPeriodStart($('cycle-date').value)">记开始</button>
+        </div>
+      </div>
+      <div class="cycle-status" style="padding:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <button class="icon-btn" onclick="cycleCalMove(-1)">‹</button>
+          <b>${ref.getFullYear()}年${ref.getMonth() + 1}月</b>
+          <button class="icon-btn" onclick="cycleCalMove(1)">›</button>
+        </div>
+        ${calHtml}
+        <div class="cycle-legend" style="margin-top:10px;">
+          <span><i style="background:var(--accent);"></i>经期</span>
+          <span><i style="background:var(--accent-soft);border:1px dashed var(--accent);"></i>预测</span>
+          <span><i style="box-shadow:inset 0 0 0 2px #6fae8d;"></i>排卵期</span>
+        </div>
+      </div>
+      ${statsHtml ? `<div class="cycle-status" style="padding:14px;">${statsHtml}</div>` : ""}
+      <div class="field">
+        <label>提前几天提醒</label>
+        <input type="number" id="cycle-remind" min="0" max="10" value="${c.remindBefore || 3}" onchange="cycleData().remindBefore=parseInt(this.value)||3; saveSettings();" style="width:90px;" />
+      </div>
+      ${histHtml ? `<div><div style="font-size:12px;color:var(--text-dim);margin-bottom:2px;">历史记录</div>${histHtml}</div>` : ""}
+      <div class="hint" style="line-height:1.6;">江屹琛会根据你的周期主动关心你（提醒保暖、喝热水、别吃凉的）。数据只存在本地/你的云账号，不会外传。<br>⚠️ 预测只是按平均周期估算，仅供参考，不能当避孕/医疗依据哦。</div>
+    </div>`;
+}
+function cycleCalMove(delta) {
+  const r = cycleCalRef || todayMid();
+  cycleCalRef = new Date(r.getFullYear(), r.getMonth() + delta, 1);
+  renderCycle();
+}
+function renderCycleCalendar(year, month, st) {
+  const today = todayMid();
+  const first = new Date(year, month, 1);
+  const startWday = first.getDay();  // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  // predicted next-period days
+  const predictDays = new Set();
+  if (st.nextStart) { for (let i = 0; i < st.avgPeriod; i++) { const d = new Date(st.nextStart); d.setDate(d.getDate() + i); predictDays.add(ymd(d)); } }
+  // ovulation day(s): ~14 days before next period
+  const ovuDays = new Set();
+  if (st.nextStart) { const o = new Date(st.nextStart); o.setDate(o.getDate() - 14); ovuDays.add(ymd(o)); }
+  let cells = ["日", "一", "二", "三", "四", "五", "六"].map(h => `<div class="h">${h}</div>`).join("");
+  for (let i = 0; i < startWday; i++) cells += `<div class="d empty"></div>`;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(year, month, day);
+    const k = ymd(d);
+    const cls = ["d"];
+    if (k === ymd(today)) cls.push("today");
+    if (dayIsPeriod(d, st)) cls.push("period");
+    else if (predictDays.has(k)) cls.push("predict");
+    else if (ovuDays.has(k)) cls.push("ovu");
+    cells += `<div class="${cls.join(" ")}" onclick="cycleDayTap('${k}')">${day}</div>`;
+  }
+  return `<div class="cycle-cal">${cells}</div>`;
+}
+// Tap a calendar day: quick toggle a one-day record on/off (for backfilling).
+function cycleDayTap(k) {
+  const c = cycleData();
+  if (c.log.some(e => e.start === k)) {
+    if (confirm("删除 " + k + " 这条经期记录？")) deletePeriod(k);
+  } else {
+    if (confirm("把 " + k + " 记为经期开始？")) logPeriodStart(k);
+  }
+}
+// A short system-prompt note so 江屹琛 is cycle-aware and caring (only when relevant).
+function cycleSystemNote() {
+  const c = cycleData();
+  if (!c.enabled || !cycleLogValid().length) return "";
+  const st = cycleStats();
+  if (st.inPeriod) {
+    return `【关心提示·她的身体】她正处于经期第 ${st.periodDay} 天。请自然地多体贴她：提醒喝热水、注意保暖、别吃生冷辛辣、早点休息，语气心疼一点。别说教、别太频繁。`;
+  }
+  if (st.daysUntil != null && st.daysUntil <= (c.remindBefore || 3) && st.daysUntil >= 0) {
+    return `【关心提示·她的身体】预计大约 ${st.daysUntil} 天后（${ymd(st.nextStart)}）她会来例假。可以体贴地提前提醒她备好用品、注意保暖休息，自然融入对话，别生硬。`;
+  }
+  return "";
+}
+// On app open: if a period reminder is due and not yet greeted today, let 江屹琛 say a caring line.
+// Returns true if it took over the "first message" slot (so the generic greeting won't also fire).
+function maybeCycleReminder() {
+  const c = cycleData();
+  if (!c.enabled || !settings.apiKey || !cycleLogValid().length) return false;
+  const st = cycleStats();
+  const due = st.inPeriod || (st.daysUntil != null && st.daysUntil <= (c.remindBefore || 3) && st.daysUntil >= 0);
+  if (!due) return false;
+  const todayKey = ymd(todayMid());
+  if (localStorage.getItem("jyc_cycle_greet") === todayKey) return false;  // once a day
+  const conv = currentConv();
+  if (!conv || conv.messages.length) return false;  // only into a fresh chat (don't interrupt)
+  localStorage.setItem("jyc_cycle_greet", todayKey);
+  markSeen();  // claim the slot so the generic "welcome back" greeting won't also fire
+  const scene = st.inPeriod
+    ? `她正在经期第 ${st.periodDay} 天，身体不舒服。`
+    : `她大约 ${st.daysUntil} 天后要来例假了。`;
+  let sys = settings.systemPrompt || "";
+  const en = emojiStyleNote(settings.emojiStyle); if (en) sys += "\n\n" + en;
+  sys += `\n\n【场景】${scene}请你主动、温柔地关心她一句（提醒保暖/喝热水/别吃凉的/早点休息之类），像心疼她的样子，别太长（1~2 句），口语自然。`;
+  completeOnce(sys, "（主动关心我一下～）", 300).then(out => {
+    if (out && out.trim() && currentConv() === conv && !conv.messages.length) {
+      conv.messages.push({ id: uid(), role: "assistant", content: out.trim(), ts: Date.now() });
+      messages = conv.messages; touchConversation(); renderMessages(); jumpToBottom();
+    }
+  }).catch(() => {});
+  return true;
+}
+// App became active (cold start / tab refocus): caring period reminder takes priority,
+// otherwise the generic "welcome back" greeting.
+function onAppActive() {
+  if (maybeCycleReminder()) return;
+  maybeProactiveGreet();
+}
+
 // Generate an assistant reply for the current messages (which must end with a user turn).
 async function generateReply() {
   if (abortController) return;
@@ -4079,6 +4374,8 @@ function init() {
   $("backdrop").onclick = closeSidebar;
   window.addEventListener("resize", applySidebar);
   $("sidebar-settings-btn").onclick = () => { openSettings(); if (isMobile()) closeSidebar(); };
+  $("cycle-btn").onclick = () => { openCyclePanel(); if (isMobile()) closeSidebar(); };
+  $("cycle-close").onclick = closeCyclePanel;
   $("header-new-btn").onclick = createConversation;
   $("header-more-btn").onclick = (e) => {
     e.stopPropagation();
@@ -4315,8 +4612,8 @@ function init() {
   initCloud().catch(e => console.warn("cloud init:", e));
 
   // proactive "welcome back" greeting: on first load + whenever the PWA resumes
-  document.addEventListener("visibilitychange", () => { if (document.hidden) markSeen(); else maybeProactiveGreet(); });
-  setTimeout(maybeProactiveGreet, 2000);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) markSeen(); else onAppActive(); });
+  setTimeout(onAppActive, 2000);
 }
 init();
 

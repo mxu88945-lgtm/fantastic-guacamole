@@ -168,3 +168,11 @@
   - 配套：多条 assistant 消息发回接口前用 `apiMessagesFor()`/`mergeApiContent()` **合并同角色相邻消息**（否则 Anthropic 严格交替会报错）。sw 缓存 v3→v4。
   - 没做：「**搜索**网上表情包」需后端（CORS+无 Key），归到外部集成那条线，暂缓。
 - **2026-06-15**：① 拟真聊天调优——惟惟反馈「连发多条」是有了，但每条太长、像小说腔且不发表情。把 `chatStyleNote()` 改硬核：**短句口语优先级最高、禁大段旁白/神态描写/星号包动作**，表情从「恰到好处」改「经常自然地发」。② 新增 **ElevenLabs TTS**（`ttsElevenLabs()`，`settings.ttsProvider==="elevenlabs"`）：`POST /v1/text-to-speech/{voice_id}`、`xi-api-key` 头、直接返回 mp3 blob；复用 `ttsApiKey`(key)/`ttsVoice`(voice_id)/`ttsModel`(model_id，默认 `eleven_multilingual_v2`，想更有感情填 `eleven_v3`)；接口地址留空走官方、填了可当代理（防 CORS）。设置「语音朗读」下拉加第三项，`#ttsProviderHint` 随接口给保姆级提示。sw 缓存 v5→v6。惟惟是看小红书安利来的（ElevenLabs v3 情感细腻、文字描述声音抽卡）。⚠️ 浏览器直连 ElevenLabs 是否被 CORS 挡**待惟惟实测**；被挡就走以后的小后端代理。
+- **2026-06-15（下午接力 · 一堆打磨 + 小后端 + 经期记录）**：
+  - **拟真聊天再调**：`chatStyleNote()` 已是短句硬核版（见上）。
+  - **顶栏黑带根治**：iOS 独立 PWA 启动时快照状态栏色，app 默认深色主题→被锁黑。① CSS `html{background:var(--bg)}` 让刘海条吃主题色；② head 加**预热 IIFE**：启动前读 `jyc_themebg`/`jyc_themedark`（`applyTheme` 每次持久化）先把 `--bg`/`data-theme`/`theme-color` 设好，冷启动不再先黑。⚠️ 换主题后顶栏色 iOS 装机版要**划掉重开**才更新（系统限制，没法实时）。
+  - **侧栏精简**：删底部「设置/新对话」全宽按钮，收进 brand 头部右侧两个圆 `.icon-btn`（＋ / ⚙）；角色切换器 🎭 换成人形线条 SVG（`.role-quick-wrap`+`.role-quick-icon`）。删主页「第一次用」提示行。
+  - **小后端（Cloudflare Worker）搭通**：惟惟注册 CF、建 `jyc-proxy.mxu88945.workers.dev`，贴了个**通用 CORS 代理**（按 `ROUTES` 前缀转发 `/eleven`→elevenlabs、`/notion`→notion，加 CORS 头）。ElevenLabs 接口地址填 `…workers.dev/eleven` 即走代理。⚠️ ElevenLabs **免费版**：不能 API 用克隆音/音色库音（402 payment_required），只能用**默认音**（如 Adam `pNInz6obpgDQGcFmaJgB`）；key 要开 `text_to_speech` 权限（或不限制）。惟惟最后还是回 MiniMax（免费能克隆）。
+  - **TTS 按服务分别存储**（`settings.ttsConfigs`/`switchTtsProvider`/`saveTtsConfigFromUI`/`applyTtsConfigToUI`）：修「切换语音服务把另一个的 接口地址/key/音色 覆盖掉」。
+  - **思考过程实时看**：`thinkBlockHtml(reason, open)`，`bubbleHtml` 在 streaming 且只有思考无正文时 `open`，出正文自动收起（修流式每帧重画把 `<details>` 合上、点不开）。
+  - **🌸 经期记录**（`settings.cycle={enabled,log:[{start,end}],cycleLen,periodLen,remindBefore}`）：侧栏 `#cycle-btn` 开 `#cycle-panel`（复用 `.settings` overlay）。`cycleStats()` 从历史算平均周期/经期、预测下次、判断阶段（经期中/前期/排卵/平稳）；`renderCycle()`+`renderCycleCalendar()` 状态卡+大按钮（经期来了/结束了）+月历（经期/预测/排卵）+补记日期+历史。`cycleSystemNote()` 把"她在周期哪阶段、该怎么关心"注进 system prompt；`maybeCycleReminder()`（经 `onAppActive()` 统一调度，优先于久未问候）开 app 时让江屹琛主动关心一句（每天一次、只进空对话）。`cycle` 入 SYNCED_KEYS（存她自己的云）。⚠️ 纯前端无后台推送，"提醒"=面板倒计时 + 开门主动关心 + 聊天时体贴；预测仅参考、非医疗/避孕依据。sw 缓存 v6→v13。
