@@ -8,6 +8,26 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="江屹琛" />
 <meta name="theme-color" content="#f5f4ef" />
+<script>
+/* Pre-paint theme priming: iOS standalone PWAs snapshot the status-bar color at
+   launch. The app used to start on the hardcoded dark theme, so iOS locked the
+   notch strip to black even when the saved theme is light. Read the last-applied
+   theme bg (persisted by applyTheme) and set --bg + data-theme + theme-color
+   BEFORE first paint, so the launch color already matches the real theme. */
+(function () {
+  try {
+    var bg = localStorage.getItem("jyc_themebg");
+    var dark = localStorage.getItem("jyc_themedark");
+    if (dark === "1" || dark === "0")
+      document.documentElement.setAttribute("data-theme", dark === "1" ? "dark" : "light");
+    if (bg) {
+      document.documentElement.style.setProperty("--bg", bg);
+      var m = document.querySelector('meta[name="theme-color"]');
+      if (m) m.setAttribute("content", bg);
+    }
+  } catch (e) {}
+})();
+</script>
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="icon" type="image/png" href="apple-touch-icon.png" />
 <title>江屹琛 · Chat</title>
@@ -3462,6 +3482,12 @@ function applyTheme() {
     let tc = document.querySelector('meta[name="theme-color"]');
     if (!tc) { tc = document.createElement("meta"); tc.setAttribute("name", "theme-color"); document.head.appendChild(tc); }
     tc.setAttribute("content", t.vars.bg);
+    // Persist for the pre-paint priming script (so next launch starts on this color,
+    // not the hardcoded dark theme → no black status-bar strip on cold open).
+    try {
+      localStorage.setItem("jyc_themebg", t.vars.bg);
+      localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");
+    } catch (_) {}
   }
   applyAccent();
   applyChatBg();
