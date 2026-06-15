@@ -756,7 +756,7 @@
 
     <div class="settings" id="cycle-panel" style="z-index:61;">
       <div class="settings-header">
-        <span>🌸 经期记录</span>
+        <span>🌸 惟惟日记</span>
         <button class="mini-btn primary" id="cycle-close">✓ 完成</button>
       </div>
       <div class="settings-inner" id="cycle-inner" style="display:block;"></div>
@@ -992,16 +992,6 @@
           <input type="range" id="ttsSpeed" min="0.5" max="2" step="0.1" oninput="$('ttsSpeedVal').textContent=parseFloat(this.value).toFixed(1)" onchange="readSettingsFromUI();" />
         </div>
 
-        <div class="section-title">🌸 经期记录</div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-            <input type="checkbox" id="cycleEnabled" style="width:auto;" onchange="cycleData().enabled=this.checked; saveSettings();" />
-            <span style="font-weight:600;">开启经期记录 <span class="hint" style="font-weight:400;">（江屹琛会按你的周期主动关心你）</span></span>
-          </label>
-          <span class="hint" style="display:block;margin-top:6px;">记录经期、预测下次、可补记过往几个月；数据只存本地/你的云账号。</span>
-          <button class="icon-btn" id="open-cycle-btn" style="margin-top:10px;">🌸 打开经期记录</button>
-        </div>
-
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>角色档案</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🎭 角色库 <span class="hint" style="font-weight:400;">（人设+音色+记忆 打包，一键切换）</span></label>
@@ -1082,6 +1072,15 @@
               <span>进一步：用画图模型把表情包生成成真实图片 <span class="hint" style="font-weight:400;">（较慢、耗额度，需先设「画图模型」）</span></span>
             </label>
           </div>
+        </div>
+
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="cycleEnabled" style="width:auto;" onchange="cycleData().enabled=this.checked; saveSettings();" />
+            <span style="font-weight:600;">🌸 惟惟日记 <span class="hint" style="font-weight:400;">· 经期记录</span></span>
+          </label>
+          <span class="hint" style="display:block;margin-top:6px;">记录经期、预测下次、可补记过往几个月。江屹琛能看到你在周期哪个阶段，会主动心疼你（提醒保暖、喝热水、别吃凉的）。数据只存本地/你的云账号。</span>
+          <button class="icon-btn" id="open-cycle-btn" style="margin-top:10px;">🌸 打开惟惟日记</button>
         </div>
 
         <div class="field" style="grid-column: 1 / -1;">
