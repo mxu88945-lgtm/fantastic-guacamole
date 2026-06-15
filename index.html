@@ -2047,9 +2047,9 @@ function splitThink(text) {
   if (open !== -1) { think += text.slice(open + 7); text = text.slice(0, open); }
   return { think: think.trim(), answer: text };
 }
-function thinkBlockHtml(reasoning) {
+function thinkBlockHtml(reasoning, open) {
   if (!reasoning || !reasoning.trim()) return "";
-  return `<details class="think"><summary>💭 思考过程</summary>` +
+  return `<details class="think"${open ? " open" : ""}><summary>💭 思考过程</summary>` +
     `<div class="think-body">${escapeHtml(reasoning.trim())}</div></details>`;
 }
 function stickerImg(s) {
@@ -2079,7 +2079,9 @@ function bubbleHtml(role, content, reasoning, streaming) {
     // the "thinking" channel and left the answer empty, show that text as the actual reply.
     // During streaming we keep reasoning inside the think box (don't leak it into the body).
     if (!streaming && !answer.trim() && reason.trim()) { answer = reason; reason = ""; }
-    thinkHtml = thinkBlockHtml(reason);
+    // While the model is still thinking (streaming, no answer yet) keep the box
+    // auto-expanded so you can watch it live; it collapses itself once the reply starts.
+    thinkHtml = thinkBlockHtml(reason, streaming && !!reason.trim() && !answer.trim());
   }
   let textHtml = answer
     ? (role === "assistant" ? renderMarkdown(answer) : escapeHtml(answer).replace(/\n/g, "<br>"))
