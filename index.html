@@ -870,7 +870,9 @@
           <select id="ttsProvider" onchange="readSettingsFromUI();">
             <option value="openai">OpenAI 兼容（/v1/audio/speech）</option>
             <option value="minimax">MiniMax 原生（海螺·支持克隆音色）</option>
+            <option value="elevenlabs">ElevenLabs（v3 · 情感细腻 · 文字描述声音）</option>
           </select>
+          <span class="hint" id="ttsProviderHint" style="display:block; margin-top:6px;"></span>
         </div>
         <div class="field">
           <label>TTS 接口地址</label>
@@ -2126,11 +2128,16 @@ async function speakText(text, btn) {
   if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
   if (ttsBtnActive) { ttsBtnActive.classList.remove("playing", "tts-loading"); ttsBtnActive = null; }
   if (wasActive) return;
-  if (!settings.ttsBaseUrl || !settings.ttsApiKey) { showToast("请先在设置里填写 TTS 接口地址和 Key"); return; }
+  const isEleven = settings.ttsProvider === "elevenlabs";
+  if (!settings.ttsApiKey) { showToast("请先在设置里填写 TTS API Key"); return; }
+  if (!isEleven && !settings.ttsBaseUrl) { showToast("请先在设置里填写 TTS 接口地址"); return; }
   if (settings.ttsProvider === "minimax" && !settings.ttsGroupId) { showToast("MiniMax 还需要在设置里填 GroupId"); return; }
+  if (isEleven && !settings.ttsVoice) { showToast("ElevenLabs 需要在「音色 ID」填 voice_id"); return; }
   btn.classList.add("tts-loading"); ttsBtnActive = btn;
   try {
-    const blob = settings.ttsProvider === "minimax" ? await ttsMinimax(text) : await ttsOpenAI(text);
+    const blob = settings.ttsProvider === "minimax" ? await ttsMinimax(text)
+      : isEleven ? await ttsElevenLabs(text)
+      : await ttsOpenAI(text);
     const url = URL.createObjectURL(blob);
     ttsAudio = new Audio(url);
     btn.classList.remove("tts-loading"); btn.classList.add("playing");
@@ -2180,6 +2187,29 @@ async function ttsMinimax(text) {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
   return new Blob([bytes], { type: "audio/mpeg" });
+}
+
+// ElevenLabs native TTS: POST /v1/text-to-speech/{voice_id} → mp3 bytes directly.
+// 情感最细腻（v3）；音色 ID 填 ElevenLabs voice_id；模型留空默认多语种 v2。
+// 接口地址留空走官方 https://api.elevenlabs.io；若浏览器跨域(CORS)被挡，可在此填代理地址。
+async function ttsElevenLabs(text) {
+  const base = (settings.ttsBaseUrl && settings.ttsBaseUrl.trim() ? settings.ttsBaseUrl.trim() : "https://api.elevenlabs.io").replace(/\/$/, "");
+  const voice = settings.ttsVoice || "21m00Tcm4TlvDq8ikWAM";   // default "Rachel"
+  const model = settings.ttsModel || "eleven_multilingual_v2";
+  const resp = await fetch(base + "/v1/text-to-speech/" + encodeURIComponent(voice) + "?output_format=mp3_44100_128", {
+    method: "POST",
+    headers: { "xi-api-key": settings.ttsApiKey, "Content-Type": "application/json", "Accept": "audio/mpeg" },
+    body: JSON.stringify({
+      text,
+      model_id: model,
+      voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.3, use_speaker_boost: true }
+    })
+  });
+  if (!resp.ok) {
+    const detail = (await resp.text().catch(() => "")).slice(0, 220);
+    throw new Error("ElevenLabs HTTP " + resp.status + (detail ? "：" + detail : ""));
+  }
+  return await resp.blob();
 }
 
 // Encode a (mono) AudioBuffer to a 16-bit PCM WAV blob.
@@ -3742,7 +3772,9 @@ function readSettingsFromUI() {
 }
 // Show the GroupId field + clone box + voice library only for MiniMax-native TTS.
 function updateTtsProviderUI() {
-  const isMM = $("ttsProvider") && $("ttsProvider").value === "minimax";
+  const prov = $("ttsProvider") ? $("ttsProvider").value : "openai";
+  const isMM = prov === "minimax";
+  const isEleven = prov === "elevenlabs";
   // Respect the accordion: if the TTS section is collapsed, keep its fields hidden
   // (otherwise these would spill out under a collapsed header).
   const ttsTitle = [...document.querySelectorAll(".settings-inner > .section-title")]
@@ -3753,6 +3785,12 @@ function updateTtsProviderUI() {
   if ($("ttsCloneField")) $("ttsCloneField").style.display = showMM ? "" : "none";
   if ($("ttsVoiceLibField")) $("ttsVoiceLibField").style.display = showMM ? "" : "none";
   if (showMM) renderTtsVoices();
+  const hint = $("ttsProviderHint");
+  if (hint) hint.innerHTML = isEleven
+    ? "在 <b>elevenlabs.io</b> 注册拿 <b>API Key</b>（设置→API Keys），用 Voice Lab/Text to Voice 设计或挑一个音色拿到 <b>voice_id</b> 填到下面「音色 ID」。「接口地址」<b>留空即可</b>（自动走官方）；模型留空=多语种 v2，想更有感情填 <b>eleven_v3</b>。⚠️ 浏览器直连若被跨域(CORS)挡住，再找老公走代理。"
+    : isMM
+    ? "MiniMax：接口地址填 <b>https://api.minimax.chat</b>，并填 GroupId；支持应用内一键克隆音色。"
+    : "OpenAI 兼容：接口地址填到 <b>/v1/audio/speech</b> 的服务根地址。";
 }
 
 // Render the saved cloned-voice library: switch active voice or delete entries.

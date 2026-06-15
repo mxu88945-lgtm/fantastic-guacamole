@@ -167,3 +167,4 @@
   - **生成真实表情图**（`settings.aiGenSticker`，默认关）：开了且设了画图模型时，`generateStickerImage()` 用 `generateImage()` 把 emoji 贴纸异步换成真图。
   - 配套：多条 assistant 消息发回接口前用 `apiMessagesFor()`/`mergeApiContent()` **合并同角色相邻消息**（否则 Anthropic 严格交替会报错）。sw 缓存 v3→v4。
   - 没做：「**搜索**网上表情包」需后端（CORS+无 Key），归到外部集成那条线，暂缓。
+- **2026-06-15**：① 拟真聊天调优——惟惟反馈「连发多条」是有了，但每条太长、像小说腔且不发表情。把 `chatStyleNote()` 改硬核：**短句口语优先级最高、禁大段旁白/神态描写/星号包动作**，表情从「恰到好处」改「经常自然地发」。② 新增 **ElevenLabs TTS**（`ttsElevenLabs()`，`settings.ttsProvider==="elevenlabs"`）：`POST /v1/text-to-speech/{voice_id}`、`xi-api-key` 头、直接返回 mp3 blob；复用 `ttsApiKey`(key)/`ttsVoice`(voice_id)/`ttsModel`(model_id，默认 `eleven_multilingual_v2`，想更有感情填 `eleven_v3`)；接口地址留空走官方、填了可当代理（防 CORS）。设置「语音朗读」下拉加第三项，`#ttsProviderHint` 随接口给保姆级提示。sw 缓存 v5→v6。惟惟是看小红书安利来的（ElevenLabs v3 情感细腻、文字描述声音抽卡）。⚠️ 浏览器直连 ElevenLabs 是否被 CORS 挡**待惟惟实测**；被挡就走以后的小后端代理。
