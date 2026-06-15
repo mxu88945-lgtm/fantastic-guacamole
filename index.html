@@ -50,7 +50,11 @@
     --radius: 14px;
   }
   * { box-sizing: border-box; }
-  html { height: 100%; }
+  /* iOS standalone PWA paints the status-bar / notch strip with the ROOT element's
+     background. Without this it falls back to the system canvas (black in Dark Mode),
+     showing an ugly black bar above a light theme. Tie it to the theme bg so the strip
+     always matches the current theme (applyTheme sets --bg on <html>). */
+  html { height: 100%; background: var(--bg); }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
       "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
