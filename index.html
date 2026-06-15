@@ -910,7 +910,7 @@
         </div>
         <div class="field">
           <label>TTS 类型</label>
-          <select id="ttsProvider" onchange="readSettingsFromUI();">
+          <select id="ttsProvider" onchange="switchTtsProvider();">
             <option value="openai">OpenAI 兼容（/v1/audio/speech）</option>
             <option value="minimax">MiniMax 原生（海螺·支持克隆音色）</option>
             <option value="elevenlabs">ElevenLabs（v3 · 情感细腻 · 文字描述声音）</option>
@@ -1183,6 +1183,7 @@ let settings = {
   multiBubble: true,      // 像真人发消息：把回复拆成多条气泡（[next] 分隔），逐条冒出来
   aiSticker: true,        // AI 主动发表情：[表情包:情绪] 单独成一条气泡（emoji 大贴纸 / 已上传的同名表情）
   aiGenSticker: false,    // 进一步用画图模型把表情包生成成真实图片（较慢、耗额度，默认关）
+  ttsConfigs: {},         // 每种 TTS 服务各自的配置 {provider: {ttsBaseUrl,ttsApiKey,ttsGroupId,ttsModel,ttsVoice,ttsSpeed}}，切换不互相覆盖
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
@@ -1197,6 +1198,7 @@ let applyingCloud = false;
 let pushTimer = null;
 let ttsAudio = null;
 let ttsBtnActive = null;
+let ttsPrevProvider = null;   // remembers the active TTS provider so switching can save/restore per-provider config
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionRelay","imageModel","imageBaseUrl","memory","autoMemory","roles","activeRoleId","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker",
@@ -3713,6 +3715,11 @@ function syncSettingsToUI() {
   $("ttsVoice").value = settings.ttsVoice || "";
   $("ttsSpeed").value = settings.ttsSpeed || 1;
   $("ttsSpeedVal").textContent = parseFloat(settings.ttsSpeed || 1).toFixed(1);
+  // seed the per-provider backup for the current provider from the (flat) live values,
+  // then remember it so the next switch saves/restores correctly.
+  ttsPrevProvider = settings.ttsProvider || "openai";
+  settings.ttsConfigs = settings.ttsConfigs || {};
+  if (!settings.ttsConfigs[ttsPrevProvider]) saveTtsConfigFromUI(ttsPrevProvider);
   updateTtsProviderUI();
   renderUsage();
   renderRoles();
@@ -3773,6 +3780,36 @@ function deleteProvider() {
   saveSettings();
   syncSettingsToUI();
 }
+// ---------- Per-provider TTS config (so switching service doesn't wipe the other's settings) ----------
+function saveTtsConfigFromUI(provider) {
+  if (!provider) return;
+  settings.ttsConfigs = settings.ttsConfigs || {};
+  settings.ttsConfigs[provider] = {
+    ttsBaseUrl: $("ttsBaseUrl").value.trim(),
+    ttsApiKey: $("ttsApiKey").value.trim(),
+    ttsGroupId: $("ttsGroupId").value.trim(),
+    ttsModel: $("ttsModel").value.trim(),
+    ttsVoice: $("ttsVoice").value.trim(),
+    ttsSpeed: parseFloat($("ttsSpeed").value) || 1,
+  };
+}
+function applyTtsConfigToUI(provider) {
+  const c = (settings.ttsConfigs && settings.ttsConfigs[provider]) || {};
+  $("ttsBaseUrl").value = c.ttsBaseUrl || "";
+  $("ttsApiKey").value = c.ttsApiKey || "";
+  $("ttsGroupId").value = c.ttsGroupId || "";
+  $("ttsModel").value = c.ttsModel || "";
+  $("ttsVoice").value = c.ttsVoice || "";
+  $("ttsSpeed").value = c.ttsSpeed || 1;
+  $("ttsSpeedVal").textContent = parseFloat(c.ttsSpeed || 1).toFixed(1);
+}
+// Called when the TTS-type dropdown changes: stash the old provider's fields, restore the new one's.
+function switchTtsProvider() {
+  if (ttsPrevProvider) saveTtsConfigFromUI(ttsPrevProvider);
+  ttsPrevProvider = $("ttsProvider").value;
+  applyTtsConfigToUI(ttsPrevProvider);
+  readSettingsFromUI();
+}
 function readSettingsFromUI() {
   const ap = activeProvider();
   ap.provider = $("provider").value;
@@ -3812,6 +3849,8 @@ function readSettingsFromUI() {
   settings.ttsModel = $("ttsModel").value.trim();
   settings.ttsVoice = $("ttsVoice").value.trim();
   settings.ttsSpeed = parseFloat($("ttsSpeed").value) || 1;
+  // keep the active provider's per-service backup in sync with what's typed
+  saveTtsConfigFromUI(settings.ttsProvider);
   updateTtsProviderUI();
   saveSettings();
   updateStatusLine();
