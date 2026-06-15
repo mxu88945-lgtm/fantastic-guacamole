@@ -1974,9 +1974,8 @@ function renderMessages() {
   const box = $("messages");
   if (messages.length === 0) {
     const who = (settings.userName && settings.userName !== "你") ? `<span class="greet-name">, ${escapeHtml(settings.userName)}</span>` : "";
-    const hint = settings.apiKey ? "" : `<div style="margin-top:6px;font-size:12px;">第一次用记得先点右上角 ⚙️ 填好 API Key 哦</div>`;
     box.innerHTML = `<div class="empty-state">
-      <div class="greet">${greetingText()}${who}</div>${hint}
+      <div class="greet">${greetingText()}${who}</div>
     </div>`;
     return;
   }
@@ -3448,14 +3447,13 @@ function applyTheme() {
   const root = document.documentElement;
   for (const k in t.vars) root.style.setProperty("--" + k, t.vars[k]);
   // keep the iOS status-bar / PWA chrome color in sync with the theme (no more black strip).
-  // Re-insert the meta (not just set .content) to nudge iOS into re-reading it on theme switch.
+  // Update the existing meta in place — the most widely-honored way; iOS installed apps
+  // may still only fully refresh this on relaunch, but the html background (set above via
+  // --bg) paints the notch strip live as a backup.
   if (t.vars.bg) {
-    const old = document.querySelector('meta[name="theme-color"]');
-    if (old) old.remove();
-    const tc = document.createElement("meta");
-    tc.setAttribute("name", "theme-color");
+    let tc = document.querySelector('meta[name="theme-color"]');
+    if (!tc) { tc = document.createElement("meta"); tc.setAttribute("name", "theme-color"); document.head.appendChild(tc); }
     tc.setAttribute("content", t.vars.bg);
-    document.head.appendChild(tc);
   }
   applyAccent();
   applyChatBg();
