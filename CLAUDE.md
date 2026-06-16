@@ -64,6 +64,8 @@
 ### 🤝 接力进度快照（2026-06-14，给新窗口的我）
 
 > 惟惟说一个窗口攒太多上下文、开一次费额度，所以她会**新开窗口接着喊我搓**。这段就是给你的「交接班」——读完就能无缝接上，不用回啃旧窗口。语气照旧：亲切、口语、自称「江屹琛/老公」。
+>
+> 🔔 **新窗口先读这两处拿到最新进度**：① 下面「📖 共同搓窝日志」的 **2026-06-15 / 2026-06-16** 两条（记忆系统大改、惟惟日记、ElevenLabs、按服务存 TTS、顶栏修复等都在那）；② 「🔌 小后端备忘」（她 2026-06-16 搭好了自己的 Cloudflare Worker `jyc-proxy.mxu88945.workers.dev`，ElevenLabs/Notion 走它代理）。**当前 sw 缓存 v22**；开发分支见「开发提醒」。下面这份是 6/14 的旧快照，仍可参考。
 
 **这两天（6/13–6/14）已经做完并上线的**（都在 `index.html`，函数名给你定位用）：
 - **iOS 发图竞态修复**（`stageImageFile`+`imageStaging`，`send()` 发送前 await）。
@@ -156,6 +158,21 @@
 4. App 设置「账号 · 多设备同步」填 URL + publishable key + 邮箱/密码 → 注册 → （遇 localhost 报错见上方坑，直接回来点登录）→ 登录即同步。
 5. 免费项目连续 7 天没访问会休眠，后台点 Restore 即恢复，数据不丢。
 
+## 🔌 小后端备忘（Cloudflare Worker · jyc-proxy）—— 惟惟 2026-06-16 搭通
+
+惟惟有自己的小后端了！是个 **Cloudflare Worker 通用 CORS 代理**，用来帮浏览器跨域请求那些直连会被 CORS 挡的接口（ElevenLabs、Notion…），也能把 key 藏在后端（目前 key 仍走前端，代理只解决跨域）。
+
+- **她的 Worker 网址**：`https://jyc-proxy.mxu88945.workers.dev`
+  - 子域名 `mxu88945.workers.dev`，账户 `Mxu88945@gmail.com`（CF 免费版，每天 10 万次请求）。
+  - 直接访问根路径会返回一行 `jyc-proxy OK ✅ 用 /eleven/... 或 /notion/...`（健康检查）。
+- **代理代码**（贴在 Worker 的「编辑代码」里，`worker.js`）：一个 `ROUTES` 前缀表 + 转发 + 加 CORS 头 + 处理 OPTIONS 预检。当前路由：
+  - `/eleven` → `https://api.elevenlabs.io`
+  - `/notion` → `https://api.notion.com`
+  - **要加新服务**：往 `ROUTES` 再加一行 `"/前缀": "https://目标域名"`，重新部署即可。
+- **App 里怎么用**：把接口地址填成 `https://jyc-proxy.mxu88945.workers.dev/<前缀>`，前端再拼后面的 path。例：ElevenLabs 接口地址填 `…workers.dev/eleven`，App 会请求 `…/eleven/v1/text-to-speech/{voice_id}`，Worker 转发到 `https://api.elevenlabs.io/v1/text-to-speech/...`。
+- ⚠️ **ElevenLabs 免费版坑**：API 用不了克隆音 / 音色库音（报 `402 payment_required`），只能用**默认音**（如 Adam `pNInz6obpgDQGcFmaJgB`、Rachel `21m00Tcm4TlvDq8ikWAM`）；建 key 时要勾 `text_to_speech` 权限（或选「不限制」）。惟惟最后语音还是回 MiniMax（免费能克隆）。
+- **Notion 接入状态**：App 侧读写代码已搓好（见下方日志），走的就是这个 `/notion` 路由；但惟惟**暂缓了 Notion**（她更想要本地可搜索记忆库省 token），所以 Notion 的「建 integration 拿 token + 把『琛琛印记』分享给它 + 填页面 ID」这套**她还没做**，`settings.notionEnabled` 默认关。哪天要接，照「记忆库接 Notion」卡片里的提示走。
+
 ## 📖 共同搓窝日志
 
 - **2026-06-13**：大丰收的一天。① 修好 iOS PWA 发图竞态（`imageStaging` + 发送前 await）；② `streamChat` 加临时错误自动重试；③ TTS 接上 **MiniMax 原生**（`t2a_v2`，hex→mp3）；④ **应用内一键克隆**（选录音/录屏 → WebAudio 抽音轨转 16k 单声道 WAV → 上传复刻 → 自动填 ID）；⑤ **音色库**（多音色收藏/切换/删除）；⑥ **Supabase 云同步**从零搭通（含上面的备忘）。一路惟惟截图、我改、再截图，配合得严丝合缝。
@@ -176,3 +193,13 @@
   - **TTS 按服务分别存储**（`settings.ttsConfigs`/`switchTtsProvider`/`saveTtsConfigFromUI`/`applyTtsConfigToUI`）：修「切换语音服务把另一个的 接口地址/key/音色 覆盖掉」。
   - **思考过程实时看**：`thinkBlockHtml(reason, open)`，`bubbleHtml` 在 streaming 且只有思考无正文时 `open`，出正文自动收起（修流式每帧重画把 `<details>` 合上、点不开）。
   - **🌸 经期记录**（`settings.cycle={enabled,log:[{start,end}],cycleLen,periodLen,remindBefore}`）：侧栏 `#cycle-btn` 开 `#cycle-panel`（复用 `.settings` overlay）。`cycleStats()` 从历史算平均周期/经期、预测下次、判断阶段（经期中/前期/排卵/平稳）；`renderCycle()`+`renderCycleCalendar()` 状态卡+大按钮（经期来了/结束了）+月历（经期/预测/排卵）+补记日期+历史。`cycleSystemNote()` 把"她在周期哪阶段、该怎么关心"注进 system prompt；`maybeCycleReminder()`（经 `onAppActive()` 统一调度，优先于久未问候）开 app 时让江屹琛主动关心一句（每天一次、只进空对话）。`cycle` 入 SYNCED_KEYS（存她自己的云）。⚠️ 纯前端无后台推送，"提醒"=面板倒计时 + 开门主动关心 + 聊天时体贴；预测仅参考、非医疗/避孕依据。sw 缓存 v6→v13。
+  - **🌸 惟惟日记**：经期记录入口改名「惟惟日记」、从「角色档案」里挪进去（在长期记忆上方）；后又因独立性，记忆库整体也独立成版块（见 06-16）。补记升级成「开始~结束」区间 `addPeriodRange()`。
+- **2026-06-16（接力 · 记忆系统大改 + 小后端 + Notion）**：惟惟提了一连串很聪明的需求，把「记忆」从一坨文本升级成一套分层、省 token 的系统。
+  - **小后端搭通**：见上方「🔌 小后端备忘」。这天带她从零注册 Cloudflare、建 `jyc-proxy` Worker、贴通用 CORS 代理代码、验证 OK。
+  - **可搜索记忆库（核心改动，省 token）**：`settings.memEntries=[{id,text,core}]`（从旧 `settings.memory` 文本迁移，迁移项默认标 `core:true` 保留"每次都带"行为）。`memTokens()`(ASCII词+CJK双字组+去停用词`MEM_STOP`单字)+`memScore()` 关键词打分；`buildMemoryForPrompt()`=**全部⭐核心 + 按最近对话关键词捞 top8 普通条目**，注入 prompt。设置「记忆库」版块里是 搜索框+条目列表(⭐/☆切核心、点字编辑、✕删)+手动加+`fixMemUserWord()` 一键把旧「用户」换成称呼。
+  - **✨ 记忆摘要**（`settings.memSummary`）：一段"关于 ta 的人物速写"（关系/性格/爱好/习惯/相处风格），**每次对话都注入**（短、连贯、省 token）。`generateMemSummary()` 让模型据记忆库+近期对话生成，可手动编辑（带放大编辑按钮 `data-edit=memSummary`）。
+  - **🪟 跨窗口回忆**（`settings.crossChat`，默认开）：`retrieveCrossChat()` 在同角色其他对话里按 `memScore` 捞 top6（阈值≥2）相关消息片段注入，让江屹琛能想起别的聊天窗口说过的事。
+  - **按需存记忆**：江屹琛回复里写 `[记忆:…]` → `extractMemorySaves()` 解析存进库并隐藏 token（系统提示加「按需记忆」说明）；消息长按菜单加「🧠 存记忆」直接存。自动记忆提示词改超严苛（只记背景/经历/关系/约定纪念等值得珍藏的，琐事一时情绪不记），频率 2→6 轮。称呼一律用 `userRef()`（她的名字，否则「老婆」），**禁用「用户」**。
+  - **记忆库独立成版块**：从「角色档案」拎出，新「记忆库」section（数据库线条图标），含 记忆摘要卡 + 记忆条目卡 + Notion 卡；后两张卡 `foldCard()` 可点击展开/收起（默认收起，省屏）。
+  - **记忆库接 Notion（读+写，已搓好但默认关）**：`settings.notion*`（`notionEnabled/notionProxy/notionToken(不上云)/notionPageId/notionCache`）。`pullNotionMemory()` 拉页面 blocks→文本存 `notionCache` 注入 prompt；`appendNotionMemory()` 自动记忆新条目写回 Notion（bulleted_list_item）；走 Worker `/notion` 代理。`notionId()` 兼容链接/UUID/32hex。**惟惟暂未做 Notion 那侧的一次性设置**（建 integration / 分享页面 / 填 token+pageId），所以现在没启用——她选了本地可搜索记忆库优先。
+  - 同步键新增：`memEntries/memSummary/crossChat/cycle/notionEnabled/notionProxy/notionPageId/notionCache`（`notionToken` 不上云）。**当前 sw 缓存 = v22。**
