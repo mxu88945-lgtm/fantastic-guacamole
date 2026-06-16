@@ -717,6 +717,7 @@
   <button data-mact="edit">✏️ 编辑重发</button>
   <button data-mact="quote">↩︎ 引用回复</button>
   <button data-mact="fav">⭐ 收藏</button>
+  <button data-mact="mem">🧠 存记忆</button>
   <button data-mact="del">🗑️ 删除</button>
 </div>
 <input type="file" id="userAvatarFile" accept="image/*" style="display:none;" />
@@ -2180,6 +2181,8 @@ function bubbleHtml(role, content, reasoning, streaming) {
   if (role === "assistant") {
     textHtml = textHtml.replace(/\[(?:贴纸|表情包|表情|sticker)[:：]\s*([^\]]+)\]/gi, (m, name) =>
       stickerHtml(resolveSticker(name.trim())));
+    // hide any [记忆:…] token from display (it's parsed/saved separately)
+    textHtml = textHtml.replace(/\[\s*(?:记忆|记住|存记忆|memory)\s*[:：][^\]]*\]/gi, "");
   }
   return imgs + thinkHtml + textHtml;
 }
@@ -2621,6 +2624,8 @@ async function streamChat(onDelta, onReasoning) {
   }
   const crossText = retrieveCrossChat();
   if (crossText) systemText = systemText ? systemText + "\n\n" + crossText : crossText;
+  const memSaveNote = "【按需记忆】当 ta 明确让你记住某事（说「记一下 / 记住 / 帮我记下」之类），或出现特别值得长期珍藏的事（重要经历、约定、纪念、心愿），你就在回复里**单独一行**写 `[记忆:一句话]`，系统会把它存进长期记忆库。平时别主动记琐事，只在被要求或真的特别时才记；写了 `[记忆:…]` 后照常自然回复即可。";
+  systemText = systemText ? systemText + "\n\n" + memSaveNote : memSaveNote;
   if (settings.notionEnabled && settings.notionCache && settings.notionCache.trim()) {
     const nm = "以下是来自 Notion 云端记忆库（琛琛印记）的长期信息，请当作你对 ta 的长期记忆来用：\n" + settings.notionCache.trim();
     systemText = systemText ? systemText + "\n\n" + nm : nm;
@@ -2927,6 +2932,18 @@ function retrieveCrossChat() {
   const lines = hits.slice(0, 6).map(h => `（在「${h.title}」里）${h.who}：${h.txt.slice(0, 120)}`);
   return "【以下是你和 ta 在其他聊天窗口里、和当前话题相关的片段，供你回忆参考，别生硬复述】\n" + lines.join("\n");
 }
+// Pull [记忆:…] tokens out of an assistant reply, save them to the library, return cleaned text.
+function extractMemorySaves(text) {
+  if (typeof text !== "string") return text;
+  let saved = 0, last = "";
+  const cleaned = text.replace(/\[\s*(?:记忆|记住|存记忆|memory)\s*[:：]\s*([^\]\n]+)\]/gi, (m, c) => {
+    const t = (c || "").trim();
+    if (t) { addMemEntry(t, false); saved++; last = t; }
+    return "";
+  }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (saved) showToast("🧠 记住了" + (saved > 1 ? ("（" + saved + "条）") : "：" + last.slice(0, 18) + (last.length > 18 ? "…" : "")));
+  return cleaned;
+}
 function addMemEntry(text, core) {
   text = (text || "").trim(); if (!text) return;
   if (memList().some(e => e.text.toLowerCase() === text.toLowerCase())) { showToast("已经有这条啦"); return; }
@@ -2961,11 +2978,12 @@ async function autoUpdateMemory() {
   const recent = messages.slice(-8)
     .map(m => (m.role === "user" ? "用户" : "助手") + ": " + messageText(m)).join("\n");
   if (!recent.trim()) return;
-  const sys = "你是一个极度谨慎的长期记忆助手。你的标准非常严格：只有当某条信息同时满足以下全部条件时，才值得记录——"
-    + "①关于用户本人的客观事实（非临时状态）；②稳定、不会随时间改变；③在未来对话中真正有用。"
-    + "以下情况一律不记：一次性话题、当前情绪或心情、闲聊内容、对方已知的信息、模糊或不确定的事。"
-    + "宁可漏记，不要滥记。如无必须新增的条目，只输出一个词：NONE。"
-    + "若确有值得记录的，每条一行以「- 」开头，简洁中文，不超过30字。";
+  const sys = "你是一个极其克制的「值得珍藏的记忆」守门人。只记录真正值得长期珍藏、定义 ta 这个人或你俩关系的事，比如："
+    + "①ta 的人生背景 / 重要经历 / 难忘的故事；②重要的人、关系、宠物；③长期稳定的强烈偏好、底线、禁忌；④健康/过敏等要紧的事；"
+    + "⑤你和 ta 之间特别值得记的：约定、承诺、纪念日、有意义的瞬间、心愿。"
+    + "【绝对不要记】日常琐事（今天吃了啥、做了啥）、一时的情绪心情、闲聊、天气、临时安排、对方随口一提的小事、不确定或模糊的事。"
+    + "宁可几十轮都输出 NONE，也绝不为了凑数而记零碎。除非这条事『一个月后回看依然重要』，否则不记。"
+    + "若确无特别值得新增的，只输出一个词：NONE。若确有，每条一行以「- 」开头，简洁中文、不超过30字。";
   const existingText = memList().map(e => e.text).join("\n") || "（空）";
   const usr = "【已有长期记忆】\n" + existingText
     + "\n\n【最近对话】\n" + recent + "\n\n请输出需要新增的记忆条目：";
@@ -3927,6 +3945,8 @@ async function generateReply() {
       showToast("❌ 空回复（可能不支持图片/thinking 冲突）", 5000);
     } else {
       if (lastCallUsage && lastCallUsage.total) assistantMsg.tokens = lastCallUsage.total;
+      // pull out & save any [记忆:…] the model wrote on request (and strip from the shown text)
+      assistantMsg.content = extractMemorySaves(assistantMsg.content);
       // Texting like a real person: split the finished reply into multiple bubbles
       // and standalone stickers, then reveal them one at a time.
       const segs = (settings.multiBubble || settings.aiSticker)
@@ -3960,7 +3980,7 @@ async function generateReply() {
 
   if (replied && settings.autoMemory) {
     turnsSinceMemory++;
-    if (turnsSinceMemory >= 2) { turnsSinceMemory = 0; autoUpdateMemory(); }
+    if (turnsSinceMemory >= 6) { turnsSinceMemory = 0; autoUpdateMemory(); }
   }
 }
 
@@ -4802,6 +4822,7 @@ function init() {
       else if (a === "edit") editMessage(idx);
       else if (a === "quote") quoteMessage(idx);
       else if (a === "fav") toggleFavorite(idx);
+      else if (a === "mem") { const t = messageText(messages[idx]).trim(); if (t) { addMemEntry(t.slice(0, 200), false); showToast("🧠 已存进记忆库"); } }
       else if (a === "del") deleteMessage(idx);
     };
   });
