@@ -1091,9 +1091,20 @@
           <button class="icon-btn" id="open-cycle-btn" style="margin-top:10px;">🌸 打开惟惟日记</button>
         </div>
 
-        <div class="field" style="grid-column: 1 / -1;">
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>记忆库</div>
+
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <span style="font-weight:600;">长期记忆 · 记忆库</span>
+            <span style="font-weight:600;">✨ 记忆摘要 <span class="hint" style="font-weight:400;">· 关于你的人物速写（每次都带）</span></span>
+            <button class="mini-btn primary" id="mem-sum-gen" style="padding:5px 10px;">让江屹琛总结</button>
+          </label>
+          <span class="hint" style="display:block;margin-top:4px;">一段连贯的总结：你俩的关系、你的性格 / 爱好 / 习惯、你喜欢的相处风格…比一条条记忆更整体，<b>每次对话都带上</b>。可自己写，也可点右上让江屹琛根据记忆库重新总结。</span>
+          <textarea id="memSummary" placeholder="点右上「让江屹琛总结」自动生成，或自己写…" style="margin-top:8px;min-height:90px;" onchange="readSettingsFromUI();"></textarea>
+        </div>
+
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-weight:600;">📒 记忆条目</span>
             <span class="hint" id="mem-count" style="font-weight:400;">0 条</span>
           </label>
           <span class="hint">⭐核心记忆每次都带；其余按你说的话自动捞相关的几条（省 token）。点文字可编辑、点☆设为核心。</span>
@@ -1275,6 +1286,7 @@ let settings = {
   notionCache: "",        // 从 Notion 拉下来的记忆文本（注入 system prompt 用）
   notionCacheAt: 0,       // 上次同步时间戳
   crossChat: true,        // 跨窗口回忆：让模型能按关键词检索其他聊天窗口的相关片段
+  memSummary: "",         // 记忆摘要：一段"关于 ta 的人物速写"，每次对话都注入
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
@@ -1291,7 +1303,7 @@ let ttsAudio = null;
 let ttsBtnActive = null;
 let ttsPrevProvider = null;   // remembers the active TTS provider so switching can save/restore per-provider config
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionRelay","imageModel","imageBaseUrl","memory","memEntries","autoMemory","crossChat","roles","activeRoleId","themeName","accent",
+  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","autoMemory","crossChat","roles","activeRoleId","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
@@ -2617,6 +2629,10 @@ async function streamChat(onDelta, onReasoning) {
   if (styleNote) systemText = systemText ? systemText + "\n\n" + styleNote : styleNote;
   const cycleNote = cycleSystemNote();
   if (cycleNote) systemText = systemText ? systemText + "\n\n" + cycleNote : cycleNote;
+  if (settings.memSummary && settings.memSummary.trim()) {
+    const sum = "【关于 ta 的整体印象（人物速写）】\n" + settings.memSummary.trim();
+    systemText = systemText ? systemText + "\n\n" + sum : sum;
+  }
   const memText = buildMemoryForPrompt();
   if (memText && memText.trim()) {
     const mem = "以下是需要长期记住的信息（用户的长期记忆）：\n" + memText.trim();
@@ -2956,6 +2972,26 @@ function editMemEntry(id) {
   const e = memList().find(x => x.id === id); if (!e) return;
   const v = prompt("编辑这条记忆：", e.text);
   if (v != null && v.trim()) { e.text = v.trim(); saveSettings(); renderMemList(); }
+}
+// Ask the model to synthesize a concise "person sketch" from the memory库 + recent chat.
+async function generateMemSummary() {
+  if (!settings.apiKey) { showToast("请先在设置里填 API Key"); return; }
+  const btn = $("mem-sum-gen"); if (btn) { btn.disabled = true; btn.textContent = "总结中…"; }
+  try {
+    const mem = memList().map(e => "- " + e.text).join("\n") || "（暂无）";
+    const recent = messages.slice(-12).map(m => (m.role === "user" ? "用户" : "TA") + "：" + messageText(m)).join("\n");
+    const sys = "你在为一段亲密的陪伴关系整理一份『关于 ta 的人物速写』。基于记忆库和最近对话，用简洁、温暖的中文写一段总结（150字以内，可用短句分点），涵盖："
+      + "你和 ta 的关系、ta 的性格、爱好、习惯、ta 喜欢的相处/聊天风格、需要留意的点。只写确定且稳定的，不确定就略过。直接给出速写本身，别加多余开场白。";
+    const usr = "【记忆库】\n" + mem + "\n\n【最近对话】\n" + (recent || "（无）") + "\n\n请写出这份人物速写：";
+    const out = await completeOnce(sys, usr, 500);
+    if (out && out.trim()) {
+      settings.memSummary = out.trim();
+      if ($("memSummary")) $("memSummary").value = settings.memSummary;
+      saveSettings();
+      showToast("✨ 记忆摘要已生成，可再手动微调");
+    } else showToast("没生成出内容，再试一次？");
+  } catch (e) { showToast("生成失败：" + (e.message || e)); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = "让江屹琛总结"; } }
 }
 function renderMemList() {
   const box = $("mem-list"); if (!box) return;
@@ -4267,6 +4303,7 @@ function syncSettingsToUI() {
   $("aiGenSticker").checked = !!settings.aiGenSticker;
   $("cycleEnabled").checked = cycleData().enabled !== false;
   $("memory").value = settings.memory;
+  $("memSummary").value = settings.memSummary || "";
   renderMemList();
   renderFavorites();
   $("autoMemory").checked = settings.autoMemory;
@@ -4418,6 +4455,7 @@ function readSettingsFromUI() {
   settings.aiSticker = $("aiSticker").checked;
   settings.aiGenSticker = $("aiGenSticker").checked;
   settings.memory = $("memory").value;
+  settings.memSummary = $("memSummary").value;
   settings.autoMemory = $("autoMemory").checked;
   settings.crossChat = $("crossChat").checked;
   settings.notionEnabled = $("notionEnabled").checked;
@@ -4672,6 +4710,7 @@ function init() {
   $("cycle-close").onclick = closeCyclePanel;
   $("notion-test").onclick = notionTest;
   $("mem-add-btn").onclick = () => { addMemEntry($("mem-add").value); $("mem-add").value = ""; };
+  $("mem-sum-gen").onclick = generateMemSummary;
   $("header-new-btn").onclick = createConversation;
   $("header-more-btn").onclick = (e) => {
     e.stopPropagation();
