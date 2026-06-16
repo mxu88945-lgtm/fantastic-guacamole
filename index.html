@@ -1124,6 +1124,7 @@
               <input id="mem-add" placeholder="加一条记忆，回车也行…" style="flex:1;" onkeydown="if(event.key==='Enter'){addMemEntry(this.value);this.value='';}" />
               <button class="icon-btn" id="mem-add-btn">＋ 加</button>
             </div>
+            <button class="icon-btn" style="margin-top:8px;font-size:12px;" onclick="fixMemUserWord()">🔁 把已存记忆里的「用户」改成我的称呼</button>
             <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:10px;cursor:pointer;">
               <input type="checkbox" id="autoMemory" style="width:auto;" />
               ✨ 自动记忆：聊天时自动把值得记住的事补进记忆库（新记的默认是普通条目，按需取用）
@@ -2648,7 +2649,7 @@ async function streamChat(onDelta, onReasoning) {
   }
   const memText = buildMemoryForPrompt();
   if (memText && memText.trim()) {
-    const mem = "以下是需要长期记住的信息（用户的长期记忆）：\n" + memText.trim();
+    const mem = "以下是需要长期记住的、关于「" + userRef() + "」的信息：\n" + memText.trim();
     systemText = systemText ? systemText + "\n\n" + mem : mem;
   }
   const crossText = retrieveCrossChat();
@@ -3013,6 +3014,18 @@ function foldCard(id, btn) {
   b.style.display = open ? "" : "none";
   if (btn) btn.textContent = open ? "▾" : "▸";
 }
+// How to refer to her in memories — her set name, else 老婆 (never the cold "用户").
+function userRef() {
+  const n = (settings.userName || "").trim();
+  return (n && n !== "你") ? n : "老婆";
+}
+// One-tap cleanup: replace the cold "用户" in existing memory entries with her name.
+function fixMemUserWord() {
+  const name = userRef(); let n = 0;
+  memList().forEach(e => { if (e.text.includes("用户")) { e.text = e.text.replace(/用户/g, name); n++; } });
+  if (n) { saveSettings(); renderMemList(); showToast("改好啦：" + n + " 条「用户」→「" + name + "」"); }
+  else showToast("没有「用户」字样啦～");
+}
 function renderMemList() {
   const box = $("mem-list"); if (!box) return;
   const q = ($("mem-search") && $("mem-search").value || "").trim().toLowerCase();
@@ -3031,15 +3044,17 @@ function renderMemList() {
 }
 async function autoUpdateMemory() {
   if (!settings.autoMemory || !settings.apiKey) return;
+  const uname = userRef();
   const recent = messages.slice(-8)
-    .map(m => (m.role === "user" ? "用户" : "助手") + ": " + messageText(m)).join("\n");
+    .map(m => (m.role === "user" ? uname : (settings.aiName || "江屹琛")) + ": " + messageText(m)).join("\n");
   if (!recent.trim()) return;
   const sys = "你是一个极其克制的「值得珍藏的记忆」守门人。只记录真正值得长期珍藏、定义 ta 这个人或你俩关系的事，比如："
     + "①ta 的人生背景 / 重要经历 / 难忘的故事；②重要的人、关系、宠物；③长期稳定的强烈偏好、底线、禁忌；④健康/过敏等要紧的事；"
     + "⑤你和 ta 之间特别值得记的：约定、承诺、纪念日、有意义的瞬间、心愿。"
     + "【绝对不要记】日常琐事（今天吃了啥、做了啥）、一时的情绪心情、闲聊、天气、临时安排、对方随口一提的小事、不确定或模糊的事。"
     + "宁可几十轮都输出 NONE，也绝不为了凑数而记零碎。除非这条事『一个月后回看依然重要』，否则不记。"
-    + "若确无特别值得新增的，只输出一个词：NONE。若确有，每条一行以「- 」开头，简洁中文、不超过30字。";
+    + "若确无特别值得新增的，只输出一个词：NONE。若确有，每条一行以「- 」开头，简洁中文、不超过30字。"
+    + "称呼 ta 一律用「" + uname + "」，绝对不要写「用户」二字。";
   const existingText = memList().map(e => e.text).join("\n") || "（空）";
   const usr = "【已有长期记忆】\n" + existingText
     + "\n\n【最近对话】\n" + recent + "\n\n请输出需要新增的记忆条目：";
