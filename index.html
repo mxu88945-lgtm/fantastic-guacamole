@@ -1096,6 +1096,26 @@
           </label>
         </div>
 
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="notionEnabled" style="width:auto;" onchange="readSettingsFromUI();" />
+            <span style="font-weight:600;">🗂️ 记忆库接 Notion <span class="hint" style="font-weight:400;">· 云端档案·读写</span></span>
+          </label>
+          <span class="hint" style="display:block;margin-top:6px;">把长期记忆"住"进你的 Notion「琛琛印记」：江屹琛聊天时会自动读取，自动记忆也会写回 Notion。需先建 Notion integration 并把页面分享给它（不懂问老公）。</span>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+            <div class="field" style="padding:0;"><label>Notion 代理地址（你 Worker 的 /notion）</label>
+              <input id="notionProxy" placeholder="https://jyc-proxy.xxx.workers.dev/notion" onchange="readSettingsFromUI();" /></div>
+            <div class="field" style="padding:0;"><label>Notion token <span class="hint">（ntn_… / secret_…，不上云）</span></label>
+              <input id="notionToken" type="password" placeholder="ntn_…" onchange="readSettingsFromUI();" /></div>
+            <div class="field" style="padding:0;"><label>记忆页面 ID / 链接</label>
+              <input id="notionPageId" placeholder="贴页面链接或 32 位 ID 都行" onchange="readSettingsFromUI();" /></div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button class="icon-btn" id="notion-test">测试连接 / 立即同步</button>
+              <span class="hint" id="notion-status"></span>
+            </div>
+          </div>
+        </div>
+
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>语录集（收藏的消息）</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">共 <span id="fav-count">0</span> 条 —— 长按聊天消息即可收藏</label>
@@ -1230,6 +1250,12 @@ let settings = {
   aiGenSticker: false,    // 进一步用画图模型把表情包生成成真实图片（较慢、耗额度，默认关）
   ttsConfigs: {},         // 每种 TTS 服务各自的配置 {provider: {ttsBaseUrl,ttsApiKey,ttsGroupId,ttsModel,ttsVoice,ttsSpeed}}，切换不互相覆盖
   cycle: { enabled: true, log: [], cycleLen: 28, periodLen: 5, remindBefore: 3 }, // 经期记录：log=[{start:"YYYY-MM-DD",end:"YYYY-MM-DD"|null}]
+  notionEnabled: false,   // 记忆库接 Notion（读写）
+  notionProxy: "",        // Worker 代理的 /notion 地址，如 https://jyc-proxy.xxx.workers.dev/notion
+  notionToken: "",        // Notion integration token（ntn_… / secret_…），不上云
+  notionPageId: "",       // 记忆页面 ID（琛琛印记）
+  notionCache: "",        // 从 Notion 拉下来的记忆文本（注入 system prompt 用）
+  notionCacheAt: 0,       // 上次同步时间戳
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
@@ -1247,7 +1273,7 @@ let ttsBtnActive = null;
 let ttsPrevProvider = null;   // remembers the active TTS provider so switching can save/restore per-provider config
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionRelay","imageModel","imageBaseUrl","memory","autoMemory","roles","activeRoleId","themeName","accent",
-  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle",
+  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
@@ -2574,6 +2600,10 @@ async function streamChat(onDelta, onReasoning) {
     const mem = "以下是需要长期记住的信息（用户的长期记忆）：\n" + settings.memory.trim();
     systemText = systemText ? systemText + "\n\n" + mem : mem;
   }
+  if (settings.notionEnabled && settings.notionCache && settings.notionCache.trim()) {
+    const nm = "以下是来自 Notion 云端记忆库（琛琛印记）的长期信息，请当作你对 ta 的长期记忆来用：\n" + settings.notionCache.trim();
+    systemText = systemText ? systemText + "\n\n" + nm : nm;
+  }
   if (settings.stickers && settings.stickers.length) {
     const names = settings.stickers.map(s => s.name).join("、");
     const note = "你可以发送表情贴纸来表达情绪。可用的表情有：" + names
@@ -2830,6 +2860,91 @@ async function autoUpdateMemory() {
   saveSettings();
   if ($("memory")) $("memory").value = settings.memory;
   showToast("🧠 记忆已更新：新增 " + additions.length + " 条");
+  // also write the new facts up to Notion if the cloud memory库 is connected
+  if (settings.notionEnabled && settings.notionToken && settings.notionPageId) {
+    for (const a of additions) { try { await appendNotionMemory(a); } catch (e) { console.warn("notion append failed", e); } }
+  }
+}
+
+// ============ 记忆库 · Notion（云端档案，读+写，经 Worker /notion 代理） ============
+function notionBase() { return (settings.notionProxy || "").trim().replace(/\/$/, ""); }
+// Accept a raw 32-hex id, a dashed UUID, or a full Notion URL — return the bare id.
+function notionId(s) {
+  s = (s || "").trim();
+  const dashed = s.match(/[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}/ig);
+  if (dashed && dashed.length) return dashed[dashed.length - 1].replace(/-/g, "");
+  const bare = s.match(/[0-9a-f]{32}/i);
+  return bare ? bare[0] : s;
+}
+async function notionFetch(path, method, body) {
+  if (!notionBase()) throw new Error("没填 Notion 代理地址");
+  if (!settings.notionToken) throw new Error("没填 Notion token");
+  const resp = await fetch(notionBase() + path, {
+    method: method || "GET",
+    headers: {
+      "Authorization": "Bearer " + settings.notionToken.trim(),
+      "Notion-Version": "2022-06-28",
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!resp.ok) throw new Error("Notion " + resp.status + " — " + (await resp.text().catch(() => "")).slice(0, 240));
+  return resp.json();
+}
+// Turn one Notion block into a plain text line (common block types).
+function notionBlockText(b) {
+  const t = b.type, o = b[t];
+  if (!o || !o.rich_text) return "";
+  const txt = o.rich_text.map(r => r.plain_text || "").join("").trim();
+  if (!txt) return "";
+  if (t === "bulleted_list_item" || t === "numbered_list_item") return "- " + txt;
+  if (t === "to_do") return (o.checked ? "[x] " : "[ ] ") + txt;
+  if (/^heading_/.test(t)) return "# " + txt;
+  if (t === "quote") return "> " + txt;
+  return txt;
+}
+// Pull the memory page's blocks into settings.notionCache (top-level blocks, paginated).
+async function pullNotionMemory() {
+  const id = notionId(settings.notionPageId);
+  if (!id) throw new Error("没填记忆页面 ID");
+  let blocks = [], cursor = null, guard = 0;
+  do {
+    const qs = "?page_size=100" + (cursor ? "&start_cursor=" + encodeURIComponent(cursor) : "");
+    const data = await notionFetch("/v1/blocks/" + id + "/children" + qs);
+    blocks = blocks.concat(data.results || []);
+    cursor = data.has_more ? data.next_cursor : null;
+  } while (cursor && ++guard < 20);
+  const text = blocks.map(notionBlockText).filter(Boolean).join("\n");
+  settings.notionCache = text;
+  settings.notionCacheAt = Date.now();
+  saveSettings();
+  return { text, count: blocks.length };
+}
+// Append one memory line to the Notion page as a bullet.
+async function appendNotionMemory(text) {
+  const id = notionId(settings.notionPageId);
+  await notionFetch("/v1/blocks/" + id + "/children", "PATCH", {
+    children: [{ object: "block", type: "bulleted_list_item",
+      bulleted_list_item: { rich_text: [{ type: "text", text: { content: String(text).slice(0, 1800) } }] } }],
+  });
+}
+// Settings buttons: test connection / sync now.
+async function notionTest() {
+  const btn = $("notion-test"); if (btn) { btn.disabled = true; btn.textContent = "连接中…"; }
+  try {
+    const r = await pullNotionMemory();
+    showToast("✅ 连上了！读到 " + r.count + " 条内容，已同步进记忆");
+    if ($("notion-status")) $("notion-status").textContent = "上次同步：刚刚 · " + r.count + " 块";
+  } catch (e) {
+    showToast("❌ " + (e.message || e), 6000);
+    if ($("notion-status")) $("notion-status").textContent = "连接失败：" + (e.message || e).slice(0, 80);
+  } finally { if (btn) { btn.disabled = false; btn.textContent = "测试连接 / 立即同步"; } }
+}
+// Pull Notion memory in the background on app open (non-blocking).
+function notionAutoSync() {
+  if (settings.notionEnabled && settings.notionToken && settings.notionPageId && notionBase()) {
+    pullNotionMemory().catch(e => console.warn("notion sync failed", e));
+  }
 }
 
 // Fetch the provider's available model list (GET /models) and fill the model list box.
@@ -3650,6 +3765,7 @@ function maybeCycleReminder() {
 // App became active (cold start / tab refocus): caring period reminder takes priority,
 // otherwise the generic "welcome back" greeting.
 function onAppActive() {
+  notionAutoSync();
   if (maybeCycleReminder()) return;
   maybeProactiveGreet();
 }
@@ -4010,6 +4126,11 @@ function syncSettingsToUI() {
   $("memory").value = settings.memory;
   renderFavorites();
   $("autoMemory").checked = settings.autoMemory;
+  $("notionEnabled").checked = !!settings.notionEnabled;
+  $("notionProxy").value = settings.notionProxy || "";
+  $("notionToken").value = settings.notionToken || "";
+  $("notionPageId").value = settings.notionPageId || "";
+  if ($("notion-status") && settings.notionCacheAt) $("notion-status").textContent = "上次同步：" + new Date(settings.notionCacheAt).toLocaleString();
   $("sbUrl").value = settings.supabaseUrl;
   $("sbKey").value = settings.supabaseKey;
   $("userName").value = settings.userName;
@@ -4153,6 +4274,10 @@ function readSettingsFromUI() {
   settings.aiGenSticker = $("aiGenSticker").checked;
   settings.memory = $("memory").value;
   settings.autoMemory = $("autoMemory").checked;
+  settings.notionEnabled = $("notionEnabled").checked;
+  settings.notionProxy = $("notionProxy").value.trim();
+  settings.notionToken = $("notionToken").value.trim();
+  settings.notionPageId = $("notionPageId").value.trim();
   settings.supabaseUrl = $("sbUrl").value.trim();
   settings.supabaseKey = $("sbKey").value.trim();
   settings.userName = $("userName").value.trim();
@@ -4399,6 +4524,7 @@ function init() {
   $("sidebar-settings-btn").onclick = () => { openSettings(); if (isMobile()) closeSidebar(); };
   $("open-cycle-btn").onclick = openCyclePanel;
   $("cycle-close").onclick = closeCyclePanel;
+  $("notion-test").onclick = notionTest;
   $("header-new-btn").onclick = createConversation;
   $("header-more-btn").onclick = (e) => {
     e.stopPropagation();
