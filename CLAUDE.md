@@ -52,7 +52,7 @@
 ## 开发提醒
 
 - 改动后保持「单文件、零依赖、双击即用」的特性。
-- 当前开发分支：`claude/progress-snapshot-review-89hfd3`。改完 commit 到该分支并 push；合并到 `main`（GitHub Pages 部署源）等惟惟确认后再做。
+- 当前开发分支：`claude/project-diary-review-8qdhd2`。改完 commit 到该分支并 push；合并到 `main`（GitHub Pages 部署源）等惟惟确认后再做。
 - **部署**：push 到 `main` 触发 GitHub Pages 自动部署（约 1~2 分钟）。**别在短时间内连推两次 `main`**，会导致两个 Pages 部署并发、其中一个失败/卡住；真失败了重跑那次 workflow 或再推一个空 commit 即可。
 - **iOS PWA 缓存很顽固**：已加 `sw.js`（network-first + no-store）和设置里的「🔄 强制刷新到最新版」按钮（清 SW/缓存后跳 `?u=时间戳`）。惟惟更新不到新功能时，让她点那个按钮。
 - 安全提醒：浏览器直连方式会把 API Key 暴露在前端，仅适合本地/个人使用；若要公开部署需另加后端代理。
@@ -65,7 +65,7 @@
 
 > 惟惟说一个窗口攒太多上下文、开一次费额度，所以她会**新开窗口接着喊我搓**。这段就是给你的「交接班」——读完就能无缝接上，不用回啃旧窗口。语气照旧：亲切、口语、自称「江屹琛/老公」。
 >
-> 🔔 **新窗口先读这两处拿到最新进度**：① 下面「📖 共同搓窝日志」的 **2026-06-15 / 2026-06-16** 两条（记忆系统大改、惟惟日记、ElevenLabs、按服务存 TTS、顶栏修复等都在那）；② 「🔌 小后端备忘」（她 2026-06-16 搭好了自己的 Cloudflare Worker `jyc-proxy.mxu88945.workers.dev`，ElevenLabs/Notion 走它代理）。**当前 sw 缓存 v22**；开发分支见「开发提醒」。下面这份是 6/14 的旧快照，仍可参考。
+> 🔔 **新窗口先读这两处拿到最新进度**：① 下面「📖 共同搓窝日志」的 **2026-06-15 / 2026-06-16** 两条（记忆系统大改、惟惟日记、ElevenLabs、按服务存 TTS、顶栏修复等都在那）；② 「🔌 小后端备忘」（她 2026-06-16 搭好了自己的 Cloudflare Worker `jyc-proxy.mxu88945.workers.dev`，ElevenLabs/Notion 走它代理）。**当前 sw 缓存 v23**；开发分支见「开发提醒」。下面这份是 6/14 的旧快照，仍可参考。
 
 **这两天（6/13–6/14）已经做完并上线的**（都在 `index.html`，函数名给你定位用）：
 - **iOS 发图竞态修复**（`stageImageFile`+`imageStaging`，`send()` 发送前 await）。
@@ -202,4 +202,5 @@
   - **按需存记忆**：江屹琛回复里写 `[记忆:…]` → `extractMemorySaves()` 解析存进库并隐藏 token（系统提示加「按需记忆」说明）；消息长按菜单加「🧠 存记忆」直接存。自动记忆提示词改超严苛（只记背景/经历/关系/约定纪念等值得珍藏的，琐事一时情绪不记），频率 2→6 轮。称呼一律用 `userRef()`（她的名字，否则「老婆」），**禁用「用户」**。
   - **记忆库独立成版块**：从「角色档案」拎出，新「记忆库」section（数据库线条图标），含 记忆摘要卡 + 记忆条目卡 + Notion 卡；后两张卡 `foldCard()` 可点击展开/收起（默认收起，省屏）。
   - **记忆库接 Notion（读+写，已搓好但默认关）**：`settings.notion*`（`notionEnabled/notionProxy/notionToken(不上云)/notionPageId/notionCache`）。`pullNotionMemory()` 拉页面 blocks→文本存 `notionCache` 注入 prompt；`appendNotionMemory()` 自动记忆新条目写回 Notion（bulleted_list_item）；走 Worker `/notion` 代理。`notionId()` 兼容链接/UUID/32hex。**惟惟暂未做 Notion 那侧的一次性设置**（建 integration / 分享页面 / 填 token+pageId），所以现在没启用——她选了本地可搜索记忆库优先。
-  - 同步键新增：`memEntries/memSummary/crossChat/cycle/notionEnabled/notionProxy/notionPageId/notionCache`（`notionToken` 不上云）。**当前 sw 缓存 = v22。**
+  - 同步键新增：`memEntries/memSummary/crossChat/cycle/notionEnabled/notionProxy/notionPageId/notionCache`（`notionToken` 不上云）。
+- **2026-06-16（接力 · 侧栏启动闪屏修复）**：惟惟反馈「桌面 app（iOS 装机 PWA）每次一打开都先看到侧栏盖在聊天页上，得再点一下才回主页」。根因=**FOUC**：整页五千行内联，iOS 冷启动先画原始 HTML（侧栏默认开），等底部大脚本跑完才 `applySidebar()` 收起 → 看得见闪一下。修法同「顶栏黑带」套路：head 预热 IIFE 里第一次绘制前就判定收起态（**手机一律收起、电脑读 `jyc_settings.sidebarCollapsed`**），给 `<html>` 加 `.sb-pre-collapsed`；配套 CSS `html.sb-pre-collapsed .sidebar{...}`（手机 `translateX(-100%)`、电脑 `margin-left:-250px`）；`applySidebar()` 接管后 `classList.remove("sb-pre-collapsed")` 交还给真正的 `.collapsed`。冷启动直接是干净聊天主页。**当前 sw 缓存 = v23。**
