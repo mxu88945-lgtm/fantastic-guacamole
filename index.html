@@ -25,6 +25,18 @@
       var m = document.querySelector('meta[name="theme-color"]');
       if (m) m.setAttribute("content", bg);
     }
+    /* Pre-paint sidebar state: this page is one big inline file, so iOS standalone
+       PWAs paint the raw HTML (sidebar open) before the bottom script runs and
+       tucks it away — the user sees the sidebar flash over the chat on every launch.
+       Decide the collapsed state here (phones always collapsed; desktop honours the
+       saved setting) so the FIRST paint already shows a clean chat. init() clears
+       this class once applySidebar() takes over. */
+    var preCollapsed = window.innerWidth <= 720;
+    if (!preCollapsed) {
+      var s = JSON.parse(localStorage.getItem("jyc_settings") || "{}");
+      preCollapsed = !!s.sidebarCollapsed;
+    }
+    if (preCollapsed) document.documentElement.classList.add("sb-pre-collapsed");
   } catch (e) {}
 })();
 </script>
@@ -99,6 +111,8 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
   .sidebar.collapsed { margin-left: -250px; }
+  /* Pre-paint collapse (set in <head> before JS runs) — kills the sidebar flash on launch. */
+  html.sb-pre-collapsed .sidebar { margin-left: -250px; }
   .sidebar .brand {
     display: flex; align-items: center; gap: 10px;
     padding: 12px 10px 12px 16px; border-bottom: 1px solid var(--border);
@@ -687,6 +701,7 @@
       box-shadow: 4px 0 24px rgba(0,0,0,.4);
     }
     .sidebar.collapsed { margin-left: 0; transform: translateX(-100%); }
+    html.sb-pre-collapsed .sidebar { margin-left: 0; transform: translateX(-100%); }
     .backdrop.show { display: block; }
     header h1 { font-size: 14px; }
     .model-quick { max-width: 120px; }
@@ -4702,6 +4717,8 @@ function applySidebar() {
   const collapsed = settings.sidebarCollapsed;
   $("sidebar").classList.toggle("collapsed", collapsed);
   $("backdrop").classList.toggle("show", isMobile() && !collapsed);
+  // hand off from the pre-paint collapse to the real (.collapsed) state
+  document.documentElement.classList.remove("sb-pre-collapsed");
 }
 function toggleSidebar() {
   settings.sidebarCollapsed = !settings.sidebarCollapsed;
