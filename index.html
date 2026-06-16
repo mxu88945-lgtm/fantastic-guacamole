@@ -1107,6 +1107,10 @@
             <input type="checkbox" id="autoMemory" style="width:auto;" />
             ✨ 自动记忆：聊天时自动把值得记住的事补进记忆库（新记的默认是普通条目，按需取用）
           </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:8px;cursor:pointer;">
+            <input type="checkbox" id="crossChat" style="width:auto;" onchange="readSettingsFromUI();" />
+            🪟 跨窗口回忆：聊到相关话题时，自动想起你在<b>其他聊天窗口</b>里说过的事（按需检索、限量，省 token）
+          </label>
         </div>
 
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
@@ -1269,6 +1273,7 @@ let settings = {
   notionPageId: "",       // 记忆页面 ID（琛琛印记）
   notionCache: "",        // 从 Notion 拉下来的记忆文本（注入 system prompt 用）
   notionCacheAt: 0,       // 上次同步时间戳
+  crossChat: true,        // 跨窗口回忆：让模型能按关键词检索其他聊天窗口的相关片段
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
@@ -1285,7 +1290,7 @@ let ttsAudio = null;
 let ttsBtnActive = null;
 let ttsPrevProvider = null;   // remembers the active TTS provider so switching can save/restore per-provider config
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionRelay","imageModel","imageBaseUrl","memory","memEntries","autoMemory","roles","activeRoleId","themeName","accent",
+  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionRelay","imageModel","imageBaseUrl","memory","memEntries","autoMemory","crossChat","roles","activeRoleId","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
@@ -2614,6 +2619,8 @@ async function streamChat(onDelta, onReasoning) {
     const mem = "以下是需要长期记住的信息（用户的长期记忆）：\n" + memText.trim();
     systemText = systemText ? systemText + "\n\n" + mem : mem;
   }
+  const crossText = retrieveCrossChat();
+  if (crossText) systemText = systemText ? systemText + "\n\n" + crossText : crossText;
   if (settings.notionEnabled && settings.notionCache && settings.notionCache.trim()) {
     const nm = "以下是来自 Notion 云端记忆库（琛琛印记）的长期信息，请当作你对 ta 的长期记忆来用：\n" + settings.notionCache.trim();
     systemText = systemText ? systemText + "\n\n" + nm : nm;
@@ -2896,6 +2903,29 @@ function buildMemoryForPrompt() {
     chosen = chosen.concat(scored);
   }
   return chosen.map(e => "- " + e.text.replace(/^[-*]\s*/, "")).join("\n");
+}
+// 跨窗口回忆：在「其他聊天窗口」里按关键词捞与当前话题相关的片段，注入 prompt（按需、限量、省 token）。
+function retrieveCrossChat() {
+  if (!settings.crossChat) return "";
+  const convs = (typeof roleConvs === "function" ? roleConvs() : conversations) || [];
+  const cur = currentConv() || {};
+  const recent = messages.slice(-3).map(m => messageText(m)).join("  ");
+  const q = memTokens(recent);
+  if (!q.size) return "";
+  const hits = [];
+  for (const c of convs) {
+    if (!c || c.id === cur.id || !Array.isArray(c.messages)) continue;
+    for (const m of c.messages) {
+      const txt = messageText(m);
+      if (!txt || txt.length < 4) continue;
+      const s = memScore(q, txt);
+      if (s >= 2) hits.push({ s, who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "江屹琛"), title: c.title || "对话", txt });
+    }
+  }
+  if (!hits.length) return "";
+  hits.sort((a, b) => b.s - a.s);
+  const lines = hits.slice(0, 6).map(h => `（在「${h.title}」里）${h.who}：${h.txt.slice(0, 120)}`);
+  return "【以下是你和 ta 在其他聊天窗口里、和当前话题相关的片段，供你回忆参考，别生硬复述】\n" + lines.join("\n");
 }
 function addMemEntry(text, core) {
   text = (text || "").trim(); if (!text) return;
@@ -4220,6 +4250,7 @@ function syncSettingsToUI() {
   renderMemList();
   renderFavorites();
   $("autoMemory").checked = settings.autoMemory;
+  $("crossChat").checked = settings.crossChat !== false;
   $("notionEnabled").checked = !!settings.notionEnabled;
   $("notionProxy").value = settings.notionProxy || "";
   $("notionToken").value = settings.notionToken || "";
@@ -4368,6 +4399,7 @@ function readSettingsFromUI() {
   settings.aiGenSticker = $("aiGenSticker").checked;
   settings.memory = $("memory").value;
   settings.autoMemory = $("autoMemory").checked;
+  settings.crossChat = $("crossChat").checked;
   settings.notionEnabled = $("notionEnabled").checked;
   settings.notionProxy = $("notionProxy").value.trim();
   settings.notionToken = $("notionToken").value.trim();
