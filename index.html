@@ -3544,8 +3544,10 @@ function importBackup(file) {
 
 // ---------- Message long-press menu + favorites ----------
 let menuTargetIdx = null;
+let menuOpenedAt = 0;   // guards against iOS firing a synthetic click right after long-press (would insta-close the menu)
 function openMsgMenu(x, y, idx) {
   menuTargetIdx = idx;
+  menuOpenedAt = Date.now();
   const m = messages[idx];
   const favBtn = $("msg-menu").querySelector('[data-mact="fav"]');
   const isFav = m && m.id && settings.favorites.some(f => f.id === m.id);
@@ -4946,7 +4948,10 @@ function init() {
       else if (a === "del") deleteMessage(idx);
     };
   });
-  document.addEventListener("click", (e) => { if (!$("msg-menu").contains(e.target)) closeMsgMenu(); });
+  document.addEventListener("click", (e) => {
+    if (Date.now() - menuOpenedAt < 300) return;   // ignore the synthetic click iOS fires right after a long-press
+    if (!$("msg-menu").contains(e.target)) closeMsgMenu();
+  });
   renderFavorites();
 
   // Chat background image + frosted-glass blur
