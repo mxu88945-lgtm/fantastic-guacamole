@@ -732,6 +732,7 @@
 <div id="msg-menu">
   <button data-mact="copy">📋 复制</button>
   <button data-mact="edit">✏️ 编辑重发</button>
+  <button data-mact="edittext">✏️ 改文字</button>
   <button data-mact="quote">↩︎ 引用回复</button>
   <button data-mact="fav">⭐ 收藏</button>
   <button data-mact="mem">🧠 存记忆</button>
@@ -3549,8 +3550,9 @@ function openMsgMenu(x, y, idx) {
   const favBtn = $("msg-menu").querySelector('[data-mact="fav"]');
   const isFav = m && m.id && settings.favorites.some(f => f.id === m.id);
   favBtn.textContent = isFav ? "⭐ 取消收藏" : "⭐ 收藏";
-  // edit/resend only makes sense for your own messages
+  // edit/resend only makes sense for your own messages; in-place "改文字" for his replies
   $("msg-menu").querySelector('[data-mact="edit"]').style.display = (m && m.role === "user") ? "" : "none";
+  $("msg-menu").querySelector('[data-mact="edittext"]').style.display = (m && m.role === "assistant") ? "" : "none";
   const menu = $("msg-menu");
   menu.classList.add("show");
   // clamp within viewport
@@ -3598,6 +3600,27 @@ function deleteMessage(idx) {
   if (!confirm("删除这条消息？")) return;
   messages.splice(idx, 1);
   saveConversations(); renderMessages();
+}
+// Replace a message's text in place, keeping any image/sticker attachments.
+function setMessageText(m, txt) {
+  if (Array.isArray(m.content)) {
+    const ti = m.content.findIndex(p => p.type === "text");
+    if (ti >= 0) m.content[ti].text = txt;
+    else m.content.unshift({ type: "text", text: txt });
+  } else {
+    m.content = txt;
+  }
+}
+// In-place edit of a message's text (e.g. fix 江屹琛's pronoun slips) — no resend, just fix the wording.
+function editMessageText(idx) {
+  const m = messages[idx];
+  if (!m) return;
+  editorMsgIdx = idx;
+  editorTargetId = null;
+  $("editor-title").textContent = "✏️ 改文字";
+  $("editor-textarea").value = messageText(m);
+  $("editor-modal").classList.add("show");
+  setTimeout(() => $("editor-textarea").focus(), 80);
 }
 
 function renderFavorites() {
@@ -4645,6 +4668,7 @@ function setupAccordion() {
 
 // ---------- Big pop-out editor (system prompt / memory) ----------
 let editorTargetId = null;
+let editorMsgIdx = null;   // when set, the big editor is editing a chat message's text in place
 function openBigEditor(targetId, title) {
   editorTargetId = targetId;
   $("editor-title").textContent = title || "编辑";
@@ -4653,13 +4677,17 @@ function openBigEditor(targetId, title) {
   setTimeout(() => $("editor-textarea").focus(), 80);
 }
 function closeBigEditor() {
-  if (editorTargetId) {
+  if (editorMsgIdx != null && messages[editorMsgIdx]) {
+    setMessageText(messages[editorMsgIdx], $("editor-textarea").value);
+    saveConversations(); renderMessages();
+  } else if (editorTargetId) {
     const t = $(editorTargetId);
     t.value = $("editor-textarea").value;
     t.dispatchEvent(new Event("change"));   // persist via the field's change handler
   }
   $("editor-modal").classList.remove("show");
   editorTargetId = null;
+  editorMsgIdx = null;
 }
 
 // ---------- Privacy lock ----------
@@ -4911,6 +4939,7 @@ function init() {
       const a = btn.dataset.mact;
       if (a === "copy") { navigator.clipboard.writeText(messageText(messages[idx])); showToast("已复制"); }
       else if (a === "edit") editMessage(idx);
+      else if (a === "edittext") editMessageText(idx);
       else if (a === "quote") quoteMessage(idx);
       else if (a === "fav") toggleFavorite(idx);
       else if (a === "mem") { const t = messageText(messages[idx]).trim(); if (t) { addMemEntry(t.slice(0, 200), false); showToast("🧠 已存进记忆库"); } }
