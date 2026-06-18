@@ -4264,6 +4264,13 @@ const THEMES = [
     bg:"#fefdf6", "bg-soft":"#fbf6e6", "bg-panel":"#f8f1d8", border:"#ece4c4", text:"#4a4326",
     "text-dim":"#8c8154", accent:"#d8a838", "accent-soft":"#f6edc8", "assistant-bubble":"#ffffff",
     "code-bg":"#f8f1d8", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#f1e8ca" } },
+  // Soft lavender: near-white → gentle pale purple, glass bubbles
+  { key: "lavender", name: "薰衣淡紫", emoji: "🪻", dark: false, glass: true,
+    gradient: "linear-gradient(180deg,#fdfbff 0%,#f4eefc 35%,#eaddf8 68%,#ddc9f3 100%)",
+    vars: {
+    bg:"#fdfbff", "bg-soft":"#f6f0fc", "bg-panel":"#f1e8fa", border:"#e4d6f2", text:"#423a52",
+    "text-dim":"#857a96", accent:"#a978d6", "accent-soft":"#efe3f9", "assistant-bubble":"#ffffff",
+    "code-bg":"#f1e8fa", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#ece0f7" } },
 ];
 function currentTheme() { return THEMES.find(t => t.key === settings.themeName) || THEMES[0]; }
 function applyTheme() {
