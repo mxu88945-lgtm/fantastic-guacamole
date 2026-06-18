@@ -436,20 +436,20 @@
   html[data-glass="1"] .msg.user .bubble {
     border-radius: 20px;
     padding: 11px 15px;
-    background: rgba(255,255,255,.30);
-    border: 1px solid rgba(255,255,255,.55);
-    -webkit-backdrop-filter: blur(14px) saturate(1.6);
-    backdrop-filter: blur(14px) saturate(1.6);
+    background: rgba(255,255,255,.20);
+    border: 1px solid rgba(255,255,255,.5);
+    -webkit-backdrop-filter: blur(16px) saturate(1.7);
+    backdrop-filter: blur(16px) saturate(1.7);
     box-shadow:
-      0 8px 20px rgba(120,60,85,.18),          /* drop shadow → lifts off the page (3D) */
-      inset 0 1px 0 rgba(255,255,255,.7),       /* top inner highlight → glassy sheen */
-      inset 0 -10px 18px rgba(255,255,255,.12);
+      0 8px 20px rgba(120,60,85,.16),          /* drop shadow → lifts off the page (3D) */
+      inset 0 1px 0 rgba(255,255,255,.65),      /* top inner highlight → glassy sheen */
+      inset 0 -10px 18px rgba(255,255,255,.1);
     color: var(--text);
   }
   html[data-glass="1"] .msg.assistant .bubble { width: fit-content; max-width: 100%; }
   html[data-glass="1"] .msg.user .bubble {
     border-top-right-radius: 6px;
-    background: linear-gradient(135deg, rgba(255,255,255,.36), rgba(255,205,222,.32));
+    background: linear-gradient(135deg, rgba(255,255,255,.26), rgba(255,205,222,.22));
   }
   /* keep names/timestamps legible where the metallic gradient goes dark */
   html[data-glass="1"] .msg .name,
@@ -4203,13 +4203,20 @@ const THEMES = [
     bg:"#f5f4ef", "bg-soft":"#faf9f5", "bg-panel":"#eeece4", border:"#e3e0d6", text:"#3d3a34",
     "text-dim":"#8a8678", accent:"#d97757", "accent-soft":"#f0ddd4", "assistant-bubble":"#faf9f5",
     "code-bg":"#efece3", "err-bg":"#fbe9e3", "err-text":"#b3503a", "item-active":"#eae7dd" } },
-  // Metallic rose-gold gradient + translucent 3D glass bubbles (惟惟's 小红书 wallpaper vibe)
+  // Soft rose-gold gradient + translucent 3D glass bubbles (惟惟's 小红书 wallpaper vibe; no harsh highlight band)
   { key: "metalrose", name: "玫瑰金属", emoji: "🌹", dark: false, glass: true,
-    gradient: "linear-gradient(180deg,#f6cdd9 0%,#edb3c4 22%,#a9788a 44%,#835c6a 49%,#ffe6ef 53%,#b3808f 58%,#d8a0b2 76%,#f4cad7 100%)",
+    gradient: "linear-gradient(170deg,#f6cedb 0%,#eeb8c8 32%,#e3a6b9 50%,#eebbca 66%,#f3c6d4 84%,#f7d3df 100%)",
     vars: {
-    bg:"#eab8c8", "bg-soft":"#f7d9e3", "bg-panel":"#f3cdda", border:"#e3a9bd", text:"#4a2630",
+    bg:"#f6cedb", "bg-soft":"#f9dbe5", "bg-panel":"#f3cdda", border:"#e7adbf", text:"#4a2630",
     "text-dim":"#8c5e6c", accent:"#d36b8a", "accent-soft":"#f6d3de", "assistant-bubble":"#ffffff",
     "code-bg":"#f3cdda", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#f0c2d2" } },
+  // Dreamy pastel aurora gradient (lavender-blue → pink → cream → mint), same glass bubbles
+  { key: "aurora", name: "梦幻极光", emoji: "🌈", dark: false, glass: true,
+    gradient: "linear-gradient(180deg,#e7e9ff 0%,#f1e4fb 26%,#fbe0f0 46%,#fdeede 64%,#f3f6df 82%,#e9f7e4 100%)",
+    vars: {
+    bg:"#e7e9ff", "bg-soft":"#f1edfb", "bg-panel":"#ece6f7", border:"#dcd2ec", text:"#3f3a4d",
+    "text-dim":"#807a93", accent:"#c879c4", "accent-soft":"#eddcf3", "assistant-bubble":"#ffffff",
+    "code-bg":"#ece6f7", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#e7ddf3" } },
 ];
 function currentTheme() { return THEMES.find(t => t.key === settings.themeName) || THEMES[0]; }
 function applyTheme() {
