@@ -86,11 +86,11 @@
      background. Without this it falls back to the system canvas (black in Dark Mode),
      showing an ugly black bar above a light theme. Tie it to the theme bg so the strip
      always matches the current theme (applyTheme sets --bg on <html>). */
-  html { height: 100%; background: var(--bg); }
+  html { height: 100%; background: var(--app-gradient, var(--bg)); }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
       "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
-    background: var(--bg);
+    background: var(--app-gradient, var(--bg));
     color: var(--text);
     margin: 0;
     /* Lock the viewport so only the chat list scrolls — keeps the top bar pinned
@@ -429,6 +429,40 @@
     background: color-mix(in srgb, color-mix(in srgb, var(--accent) 16%, var(--assistant-bubble)) var(--bubble-pct, 100%), transparent);
     border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
   }
+
+  /* ✨ Glass mode (e.g. the 玫瑰金属 theme): translucent frosted 3D bubbles on a metallic gradient.
+     Both sides get a glass bubble (the assistant's "no bubble" Claude style is overridden here). */
+  html[data-glass="1"] .msg.assistant .bubble,
+  html[data-glass="1"] .msg.user .bubble {
+    border-radius: 20px;
+    padding: 11px 15px;
+    background: rgba(255,255,255,.30);
+    border: 1px solid rgba(255,255,255,.55);
+    -webkit-backdrop-filter: blur(14px) saturate(1.6);
+    backdrop-filter: blur(14px) saturate(1.6);
+    box-shadow:
+      0 8px 20px rgba(120,60,85,.18),          /* drop shadow → lifts off the page (3D) */
+      inset 0 1px 0 rgba(255,255,255,.7),       /* top inner highlight → glassy sheen */
+      inset 0 -10px 18px rgba(255,255,255,.12);
+    color: var(--text);
+  }
+  html[data-glass="1"] .msg.assistant .bubble { width: fit-content; max-width: 100%; }
+  html[data-glass="1"] .msg.user .bubble {
+    border-top-right-radius: 6px;
+    background: linear-gradient(135deg, rgba(255,255,255,.36), rgba(255,205,222,.32));
+  }
+  /* keep names/timestamps legible where the metallic gradient goes dark */
+  html[data-glass="1"] .msg .name,
+  html[data-glass="1"] .msg .time { text-shadow: 0 1px 2px rgba(255,255,255,.45); }
+  /* glassy composer + frosted sidebar to match */
+  html[data-glass="1"] .composer {
+    background: rgba(255,255,255,.32);
+    border-color: rgba(255,255,255,.55);
+    -webkit-backdrop-filter: blur(14px) saturate(1.5);
+    backdrop-filter: blur(14px) saturate(1.5);
+  }
+  html[data-glass="1"] .sidebar { background: rgba(255,255,255,.45);
+    -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3); }
 
   /* Flat / Tavo-style layout: avatar + name on top, bubble fits its content */
   .msg.flat { flex-direction: column; gap: 6px; align-items: flex-start; }
@@ -4169,6 +4203,13 @@ const THEMES = [
     bg:"#f5f4ef", "bg-soft":"#faf9f5", "bg-panel":"#eeece4", border:"#e3e0d6", text:"#3d3a34",
     "text-dim":"#8a8678", accent:"#d97757", "accent-soft":"#f0ddd4", "assistant-bubble":"#faf9f5",
     "code-bg":"#efece3", "err-bg":"#fbe9e3", "err-text":"#b3503a", "item-active":"#eae7dd" } },
+  // Metallic rose-gold gradient + translucent 3D glass bubbles (惟惟's 小红书 wallpaper vibe)
+  { key: "metalrose", name: "玫瑰金属", emoji: "🌹", dark: false, glass: true,
+    gradient: "linear-gradient(180deg,#f6cdd9 0%,#edb3c4 22%,#a9788a 44%,#835c6a 49%,#ffe6ef 53%,#b3808f 58%,#d8a0b2 76%,#f4cad7 100%)",
+    vars: {
+    bg:"#eab8c8", "bg-soft":"#f7d9e3", "bg-panel":"#f3cdda", border:"#e3a9bd", text:"#4a2630",
+    "text-dim":"#8c5e6c", accent:"#d36b8a", "accent-soft":"#f6d3de", "assistant-bubble":"#ffffff",
+    "code-bg":"#f3cdda", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#f0c2d2" } },
 ];
 function currentTheme() { return THEMES.find(t => t.key === settings.themeName) || THEMES[0]; }
 function applyTheme() {
@@ -4176,6 +4217,10 @@ function applyTheme() {
   document.documentElement.setAttribute("data-theme", t.dark ? "dark" : "light");
   const root = document.documentElement;
   for (const k in t.vars) root.style.setProperty("--" + k, t.vars[k]);
+  // metallic gradient background + translucent glass bubbles (per-theme opt-in)
+  if (t.gradient) root.style.setProperty("--app-gradient", t.gradient);
+  else root.style.removeProperty("--app-gradient");
+  root.setAttribute("data-glass", t.glass ? "1" : "");
   // keep the iOS status-bar / PWA chrome color in sync with the theme (no more black strip).
   // Update the existing meta in place — the most widely-honored way; iOS installed apps
   // may still only fully refresh this on relaunch, but the html background (set above via
@@ -4280,7 +4325,7 @@ function renderThemeCards() {
   for (const t of THEMES) {
     const card = document.createElement("div");
     card.className = "theme-card" + (t.key === settings.themeName ? " active" : "");
-    card.innerHTML = `<div class="preview" style="background:${t.vars.bg}">
+    card.innerHTML = `<div class="preview" style="background:${t.gradient || t.vars.bg}">
         <div class="dot" style="background:${t.vars.accent}"></div></div>
       <div class="tname">${t.emoji} ${t.name}</div>`;
     card.onclick = () => setTheme(t.key);
