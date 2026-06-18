@@ -107,6 +107,14 @@
     position: fixed; inset: 0; height: 100%;
     overflow: hidden; overscroll-behavior: none;
   }
+  /* Fills the bottom home-indicator strip that body (viewport height) can't reach.
+     100vh here = the FULL physical screen height (iOS standalone large viewport),
+     so this layer spans top..physical-bottom; z-index:-1 keeps it behind all content. */
+  #botfill {
+    position: fixed; top: 0; left: 0; right: 0; height: 100vh;
+    z-index: -1; pointer-events: none;
+    background: var(--app-gradient, var(--bg));
+  }
   .app { display: flex; height: 100%; }
 
   /* Sidebar */
@@ -769,31 +777,12 @@
 <!-- status-bar-style is black-translucent: the gradient fills behind the iOS clock/battery (no white strip,
      no relaunch needed). This faint top scrim keeps those white system icons legible on light themes. -->
 <div id="topscrim"></div>
-<!-- TEMP DIAGNOSTIC #2 (bottom white-bar bug): env(safe-area-inset-bottom) reported 0px,
-     so the white strip is OUTSIDE the layout viewport. Test whether a 100dvh-tall fixed
-     layer reaches the physical bottom (covers the white). Remove after diagnosis. -->
-<div id="dvhtest" style="position:fixed;top:0;left:0;right:0;height:100dvh;background:#1e90ff;z-index:0;pointer-events:none;"></div>
-<div id="geomtest" style="position:fixed;bottom:0;left:0;right:0;z-index:99999;pointer-events:none;background:#000;color:#39ff14;font-size:11px;font-weight:700;text-align:center;padding:2px;">geom?</div>
-<script>
-  (function(){
-    try {
-      function px(unit){
-        var p = document.createElement("div");
-        p.style.cssText = "position:fixed;top:0;height:"+unit+";visibility:hidden;";
-        document.body.appendChild(p);
-        var v = Math.round(parseFloat(getComputedStyle(p).height)) || 0;
-        p.remove(); return v;
-      }
-      var l = document.getElementById("geomtest");
-      if (l) l.textContent =
-        "innerH=" + window.innerHeight +
-        " · 100vh=" + px("100vh") +
-        " · 100dvh=" + px("100dvh") +
-        " · 100svh=" + px("100svh") +
-        " · screenH=" + (window.screen && window.screen.height);
-    } catch (e) {}
-  })();
-</script>
+<!-- iOS standalone PWA: the layout viewport (innerHeight/100dvh ≈ 894) is SHORTER than the
+     physical screen (100vh = screenH ≈ 956). body (fixed; inset:0) only covers the viewport,
+     leaving the bottom ~62px (the home-indicator strip) as bare white system canvas.
+     #botfill is a full-physical-height (100vh) fixed layer behind all content that paints the
+     theme color/gradient all the way to the physical bottom — killing the white strip. -->
+<div id="botfill"></div>
 <div class="toast" id="toast"></div>
 <div id="lock-screen">
   <div class="lock-box">
