@@ -87,14 +87,6 @@
      showing an ugly black bar above a light theme. Tie it to the theme bg so the strip
      always matches the current theme (applyTheme sets --bg on <html>). */
   html { height: 100%; background: var(--app-gradient, var(--bg)); }
-  /* Paint the iOS home-indicator safe-area strip (fixed bottom:0 stops at the inset boundary, so this
-     uses a negative bottom to reach the physical bottom edge). Color matches the gradient's bottom. */
-  #botfill {
-    position: fixed; left: 0; right: 0; z-index: -1; pointer-events: none;
-    bottom: calc(-1 * env(safe-area-inset-bottom));
-    height: calc(env(safe-area-inset-bottom) + 2px);
-    background: var(--grad-bottom, var(--bg));
-  }
   /* Subtle scrim behind the (now white) iOS status-bar icons — only visible where there's a notch inset. */
   #topscrim {
     position: fixed; top: 0; left: 0; right: 0; z-index: 9999; pointer-events: none;
@@ -275,7 +267,9 @@
     -webkit-backdrop-filter: blur(20px) saturate(1.15);
   }
   .main > .chat { padding-top: calc(58px + env(safe-area-inset-top)); }
-  .main > .composer-wrap { background: transparent; }
+  /* composer-wrap's padding-box reaches the physical bottom (incl. the home-indicator safe area);
+     fading its background to the gradient's bottom color fills that strip — no white edge, no fixed-position guesswork. */
+  .main > .composer-wrap { background: linear-gradient(to bottom, transparent 0%, var(--grad-bottom, var(--bg)) 62%); }
 
   /* Header */
   header {
@@ -775,7 +769,6 @@
 <!-- status-bar-style is black-translucent: the gradient fills behind the iOS clock/battery (no white strip,
      no relaunch needed). This faint top scrim keeps those white system icons legible on light themes. -->
 <div id="topscrim"></div>
-<div id="botfill"></div>
 <div class="toast" id="toast"></div>
 <div id="lock-screen">
   <div class="lock-box">
