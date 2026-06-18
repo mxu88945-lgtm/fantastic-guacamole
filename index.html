@@ -1205,6 +1205,10 @@
               <input type="checkbox" id="crossChat" style="width:auto;" onchange="readSettingsFromUI();" />
               🪟 跨窗口回忆：聊到相关话题时，自动想起你在<b>其他聊天窗口</b>里说过的事（按需检索、限量，省 token）
             </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:8px;cursor:pointer;">
+              <input type="checkbox" id="crossSearch" style="width:auto;" onchange="readSettingsFromUI();" />
+              🔍 主动翻旧聊天：让江屹琛自己决定去翻所有旧对话找东西（他写 <code>[搜索:关键词]</code>，App 自动翻好再让他接着答；所有模型都支持）
+            </label>
           </div>
         </div>
 
@@ -1374,6 +1378,7 @@ let settings = {
   notionCache: "",        // 从 Notion 拉下来的记忆文本（注入 system prompt 用）
   notionCacheAt: 0,       // 上次同步时间戳
   crossChat: true,        // 跨窗口回忆：让模型能按关键词检索其他聊天窗口的相关片段
+  crossSearch: true,      // 主动搜索：模型写 [搜索:关键词] → App 翻所有旧对话再喂回，让它接着答
   memSummary: "",         // 记忆摘要：一段"关于 ta 的人物速写"，每次对话都注入
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
@@ -1391,13 +1396,14 @@ let ttsAudio = null;
 let ttsBtnActive = null;
 let ttsPrevProvider = null;   // remembers the active TTS provider so switching can save/restore per-provider config
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","autoMemory","crossChat","roles","activeRoleId","themeName","accent",
+  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","autoMemory","crossChat","crossSearch","roles","activeRoleId","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
 let abortController = null;
+let pendingSearchContext = "";   // [搜索:…] results to inject into the next streamChat round
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
@@ -2739,6 +2745,13 @@ async function streamChat(onDelta, onReasoning) {
   if (crossText) systemText = systemText ? systemText + "\n\n" + crossText : crossText;
   const memSaveNote = "【按需记忆】当 ta 明确让你记住某事（说「记一下 / 记住 / 帮我记下」之类），或出现特别值得长期珍藏的事（重要经历、约定、纪念、心愿），你就在回复里**单独一行**写 `[记忆:一句话]`，系统会把它存进长期记忆库。平时别主动记琐事，只在被要求或真的特别时才记；写了 `[记忆:…]` 后照常自然回复即可。";
   systemText = systemText ? systemText + "\n\n" + memSaveNote : memSaveNote;
+  if (settings.crossSearch) {
+    const searchNote = "【主动翻看以前的聊天】你和 ta 在很多个聊天窗口聊过，系统会自动把和当前话题相关的旧片段提供给你。如果你想主动回忆某件以前聊过、但这里没看到的事，就在回复里**单独起一行**写 `[搜索:关键词]`（关键词用最能定位那件事的词），系统会去翻遍所有旧对话、把找到的内容发回来给你，你再据此回答。只在确实需要查证时才用，别滥用；写了 `[搜索:…]` 这一轮就先别急着下结论，等结果回来再答。绝不要假装记得你其实没看到的事。";
+    systemText = systemText ? systemText + "\n\n" + searchNote : searchNote;
+  }
+  if (pendingSearchContext) {
+    systemText = systemText ? systemText + "\n\n" + pendingSearchContext : pendingSearchContext;
+  }
   if (settings.notionEnabled && settings.notionCache && settings.notionCache.trim()) {
     const nm = "以下是来自 Notion 云端记忆库（琛琛印记）的长期信息，请当作你对 ta 的长期记忆来用：\n" + settings.notionCache.trim();
     systemText = systemText ? systemText + "\n\n" + nm : nm;
@@ -3027,7 +3040,7 @@ function retrieveCrossChat() {
   if (!settings.crossChat) return "";
   const convs = (typeof roleConvs === "function" ? roleConvs() : conversations) || [];
   const cur = currentConv() || {};
-  const recent = messages.slice(-3).map(m => messageText(m)).join("  ");
+  const recent = messages.slice(-4).map(m => messageText(m)).join("  ");
   const q = memTokens(recent);
   if (!q.size) return "";
   const hits = [];
@@ -3042,8 +3055,29 @@ function retrieveCrossChat() {
   }
   if (!hits.length) return "";
   hits.sort((a, b) => b.s - a.s);
-  const lines = hits.slice(0, 6).map(h => `（在「${h.title}」里）${h.who}：${h.txt.slice(0, 120)}`);
+  const lines = hits.slice(0, 8).map(h => `（在「${h.title}」里）${h.who}：${h.txt.slice(0, 120)}`);
   return "【以下是你和 ta 在其他聊天窗口里、和当前话题相关的片段，供你回忆参考，别生硬复述】\n" + lines.join("\n");
+}
+// Active history search: when the model writes [搜索:关键词], we search ALL of this role's
+// conversations (incl. the current one) by keyword score and feed the hits back so it can answer.
+function searchHistory(query) {
+  const convs = (typeof roleConvs === "function" ? roleConvs() : conversations) || [];
+  const cur = currentConv() || {};
+  const q = memTokens(query || "");
+  if (!q.size) return "（没给出有效的搜索关键词）";
+  const hits = [];
+  for (const c of convs) {
+    if (!c || !Array.isArray(c.messages)) continue;
+    for (const m of c.messages) {
+      const txt = messageText(m);
+      if (!txt || txt.length < 4) continue;
+      const s = memScore(q, txt);
+      if (s >= 1) hits.push({ s, who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "江屹琛"), title: c.title || "对话", txt, isCur: c.id === cur.id });
+    }
+  }
+  if (!hits.length) return "（翻遍了所有聊天窗口，没找到和「" + query + "」相关的内容。如实告诉 ta 没找到，别编。）";
+  hits.sort((a, b) => b.s - a.s);
+  return hits.slice(0, 10).map(h => `（在「${h.title}」${h.isCur ? "·就是现在这个窗口" : ""}）${h.who}：${h.txt.slice(0, 160)}`).join("\n");
 }
 // Pull [记忆:…] tokens out of an assistant reply, save them to the library, return cleaned text.
 function extractMemorySaves(text) {
@@ -4112,10 +4146,29 @@ async function generateReply() {
 
   let replied = false;
   try {
-    await streamChat(
-      (delta) => { assistantMsg.content += delta; paint(); },
-      (rdelta) => { assistantMsg.reasoning += rdelta; paint(); }
-    );
+    // Active-search loop: if the model writes [搜索:关键词], search old chats, feed the hits back
+    // (via pendingSearchContext) and re-stream so it can answer. Capped to avoid endless loops.
+    pendingSearchContext = "";
+    let searchRounds = 0;
+    while (true) {
+      assistantMsg.content = ""; assistantMsg.reasoning = "";
+      await streamChat(
+        (delta) => { assistantMsg.content += delta; paint(); },
+        (rdelta) => { assistantMsg.reasoning += rdelta; paint(); }
+      );
+      const sm = (settings.crossSearch && searchRounds < 2)
+        ? assistantMsg.content.match(/\[\s*搜索\s*[:：]\s*([^\]\n]+)\]/) : null;
+      if (!sm) break;
+      searchRounds++;
+      const query = sm[1].trim();
+      pendingSearchContext = "（你刚才请求搜索旧聊天「" + query + "」，以下是翻到的相关内容，请据此自然作答，别生硬复述原文）\n" + searchHistory(query);
+      assistantMsg.content = "🔍 正在翻找以前的聊天「" + query + "」…";
+      assistantMsg.reasoning = "";
+      paint();
+    }
+    pendingSearchContext = "";
+    // strip any leftover [搜索:…] tag from the shown text (e.g. if it appears in the final answer)
+    assistantMsg.content = assistantMsg.content.replace(/\[\s*搜索\s*[:：][^\]\n]*\]/g, "").trim();
     const isEmpty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim();
     if (isEmpty) {
       messages.pop(); el.remove();
@@ -4140,8 +4193,10 @@ async function generateReply() {
       replied = true;
     }
   } catch (e) {
+    pendingSearchContext = "";
     console.error("[generateReply error]", e);
     if (e.name === "AbortError") {
+      assistantMsg.content = assistantMsg.content.replace(/\[\s*搜索\s*[:：][^\]\n]*\]/g, "").trim();
       bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content || "_（已停止）_", assistantMsg.reasoning);
     } else {
       messages.pop(); el.remove();
@@ -4501,6 +4556,7 @@ function syncSettingsToUI() {
   renderFavorites();
   $("autoMemory").checked = settings.autoMemory;
   $("crossChat").checked = settings.crossChat !== false;
+  $("crossSearch").checked = settings.crossSearch !== false;
   $("notionEnabled").checked = !!settings.notionEnabled;
   $("notionProxy").value = settings.notionProxy || "";
   $("notionToken").value = settings.notionToken || "";
@@ -4653,6 +4709,7 @@ function readSettingsFromUI() {
   settings.memSummary = $("memSummary").value;
   settings.autoMemory = $("autoMemory").checked;
   settings.crossChat = $("crossChat").checked;
+  settings.crossSearch = $("crossSearch").checked;
   settings.notionEnabled = $("notionEnabled").checked;
   settings.notionProxy = $("notionProxy").value.trim();
   settings.notionToken = $("notionToken").value.trim();
