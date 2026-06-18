@@ -4257,6 +4257,13 @@ const THEMES = [
     bg:"#c6e0f5", "bg-soft":"#e3f0fa", "bg-panel":"#d8ecf3", border:"#bcd9e6", text:"#26404a",
     "text-dim":"#5f8290", accent:"#3aa6c2", "accent-soft":"#d4ecf2", "assistant-bubble":"#ffffff",
     "code-bg":"#d8ecf3", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#d0e8f0" } },
+  // Soft goose-yellow custard: near-white cream → gentle pale butter, glass bubbles
+  { key: "butter", name: "鹅黄奶油", emoji: "🍮", dark: false, glass: true,
+    gradient: "linear-gradient(180deg,#fefdf6 0%,#fdf8e2 35%,#fbf2c8 70%,#f6ebac 100%)",
+    vars: {
+    bg:"#fefdf6", "bg-soft":"#fbf6e6", "bg-panel":"#f8f1d8", border:"#ece4c4", text:"#4a4326",
+    "text-dim":"#8c8154", accent:"#d8a838", "accent-soft":"#f6edc8", "assistant-bubble":"#ffffff",
+    "code-bg":"#f8f1d8", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#f1e8ca" } },
 ];
 function currentTheme() { return THEMES.find(t => t.key === settings.themeName) || THEMES[0]; }
 function applyTheme() {
