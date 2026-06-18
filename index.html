@@ -109,10 +109,12 @@
   }
   /* Fills the bottom home-indicator strip that body (viewport height) can't reach.
      100vh here = the FULL physical screen height (iOS standalone large viewport),
-     so this layer spans top..physical-bottom; z-index:-1 keeps it behind all content. */
+     so this layer spans top..physical-bottom. z-index:0 (NOT -1: a negative z-index gets
+     painted behind iOS's white system canvas and fails to cover the strip — the blue test
+     proved z-index:0 works); all real content sits at z-index>=1 so it stays on top. */
   #botfill {
     position: fixed; top: 0; left: 0; right: 0; height: 100vh;
-    z-index: -1; pointer-events: none;
+    z-index: 0; pointer-events: none;
     background: var(--app-gradient, var(--bg));
   }
   .app { display: flex; height: 100%; }
