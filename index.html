@@ -784,6 +784,28 @@
      theme switch (web-painted, not the relaunch-snapshotted iOS status bar). -->
 <div id="safe-top" class="safe-layer"></div>
 <div id="safe-bottom" class="safe-layer"></div>
+<!-- TEMP probe: measure the LOCKED layout's viewport units so we know what reliably = the bottom strip. -->
+<div id="envprobe2" style="position:fixed;top:42%;left:8px;right:8px;z-index:99999;pointer-events:none;background:#000;color:#39ff14;font-size:13px;font-weight:700;text-align:center;padding:8px;border-radius:8px;line-height:1.7;">probe…</div>
+<script>
+  (function(){
+    try {
+      function px(val){
+        var p = document.createElement("div");
+        p.style.cssText = "position:fixed;top:0;height:"+val+";width:1px;visibility:hidden;";
+        document.body.appendChild(p);
+        var v = Math.round(parseFloat(getComputedStyle(p).height)) || 0;
+        p.remove(); return v;
+      }
+      var sa = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ? "YES" : "no";
+      var l = document.getElementById("envprobe2");
+      if (l) l.innerHTML =
+        "standalone=" + sa + "<br>" +
+        "env-top=" + px("env(safe-area-inset-top)") + " · env-bot=" + px("env(safe-area-inset-bottom)") + "<br>" +
+        "100vh=" + px("100vh") + " · 100svh=" + px("100svh") + " · 100dvh=" + px("100dvh") + "<br>" +
+        "innerH=" + window.innerHeight + " · screenH=" + (window.screen && window.screen.height);
+    } catch (e) {}
+  })();
+</script>
 <div class="toast" id="toast"></div>
 <div id="lock-screen">
   <div class="lock-box">
