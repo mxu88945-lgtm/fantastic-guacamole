@@ -87,6 +87,14 @@
      showing an ugly black bar above a light theme. Tie it to the theme bg so the strip
      always matches the current theme (applyTheme sets --bg on <html>). */
   html { height: 100%; background: var(--app-gradient, var(--bg)); }
+  /* Paint the iOS home-indicator safe-area strip (fixed bottom:0 stops at the inset boundary, so this
+     uses a negative bottom to reach the physical bottom edge). Color matches the gradient's bottom. */
+  #botfill {
+    position: fixed; left: 0; right: 0; z-index: -1; pointer-events: none;
+    bottom: calc(-1 * env(safe-area-inset-bottom));
+    height: calc(env(safe-area-inset-bottom) + 2px);
+    background: var(--grad-bottom, var(--bg));
+  }
   /* Subtle scrim behind the (now white) iOS status-bar icons — only visible where there's a notch inset. */
   #topscrim {
     position: fixed; top: 0; left: 0; right: 0; z-index: 9999; pointer-events: none;
@@ -767,6 +775,7 @@
 <!-- status-bar-style is black-translucent: the gradient fills behind the iOS clock/battery (no white strip,
      no relaunch needed). This faint top scrim keeps those white system icons legible on light themes. -->
 <div id="topscrim"></div>
+<div id="botfill"></div>
 <div class="toast" id="toast"></div>
 <div id="lock-screen">
   <div class="lock-box">
@@ -4259,6 +4268,10 @@ function applyTheme() {
   if (t.gradient) root.style.setProperty("--app-gradient", t.gradient);
   else root.style.removeProperty("--app-gradient");
   root.setAttribute("data-glass", t.glass ? "1" : "");
+  // bottom-most color of the gradient (or solid bg) — used to paint the iOS home-indicator safe-area strip
+  let gradBottom = t.vars.bg;
+  if (t.gradient) { const hx = t.gradient.match(/#[0-9a-fA-F]{3,8}/g); if (hx && hx.length) gradBottom = hx[hx.length - 1]; }
+  root.style.setProperty("--grad-bottom", gradBottom);
   // keep the iOS status-bar / PWA chrome color in sync with the theme (no more black strip).
   // Update the existing meta in place — the most widely-honored way; iOS installed apps
   // may still only fully refresh this on relaunch, but the html background (set above via
