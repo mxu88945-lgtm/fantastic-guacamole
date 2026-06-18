@@ -111,6 +111,13 @@
   .safe-layer { position: fixed; left: 0; right: 0; z-index: 4; pointer-events: none; }
   #safe-top { top: 0; height: env(safe-area-inset-top); background: var(--grad-top, var(--bg)); }
   #safe-bottom { bottom: 0; height: env(safe-area-inset-bottom); background: var(--grad-bottom, var(--bg)); }
+  /* env(safe-area-inset-bottom) flips back to 0 once the scroll is locked, so in the installed PWA
+     fill the strip with the stable geometry gap instead: full screen (100vh) minus the visible
+     viewport (100svh) = the unpainted home-indicator band. Scoped to standalone so the browser
+     (where that gap is the URL bar) isn't affected. */
+  @media all and (display-mode: standalone) {
+    #safe-bottom { height: calc(100vh - 100svh); }
+  }
   /* The app shell is the scroll-lock container now (was <body>): exactly one viewport tall, clipped,
      so only the inner chat list scrolls and the header stays pinned. */
   .app { display: flex; height: 100dvh; overflow: hidden; }
