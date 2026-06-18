@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="江屹琛" />
 <meta name="theme-color" content="#f5f4ef" />
 <script>
@@ -16,11 +16,6 @@
    BEFORE first paint, so the launch color already matches the real theme. */
 (function () {
   try {
-    /* iOS home-screen PWAs do NOT reliably match the `display-mode: standalone` media query,
-       but `navigator.standalone` is accurate. Tag <html> so CSS can fill the bottom home-indicator
-       strip only in the installed app (not in the Safari browser tab). Set before first paint. */
-    if (window.navigator.standalone === true)
-      document.documentElement.classList.add("pwa-standalone");
     var bg = localStorage.getItem("jyc_themebg");
     var dark = localStorage.getItem("jyc_themedark");
     if (dark === "1" || dark === "0")
@@ -91,39 +86,21 @@
      background. Without this it falls back to the system canvas (black in Dark Mode),
      showing an ugly black bar above a light theme. Tie it to the theme bg so the strip
      always matches the current theme (applyTheme sets --bg on <html>). */
-  /* IMPORTANT: <body> stays in NORMAL FLOW (no position:fixed, no overflow:hidden). The old hack
-     (position:fixed+overflow:hidden body) zeroed env(safe-area-inset-bottom) — the root cause of the
-     bottom white strip. Keeping body clean lets iOS report the insets correctly (verified: env-bottom=34).
-     overscroll-behavior:none kills the document rubber-band; the .app shell (height:100dvh; overflow:hidden)
-     is the real scroll-lock so only the chat list scrolls and the header stays pinned. */
-  html {
-    height: 100%; overscroll-behavior: none;
-    background: var(--app-gradient, var(--bg));
-  }
+  html { height: 100%; background: var(--app-gradient, var(--bg)); }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
       "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
     background: var(--app-gradient, var(--bg));
     color: var(--text);
     background-attachment: fixed;
+    min-height: 100%;
     margin: 0;
-    height: 100%; overscroll-behavior: none;
+    /* Lock the viewport so only the chat list scrolls — keeps the top bar pinned
+       (fixes iOS standalone where the whole page could scroll the header off-screen). */
+    position: fixed; inset: 0; height: 100%;
+    overflow: hidden; overscroll-behavior: none;
   }
-  /* SafeAreaLayers: web-painted strips that fill the notch / home-indicator safe areas with the
-     theme color. Because they use theme CSS vars, they re-color LIVE on theme switch (no relaunch),
-     unlike the iOS system status bar. With status-bar-style:black-translucent the page also paints
-     behind the bars, so these guarantee a seamless edge on every theme. */
-  .safe-layer { position: fixed; left: 0; right: 0; z-index: 4; pointer-events: none; }
-  #safe-top { top: 0; height: env(safe-area-inset-top); background: var(--grad-top, var(--bg)); }
-  #safe-bottom { bottom: 0; height: env(safe-area-inset-bottom); background: var(--grad-bottom, var(--bg)); }
-  /* In the installed iOS PWA, fill the bottom strip with the stable geometry gap: full screen (100vh)
-     minus the visible viewport (100svh) = the unpainted home-indicator band (measured 956-894=62px).
-     Scoped via the navigator.standalone class (iOS's `display-mode:standalone` media query is unreliable)
-     so the Safari browser tab — where that gap is the URL bar — isn't affected. */
-  html.pwa-standalone #safe-bottom { height: calc(100vh - 100svh); }
-  /* The app shell is the scroll-lock container now (was <body>): exactly one viewport tall, clipped,
-     so only the inner chat list scrolls and the header stays pinned. */
-  .app { display: flex; height: 100dvh; overflow: hidden; }
+  .app { display: flex; height: 100%; }
 
   /* Sidebar */
   .sidebar {
@@ -782,11 +759,11 @@
 </style>
 </head>
 <body>
-<!-- status-bar-style is black-translucent so the page paints behind both system bars; the
-     SafeAreaLayers below fill the notch / home-indicator strips with the theme color, LIVE on
-     theme switch (web-painted, not the relaunch-snapshotted iOS status bar). -->
-<div id="safe-top" class="safe-layer"></div>
-<div id="safe-bottom" class="safe-layer"></div>
+<!-- status-bar-style is "default": iOS draws an opaque status bar tinted by the theme-color meta
+     (kept in sync by applyTheme + the pre-paint IIFE). Chosen over black-translucent because the
+     latter exposes an unpaintable white home-indicator strip at the physical bottom (fixed bottom:0
+     lands at the layout-viewport edge ~894, not the physical screen bottom ~956, so no web layer can
+     cover it). Trade-off: the top tint only refreshes on relaunch after a theme change (iOS limitation). -->
 <div class="toast" id="toast"></div>
 <div id="lock-screen">
   <div class="lock-box">
@@ -4279,14 +4256,9 @@ function applyTheme() {
   if (t.gradient) root.style.setProperty("--app-gradient", t.gradient);
   else root.style.removeProperty("--app-gradient");
   root.setAttribute("data-glass", t.glass ? "1" : "");
-  // top/bottom-most colors of the gradient (or solid bg) — used by the SafeAreaLayers to paint the
-  // notch (top) and home-indicator (bottom) strips so they blend seamlessly with the page edges.
-  let gradTop = t.vars.bg, gradBottom = t.vars.bg;
-  if (t.gradient) {
-    const hx = t.gradient.match(/#[0-9a-fA-F]{3,8}/g);
-    if (hx && hx.length) { gradTop = hx[0]; gradBottom = hx[hx.length - 1]; }
-  }
-  root.style.setProperty("--grad-top", gradTop);
+  // bottom-most color of the gradient (or solid bg) — used to paint the iOS home-indicator safe-area strip
+  let gradBottom = t.vars.bg;
+  if (t.gradient) { const hx = t.gradient.match(/#[0-9a-fA-F]{3,8}/g); if (hx && hx.length) gradBottom = hx[hx.length - 1]; }
   root.style.setProperty("--grad-bottom", gradBottom);
   // keep the iOS status-bar / PWA chrome color in sync with the theme (no more black strip).
   // Update the existing meta in place — the most widely-honored way; iOS installed apps

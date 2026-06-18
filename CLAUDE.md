@@ -236,6 +236,13 @@
 
 **这次的折腾顺序（v37→v43，给新窗口看清弯路别重走）：** v37 绿条量 env(bottom)=0；v38 蓝层+打印 100vh/dvh/svh/innerH/screenH 拿到 894 vs 956；v39 #botfill 100vh z-index:-1（白）；v40 改 z-index:0（白）；v41 染洋红→青渐变确认浮层下边缘到不了底（白）；v42 body `-webkit-fill-available`（白）；**v43 状态栏改回 default → 成功**。
 
+**第二轮（v45→v50，伯恩/群里小姐姐建议的「结构化重构」尝试，结论=死墙，新窗口别再走）：**
+- 有人建议「别打补丁，按正经结构重构」：变量挂 html、SafeAreaLayers（fixed top/bottom 用 `env()`）、`min-height:100dvh`+`padding-bottom:env(safe-area-inset-bottom)`、`viewport-fit=cover`。方向对、大部分本就做到了，但**撞死墙**。
+- v45 把 body 改成**正常流**（去掉 `position:fixed+overflow:hidden` 滚动锁）+ black-translucent 测得 **`env-bottom` 从 0 变 34**——证明滚动锁 hack 确实压过 env。于是 v46 正经重构：body 正常流、`.app{height:100dvh;overflow:hidden}` 接管滚动锁、加 SafeAreaLayers（`--grad-top/--grad-bottom` 主题色、换主题实时变）。
+- **结果**：顶部实时变色✅（black-translucent + 正经结构），但**底部白条仍在**。原因两连击：① 我用的 `@media (display-mode:standalone)` 在 iOS 装机版**报 `no`**（iOS 该媒体查询测不准，必须用 `navigator.standalone`）→ 填充规则没生效；② 改用 `navigator.standalone` + `#safe-bottom height:calc(100vh-100svh)=62px` 后，那条带**渲染在 894 处**（切到输入框底），白条（894→956）仍在它下面——**实锤 `position:fixed; bottom:0` 落在网页可视区底 894、不是物理屏底 956**，黑白都改变不了这点。
+- **最终结论（死墙）**：iOS 装机 PWA **「顶部 black-translucent 实时变色」与「底部不露白」不可兼得**。black-translucent 只把网页往上铺到刘海后、不往下铺，底部 62px 永远是系统留白、任何 fixed 层够不到。
+- **惟惟的选择（2026-06-18）**：要**干净无白条** → 维持 `default`（顶底都干净，唯一代价换主题顶栏色需大退重进）。**当前 sw 缓存 = v50。** 别再尝试 black-translucent + 填底，验证过两轮都是死墙。
+
 ---
 
 <details><summary>📦 历史存档：当初「未解 BUG」的原始记录（已解决，仅留作参考）</summary>
