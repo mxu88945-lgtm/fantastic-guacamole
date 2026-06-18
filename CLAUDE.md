@@ -77,7 +77,7 @@
 - **多角色（独立人设+音色+记忆+对话）**：`settings.roles`/`activeRoleId`、`ROLE_FIELDS`、`applyRole`/`addRole`/`renderRoles`、`mirrorActiveRole`；对话按 `roleId` 分流（`roleConvs`），侧栏顶 `#role-quick` 切换；新角色是**空白模板**。
 - **导出对话长图**（canvas 手绘 `exportChatImage`/`openExportDialog` 选范围/`showImagePreview`，iOS 走 `navigator.share` 或长按存）。
 - **久未聊天·开门问候**（`settings.proactiveGreet`、`greetProactively`/`maybeProactiveGreet`/`markSeen`，≥3h 触发）。
-- **读图转述（视觉中继）**：`settings.visionModel`+`visionRelay`、`describeImage`，发图先读成文字塞进 `part.desc`，`toApiContent` 把已描述的图当文字发 → 纯文字模型不再卡。
+- **读图转述（视觉中继）**：`settings.visionModel`+`visionBaseUrl`+`visionApiKey`+`visionRelay`、`describeImage`，发图先读成文字塞进 `part.desc`，`toApiContent` 把已描述的图当文字发 → 纯文字模型不再卡。读图可配**独立接口**（填了 `visionBaseUrl`/`visionApiKey` 就走它自己的，切主供应商不影响读图；留空回退当前接口；格式按 URL/模型名嗅探 anthropic/openai）。`visionApiKey` 不上云。
 - **文生图**：`settings.imageModel`/`imageBaseUrl`/`imageApiKey`、`generateImage`（`/v1/images/generations`）、`drawImage`（「＋」菜单「生成图片」，用输入框文字当 prompt）。
 - **UI Claude 化**：奶油主题、英文衬线问候、胶囊输入、圆形发送、顶栏磨砂悬浮（`backdrop-filter`，bg 8%）、圆图标 + 顶栏「···」菜单（重命名/导出/压缩/删除）、设置移进侧栏、状态栏色随主题（`applyTheme` 里改 `theme-color` meta）。
 

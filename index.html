@@ -993,8 +993,10 @@
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">👀 读图模型（视觉转述）</label>
-          <span class="hint" style="display:block; margin-top:4px;">给一个<b>会看图</b>的模型 id，开启下面开关后：你发图时，先让它把图<b>读成文字</b>，再喂给当前模型——这样<b>纯文字模型也不会因为看不了图而卡住/报错</b>了。（用当前接口的 Key）</span>
-          <input id="visionModel" placeholder="会读图的模型 id，如 gpt-4o / anthropic/claude-3.5-sonnet" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+          <span class="hint" style="display:block; margin-top:4px;">给一个<b>会看图</b>的模型 id，开启下面开关后：你发图时，先让它把图<b>读成文字</b>，再喂给当前模型——这样<b>纯文字模型也不会因为看不了图而卡住/报错</b>了。<b>接口地址 / Key 选填</b>：填了就走它自己的独立接口（切换主供应商也不影响读图）；留空则用当前接口。</span>
+          <input id="visionModel" placeholder="会读图的模型 id，如 gpt-4o / google/gemini-2.5-pro" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+          <input id="visionBaseUrl" placeholder="读图接口地址（选填，留空就用当前接口）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+          <input id="visionApiKey" type="password" placeholder="读图 API Key（选填，不上云；留空用当前接口）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:10px;">
             <input type="checkbox" id="visionRelay" style="width:auto;" onchange="readSettingsFromUI();" />
             <span>开启图片转述 <span class="hint" style="font-weight:400;">（发图时自动先读图→文字）</span></span>
@@ -1324,6 +1326,8 @@ let settings = {
   silentMode: false,      // 旁白：发消息只记录、不触发 AI 回复
   proactiveGreet: true,   // 久未聊天再打开时，AI 主动招呼
   visionModel: "",        // 读图(视觉)模型 id，用于把图片转述成文字
+  visionBaseUrl: "",      // 读图接口地址（留空用当前接口）
+  visionApiKey: "",       // 读图 Key（留空用当前接口；不上云）
   visionRelay: false,     // 开启后：发图先用视觉模型读成文字，再喂给当前模型
   imageModel: "",         // 文生图模型 id（/v1/images/generations）
   imageBaseUrl: "",       // 画图接口地址（留空用当前接口）
@@ -1387,7 +1391,7 @@ let ttsAudio = null;
 let ttsBtnActive = null;
 let ttsPrevProvider = null;   // remembers the active TTS provider so switching can save/restore per-provider config
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","autoMemory","crossChat","roles","activeRoleId","themeName","accent",
+  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","autoMemory","crossChat","roles","activeRoleId","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
@@ -2598,21 +2602,29 @@ function apiMessagesFor(isAnthropic) {
 // Vision relay: ask a dedicated image-capable model to describe an image, so the
 // (possibly text-only) main model can work from the text instead of the picture.
 async function describeImage(dataUrl) {
-  const isAnthropic = settings.provider === "anthropic";
-  const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
+  // Independent vision endpoint: if a dedicated base URL / key is set, use those so switching the
+  // main provider never breaks image reading. Empty fields → fall back to the active provider.
+  const useOwn = !!(settings.visionBaseUrl || settings.visionApiKey);
+  const base = (settings.visionBaseUrl || settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
+  const key = settings.visionApiKey || settings.apiKey;
   const model = settings.visionModel;
+  // Detect API format: for an independent endpoint, sniff Anthropic from the URL/model; otherwise
+  // follow the active provider's format.
+  const isAnthropic = useOwn
+    ? (/anthropic/i.test(base) || /(^|\/)claude/i.test(model))
+    : (settings.provider === "anthropic");
   const prompt = "请客观、详细地描述这张图片的内容（文字、人物、物体、场景、表情、动作、颜色等关键信息），让看不到图的人也能明白。150 字以内，直接给出描述本身。";
   let url, headers, body;
   if (isAnthropic) {
     url = base + "/messages";
-    headers = { "content-type": "application/json", "x-api-key": settings.apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
+    headers = { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
     const comma = dataUrl.indexOf(",");
     body = { model, max_tokens: 500, messages: [{ role: "user", content: [
       { type: "text", text: prompt },
       { type: "image", source: { type: "base64", media_type: "image/jpeg", data: dataUrl.slice(comma + 1) } }] }] };
   } else {
     url = base + "/chat/completions";
-    headers = { "content-type": "application/json", "authorization": "Bearer " + settings.apiKey };
+    headers = { "content-type": "application/json", "authorization": "Bearer " + key };
     body = { model, max_tokens: 500, messages: [{ role: "user", content: [
       { type: "text", text: prompt },
       { type: "image_url", image_url: { url: dataUrl } }] }] };
@@ -4455,6 +4467,8 @@ function syncSettingsToUI() {
   $("maxTokens").value = settings.maxTokens;
   $("modelList").value = settings.modelList;
   $("visionModel").value = settings.visionModel || "";
+  $("visionBaseUrl").value = settings.visionBaseUrl || "";
+  $("visionApiKey").value = settings.visionApiKey || "";
   $("visionRelay").checked = !!settings.visionRelay;
   $("imageModel").value = settings.imageModel || "";
   $("imageBaseUrl").value = settings.imageBaseUrl || "";
@@ -4609,6 +4623,8 @@ function readSettingsFromUI() {
   settings.temperature = parseFloat($("temperature").value);
   settings.maxTokens = parseInt($("maxTokens").value) || 2048;
   settings.visionModel = $("visionModel").value.trim();
+  settings.visionBaseUrl = $("visionBaseUrl").value.trim();
+  settings.visionApiKey = $("visionApiKey").value.trim();
   settings.visionRelay = $("visionRelay").checked;
   settings.imageModel = $("imageModel").value.trim();
   settings.imageBaseUrl = $("imageBaseUrl").value.trim();
