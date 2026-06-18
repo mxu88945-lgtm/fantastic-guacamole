@@ -86,7 +86,10 @@
      background. Without this it falls back to the system canvas (black in Dark Mode),
      showing an ugly black bar above a light theme. Tie it to the theme bg so the strip
      always matches the current theme (applyTheme sets --bg on <html>). */
-  html { height: 100%; background: var(--app-gradient, var(--bg)); }
+  /* height:100% only resolves to iOS's SHORT viewport (~894 on a 956px screen), leaving the
+     bottom home-indicator strip (~62px) unpainted = white. -webkit-fill-available gives the
+     TRUE full standalone height so the root reaches the physical bottom. */
+  html { height: 100%; height: -webkit-fill-available; background: var(--app-gradient, var(--bg)); }
   /* Subtle scrim behind the (now white) iOS status-bar icons — only visible where there's a notch inset. */
   #topscrim {
     position: fixed; top: 0; left: 0; right: 0; z-index: 9999; pointer-events: none;
@@ -101,18 +104,14 @@
     /* paint the gradient across the WHOLE canvas incl. the bottom home-indicator safe area */
     background-attachment: fixed;
     min-height: 100%;
+    min-height: -webkit-fill-available;
     margin: 0;
     /* Lock the viewport so only the chat list scrolls — keeps the top bar pinned
-       (fixes iOS standalone where the whole page could scroll the header off-screen). */
-    position: fixed; inset: 0; height: 100%;
+       (fixes iOS standalone where the whole page could scroll the header off-screen).
+       height uses -webkit-fill-available so body reaches the physical bottom (kills the
+       white home-indicator strip); top:0/left/right pin it, no bottom:0 (would over-constrain). */
+    position: fixed; top: 0; left: 0; right: 0; height: 100%; height: -webkit-fill-available;
     overflow: hidden; overscroll-behavior: none;
-  }
-  /* TEMP DIAGNOSTIC: magenta→cyan gradient over 100vh so we can SEE exactly where this
-     fixed layer's bottom edge lands relative to the white home-indicator strip. */
-  #botfill {
-    position: fixed; top: 0; left: 0; right: 0; height: 100vh;
-    z-index: 0; pointer-events: none;
-    background: linear-gradient(to bottom, #ff00ff 0%, #ff00ff 70%, #00ffff 100%);
   }
   .app { display: flex; height: 100%; }
 
@@ -776,12 +775,6 @@
 <!-- status-bar-style is black-translucent: the gradient fills behind the iOS clock/battery (no white strip,
      no relaunch needed). This faint top scrim keeps those white system icons legible on light themes. -->
 <div id="topscrim"></div>
-<!-- iOS standalone PWA: the layout viewport (innerHeight/100dvh ≈ 894) is SHORTER than the
-     physical screen (100vh = screenH ≈ 956). body (fixed; inset:0) only covers the viewport,
-     leaving the bottom ~62px (the home-indicator strip) as bare white system canvas.
-     #botfill is a full-physical-height (100vh) fixed layer behind all content that paints the
-     theme color/gradient all the way to the physical bottom — killing the white strip. -->
-<div id="botfill"></div>
 <div class="toast" id="toast"></div>
 <div id="lock-screen">
   <div class="lock-box">
