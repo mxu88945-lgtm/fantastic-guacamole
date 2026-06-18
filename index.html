@@ -769,6 +769,25 @@
 <!-- status-bar-style is black-translucent: the gradient fills behind the iOS clock/battery (no white strip,
      no relaunch needed). This faint top scrim keeps those white system icons legible on light themes. -->
 <div id="topscrim"></div>
+<!-- TEMP DIAGNOSTIC (bottom white-bar bug): a lime bar pinned to the very bottom,
+     height = bottom safe-area inset, showing the computed px. Remove after diagnosis. -->
+<div id="safetest" style="position:fixed;left:0;right:0;bottom:0;height:env(safe-area-inset-bottom);min-height:1px;background:#39ff14;z-index:99999;pointer-events:none;display:flex;align-items:flex-start;justify-content:center;color:#000;font-size:11px;font-weight:700;">
+  <span id="safetest-label" style="background:#000;color:#39ff14;padding:1px 6px;border-radius:0 0 6px 6px;">inset?</span>
+</div>
+<script>
+  // print the actual resolved bottom safe-area inset so we know if it's 0 or ~34px etc.
+  (function(){
+    try {
+      var probe = document.createElement("div");
+      probe.style.cssText = "position:fixed;bottom:0;height:env(safe-area-inset-bottom);visibility:hidden;";
+      document.body.appendChild(probe);
+      var px = Math.round(parseFloat(getComputedStyle(probe).height)) || 0;
+      probe.remove();
+      var l = document.getElementById("safetest-label");
+      if (l) l.textContent = "safe-bottom = " + px + "px";
+    } catch (e) {}
+  })();
+</script>
 <div class="toast" id="toast"></div>
 <div id="lock-screen">
   <div class="lock-box">
