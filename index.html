@@ -86,7 +86,15 @@
      background. Without this it falls back to the system canvas (black in Dark Mode),
      showing an ugly black bar above a light theme. Tie it to the theme bg so the strip
      always matches the current theme (applyTheme sets --bg on <html>). */
-  html { height: 100%; background: var(--app-gradient, var(--bg)); }
+  /* IMPORTANT: <body> stays in NORMAL FLOW (no position:fixed, no overflow:hidden). The old hack
+     (position:fixed+overflow:hidden body) zeroed env(safe-area-inset-bottom) — the root cause of the
+     bottom white strip. Keeping body clean lets iOS report the insets correctly (verified: env-bottom=34).
+     overscroll-behavior:none kills the document rubber-band; the .app shell (height:100dvh; overflow:hidden)
+     is the real scroll-lock so only the chat list scrolls and the header stays pinned. */
+  html {
+    height: 100%; overscroll-behavior: none;
+    background: var(--app-gradient, var(--bg));
+  }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
       "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
@@ -94,12 +102,18 @@
     color: var(--text);
     background-attachment: fixed;
     margin: 0;
-    /* TEMP TEST (env probe): normal-flow body (no fixed/overflow:hidden scroll-lock) to see if
-       env(safe-area-inset-bottom) reports nonzero without the hack. Layout WILL look broken — only
-       the printed numbers matter. Revert after measuring. */
-    min-height: 100dvh;
+    height: 100%; overscroll-behavior: none;
   }
-  .app { display: flex; height: 100%; }
+  /* SafeAreaLayers: web-painted strips that fill the notch / home-indicator safe areas with the
+     theme color. Because they use theme CSS vars, they re-color LIVE on theme switch (no relaunch),
+     unlike the iOS system status bar. With status-bar-style:black-translucent the page also paints
+     behind the bars, so these guarantee a seamless edge on every theme. */
+  .safe-layer { position: fixed; left: 0; right: 0; z-index: 4; pointer-events: none; }
+  #safe-top { top: 0; height: env(safe-area-inset-top); background: var(--grad-top, var(--bg)); }
+  #safe-bottom { bottom: 0; height: env(safe-area-inset-bottom); background: var(--grad-bottom, var(--bg)); }
+  /* The app shell is the scroll-lock container now (was <body>): exactly one viewport tall, clipped,
+     so only the inner chat list scrolls and the header stays pinned. */
+  .app { display: flex; height: 100dvh; overflow: hidden; }
 
   /* Sidebar */
   .sidebar {
@@ -758,30 +772,11 @@
 </style>
 </head>
 <body>
-<!-- TEMP TEST: black-translucent + normal-flow body, to measure if env(safe-area-inset-bottom)
-     reports nonzero without the fixed/overflow scroll-lock hack. -->
-<div id="envprobe" style="position:fixed;top:env(safe-area-inset-top);left:0;right:0;z-index:99999;pointer-events:none;background:#000;color:#39ff14;font-size:12px;font-weight:700;text-align:center;padding:4px;line-height:1.5;">env?</div>
-<script>
-  (function(){
-    try {
-      function px(val){
-        var p = document.createElement("div");
-        p.style.cssText = "position:fixed;top:0;height:"+val+";width:1px;visibility:hidden;";
-        document.body.appendChild(p);
-        var v = Math.round(parseFloat(getComputedStyle(p).height)) || 0;
-        p.remove(); return v;
-      }
-      var l = document.getElementById("envprobe");
-      if (l) l.innerHTML =
-        "env-top=" + px("env(safe-area-inset-top)") +
-        " · env-bottom=" + px("env(safe-area-inset-bottom)") + "<br>" +
-        "innerH=" + window.innerHeight +
-        " · 100dvh=" + px("100dvh") +
-        " · 100vh=" + px("100vh") +
-        " · screenH=" + (window.screen && window.screen.height);
-    } catch (e) {}
-  })();
-</script>
+<!-- status-bar-style is black-translucent so the page paints behind both system bars; the
+     SafeAreaLayers below fill the notch / home-indicator strips with the theme color, LIVE on
+     theme switch (web-painted, not the relaunch-snapshotted iOS status bar). -->
+<div id="safe-top" class="safe-layer"></div>
+<div id="safe-bottom" class="safe-layer"></div>
 <div class="toast" id="toast"></div>
 <div id="lock-screen">
   <div class="lock-box">
@@ -4274,9 +4269,14 @@ function applyTheme() {
   if (t.gradient) root.style.setProperty("--app-gradient", t.gradient);
   else root.style.removeProperty("--app-gradient");
   root.setAttribute("data-glass", t.glass ? "1" : "");
-  // bottom-most color of the gradient (or solid bg) — used to paint the iOS home-indicator safe-area strip
-  let gradBottom = t.vars.bg;
-  if (t.gradient) { const hx = t.gradient.match(/#[0-9a-fA-F]{3,8}/g); if (hx && hx.length) gradBottom = hx[hx.length - 1]; }
+  // top/bottom-most colors of the gradient (or solid bg) — used by the SafeAreaLayers to paint the
+  // notch (top) and home-indicator (bottom) strips so they blend seamlessly with the page edges.
+  let gradTop = t.vars.bg, gradBottom = t.vars.bg;
+  if (t.gradient) {
+    const hx = t.gradient.match(/#[0-9a-fA-F]{3,8}/g);
+    if (hx && hx.length) { gradTop = hx[0]; gradBottom = hx[hx.length - 1]; }
+  }
+  root.style.setProperty("--grad-top", gradTop);
   root.style.setProperty("--grad-bottom", gradBottom);
   // keep the iOS status-bar / PWA chrome color in sync with the theme (no more black strip).
   // Update the existing meta in place — the most widely-honored way; iOS installed apps
