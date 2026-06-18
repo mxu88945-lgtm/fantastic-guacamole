@@ -215,8 +215,30 @@
 - **2026-06-17（接力 · 回滚 #bgfill 方案）**：上一步的 `#bgfill` 满屏垫底层(配 body 透明)有副作用——**把非玻璃主题底部也搞出白条**。撤掉 `#bgfill` div+CSS，body 背景还原 `var(--app-gradient,var(--bg))` 并加 `background-attachment:fixed; min-height:100%`。底部安全区靠「**根元素(html)背景自动传播到整个画布(含安全区)**」这条 CSS 规则覆盖 + 已加深的渐变底色。保留 black-translucent 顶部透明 + #topscrim。**当前 sw 缓存 = v34。**
 - **2026-06-17（接力 · 底部白条终于抓到）**：惟惟圈图确认白的是**最底 Home 横条那条安全区**。根因：此 PWA 里 `position:fixed; bottom:0` 只到安全区**上边界**、够不到再下面那条物理边，所以之前 #bgfill(inset:0) 没盖住。终极修法：`#botfill` 用**负偏移** `bottom:calc(-1*env(safe-area-inset-bottom))` + `height:calc(inset+2px)` 专填那条；颜色 `--grad-bottom`(applyTheme 用正则取 gradient 最后一个 #hex，非渐变主题=`--bg`)与渐变底色无缝。`z-index:-1` 在透明 composer-wrap padding 之下、白画布之上故能盖白。**当前 sw 缓存 = v35。**
 - **2026-06-17（接力 · composer-wrap 渐隐填底，仍未解）**：撤掉 #botfill，改 `.main > .composer-wrap` 背景 `linear-gradient(to bottom, transparent 0%, var(--grad-bottom,var(--bg)) 62%)`，想用「composer-wrap 的 padding-box 本就含安全区」来填那条。**惟惟实测仍白**。**当前 sw 缓存 = v36。**
+- **2026-06-18（接力 · 底部白条终于根治！）**：用「一次只改一处 + 惟惟截图」的诊断法逐步逼出真凶——**就是 `black-translucent` 状态栏**（惟惟一开始的直觉）。量到 `innerHeight/100dvh/100svh≈894`、`100vh/screenH≈956`、`env(safe-area-inset-bottom)=0`，确认那条白是网页可视区(894)外、物理屏(956)内的 ~62px 系统区，**浮层/`-webkit-fill-available` 都画不进去**。**最终改回 `apple-mobile-web-app-status-bar-style: default` 根治**，移除 #topscrim，顶栏改吃 `theme-color`（换主题需重开才刷色，iOS 硬限制）。详见下方「✅ 已解决」专条。**当前 sw 缓存 = v44。**
 
-### 🔴 未解 BUG：iOS 装机 PWA 底部「Home 横条安全区」一条白（P1，交给新窗口）
+### ✅ 已解决：iOS 装机 PWA 底部「Home 横条安全区」一条白（2026-06-18 修复，sw v43）
+
+> **真凶 = `apple-mobile-web-app-status-bar-style: black-translucent`**（正是惟惟自己一开始的直觉）。  
+> **最终解法：状态栏改回 `default`。** 底部白条从根源消失。
+
+**根因（这次靠诊断逐步逼出来的，新窗口直接信这个）：**
+- `black-translucent` 让网页向上铺到刘海后面（顶部白边治好了），但**副作用**是把屏幕最底那条 Home 横条区划成了**网页根本画不到的系统区**，露出系统白底。
+- 关键量到的几何（在装机版页面里临时打印 `getComputedStyle` 得到）：`window.innerHeight = 100dvh = 100svh ≈ 894`，而 `100vh = screen.height ≈ 956`；**`env(safe-area-inset-bottom)` 实测 = 0**。即网页可视区只有 894，物理屏 956，差的 ~62px 就是那条白。
+- 因为 env(bottom)=0，**所有依赖 env 的方案（v33/v35/v36）必然失效**；又因为那 62px 在网页可视区之外，**任何 `position:fixed` 浮层都画不进去**（v32 的 #bgfill、本窗口的 #botfill 100vh/100dvh、磁红诊断层都验证了浮层下边缘停在 894，到不了 956）；`-webkit-fill-available` 给 body 也没用（body 还是被限在可视区）。
+- 唯一有效的是**从源头去掉 black-translucent**：改回 `default` 后，iOS 不再把网页铺满全屏，底部不再有那条系统区，渐变正常铺到物理底。
+
+**改回 `default` 带来的连锁（已一并处理）：**
+- 顶部状态栏改由 `theme-color` meta 上色（`applyTheme` 实时写 + head 预热 IIFE 启动前读 `jyc_themebg`）。冷启动若是全新装机版（localStorage 跟 Safari 不共享、首启为空）会先黑快照一次，**干净重开第二次**就会读到主题色、变正常（IMG_2240 验证：顶蓝底绿两头都干净）。
+- 移除了只为 black-translucent 服务的 `#topscrim`。
+- `applyTheme` 里 `theme-color` 改成「删旧 meta + 新建」而非就地改 content，best-effort 想骗 iOS 换主题时重读。
+- ⚠️ **遗留的 iOS 系统限制（无解，惟惟已知情接受）**：状态栏色**只在 App 启动瞬间拍快照**，**换主题后顶栏色不会实时变**（会短暂显示上一个主题色、跟新页面有色差），**划掉 App 重开**即对上。这是 iOS standalone 的硬限制，不是代码能实时控制的。
+
+**这次的折腾顺序（v37→v43，给新窗口看清弯路别重走）：** v37 绿条量 env(bottom)=0；v38 蓝层+打印 100vh/dvh/svh/innerH/screenH 拿到 894 vs 956；v39 #botfill 100vh z-index:-1（白）；v40 改 z-index:0（白）；v41 染洋红→青渐变确认浮层下边缘到不了底（白）；v42 body `-webkit-fill-available`（白）；**v43 状态栏改回 default → 成功**。
+
+---
+
+<details><summary>📦 历史存档：当初「未解 BUG」的原始记录（已解决，仅留作参考）</summary>
 
 > 惟惟说本窗口上下文堆太多、排查不出来，换新窗口用干净上下文查。这段把**症状+已试过的全部失败方案**记清楚，新窗口别重复踩。
 
@@ -232,3 +254,5 @@
 - **关键布局事实**：`body{position:fixed; inset:0; height:100%; overflow:hidden; overscroll-behavior:none}`；viewport meta 有 `viewport-fit=cover`；`.app{display:flex;height:100%}`→`.main`(flex 列：header(absolute)+`.chat`(flex:1)+`.composer-wrap`)。`--grad-bottom` 由 applyTheme 设（gradient 最后一个 hex，非渐变=`--bg`）。
 - **惟惟的线索/待新窗口验证**：她问「是不是页面**上拉**导致的？」——即可能是 `.chat` 或整体 **overscroll 橡皮筋**把固定背景拉走、露出后面的白；需让她确认那条白是「**一直在**」还是「**上拉时才冒**」（两种根因不同）。
 - **新窗口可试的新方向**（都没试过）：① 怀疑 `env(safe-area-inset-bottom)` 在此 standalone 实际为 0 或 composer-wrap 的 padding 没真正到物理底——先想办法**确认安全区数值**（页面上打印 `getComputedStyle` 或临时给 #某元素 `height:env(safe-area-inset-bottom)` 加亮色看有多高）。② 试 `100dvh`/`100svh` 给 body 或新增满屏层。③ 试**去掉 body 的 `height:100%` 过约束**只留 `inset:0`，或改用 `min-height:100dvh` 的非 fixed 布局。④ 直接给 `html` 加 `background` 且确认根背景传播在 iOS standalone 是否真生效。⑤ 若是 overscroll 露白：给 `.chat` `overscroll-behavior:contain` 已有，可能需要在最底再压一个**真正到物理底**的层（但要先搞清 fixed bottom 在此 PWA 到底对齐哪）。⚠️ 每次只改一处、让惟惟截图，避免像本窗口反复横跳。**开发分支 `claude/project-diary-review-8qdhd2`；改完 commit→push→合 main 部署→她「🔄 强制刷新」(状态栏类改动还要划掉重开)。**
+
+</details>

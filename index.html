@@ -4264,9 +4264,15 @@ function applyTheme() {
   // may still only fully refresh this on relaunch, but the html background (set above via
   // --bg) paints the notch strip live as a backup.
   if (t.vars.bg) {
-    let tc = document.querySelector('meta[name="theme-color"]');
-    if (!tc) { tc = document.createElement("meta"); tc.setAttribute("name", "theme-color"); document.head.appendChild(tc); }
+    // Recreate the theme-color meta (remove + re-append) instead of editing in place:
+    // iOS standalone snapshots the status-bar color at launch and usually won't refresh it
+    // live, but swapping the element out for a fresh one nudges some iOS versions to re-read
+    // it on a theme switch (best-effort — may still need a relaunch to fully update).
+    document.querySelectorAll('meta[name="theme-color"]').forEach((el) => el.remove());
+    const tc = document.createElement("meta");
+    tc.setAttribute("name", "theme-color");
     tc.setAttribute("content", t.vars.bg);
+    document.head.appendChild(tc);
     // Persist for the pre-paint priming script (so next launch starts on this color,
     // not the hardcoded dark theme → no black status-bar strip on cold open).
     try {
