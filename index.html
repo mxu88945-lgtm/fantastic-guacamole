@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="江屹琛" />
 <meta name="theme-color" content="#f5f4ef" />
 <script>
@@ -86,31 +86,18 @@
      background. Without this it falls back to the system canvas (black in Dark Mode),
      showing an ugly black bar above a light theme. Tie it to the theme bg so the strip
      always matches the current theme (applyTheme sets --bg on <html>). */
-  /* height:100% only resolves to iOS's SHORT viewport (~894 on a 956px screen), leaving the
-     bottom home-indicator strip (~62px) unpainted = white. -webkit-fill-available gives the
-     TRUE full standalone height so the root reaches the physical bottom. */
-  html { height: 100%; height: -webkit-fill-available; background: var(--app-gradient, var(--bg)); }
-  /* Subtle scrim behind the (now white) iOS status-bar icons — only visible where there's a notch inset. */
-  #topscrim {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 9999; pointer-events: none;
-    height: calc(env(safe-area-inset-top) + 4px);
-    background: linear-gradient(to bottom, rgba(0,0,0,.2), rgba(0,0,0,0));
-  }
+  html { height: 100%; background: var(--app-gradient, var(--bg)); }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
       "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
     background: var(--app-gradient, var(--bg));
     color: var(--text);
-    /* paint the gradient across the WHOLE canvas incl. the bottom home-indicator safe area */
     background-attachment: fixed;
     min-height: 100%;
-    min-height: -webkit-fill-available;
     margin: 0;
     /* Lock the viewport so only the chat list scrolls — keeps the top bar pinned
-       (fixes iOS standalone where the whole page could scroll the header off-screen).
-       height uses -webkit-fill-available so body reaches the physical bottom (kills the
-       white home-indicator strip); top:0/left/right pin it, no bottom:0 (would over-constrain). */
-    position: fixed; top: 0; left: 0; right: 0; height: 100%; height: -webkit-fill-available;
+       (fixes iOS standalone where the whole page could scroll the header off-screen). */
+    position: fixed; inset: 0; height: 100%;
     overflow: hidden; overscroll-behavior: none;
   }
   .app { display: flex; height: 100%; }
@@ -772,9 +759,10 @@
 </style>
 </head>
 <body>
-<!-- status-bar-style is black-translucent: the gradient fills behind the iOS clock/battery (no white strip,
-     no relaunch needed). This faint top scrim keeps those white system icons legible on light themes. -->
-<div id="topscrim"></div>
+<!-- status-bar-style is "default": iOS draws an opaque status bar tinted by the theme-color meta
+     (kept in sync by applyTheme + the pre-paint IIFE). This avoids black-translucent's side effect
+     of exposing a white, unpaintable home-indicator strip at the physical bottom. Trade-off: the
+     top status-bar tint only refreshes on relaunch after a theme change (an iOS limitation). -->
 <div class="toast" id="toast"></div>
 <div id="lock-screen">
   <div class="lock-box">
