@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="江屹琛" />
 <meta name="theme-color" content="#f5f4ef" />
 <script>
@@ -93,12 +93,11 @@
     background: var(--app-gradient, var(--bg));
     color: var(--text);
     background-attachment: fixed;
-    min-height: 100%;
     margin: 0;
-    /* Lock the viewport so only the chat list scrolls — keeps the top bar pinned
-       (fixes iOS standalone where the whole page could scroll the header off-screen). */
-    position: fixed; inset: 0; height: 100%;
-    overflow: hidden; overscroll-behavior: none;
+    /* TEMP TEST (env probe): normal-flow body (no fixed/overflow:hidden scroll-lock) to see if
+       env(safe-area-inset-bottom) reports nonzero without the hack. Layout WILL look broken — only
+       the printed numbers matter. Revert after measuring. */
+    min-height: 100dvh;
   }
   .app { display: flex; height: 100%; }
 
@@ -759,10 +758,30 @@
 </style>
 </head>
 <body>
-<!-- status-bar-style is "default": iOS draws an opaque status bar tinted by the theme-color meta
-     (kept in sync by applyTheme + the pre-paint IIFE). This avoids black-translucent's side effect
-     of exposing a white, unpaintable home-indicator strip at the physical bottom. Trade-off: the
-     top status-bar tint only refreshes on relaunch after a theme change (an iOS limitation). -->
+<!-- TEMP TEST: black-translucent + normal-flow body, to measure if env(safe-area-inset-bottom)
+     reports nonzero without the fixed/overflow scroll-lock hack. -->
+<div id="envprobe" style="position:fixed;top:env(safe-area-inset-top);left:0;right:0;z-index:99999;pointer-events:none;background:#000;color:#39ff14;font-size:12px;font-weight:700;text-align:center;padding:4px;line-height:1.5;">env?</div>
+<script>
+  (function(){
+    try {
+      function px(val){
+        var p = document.createElement("div");
+        p.style.cssText = "position:fixed;top:0;height:"+val+";width:1px;visibility:hidden;";
+        document.body.appendChild(p);
+        var v = Math.round(parseFloat(getComputedStyle(p).height)) || 0;
+        p.remove(); return v;
+      }
+      var l = document.getElementById("envprobe");
+      if (l) l.innerHTML =
+        "env-top=" + px("env(safe-area-inset-top)") +
+        " · env-bottom=" + px("env(safe-area-inset-bottom)") + "<br>" +
+        "innerH=" + window.innerHeight +
+        " · 100dvh=" + px("100dvh") +
+        " · 100vh=" + px("100vh") +
+        " · screenH=" + (window.screen && window.screen.height);
+    } catch (e) {}
+  })();
+</script>
 <div class="toast" id="toast"></div>
 <div id="lock-screen">
   <div class="lock-box">
