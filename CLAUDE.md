@@ -214,3 +214,21 @@
 - **2026-06-17（接力 · 渐变底色加深）**：底部还显白——根因其实是三套玻璃主题**渐变的最底色太浅**(aurora #e9f7e4 淡薄荷、milkyblue #f3f7e8 淡奶油都近白)，#bgfill 铺到底也是这个浅色故仍显白。把 aurora/sunset/milkyblue 的 gradient 末段都加深成清楚的颜色(aurora 底→#c9e6bf 清薄荷、milkyblue 底→#aedca6 草绿、sunset 底→#d39ad8 藕紫)。底部不再发白。**当前 sw 缓存 = v33。**
 - **2026-06-17（接力 · 回滚 #bgfill 方案）**：上一步的 `#bgfill` 满屏垫底层(配 body 透明)有副作用——**把非玻璃主题底部也搞出白条**。撤掉 `#bgfill` div+CSS，body 背景还原 `var(--app-gradient,var(--bg))` 并加 `background-attachment:fixed; min-height:100%`。底部安全区靠「**根元素(html)背景自动传播到整个画布(含安全区)**」这条 CSS 规则覆盖 + 已加深的渐变底色。保留 black-translucent 顶部透明 + #topscrim。**当前 sw 缓存 = v34。**
 - **2026-06-17（接力 · 底部白条终于抓到）**：惟惟圈图确认白的是**最底 Home 横条那条安全区**。根因：此 PWA 里 `position:fixed; bottom:0` 只到安全区**上边界**、够不到再下面那条物理边，所以之前 #bgfill(inset:0) 没盖住。终极修法：`#botfill` 用**负偏移** `bottom:calc(-1*env(safe-area-inset-bottom))` + `height:calc(inset+2px)` 专填那条；颜色 `--grad-bottom`(applyTheme 用正则取 gradient 最后一个 #hex，非渐变主题=`--bg`)与渐变底色无缝。`z-index:-1` 在透明 composer-wrap padding 之下、白画布之上故能盖白。**当前 sw 缓存 = v35。**
+- **2026-06-17（接力 · composer-wrap 渐隐填底，仍未解）**：撤掉 #botfill，改 `.main > .composer-wrap` 背景 `linear-gradient(to bottom, transparent 0%, var(--grad-bottom,var(--bg)) 62%)`，想用「composer-wrap 的 padding-box 本就含安全区」来填那条。**惟惟实测仍白**。**当前 sw 缓存 = v36。**
+
+### 🔴 未解 BUG：iOS 装机 PWA 底部「Home 横条安全区」一条白（P1，交给新窗口）
+
+> 惟惟说本窗口上下文堆太多、排查不出来，换新窗口用干净上下文查。这段把**症状+已试过的全部失败方案**记清楚，新窗口别重复踩。
+
+- **症状**：iPhone（带 Home 横条/灵动岛机型）**装机版 PWA**，屏幕**最底部一条**（`env(safe-area-inset-bottom)` 那条 Home 指示区，约 80px、全宽）**纯白**，一直显示。惟惟已圈图确认就是最底那条。**所有主题都白**（玻璃/非玻璃都中招）。浏览器版没这问题（只有装机 standalone 有）。顶部状态栏白边已解决（见下）。
+- **触发起点**：v31 把 `apple-mobile-web-app-status-bar-style` 由 `default` 改 `black-translucent`（为治**顶部**白边、让渐变铺到刘海后，成功），但**副作用**是底部安全区也被暴露出来、露出系统白底。
+- **顶部现状（已好，别动）**：`black-translucent` + `#topscrim`(fixed 顶、安全区高、极淡黑渐隐保白色系统图标可读)。顶部渐变铺满、不白了。
+- **❌ 治底部白·已试过且失败的方案（别再重复）**：
+  1. **v32** `#bgfill`(`position:fixed; inset:0; z-index:-1`，渐变) + body 背景透明 → 没盖住那条，且**把非玻璃主题也搞白**。已回滚。
+  2. **v33** 加深三套玻璃渐变最底色 → 没用（那条是真·未绘制的白，不是浅色渐变）。
+  3. **v34** body 背景还原渐变 + `background-attachment:fixed; min-height:100%`，指望「根元素背景传播到画布」盖安全区 → 仍白。
+  4. **v35** `#botfill`(`position:fixed; bottom:calc(-1*env(safe-area-inset-bottom)); height:calc(inset+2px); z-index:-1`，色=`--grad-bottom`) → 仍白（**怀疑**此 PWA 里 `fixed bottom:0` 就是物理底，负偏移把它推出屏外了；或 z-index:-1 被白画布盖）。
+  5. **v36** `.main>.composer-wrap` 背景渐隐到 `--grad-bottom`（指望 composer-wrap 的 `padding-bottom:calc(14px+env(safe-area-inset-bottom))` 把背景画进安全区）→ **仍白**。
+- **关键布局事实**：`body{position:fixed; inset:0; height:100%; overflow:hidden; overscroll-behavior:none}`；viewport meta 有 `viewport-fit=cover`；`.app{display:flex;height:100%}`→`.main`(flex 列：header(absolute)+`.chat`(flex:1)+`.composer-wrap`)。`--grad-bottom` 由 applyTheme 设（gradient 最后一个 hex，非渐变=`--bg`）。
+- **惟惟的线索/待新窗口验证**：她问「是不是页面**上拉**导致的？」——即可能是 `.chat` 或整体 **overscroll 橡皮筋**把固定背景拉走、露出后面的白；需让她确认那条白是「**一直在**」还是「**上拉时才冒**」（两种根因不同）。
+- **新窗口可试的新方向**（都没试过）：① 怀疑 `env(safe-area-inset-bottom)` 在此 standalone 实际为 0 或 composer-wrap 的 padding 没真正到物理底——先想办法**确认安全区数值**（页面上打印 `getComputedStyle` 或临时给 #某元素 `height:env(safe-area-inset-bottom)` 加亮色看有多高）。② 试 `100dvh`/`100svh` 给 body 或新增满屏层。③ 试**去掉 body 的 `height:100%` 过约束**只留 `inset:0`，或改用 `min-height:100dvh` 的非 fixed 布局。④ 直接给 `html` 加 `background` 且确认根背景传播在 iOS standalone 是否真生效。⑤ 若是 overscroll 露白：给 `.chat` `overscroll-behavior:contain` 已有，可能需要在最底再压一个**真正到物理底**的层（但要先搞清 fixed bottom 在此 PWA 到底对齐哪）。⚠️ 每次只改一处、让惟惟截图，避免像本窗口反复横跳。**开发分支 `claude/project-diary-review-8qdhd2`；改完 commit→push→合 main 部署→她「🔄 强制刷新」(状态栏类改动还要划掉重开)。**
