@@ -1,7 +1,7 @@
 // Network-first service worker that BYPASSES the HTTP cache (cache: "no-store"),
 // so the very latest files always load when online; falls back to the cache only
 // when offline. This stops code changes from getting stuck behind a stale cache.
-const CACHE = "jyc-chat-cache-v39";
+const CACHE = "jyc-chat-cache-v40";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil((async () => {
