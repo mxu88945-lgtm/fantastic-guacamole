@@ -306,6 +306,8 @@
     font-size: 12px; cursor: pointer; max-width: 200px;
   }
   .model-quick:focus { outline: none; border-color: var(--accent); }
+  /* glass themes: let the model picker blend into the frosted composer (same bg as the input box) */
+  html[data-glass="1"] .model-quick { background: transparent; border-color: rgba(255,255,255,.45); }
 
   /* Settings — full-screen overlay page */
   .settings {
