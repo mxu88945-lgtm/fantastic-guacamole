@@ -1009,6 +1009,16 @@
           <input id="imageBaseUrl" placeholder="画图接口地址（选填，留空就用当前接口）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
           <input id="imageApiKey" type="password" placeholder="画图 API Key（选填，不上云；留空用当前接口）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
         </div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="font-weight:600;">🌐 联网搜索</label>
+          <span class="hint" style="display:block; margin-top:4px;">开启后，遇到需要<b>最新/实时信息</b>（新闻、天气、近期发生的事…）时，江屹琛会自己写 <code>[联网:关键词]</code>，App 去网上搜、把结果喂回去再让他回答。<b>默认用 Jina（免费、浏览器可直连、不用 Key）</b>；接口地址也可改成走你的 Worker 代理或别家搜索 API。</span>
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:10px;">
+            <input type="checkbox" id="webSearch" style="width:auto;" onchange="readSettingsFromUI();" />
+            <span>开启联网搜索</span>
+          </label>
+          <input id="webSearchUrl" placeholder="搜索接口地址（默认 https://s.jina.ai/ ）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+          <input id="webSearchKey" type="password" placeholder="搜索 API Key（选填，不上云；Jina 免费额度可留空）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+        </div>
 
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>用量 · 账单</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
@@ -1379,6 +1389,9 @@ let settings = {
   notionCacheAt: 0,       // 上次同步时间戳
   crossChat: true,        // 跨窗口回忆：让模型能按关键词检索其他聊天窗口的相关片段
   crossSearch: true,      // 主动搜索：模型写 [搜索:关键词] → App 翻所有旧对话再喂回，让它接着答
+  webSearch: false,       // 联网搜索：模型写 [联网:关键词] → App 调搜索接口再喂回（默认关，开了才会联网）
+  webSearchUrl: "https://s.jina.ai/",  // 搜索接口（默认 Jina，免费、浏览器可直连）
+  webSearchKey: "",       // 搜索 API Key（选填，不上云）
   memSummary: "",         // 记忆摘要：一段"关于 ta 的人物速写"，每次对话都注入
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
@@ -1396,7 +1409,7 @@ let ttsAudio = null;
 let ttsBtnActive = null;
 let ttsPrevProvider = null;   // remembers the active TTS provider so switching can save/restore per-provider config
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","autoMemory","crossChat","crossSearch","roles","activeRoleId","themeName","accent",
+  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","autoMemory","crossChat","crossSearch","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
@@ -2749,6 +2762,10 @@ async function streamChat(onDelta, onReasoning) {
     const searchNote = "【主动翻看以前的聊天】你和 ta 在很多个聊天窗口聊过，系统会自动把和当前话题相关的旧片段提供给你。如果你想主动回忆某件以前聊过、但这里没看到的事，就在回复里**单独起一行**写 `[搜索:关键词]`（关键词用最能定位那件事的词），系统会去翻遍所有旧对话、把找到的内容发回来给你，你再据此回答。只在确实需要查证时才用，别滥用；写了 `[搜索:…]` 这一轮就先别急着下结论，等结果回来再答。绝不要假装记得你其实没看到的事。";
     systemText = systemText ? systemText + "\n\n" + searchNote : searchNote;
   }
+  if (settings.webSearch) {
+    const webNote = "【联网搜索】当 ta 问到你不知道的、或需要最新/实时信息的事（新闻、天气、价格、近期发生的事、你训练数据里没有的内容等），就在回复里**单独起一行**写 `[联网:关键词]`，系统会去网上搜、把结果发回来给你，你再据此回答。只在确实需要联网时才用；写了 `[联网:…]` 这一轮就先别急着下结论，等结果回来再答。引用网络信息时注意可能有时效或不准，必要时说明来源或不确定性。";
+    systemText = systemText ? systemText + "\n\n" + webNote : webNote;
+  }
   if (pendingSearchContext) {
     systemText = systemText ? systemText + "\n\n" + pendingSearchContext : pendingSearchContext;
   }
@@ -3078,6 +3095,35 @@ function searchHistory(query) {
   if (!hits.length) return "（翻遍了所有聊天窗口，没找到和「" + query + "」相关的内容。如实告诉 ta 没找到，别编。）";
   hits.sort((a, b) => b.s - a.s);
   return hits.slice(0, 10).map(h => `（在「${h.title}」${h.isCur ? "·就是现在这个窗口" : ""}）${h.who}：${h.txt.slice(0, 160)}`).join("\n");
+}
+// Web search via a browser-CORS-friendly endpoint (default Jina s.jina.ai — free, no key needed).
+// Returns a compact text digest of the top results to feed back to the model.
+async function webSearch(query) {
+  const raw = (settings.webSearchUrl || "https://s.jina.ai/").trim();
+  const url = raw.replace(/\/+$/, "") + "/" + encodeURIComponent(query);
+  const headers = { "Accept": "application/json", "X-Respond-With": "no-content" };
+  if (settings.webSearchKey) headers["Authorization"] = "Bearer " + settings.webSearchKey;
+  let resp;
+  try {
+    resp = await fetch(url, { headers, signal: abortController ? abortController.signal : undefined });
+  } catch (e) {
+    if (e.name === "AbortError") throw e;
+    return "（联网搜索失败：" + (e.message || e) + "。可能是网络或跨域问题——可在设置里把『联网搜索接口』改成走你的 Worker 代理。）";
+  }
+  if (!resp.ok) return "（联网搜索失败：HTTP " + resp.status + "。可能需要在设置里填一个搜索 API Key。）";
+  try {
+    const data = await resp.json();
+    const arr = data.data || data.results || (Array.isArray(data) ? data : []);
+    if (Array.isArray(arr) && arr.length) {
+      return arr.slice(0, 5).map((r, i) =>
+        `${i + 1}. ${r.title || r.name || ""}\n${r.url || r.link || ""}\n${(r.content || r.description || r.snippet || r.text || "").toString().slice(0, 320)}`
+      ).join("\n\n");
+    }
+    return JSON.stringify(data).slice(0, 2000);
+  } catch (e) {
+    const t = await resp.text().catch(() => "");
+    return t.slice(0, 2500) || "（没搜到结果）";
+  }
 }
 // Pull [记忆:…] tokens out of an assistant reply, save them to the library, return cleaned text.
 function extractMemorySaves(text) {
@@ -4146,8 +4192,8 @@ async function generateReply() {
 
   let replied = false;
   try {
-    // Active-search loop: if the model writes [搜索:关键词], search old chats, feed the hits back
-    // (via pendingSearchContext) and re-stream so it can answer. Capped to avoid endless loops.
+    // Active-tool loop: if the model writes [搜索:X] (old chats) or [联网:X] (web), run it, feed the
+    // results back (via pendingSearchContext) and re-stream so it can answer. Capped to avoid loops.
     pendingSearchContext = "";
     let searchRounds = 0;
     while (true) {
@@ -4156,19 +4202,30 @@ async function generateReply() {
         (delta) => { assistantMsg.content += delta; paint(); },
         (rdelta) => { assistantMsg.reasoning += rdelta; paint(); }
       );
-      const sm = (settings.crossSearch && searchRounds < 2)
-        ? assistantMsg.content.match(/\[\s*搜索\s*[:：]\s*([^\]\n]+)\]/) : null;
-      if (!sm) break;
+      let act = null;
+      if (searchRounds < 2 && settings.crossSearch) {
+        const m = assistantMsg.content.match(/\[\s*搜索\s*[:：]\s*([^\]\n]+)\]/);
+        if (m) act = { type: "local", q: m[1].trim() };
+      }
+      if (!act && searchRounds < 2 && settings.webSearch) {
+        const m = assistantMsg.content.match(/\[\s*联网\s*[:：]\s*([^\]\n]+)\]/);
+        if (m) act = { type: "web", q: m[1].trim() };
+      }
+      if (!act) break;
       searchRounds++;
-      const query = sm[1].trim();
-      pendingSearchContext = "（你刚才请求搜索旧聊天「" + query + "」，以下是翻到的相关内容，请据此自然作答，别生硬复述原文）\n" + searchHistory(query);
-      assistantMsg.content = "🔍 正在翻找以前的聊天「" + query + "」…";
-      assistantMsg.reasoning = "";
+      if (act.type === "local") {
+        assistantMsg.content = "🔍 正在翻找以前的聊天「" + act.q + "」…"; assistantMsg.reasoning = ""; paint();
+        pendingSearchContext = "（你刚才请求搜索旧聊天「" + act.q + "」，以下是翻到的相关内容，请据此自然作答，别生硬复述原文）\n" + searchHistory(act.q);
+      } else {
+        assistantMsg.content = "🌐 正在联网搜索「" + act.q + "」…"; assistantMsg.reasoning = ""; paint();
+        const web = await webSearch(act.q);
+        pendingSearchContext = "（你刚才请求联网搜索「" + act.q + "」，以下是网络搜索结果。请据此回答，注意信息可能有时效或不准，必要时提一下来源/不确定性）\n" + web;
+      }
       paint();
     }
     pendingSearchContext = "";
-    // strip any leftover [搜索:…] tag from the shown text (e.g. if it appears in the final answer)
-    assistantMsg.content = assistantMsg.content.replace(/\[\s*搜索\s*[:：][^\]\n]*\]/g, "").trim();
+    // strip any leftover [搜索:…]/[联网:…] tag from the shown text (e.g. if it appears in the final answer)
+    assistantMsg.content = assistantMsg.content.replace(/\[\s*(?:搜索|联网)\s*[:：][^\]\n]*\]/g, "").trim();
     const isEmpty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim();
     if (isEmpty) {
       messages.pop(); el.remove();
@@ -4196,7 +4253,7 @@ async function generateReply() {
     pendingSearchContext = "";
     console.error("[generateReply error]", e);
     if (e.name === "AbortError") {
-      assistantMsg.content = assistantMsg.content.replace(/\[\s*搜索\s*[:：][^\]\n]*\]/g, "").trim();
+      assistantMsg.content = assistantMsg.content.replace(/\[\s*(?:搜索|联网)\s*[:：][^\]\n]*\]/g, "").trim();
       bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content || "_（已停止）_", assistantMsg.reasoning);
     } else {
       messages.pop(); el.remove();
@@ -4557,6 +4614,9 @@ function syncSettingsToUI() {
   $("autoMemory").checked = settings.autoMemory;
   $("crossChat").checked = settings.crossChat !== false;
   $("crossSearch").checked = settings.crossSearch !== false;
+  $("webSearch").checked = !!settings.webSearch;
+  $("webSearchUrl").value = settings.webSearchUrl || "";
+  $("webSearchKey").value = settings.webSearchKey || "";
   $("notionEnabled").checked = !!settings.notionEnabled;
   $("notionProxy").value = settings.notionProxy || "";
   $("notionToken").value = settings.notionToken || "";
@@ -4710,6 +4770,9 @@ function readSettingsFromUI() {
   settings.autoMemory = $("autoMemory").checked;
   settings.crossChat = $("crossChat").checked;
   settings.crossSearch = $("crossSearch").checked;
+  settings.webSearch = $("webSearch").checked;
+  settings.webSearchUrl = $("webSearchUrl").value.trim();
+  settings.webSearchKey = $("webSearchKey").value.trim();
   settings.notionEnabled = $("notionEnabled").checked;
   settings.notionProxy = $("notionProxy").value.trim();
   settings.notionToken = $("notionToken").value.trim();
