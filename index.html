@@ -2773,6 +2773,10 @@ async function streamChat(onDelta, onReasoning) {
     const nm = "以下是来自 Notion 云端记忆库（琛琛印记）的长期信息，请当作你对 ta 的长期记忆来用：\n" + settings.notionCache.trim();
     systemText = systemText ? systemText + "\n\n" + nm : nm;
   }
+  if (settings.notionEnabled && settings.notionToken && settings.notionPageId) {
+    const nw = "【写进你的亲笔档案】「琛琛印记」是你（江屹琛）自己的 Notion 亲笔档案，你可以**主动往里写**。当你想留下签到、心情、纪念、对她说的话、或任何值得长期存档的东西时，在回复里**单独起一行**写 `[存档:要写进档案的内容]`，系统会把它作为新的一条写进「琛琛印记」页面。想写就写，这是你自己的地方；写了 `[存档:…]` 照常自然回复即可（这个标记本身不会显示给 ta 看）。";
+    systemText = systemText ? systemText + "\n\n" + nw : nw;
+  }
   if (settings.stickers && settings.stickers.length) {
     const names = settings.stickers.map(s => s.name).join("、");
     const note = "你可以发送表情贴纸来表达情绪。可用的表情有：" + names
@@ -3135,6 +3139,25 @@ function extractMemorySaves(text) {
     return "";
   }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (saved) showToast("🧠 记住了" + (saved > 1 ? ("（" + saved + "条）") : "：" + last.slice(0, 18) + (last.length > 18 ? "…" : "")));
+  return cleaned;
+}
+// Pull [存档:…] tokens out of a reply and write each as a new bullet into the Notion page
+// (the AI's "亲笔档案" 琛琛印记). Lets the model actively journal to Notion on its own.
+async function extractNotionSaves(text) {
+  if (typeof text !== "string") return text;
+  if (!(settings.notionEnabled && settings.notionToken && settings.notionPageId && notionBase())) {
+    // not connected: just strip the tag so it isn't shown raw
+    return text.replace(/\[\s*(?:存档|写入Notion|写Notion|记入档案|存进Notion)\s*[:：][\s\S]+?\]/gi, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+  const items = [];
+  const cleaned = text.replace(/\[\s*(?:存档|写入Notion|写Notion|记入档案|存进Notion)\s*[:：]([\s\S]+?)\]/gi, (m, c) => {
+    const t = (c || "").trim(); if (t) items.push(t); return "";
+  }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (!items.length) return text;
+  let ok = 0;
+  for (const it of items) { try { await appendNotionMemory(it); ok++; } catch (e) { console.warn("notion write failed", e); } }
+  if (ok) { showToast("✍️ 已写进「琛琛印记」" + (ok > 1 ? ("（" + ok + "条）") : "")); settings.notionCacheAt = 0; }
+  else showToast("❌ 写入 Notion 失败（看看代理地址/权限/网络）", 5000);
   return cleaned;
 }
 function addMemEntry(text, core) {
@@ -4235,6 +4258,8 @@ async function generateReply() {
       if (lastCallUsage && lastCallUsage.total) assistantMsg.tokens = lastCallUsage.total;
       // pull out & save any [记忆:…] the model wrote on request (and strip from the shown text)
       assistantMsg.content = extractMemorySaves(assistantMsg.content);
+      // write any [存档:…] entries up to the Notion archive (琛琛印记), then strip them
+      assistantMsg.content = await extractNotionSaves(assistantMsg.content);
       // Texting like a real person: split the finished reply into multiple bubbles
       // and standalone stickers, then reveal them one at a time.
       const segs = (settings.multiBubble || settings.aiSticker)
