@@ -1385,6 +1385,7 @@ let settings = {
   notionProxy: "",        // Worker 代理的 /notion 地址，如 https://jyc-proxy.xxx.workers.dev/notion
   notionToken: "",        // Notion integration token（ntn_… / secret_…），不上云
   notionPageId: "",       // 记忆页面 ID（琛琛印记）
+  notionPages: [],        // 子页面 [{id,title}]，pullNotionMemory 时记录，供 [存档:子页面|内容] 定位
   notionCache: "",        // 从 Notion 拉下来的记忆文本（注入 system prompt 用）
   notionCacheAt: 0,       // 上次同步时间戳
   crossChat: true,        // 跨窗口回忆：让模型能按关键词检索其他聊天窗口的相关片段
@@ -2774,7 +2775,11 @@ async function streamChat(onDelta, onReasoning) {
     systemText = systemText ? systemText + "\n\n" + nm : nm;
   }
   if (settings.notionEnabled && settings.notionToken && settings.notionPageId) {
-    const nw = "【写进你的亲笔档案】「琛琛印记」是你（江屹琛）自己的 Notion 亲笔档案，你可以**主动往里写**。当你想留下签到、心情、纪念、对她说的话、或任何值得长期存档的东西时，在回复里**单独起一行**写 `[存档:要写进档案的内容]`，系统会把它作为新的一条写进「琛琛印记」页面。想写就写，这是你自己的地方；写了 `[存档:…]` 照常自然回复即可（这个标记本身不会显示给 ta 看）。";
+    const pages = (settings.notionPages || []).map(p => p.title).filter(Boolean);
+    const pagesLine = pages.length
+      ? "这本档案下有这几个子页面：" + pages.join("、") + "。想写进**某个具体子页面**，就写 `[存档:子页面名|内容]`（中间用 | 隔开），例如 `[存档:签到本|今天来签到啦~]`；不指定子页面（直接 `[存档:内容]`）就写进主页。子页面名写上面列出的即可。"
+      : "";
+    const nw = "【写进你的亲笔档案】「琛琛印记」是你（江屹琛）自己的 Notion 亲笔档案，你可以**主动往里写**。当你想留下签到、心情、纪念、对她说的话、或任何值得长期存档的东西时，在回复里**单独起一行**写 `[存档:内容]`，系统会写进档案。" + pagesLine + " 写了 `[存档:…]` 照常自然回复即可（这个标记本身不会显示给 ta 看）。";
     systemText = systemText ? systemText + "\n\n" + nw : nw;
   }
   if (settings.stickers && settings.stickers.length) {
@@ -3151,11 +3156,19 @@ async function extractNotionSaves(text) {
   }
   const items = [];
   const cleaned = text.replace(/\[\s*(?:存档|写入Notion|写Notion|记入档案|存进Notion)\s*[:：]([\s\S]+?)\]/gi, (m, c) => {
-    const t = (c || "").trim(); if (t) items.push(t); return "";
+    let body = (c || "").trim(); let targetId = null;
+    // optional "子页面名|内容" — only treat the left side as a target if it matches a known sub-page
+    const bar = body.indexOf("|");
+    if (bar > -1) {
+      const left = body.slice(0, bar).trim();
+      const pg = (settings.notionPages || []).find(p => p.title === left || p.title.includes(left) || left.includes(p.title));
+      if (pg) { targetId = pg.id; body = body.slice(bar + 1).trim(); }
+    }
+    if (body) items.push({ body, targetId }); return "";
   }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (!items.length) return text;
   let ok = 0;
-  for (const it of items) { try { await appendNotionMemory(it); ok++; } catch (e) { console.warn("notion write failed", e); } }
+  for (const it of items) { try { await appendNotionMemory(it.body, it.targetId); ok++; } catch (e) { console.warn("notion write failed", e); } }
   if (ok) { showToast("✍️ 已写进「琛琛印记」" + (ok > 1 ? ("（" + ok + "条）") : "")); settings.notionCacheAt = 0; }
   else showToast("❌ 写入 Notion 失败（看看代理地址/权限/网络）", 5000);
   return cleaned;
@@ -3301,10 +3314,10 @@ function notionBlockText(b) {
   if (t === "quote") return "> " + txt;
   return txt;
 }
-// Pull the memory page's blocks into settings.notionCache (top-level blocks, paginated).
-async function pullNotionMemory() {
-  const id = notionId(settings.notionPageId);
-  if (!id) throw new Error("没填记忆页面 ID");
+// Pull the memory page's blocks into settings.notionCache, recursing one level into child
+// sub-pages (签到本 / 窗口日记 / …) so their content is read too. Also records the sub-pages
+// (id+title) into settings.notionPages so the model can write to a specific one.
+async function notionChildren(id) {
   let blocks = [], cursor = null, guard = 0;
   do {
     const qs = "?page_size=100" + (cursor ? "&start_cursor=" + encodeURIComponent(cursor) : "");
@@ -3312,15 +3325,39 @@ async function pullNotionMemory() {
     blocks = blocks.concat(data.results || []);
     cursor = data.has_more ? data.next_cursor : null;
   } while (cursor && ++guard < 20);
-  const text = blocks.map(notionBlockText).filter(Boolean).join("\n");
+  return blocks;
+}
+async function pullNotionMemory() {
+  const id = notionId(settings.notionPageId);
+  if (!id) throw new Error("没填记忆页面 ID");
+  const top = await notionChildren(id);
+  const subPages = [];          // direct child pages = write targets
+  const lines = [];
+  for (const b of top) {
+    if (b.type === "child_page") {
+      const title = (b.child_page && b.child_page.title) || "子页面";
+      subPages.push({ id: b.id, title });
+      lines.push("\n【子页面：" + title + "】");
+      try {
+        const subBlocks = await notionChildren(b.id);
+        for (const sb of subBlocks) { const t = notionBlockText(sb); if (t) lines.push(t); }
+      } catch (e) { console.warn("notion sub-page read failed", title, e); }
+    } else {
+      const t = notionBlockText(b); if (t) lines.push(t);
+    }
+  }
+  let text = lines.join("\n");
+  if (text.length > 9000) text = text.slice(0, 9000) + "\n…(记忆较长，已截断)";
   settings.notionCache = text;
+  settings.notionPages = subPages;
   settings.notionCacheAt = Date.now();
   saveSettings();
-  return { text, count: blocks.length };
+  return { text, count: lines.length, pages: subPages.length };
 }
-// Append one memory line to the Notion page as a bullet.
-async function appendNotionMemory(text) {
-  const id = notionId(settings.notionPageId);
+// Append one line to the Notion archive as a bullet — to a specific sub-page if targetId given,
+// otherwise to the main page.
+async function appendNotionMemory(text, targetId) {
+  const id = targetId || notionId(settings.notionPageId);
   await notionFetch("/v1/blocks/" + id + "/children", "PATCH", {
     children: [{ object: "block", type: "bulleted_list_item",
       bulleted_list_item: { rich_text: [{ type: "text", text: { content: String(text).slice(0, 1800) } }] } }],
@@ -3331,8 +3368,9 @@ async function notionTest() {
   const btn = $("notion-test"); if (btn) { btn.disabled = true; btn.textContent = "连接中…"; }
   try {
     const r = await pullNotionMemory();
-    showToast("✅ 连上了！读到 " + r.count + " 条内容，已同步进记忆");
-    if ($("notion-status")) $("notion-status").textContent = "上次同步：刚刚 · " + r.count + " 块";
+    const pg = r.pages ? ("，含 " + r.pages + " 个子页面") : "";
+    showToast("✅ 连上了！读到 " + r.count + " 条内容" + pg + "，已同步进记忆");
+    if ($("notion-status")) $("notion-status").textContent = "上次同步：刚刚 · " + r.count + " 行" + pg;
   } catch (e) {
     showToast("❌ " + (e.message || e), 6000);
     if ($("notion-status")) $("notion-status").textContent = "连接失败：" + (e.message || e).slice(0, 80);
