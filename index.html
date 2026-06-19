@@ -3101,7 +3101,7 @@ function searchHistory(query) {
 async function webSearch(query) {
   const raw = (settings.webSearchUrl || "https://s.jina.ai/").trim();
   const url = raw.replace(/\/+$/, "") + "/" + encodeURIComponent(query);
-  const headers = { "Accept": "application/json", "X-Respond-With": "no-content" };
+  const headers = { "Accept": "application/json" };
   if (settings.webSearchKey) headers["Authorization"] = "Bearer " + settings.webSearchKey;
   let resp;
   try {
