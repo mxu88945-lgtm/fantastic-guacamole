@@ -232,6 +232,13 @@
   - **MCP / 语音电话 / 手机控制**：都讨论过，**结论暂缓**。① 手机界面/连蓝牙玩具=网页壳硬限制（iOS 无 Web 蓝牙、不能控制别的 App），要原生 App；提醒/日记可走 iOS 快捷指令 `shortcuts://`（没做）。② 电话模式（STT+TTS 连续语音）能做，惟惟有 MiniMax 官方 key（又能听又能说），但她说先不搓。③ MCP 纯前端要走 Worker 代理+只能连远程 HTTP MCP，且她真正想要的是控制手机（做不到），所以没搓。
   - **🌹 伯恩端口**：惟惟在**另一个独立仓库**（`bume-home-core`）搓伯恩，归另一个窗口。给过她建议：伯恩同步用 **Supabase**（同一项目、单独 `bw_state` 表）；Worker 只在接第三方接口时用。还给她写了「顶栏固定+顶部跟随主题」的需求/技术说明转发那个窗口。**本仓库不碰 bume-home-core。**
   - **本窗口开发分支**：`claude/ios-pwa-home-bar-white-5pq544`（不是旧的 project-diary 那个）；流程=改完 commit 到该分支→合 main 部署→惟惟「🔄 强制刷新」。**当前 sw 缓存 = v60。**
+- **2026-06-21（接力 · 主题大精简 + 毛玻璃高级雾系，sw v60→v61）**：惟惟截图画红叉指定要删的主题，并发了一套「毛玻璃·高级感雾系」设计稿（IMG_2530）+ 配色参考（粉绿雾系色板 #EBD5D0/#E4C5C1/#CED8CF/#CCCCC0/#F2F4F1、暖棕金 #4A3A2C/#6B5544/#C9A876/#8B7355/#2E2620），说「相信你的眼光」。
+  - **删 11 套**：night/sakura/peach/mint/ocean/rose/milktea/aurora/sunset/milkyblue/lavender。
+  - **保留 4 套**：claude(默认)/white/gold/butter。
+  - **新增 4 套毛玻璃高级雾系**（都 `glass:true`，照设计稿调）：🌸 `mistpink` 雾粉（雾系奶粉+黛灰）、🌿 `mistgreen` 黛绿（雾感灰绿·蓝灰）、🔮 `glaze` 琉璃（薰衣草蓝粉全息流光）、🌙 `dusk` 暮夜（暖调深棕金，**暗色玻璃** dark+glass）。最终共 8 套。
+  - **默认主题** `themeName` 由 `night` 改 `claude`（night 已删），`DEFAULTS.theme` 改 `light`、`accent` 改空。
+  - **迁移逻辑**（`load()` 里）：`THEME_MIGRATE` 把被删主题映射到相近保留/新主题（暗色→gold/dusk、粉系→mistpink、绿系→mistgreen、紫/极光系→glaze），避免老用户白屏；旧 `metalrose`→glaze。
+  - 走的还是 `applyTheme` 现成的 gradient/glass/`--grad-bottom`/theme-color 机制，无需新 CSS。**本窗口开发分支 = `claude/theme-redesign-cleanup-pjug65`**。**当前 sw 缓存 = v61。**
 
 ### ✅ 已解决：iOS 装机 PWA 底部「Home 横条安全区」一条白（2026-06-18 修复，sw v43）
 
