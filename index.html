@@ -342,6 +342,13 @@
     outline: none; border-color: var(--accent);
   }
   .field textarea { resize: vertical; min-height: 38px; }
+  /* password field with a show/hide eye toggle */
+  .pw-wrap { position: relative; }
+  .pw-wrap input { width: 100%; padding-right: 40px; }
+  .pw-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; font-size: 16px; line-height: 1;
+    padding: 6px; opacity: .7; }
+  .pw-eye:hover { opacity: 1; }
   .field .row { display: flex; align-items: center; gap: 8px; }
   .field .row input[type="range"] { flex: 1; }
   .field .hint { font-size: 11px; color: var(--text-dim); }
@@ -966,7 +973,10 @@
         </div>
         <div class="field">
           <label>API Key</label>
-          <input id="apiKey" type="password" placeholder="sk-..." />
+          <div class="pw-wrap">
+            <input id="apiKey" type="password" placeholder="sk-..." />
+            <button type="button" class="pw-eye" onclick="togglePw('apiKey', this)" title="显示/隐藏">👁️</button>
+          </div>
         </div>
         <div class="field">
           <label>当前模型（下拉选择 · 先点下面「拉取可用模型」）</label>
@@ -1572,11 +1582,13 @@ function mirrorActiveToFlat() {
 function saveSettings() {
   mirrorActiveRole();
   localStorage.setItem("jyc_settings", JSON.stringify(settings));
+  if (!applyingCloud) localStorage.setItem("jyc_dataAt", String(Date.now()));  // mark local as freshly changed
   schedulePush();
 }
 function saveConversations() {
   localStorage.setItem("jyc_conversations", JSON.stringify(conversations));
   localStorage.setItem("jyc_current", currentId);
+  if (!applyingCloud) localStorage.setItem("jyc_dataAt", String(Date.now()));  // mark local as freshly changed
   schedulePush();
 }
 
@@ -1660,11 +1672,26 @@ async function doSignOut() {
 async function pullCloud() {
   const client = await getSb();
   if (!client || !cloudUser) return;
-  const { data, error } = await client.from("chats").select("payload")
+  const { data, error } = await client.from("chats").select("payload, updated_at")
     .eq("user_id", cloudUser.id).maybeSingle();
   if (error) { showToast("同步读取失败：" + error.message); return; }
   const payload = data && data.payload;
-  if (payload && Array.isArray(payload.conversations) && payload.conversations.length) {
+  const hasCloud = payload && Array.isArray(payload.conversations) && payload.conversations.length;
+  const hasLocal = Array.isArray(conversations) && conversations.some(c => c.messages && c.messages.length);
+  // First run after this fix: if there's local data but no timestamp yet, treat local as fresh so a
+  // stale cloud copy can't clobber it.
+  if (localStorage.getItem("jyc_dataAt") == null)
+    localStorage.setItem("jyc_dataAt", String(hasLocal ? Date.now() : 0));
+  const cloudAt = (data && data.updated_at) ? Date.parse(data.updated_at) : 0;
+  const localAt = +(localStorage.getItem("jyc_dataAt") || 0);
+  // Direction: only pull (overwrite local) when the cloud is STRICTLY newer, or local is empty.
+  // Otherwise local is the latest → push it up (this fixes "cloud overwrote my new history").
+  if (!hasCloud) { pushCloudNow(); return; }
+  if (!(cloudAt > localAt || !hasLocal)) {
+    if (localAt > cloudAt) { pushCloudNow(); showToast("✅ 本地是最新的，已上传云端"); }
+    return;   // in sync (or local newer & pushed) — keep local, don't clobber
+  }
+  {
     applyingCloud = true;
     conversations = payload.conversations;
     // remember local API keys so the (key-less) cloud copy doesn't wipe them
@@ -1697,12 +1724,10 @@ async function pullCloud() {
     localStorage.setItem("jyc_conversations", JSON.stringify(conversations));
     saveSettings();
     applyingCloud = false;
+    localStorage.setItem("jyc_dataAt", String(cloudAt || Date.now()));   // local now matches cloud
     applyTheme(); syncSettingsToUI();
     goHome();   // land on a clean greeting page; synced history sits in the sidebar (don't yank into an old chat stuck at the top)
     showToast("☁️ 已从云端同步");
-  } else {
-    // cloud empty → push current local data up
-    pushCloudNow();
   }
 }
 function schedulePush() {
@@ -1719,9 +1744,11 @@ async function pushCloudNow() {
   if (Array.isArray(syncedSettings.providers))
     syncedSettings.providers = syncedSettings.providers.map(p => ({ ...p, apiKey: "" }));
   const payload = { conversations, settings: syncedSettings };
+  const nowIso = new Date().toISOString();
   const { error } = await client.from("chats")
-    .upsert({ user_id: cloudUser.id, payload, updated_at: new Date().toISOString() });
+    .upsert({ user_id: cloudUser.id, payload, updated_at: nowIso });
   if (error) console.warn("cloud push failed:", error.message);
+  else localStorage.setItem("jyc_dataAt", String(Date.parse(nowIso)));   // local & cloud now in sync
 }
 
 function newConversation() {
@@ -3930,18 +3957,29 @@ async function send() {
 
 // ---------- Proactive "welcome back" greeting (zero-backend: fires on app open/visible) ----------
 const GREET_GAP_MS = 3 * 3600 * 1000;   // greet if away ≥ 3 hours
+// Show/hide a password input (eye toggle).
+function togglePw(id, btn) {
+  const el = document.getElementById(id); if (!el) return;
+  const hidden = el.type === "password";
+  el.type = hidden ? "text" : "password";
+  if (btn) btn.textContent = hidden ? "🙈" : "👁️";
+}
 function markSeen() { try { localStorage.setItem("jyc_lastseen", String(Date.now())); } catch (_) {} }
 async function greetProactively(hours) {
   if (abortController || !settings.apiKey) return;
-  const conv = currentConv();
-  if (!conv || conv.messages.length) return;   // only drop a hello into a fresh/empty chat
+  // Greet INTO the most recent non-empty conversation of the active role (continue the old chat),
+  // instead of dropping a hello into a fresh empty "新对话".
+  const conv = roleConvs().filter(c => Array.isArray(c.messages) && c.messages.length)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+  if (!conv) return;   // no existing chat → skip (don't spawn a new conversation just to greet)
+  if (currentId !== conv.id) switchConversation(conv.id);   // bring the old chat into view
   let sys = settings.systemPrompt || "";
   const en = emojiStyleNote(settings.emojiStyle); if (en) sys += "\n\n" + en;
   const coreMem = coreMemoryText(); if (coreMem) sys += "\n\n以下是需要长期记住的信息（用户的长期记忆）：\n" + coreMem;
-  sys += `\n\n【场景】用户隔了大约 ${hours} 小时后刚打开和你的聊天。请你主动、自然、温柔地跟 ta 打个招呼、关心一句，像有点想 ta 了，别太长（1~3 句）。`;
+  sys += `\n\n【场景】用户隔了大约 ${hours} 小时后刚回来继续你们之前这段对话。请你主动、自然、温柔地跟 ta 打个招呼、关心一句，像有点想 ta 了，承接你们刚才聊的，别太长（1~3 句）。`;
   try {
     const out = await completeOnce(sys, "（我回来了，主动跟我说句话吧～）", 400);
-    if (out && out.trim() && currentConv() === conv && !conv.messages.length) {
+    if (out && out.trim() && currentConv() === conv) {
       conv.messages.push({ id: uid(), role: "assistant", content: out.trim(), ts: Date.now() });
       messages = conv.messages;
       touchConversation();
@@ -3955,8 +3993,7 @@ function maybeProactiveGreet() {
   const gap = Date.now() - last;
   markSeen();
   if (last && gap > GREET_GAP_MS) {
-    const conv = currentConv();
-    if (conv && !conv.messages.length) setTimeout(() => greetProactively(Math.round(gap / 3600000)), 700);
+    setTimeout(() => greetProactively(Math.round(gap / 3600000)), 700);
   }
 }
 
