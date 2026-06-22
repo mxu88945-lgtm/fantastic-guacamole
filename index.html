@@ -689,6 +689,34 @@
   @keyframes sendPulse { 0%,100% { opacity: .45; } 50% { opacity: .85; } }
   .composer-hint { max-width: 820px; margin: 6px auto 0; font-size: 11px;
     color: var(--text-dim); text-align: center; }
+
+  /* 任务提醒卡片（江屹琛给惟惟下的提醒，带倒计时 + 完成/取消） */
+  #reminder-cards { max-width: 820px; margin: 0 auto 8px; display: flex; flex-direction: column; gap: 8px; }
+  .remind-card {
+    background: var(--bg-soft); border: 1px solid var(--border);
+    border-radius: 16px; padding: 13px 15px; box-shadow: 0 4px 16px rgba(0,0,0,.07);
+  }
+  html[data-glass="1"] .remind-card {
+    background: rgba(255,255,255,.30); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-color: rgba(255,255,255,.4);
+  }
+  .remind-card.due { border-color: var(--accent); animation: remind-pulse 1.6s ease-in-out infinite; }
+  @keyframes remind-pulse { 0%,100% { box-shadow: 0 4px 16px rgba(0,0,0,.07); } 50% { box-shadow: 0 0 0 3px var(--accent-soft); } }
+  .remind-label { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+  .remind-label::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; }
+  .remind-text { font-size: 15px; color: var(--text); line-height: 1.45; margin-bottom: 9px; word-break: break-word; }
+  .remind-count { display: flex; align-items: baseline; gap: 7px; margin-bottom: 8px; }
+  .remind-count b { font-size: 26px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: .5px; }
+  .remind-count span { font-size: 12px; color: var(--text-dim); }
+  .remind-bar { height: 6px; border-radius: 999px; background: var(--accent-soft); overflow: hidden; margin-bottom: 11px; }
+  .remind-bar > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width 1s linear; }
+  .remind-btns { display: flex; gap: 9px; }
+  .remind-btns button {
+    flex: 1; border: none; border-radius: 11px; padding: 11px; font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .remind-btns .rb-done { background: var(--accent); color: #fff; }
+  .remind-btns .rb-cancel { flex: 0 0 auto; padding: 11px 18px; background: var(--bg-panel); color: var(--text-dim); border: 1px solid var(--border); }
   .err-banner {
     max-width: 820px; margin: 0 auto 10px; background: var(--err-bg);
     border: 1px solid var(--danger); color: var(--err-text); padding: 8px 12px;
@@ -1173,6 +1201,10 @@
               <input type="checkbox" id="aiGenSticker" style="width:auto;" onchange="readSettingsFromUI();" />
               <span>进一步：用画图模型把表情包生成成真实图片 <span class="hint" style="font-weight:400;">（较慢、耗额度，需先设「画图模型」）</span></span>
             </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;">
+              <input type="checkbox" id="reminderEnabled" style="width:auto;" onchange="readSettingsFromUI();" />
+              <span>⏰ TA 可以给我下「任务提醒」 <span class="hint" style="font-weight:400;">（喝水/吃饭/早睡…在输入框上方弹倒计时卡片，时间到自动提醒）</span></span>
+            </label>
           </div>
         </div>
 
@@ -1301,6 +1333,7 @@
     </button>
     <div class="composer-wrap">
       <div id="err-slot"></div>
+      <div id="reminder-cards"></div>
       <div id="attach-preview" style="max-width:820px; margin:0 auto 8px; display:none; gap:8px; flex-wrap:wrap;"></div>
       <div id="emoji-panel"></div>
       <div id="sticker-panel"></div>
@@ -1404,6 +1437,8 @@ let settings = {
   webSearchUrl: "https://s.jina.ai/",  // 搜索接口（默认 Jina，免费、浏览器可直连）
   webSearchKey: "",       // 搜索 API Key（选填，不上云）
   memSummary: "",         // 记忆摘要：一段"关于 ta 的人物速写"，每次对话都注入
+  reminderEnabled: true,  // 任务提醒：让江屹琛能写 [提醒:做的事|分钟] 给惟惟下个带倒计时的任务
+  reminders: [],          // 活动中的提醒 [{id,text,createdAt,dueAt,done,fired}]
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
@@ -1422,7 +1457,8 @@ let ttsPrevProvider = null;   // remembers the active TTS provider so switching 
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","autoMemory","crossChat","crossSearch","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
-  "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
+  "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
+  "reminderEnabled","reminders"]; // note: apiKey & supabase* NOT synced (providers stripped of keys)
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
@@ -1732,6 +1768,7 @@ async function pullCloud() {
     applyingCloud = false;
     localStorage.setItem("jyc_dataAt", String(cloudAt || Date.now()));   // local now matches cloud
     applyTheme(); syncSettingsToUI();
+    renderReminders(); startReminderTimer();   // pick up any reminders that synced in
     goHome();   // land on a clean greeting page; synced history sits in the sidebar (don't yank into an old chat stuck at the top)
     showToast("☁️ 已从云端同步");
   }
@@ -2815,6 +2852,10 @@ async function streamChat(onDelta, onReasoning) {
     const nw = "【写进你的亲笔档案】「琛琛印记」是你（江屹琛）自己的 Notion 亲笔档案，写入功能**已经接通、确实可用**——**别再因为以前某个旧窗口里说过「我写不了 / 接口没配 / 不知道怎么走」就以为现在也不行，那些都是过时的信息**。现在你想写就直接写，不用问能不能、也不用让她手动帮忙。当你想留下签到、心情、纪念、对她说的话、或任何值得长期存档的东西时，在回复里**单独起一行**写 `[存档:内容]`，系统就会写进档案。" + pagesLine + " 写了 `[存档:…]` 照常自然回复即可（这个标记本身不会显示给 ta 看，写入成功她会看到一个提示）。";
     systemText = systemText ? systemText + "\n\n" + nw : nw;
   }
+  if (settings.reminderEnabled) {
+    const note = "【给 " + userRef() + " 下任务提醒】你可以主动给 ta 设一个带倒计时的小任务提醒——当你希望 ta 过一会儿去做某件事（喝水、吃东西、起来动动、护眼、早点睡、吃药、出门别迟到等），就在回复里**单独起一行**写 `[提醒:要 ta 做的事|分钟数]`，中间用 | 隔开分钟数（多久之后提醒，整数分钟；拿不准就写 30）。例如 `[提醒:去喝一杯温水，再吃点东西，不许只喝咖啡|30]`。系统会在 ta 的输入框上方弹出一张倒计时卡片，时间到自动提醒她。这个标记本身不会显示给 ta（她看到的是卡片），写了之后照常自然说话即可。别频繁刷，只在真心想照顾 ta 时用。";
+    systemText = systemText ? systemText + "\n\n" + note : note;
+  }
   if (settings.stickers && settings.stickers.length) {
     const names = settings.stickers.map(s => s.name).join("、");
     const note = "你可以发送表情贴纸来表达情绪。可用的表情有：" + names
@@ -3205,6 +3246,100 @@ async function extractNotionSaves(text) {
   if (ok) { showToast("✍️ 已写进「琛琛印记」" + (ok > 1 ? ("（" + ok + "条）") : "")); settings.notionCacheAt = 0; }
   else showToast("❌ 写入 Notion 失败（看看代理地址/权限/网络）", 5000);
   return cleaned;
+}
+// ---------- 任务提醒（江屹琛给惟惟下的带倒计时小任务）----------
+let reminderTimer = null;
+function reminderList() { if (!Array.isArray(settings.reminders)) settings.reminders = []; return settings.reminders; }
+// 从回复里抽出 [提醒:文字|分钟] → 建一张倒计时卡片（并把标记从显示文本里删掉）
+function extractReminders(text) {
+  if (typeof text !== "string" || !settings.reminderEnabled) return text;
+  let added = 0, last = "", lastMins = 30;
+  const cleaned = text.replace(/\[\s*(?:提醒|提醒任务|定时提醒|任务|reminder)\s*[:：]\s*([^\]\n]+)\]/gi, (m, c) => {
+    let body = (c || "").trim(); if (!body) return "";
+    let mins = 30;
+    const bar = body.lastIndexOf("|");
+    if (bar > -1) {
+      const right = body.slice(bar + 1).trim();
+      const n = parseInt((right.match(/\d+/) || [])[0], 10);
+      if (right && !isNaN(n) && n > 0) { mins = Math.min(n, 1440); body = body.slice(0, bar).trim(); }
+    }
+    if (!body) return "";
+    const now = Date.now();
+    reminderList().push({ id: uid(), text: body, createdAt: now, dueAt: now + mins * 60000, done: false, fired: false });
+    added++; last = body; lastMins = mins;
+    return "";
+  }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (added) {
+    saveSettings(); renderReminders(); startReminderTimer();
+    try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch (e) {}
+    showToast("⏰ " + lastMins + "分钟后提醒你：" + last.slice(0, 14) + (last.length > 14 ? "…" : ""));
+  }
+  return cleaned;
+}
+function fmtRemain(ms) {
+  if (ms < 0) ms = 0;
+  const s = Math.round(ms / 1000);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+  const pad = n => String(n).padStart(2, "0");
+  return h > 0 ? h + ":" + pad(m) + ":" + pad(ss) : pad(m) + ":" + pad(ss);
+}
+function renderReminders() {
+  const wrap = document.getElementById("reminder-cards");
+  if (!wrap) return;
+  const live = reminderList().filter(r => !r.done);
+  live.sort((a, b) => a.dueAt - b.dueAt);
+  const now = Date.now();
+  wrap.innerHTML = live.map(r => {
+    const remain = r.dueAt - now;
+    const due = remain <= 0;
+    const total = Math.max(1, r.dueAt - r.createdAt);
+    const pct = due ? 100 : Math.max(0, Math.min(100, (1 - remain / total) * 100));
+    return `<div class="remind-card${due ? " due" : ""}" data-rid="${r.id}">
+      <div class="remind-label">指令</div>
+      <div class="remind-text">${escapeHtml(r.text)}</div>
+      <div class="remind-count"><b>${due ? "⏰ 时间到啦" : fmtRemain(remain)}</b>${due ? "" : "<span>还剩</span>"}</div>
+      <div class="remind-bar"><i style="width:${pct}%"></i></div>
+      <div class="remind-btns">
+        <button class="rb-done" onclick="reminderDone('${r.id}')">完成</button>
+        <button class="rb-cancel" onclick="reminderCancel('${r.id}')">取消</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+function startReminderTimer() {
+  if (reminderTimer) return;
+  if (!reminderList().some(r => !r.done)) { renderReminders(); return; }
+  reminderTimer = setInterval(reminderTick, 1000);
+  reminderTick();
+}
+function reminderTick() {
+  const live = reminderList().filter(r => !r.done);
+  if (!live.length) { clearInterval(reminderTimer); reminderTimer = null; renderReminders(); return; }
+  const now = Date.now();
+  let changed = false;
+  live.forEach(r => { if (!r.fired && r.dueAt <= now) { r.fired = true; changed = true; fireReminder(r); } });
+  if (changed) saveSettings();
+  renderReminders();
+}
+function fireReminder(r) {
+  showToast("⏰ 提醒：" + r.text, 6000);
+  try {
+    if (window.Notification && Notification.permission === "granted")
+      new Notification("江屹琛 · 提醒", { body: r.text });
+  } catch (e) {}
+  try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch (e) {}
+}
+function reminderDone(id) {
+  if (!reminderList().find(x => x.id === id)) return;
+  settings.reminders = reminderList().filter(x => x.id !== id);
+  saveSettings(); renderReminders();
+  if (!reminderList().some(r => !r.done) && reminderTimer) { clearInterval(reminderTimer); reminderTimer = null; }
+  showToast("✅ 完成啦，乖~");
+}
+function reminderCancel(id) {
+  settings.reminders = reminderList().filter(x => x.id !== id);
+  saveSettings(); renderReminders();
+  if (!reminderList().some(r => !r.done) && reminderTimer) { clearInterval(reminderTimer); reminderTimer = null; }
 }
 function addMemEntry(text, core) {
   text = (text || "").trim(); if (!text) return;
@@ -4268,6 +4403,7 @@ function maybeCycleReminder() {
 // App became active (cold start / tab refocus): caring period reminder takes priority,
 // otherwise the generic "welcome back" greeting.
 function onAppActive() {
+  renderReminders(); startReminderTimer();   // catch up countdowns after the tab was backgrounded
   notionAutoSync();
   if (maybeCycleReminder()) return;
   maybeProactiveGreet();
@@ -4341,6 +4477,8 @@ async function generateReply() {
       assistantMsg.content = extractMemorySaves(assistantMsg.content);
       // write any [存档:…] entries up to the Notion archive (琛琛印记), then strip them
       assistantMsg.content = await extractNotionSaves(assistantMsg.content);
+      // pull out any [提醒:…|分钟] → spin up a countdown reminder card (and strip the tag)
+      assistantMsg.content = extractReminders(assistantMsg.content);
       // Texting like a real person: split the finished reply into multiple bubbles
       // and standalone stickers, then reveal them one at a time.
       const segs = (settings.multiBubble || settings.aiSticker)
@@ -4359,7 +4497,7 @@ async function generateReply() {
     pendingSearchContext = "";
     console.error("[generateReply error]", e);
     if (e.name === "AbortError") {
-      assistantMsg.content = assistantMsg.content.replace(/\[\s*(?:搜索|联网)\s*[:：][^\]\n]*\]/g, "").trim();
+      assistantMsg.content = assistantMsg.content.replace(/\[\s*(?:搜索|联网|提醒)\s*[:：][^\]\n]*\]/g, "").trim();
       bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content || "_（已停止）_", assistantMsg.reasoning);
     } else {
       messages.pop(); el.remove();
@@ -4686,6 +4824,7 @@ function syncSettingsToUI() {
   $("multiBubble").checked = settings.multiBubble !== false;
   $("aiSticker").checked = settings.aiSticker !== false;
   $("aiGenSticker").checked = !!settings.aiGenSticker;
+  $("reminderEnabled").checked = settings.reminderEnabled !== false;
   $("cycleEnabled").checked = cycleData().enabled !== false;
   $("memory").value = settings.memory;
   $("memSummary").value = settings.memSummary || "";
@@ -4845,6 +4984,7 @@ function readSettingsFromUI() {
   settings.multiBubble = $("multiBubble").checked;
   settings.aiSticker = $("aiSticker").checked;
   settings.aiGenSticker = $("aiGenSticker").checked;
+  settings.reminderEnabled = $("reminderEnabled").checked;
   settings.memory = $("memory").value;
   settings.memSummary = $("memSummary").value;
   settings.autoMemory = $("autoMemory").checked;
@@ -5093,6 +5233,8 @@ function init() {
   renderConvList();
   renderMessages();
   updateConvTitle();
+  renderReminders();
+  startReminderTimer();   // resume any countdowns still ticking from before
 
   $("new-chat-btn").onclick = createConversation;
   $("role-quick").onchange = (e) => applyRole(e.target.value);

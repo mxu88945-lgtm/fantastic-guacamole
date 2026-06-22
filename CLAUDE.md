@@ -239,6 +239,12 @@
   - **默认主题** `themeName` 由 `night` 改 `claude`（night 已删），`DEFAULTS.theme` 改 `light`、`accent` 改空。
   - **迁移逻辑**（`load()` 里）：`THEME_MIGRATE` 把被删主题映射到相近保留/新主题（暗色→gold/dusk、粉系→mistpink、绿系→mistgreen、紫/极光系→glaze），避免老用户白屏；旧 `metalrose`→glaze。
   - 走的还是 `applyTheme` 现成的 gradient/glass/`--grad-bottom`/theme-color 机制，无需新 CSS。**本窗口开发分支 = `claude/theme-redesign-cleanup-pjug65`**。**当前 sw 缓存 = v61。**
+  - **（补）Notion 链接失败排查**：惟惟「Notion 代理地址」填成了 `https://www.notion.so/my-integrations`（创建 integration 的管理页）→ 浏览器直连 notion.so 被 CORS 挡 → 报 `Load failed`。正解填她的 Worker 代理 `https://jyc-proxy.mxu88945.workers.dev/notion`（代码 `notionBase()`=`settings.notionProxy`，`fetch(代理+path)`）。改完测试连接即通。非代码问题。
+- **2026-06-21（接力 · ⏰ 任务提醒：AI 给惟惟下带倒计时的任务，sw v61→v62）**：仿惟惟「伯恩 Benson」窗口里的提醒卡片，搬到江屹琛这边。**暗号协议**（全模型通用，同 `[记忆:]`/`[存档:]`）：模型在回复里**单独一行**写 `[提醒:要她做的事|分钟数]`（| 后是多久之后提醒，整数分钟，默认 30）。
+  - **解析** `extractReminders()`（`generateReply` 里在 `extractNotionSaves` 之后调）：抽出标记、建 `{id,text,createdAt,dueAt,done,fired}` 推进 `settings.reminders`，从显示文本里删掉标记，弹 toast。
+  - **卡片** `#reminder-cards`（输入框上方，`renderReminders()`）：`● 指令` 标签 + 任务文字 + 大号倒计时 `MM:SS 还剩`（超时变「⏰ 时间到啦」+脉冲）+ 进度条 + 完成/取消按钮。CSS 用主题变量、`html[data-glass]` 下磨砂。
+  - **倒计时** `reminderTimer`（1s `setInterval`，`startReminderTimer`/`reminderTick`）：dueAt 用**绝对时间戳**，关 App 再开也能续；到点 `fireReminder` 弹 toast + `Notification`（如授权）+ 震动。`reminderDone`/`reminderCancel` 删卡片。
+  - **接入点**：`init()`、`onAppActive()`（前台回来补算）、`pullCloud`（云同步后）都 `renderReminders()+startReminderTimer()`。`DEFAULTS.reminderEnabled=true`/`reminders=[]`，都入 `SYNCED_KEYS`。设置「💬 拟真聊天」区加开关 `#reminderEnabled`。系统提示在 `reminderEnabled` 时告诉他这个能力。**⚠️ 纯前端无后台推送**：App 没开时到点不会响，下次打开才补提醒（PWA 硬限制，和经期提醒同理）。**当前 sw 缓存 = v62。**
 
 ### ✅ 已解决：iOS 装机 PWA 底部「Home 横条安全区」一条白（2026-06-18 修复，sw v43）
 
