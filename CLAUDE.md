@@ -244,7 +244,14 @@
   - **解析** `extractReminders()`（`generateReply` 里在 `extractNotionSaves` 之后调）：抽出标记、建 `{id,text,createdAt,dueAt,done,fired}` 推进 `settings.reminders`，从显示文本里删掉标记，弹 toast。
   - **卡片** `#reminder-cards`（输入框上方，`renderReminders()`）：`● 指令` 标签 + 任务文字 + 大号倒计时 `MM:SS 还剩`（超时变「⏰ 时间到啦」+脉冲）+ 进度条 + 完成/取消按钮。CSS 用主题变量、`html[data-glass]` 下磨砂。
   - **倒计时** `reminderTimer`（1s `setInterval`，`startReminderTimer`/`reminderTick`）：dueAt 用**绝对时间戳**，关 App 再开也能续；到点 `fireReminder` 弹 toast + `Notification`（如授权）+ 震动。`reminderDone`/`reminderCancel` 删卡片。
-  - **接入点**：`init()`、`onAppActive()`（前台回来补算）、`pullCloud`（云同步后）都 `renderReminders()+startReminderTimer()`。`DEFAULTS.reminderEnabled=true`/`reminders=[]`，都入 `SYNCED_KEYS`。设置「💬 拟真聊天」区加开关 `#reminderEnabled`。系统提示在 `reminderEnabled` 时告诉他这个能力。**⚠️ 纯前端无后台推送**：App 没开时到点不会响，下次打开才补提醒（PWA 硬限制，和经期提醒同理）。**当前 sw 缓存 = v62。**
+  - **接入点**：`init()`、`onAppActive()`（前台回来补算）、`pullCloud`（云同步后）都启动倒计时。设置「💬 拟真聊天」区加开关 `#reminderEnabled`。**⚠️ 纯前端无后台推送**：App 没开时到点不会响，下次打开才补提醒（PWA 硬限制，和经期提醒同理）。（此版的 `settings.reminders`+浮卡已被下面 v63 取代。）
+- **2026-06-21（接力 · ⏰ 任务提醒升级成对话内卡片 + 模型可见 + 完成即回应，sw v62→v63）**：惟惟看「伯恩」窗口的完成态卡片（`✓ 已完成 用时01:27 提前33″`，且模型完成后连发消息夸她），要把 v62 的"浮在输入框上方的临时卡"升级成"**留在对话里、模型看得到、她点完成他也知道**"。重构（**取代** v62 的 `settings.reminders`+浮卡）：
+  - **提醒=一条消息**：`{role:"reminder", id, text, createdAt, dueAt, done, doneAt, canceled, fired, ts}` 直接 push 进当前对话 `messages` → 跟着对话存（`saveConversations`）、跟着云同步、能往上翻永久留存。删了 `settings.reminders` 和 `#reminder-cards` 浮层。
+  - **渲染**：`renderMessages` 里 `m.role==="reminder"` → `reminderCardEl(m)`（进行中=倒计时+进度条+完成/取消；完成=`✓ 已完成 · 用时X · 提前/超时Y″` + `HH:MM 起 · 限时MM:SS`）。`m._event` 隐藏事件 turn 跳过不渲染。CSS `.msg.reminder .remind-card`，玻璃主题磨砂。
+  - **倒计时**：`reminderTimer` 扫 `allReminderMsgs()`（**所有对话**）找未完成的，`updateReminderCards()` 就地更新可见卡（不整页重画）；到点 `fireReminder`（toast+Notification+震动）。`dueAt` 绝对时间戳，关 App 再开续算。
+  - **模型可见**：`apiMessagesFor` **跳过** reminder 消息（不当聊天 turn，否则 role 非法）；改由 `reminderStatusNote()` 把当前对话所有卡片状态（进行中还剩X分/已完成用时X/时间到没点）注入 system prompt，模型每轮都看得到。
+  - **她点完成→他即时回应**：`reminderDone` 记 `doneAt`、重画成完成态，再 `reactToReminderDone` 推一条**隐藏 `_event` user 消息**（"系统事件：ta 完成了任务『…』用时X提前Y，请像真人即时回应"）然后 `generateReply()` → 江屹琛连发消息夸她/调侃（复用多气泡）。`_event` 消息 `renderMessages` 不显示、但 `apiMessagesFor` 当 user turn 发给模型。`取消`=`splice` 删掉那条卡片。
+  - `extractReminders` 改成"只解析返回 `{text,reminders}`、不直接 push"，在 `generateReply` 回复渲染完后再 `addReminderMessage` 追加卡片（避免和多气泡 `messages.pop()` 打架）；并**总是 strip 标记**（即使功能关也不漏 `[提醒:]` 原文）。**当前 sw 缓存 = v63。**
 
 ### ✅ 已解决：iOS 装机 PWA 底部「Home 横条安全区」一条白（2026-06-18 修复，sw v43）
 
