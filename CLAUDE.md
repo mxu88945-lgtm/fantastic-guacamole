@@ -252,6 +252,7 @@
   - **模型可见**：`apiMessagesFor` **跳过** reminder 消息（不当聊天 turn，否则 role 非法）；改由 `reminderStatusNote()` 把当前对话所有卡片状态（进行中还剩X分/已完成用时X/时间到没点）注入 system prompt，模型每轮都看得到。
   - **她点完成→他即时回应**：`reminderDone` 记 `doneAt`、重画成完成态，再 `reactToReminderDone` 推一条**隐藏 `_event` user 消息**（"系统事件：ta 完成了任务『…』用时X提前Y，请像真人即时回应"）然后 `generateReply()` → 江屹琛连发消息夸她/调侃（复用多气泡）。`_event` 消息 `renderMessages` 不显示、但 `apiMessagesFor` 当 user turn 发给模型。`取消`=`splice` 删掉那条卡片。
   - `extractReminders` 改成"只解析返回 `{text,reminders}`、不直接 push"，在 `generateReply` 回复渲染完后再 `addReminderMessage` 追加卡片（避免和多气泡 `messages.pop()` 打架）；并**总是 strip 标记**（即使功能关也不漏 `[提醒:]` 原文）。**当前 sw 缓存 = v63。**
+- **2026-06-21（接力 · 📌 进行中提醒固定悬浮小窗，sw v63→v64）**：惟惟反馈"一时没完成的卡片被新消息顶上去就看不见、得翻回去点完成"。加一个固定悬浮 mini 窗 `#reminder-pin`（`position:fixed` 右上、header 下方 `top:60px+safe-area`、`z-index:4`、`pointer-events:none` 容器/`.pin-card` auto）：常驻显示**当前对话**所有"进行中"（`!done && !canceled`）提醒——任务文字(2行夹断)+倒计时+「完成」小按钮。`renderReminderPin()` 在 `renderMessages` 两个出口都调（建结构）；`reminderTick→updateReminderCards→updatePinCountdowns()` 每秒就地更新 pin 倒计时（完成/取消的 node.remove）。点 pin 卡片体 `scrollToReminder(id)` 跳到对话里那张卡并 flash；点「完成」`event.stopPropagation()+reminderDone`。对话内那条永久卡照旧（pin 只是快捷入口，完成即从 pin 消失）。玻璃主题下 pin 磨砂。**当前 sw 缓存 = v64。**
 
 ### ✅ 已解决：iOS 装机 PWA 底部「Home 横条安全区」一条白（2026-06-18 修复，sw v43）
 
