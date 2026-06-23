@@ -2023,6 +2023,18 @@ async function exportChatImage(msgsOverride) {
     showToast("生成失败：" + (e.message || e).slice(0, 60));
   }
 }
+// Tap an in-chat image → fullscreen viewer (in-app overlay; never window.open a data: URL,
+// which iOS standalone PWAs open as a blank Safari page).
+function openImageLightbox(src) {
+  const ov = document.createElement("div");
+  ov.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;padding:16px;";
+  const img = document.createElement("img");
+  img.src = src;
+  img.style.cssText = "max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;";
+  ov.appendChild(img);
+  ov.addEventListener("click", () => ov.remove());
+  document.body.appendChild(ov);
+}
 function showImagePreview(blob) {
   const url = URL.createObjectURL(blob);
   const ov = document.createElement("div");
@@ -2396,7 +2408,7 @@ function bubbleHtml(role, content, reasoning, streaming) {
   let imgs = "", text = content;
   if (Array.isArray(content)) {
     imgs = content.filter(p => p.type === "image")
-      .map(p => `<img class="msg-img" src="${escapeHtml(p.dataUrl)}" onclick="window.open(this.src)" alt="">`).join("");
+      .map(p => `<img class="msg-img" src="${escapeHtml(p.dataUrl)}" onclick="openImageLightbox(this.src)" alt="">`).join("");
     imgs += content.filter(p => p.type === "sticker")
       .map(p => stickerHtml(p)).join("");
     text = content.filter(p => p.type === "text").map(p => p.text).join("\n");
@@ -2903,7 +2915,7 @@ async function streamChat(onDelta, onReasoning) {
     systemText = systemText ? systemText + "\n\n" + nw : nw;
   }
   if (settings.reminderEnabled) {
-    const note = "【给 " + userRef() + " 下任务提醒】你可以主动给 ta 设一个带倒计时的小任务——当你希望 ta 过一会儿去做某件事（喝水、吃东西、起来动动、护眼、早点睡、吃药、出门别迟到等），就在回复里**单独起一行**写 `[提醒:要 ta 做的事|分钟数]`，中间用 | 隔开分钟数（多久之后提醒，整数分钟；拿不准就写 30）。例如 `[提醒:去喝一杯温水，再吃点东西，不许只喝咖啡|30]`。系统会在对话里插入一张倒计时卡片留存，时间到自动提醒她，她做完会点「完成」。这个标记本身不会显示给 ta（她看到的是卡片），写了之后照常自然说话即可。别频繁刷，只在真心想照顾 ta 时用。";
+    const note = "【给 " + userRef() + " 下任务提醒（克制使用）】你可以在**少数真正必要**的时候，给 ta 设一个带倒计时的小任务——比如 ta 明确说了要做某事却容易忘、或健康相关又确实需要催（该吃药、太久没喝水、熬太晚该睡了）。方式：在回复里**单独起一行**写 `[提醒:要 ta 做的事|分钟数]`，| 后是多久之后提醒（整数分钟，拿不准写 30）。例如 `[提醒:去喝一杯温水，再吃点东西|30]`。系统会插入一张倒计时卡片，时间到自动提醒她。\n**重要分寸**：这是偶尔的贴心，不是习惯。**大多数回复都不该带提醒**；一次对话最多一个，能用嘴关心就别动不动下任务，别让 ta 觉得被管得喘不过气。拿不准要不要发时，就不发。这个标记不会显示给 ta（她看到的是卡片），写了照常自然说话即可。";
     systemText = systemText ? systemText + "\n\n" + note : note;
     const rnote = reminderStatusNote();
     if (rnote) systemText = systemText ? systemText + "\n\n" + rnote : rnote;
