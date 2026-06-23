@@ -306,8 +306,10 @@
   .header-menu button.danger, .header-menu button.danger svg { color: var(--danger); }
   .model-quick {
     background: var(--bg-panel); border: 1px solid transparent;
-    color: var(--text); border-radius: 999px; padding: 7px 9px;
+    color: var(--text); border-radius: 999px; padding: 7px 13px;
     font-size: 12px; cursor: pointer; max-width: 200px;
+    -webkit-appearance: none; appearance: none;   /* drop the native ⇅ chevron — just tap the pill to open */
+    text-align: center;
   }
   .model-quick:focus { outline: none; border-color: var(--accent); }
   /* glass themes: a soft frosted bubble (not transparent), so the picker reads as a pill like Claude's */
