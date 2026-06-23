@@ -305,13 +305,13 @@
   .header-menu button:hover { background: var(--item-active); }
   .header-menu button.danger, .header-menu button.danger svg { color: var(--danger); }
   .model-quick {
-    background: var(--bg-panel); border: 1px solid var(--border);
-    color: var(--text); border-radius: 9px; padding: 7px 9px;
+    background: var(--bg-panel); border: 1px solid transparent;
+    color: var(--text); border-radius: 999px; padding: 7px 9px;
     font-size: 12px; cursor: pointer; max-width: 200px;
   }
   .model-quick:focus { outline: none; border-color: var(--accent); }
-  /* glass themes: let the model picker blend into the frosted composer (same bg as the input box) */
-  html[data-glass="1"] .model-quick { background: transparent; border-color: rgba(255,255,255,.45); }
+  /* glass themes: a soft frosted bubble (not transparent), so the picker reads as a pill like Claude's */
+  html[data-glass="1"] .model-quick { background: rgba(255,255,255,.42); border-color: rgba(255,255,255,.5); }
 
   /* Settings — full-screen overlay page */
   .settings {
@@ -600,10 +600,12 @@
   .composer-row { display: flex; align-items: center; gap: 8px; }
   .composer-row .model-quick { max-width: 200px; padding: 5px 9px; }
   .attach-btn {
-    background: none; border: none; color: var(--text-dim); cursor: pointer;
-    width: 34px; height: 34px; display: grid; place-items: center; flex-shrink: 0;
+    background: var(--bg-panel); border: none; color: var(--text-dim); cursor: pointer;
+    width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+    flex-shrink: 0; transition: .15s;
   }
-  .attach-btn:hover { color: var(--accent); }
+  .attach-btn:hover { color: var(--accent); background: var(--item-active); }
+  html[data-glass="1"] .attach-btn { background: rgba(255,255,255,.42); }
   #emoji-btn { font-size: 20px; }
   #plus-menu {
     display: none; flex-direction: column; gap: 2px; width: 200px; margin: 0 0 8px;
