@@ -602,7 +602,7 @@
   .composer-row { display: flex; align-items: center; gap: 8px; }
   /* pill hugs its text (won't stretch across the bar); caps wide enough for long names, ellipsis past that */
   .composer-row .model-quick {
-    flex: 0 1 auto; width: auto; min-width: 0; max-width: 72vw; padding: 6px 14px;
+    flex: 0 0 auto; width: auto; min-width: 0; max-width: 72vw; padding: 6px 14px;
     text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .composer-row .spacer { flex: 1; }
@@ -4967,6 +4967,23 @@ function renderModelQuick() {
   };
   fill($("model-quick"), false);
   fill($("model-select"), true);
+  fitModelQuickWidth();
+}
+// A <select> with width:auto sizes to its LONGEST option, not the selected one — so the pill
+// looked huge. Measure the currently-selected label and set the width to hug just that.
+function fitModelQuickWidth() {
+  const sel = $("model-quick");
+  if (!sel) return;
+  const label = (sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].textContent) || sel.value || "";
+  const meas = document.createElement("span");
+  meas.style.cssText = "position:absolute;visibility:hidden;white-space:nowrap;font-size:12px;font-family:inherit;font-weight:400;padding:0;";
+  meas.textContent = label;
+  document.body.appendChild(meas);
+  const textW = meas.offsetWidth;
+  meas.remove();
+  // text + horizontal padding (14*2) + a little breathing room; capped so it never fills the bar
+  const w = Math.min(textW + 34, Math.round(window.innerWidth * 0.66));
+  sel.style.width = w + "px";
 }
 
 // ---------- Settings UI ----------
