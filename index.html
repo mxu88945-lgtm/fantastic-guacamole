@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<meta name="apple-mobile-web-app-title" content="江屹琛" />
+<meta name="apple-mobile-web-app-title" content="Role Chat" />
 <meta name="theme-color" content="#f5f4ef" />
 <script>
 /* Pre-paint theme priming: iOS standalone PWAs snapshot the status-bar color at
@@ -42,7 +42,7 @@
 </script>
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="icon" type="image/png" href="apple-touch-icon.png" />
-<title>江屹琛 · Chat</title>
+<title>Role Chat</title>
 <style>
   :root, html[data-theme="dark"] {
     --bg: #0f1117;
@@ -124,10 +124,19 @@
     background: linear-gradient(135deg, #7c83ff, #b06bff);
     display: grid; place-items: center; font-weight: 700; color: #fff;
   }
+  .sidebar .brand .logo img { width: 100%; height: 100%; object-fit: cover; }
   .sidebar .brand .title {
     font-size: 14px; font-weight: 600;
     flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  .sidebar-primary {
+    margin: 12px 12px 2px; min-height: 42px; border: none; border-radius: 12px;
+    background: var(--text); color: var(--bg); cursor: pointer;
+    font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1;
+    display: flex; align-items: center; justify-content: center; gap: 8px; transition: .15s;
+  }
+  .sidebar-primary svg { width: 17px; height: 17px; }
+  .sidebar-primary:active { transform: scale(.985); }
   /* round "dot" icon buttons in the sidebar header — same clean style as the main top bar */
   .sidebar .brand .icon-btn {
     width: 34px; height: 34px; padding: 0; border-radius: 50%;
@@ -179,6 +188,16 @@
   .conv-item .ic { flex-shrink: 0; opacity: .7; }
   .conv-item .name {
     flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .conv-group-label {
+    padding: 14px 10px 6px; color: var(--text-dim); font-size: 10px; font-weight: 650;
+    letter-spacing: .35px;
+  }
+  .conv-copy { flex: 1; min-width: 0; }
+  .conv-copy .name { display: block; color: inherit; }
+  .conv-copy .snippet {
+    display: block; margin-top: 2px; color: var(--text-dim); font-size: 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .78;
   }
   .conv-item .act {
     opacity: .5; border: none; background: none; color: var(--text-dim);
@@ -276,6 +295,11 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   header .sub { font-size: 11px; color: var(--text-dim); }
   header .spacer { flex: 1; }
+  .header-identity { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .header-role-name { max-width: 230px; color: var(--text); font-size: 14px; font-weight: 650;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .header-role-model { max-width: 230px; color: var(--text-dim); font-size: 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .icon-btn {
     background: var(--bg-panel); border: 1px solid var(--border);
     color: var(--text); border-radius: 9px; padding: 7px 11px;
@@ -327,12 +351,36 @@
     border-bottom: 1px solid var(--border); background: var(--bg-soft);
     font-weight: 700; font-size: 16px; flex-shrink: 0;
   }
+  .settings-shell {
+    flex: 1; min-height: 0; width: min(1120px, 100%); margin: 0 auto;
+    display: grid; grid-template-columns: 224px minmax(0, 1fr);
+  }
+  .settings-nav {
+    border-right: 1px solid var(--border); padding: 18px 12px;
+    display: flex; flex-direction: column; gap: 4px; overflow-y: auto;
+  }
+  .settings-nav-title { padding: 4px 10px 10px; font-size: 11px; color: var(--text-dim); }
+  .settings-nav button {
+    width: 100%; min-height: 42px; border: none; border-radius: 10px; padding: 0 12px;
+    background: transparent; color: var(--text-dim); cursor: pointer;
+    font-family: inherit; font-size: 13px; font-weight: 500; line-height: 1;
+    display: flex; align-items: center; gap: 10px; text-align: left;
+  }
+  .settings-nav button:hover { background: var(--bg-soft); color: var(--text); }
+  .settings-nav button.active { background: var(--item-active); color: var(--text); font-weight: 650; }
+  .settings-nav button span:first-child { width: 20px; text-align: center; font-size: 16px; }
   .settings-inner {
-    flex: 1; overflow-y: auto; padding: 16px;
+    min-width: 0; overflow-y: auto; padding: 24px clamp(16px, 4vw, 42px);
     padding-bottom: calc(24px + env(safe-area-inset-bottom));
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 9px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;
     align-content: start;
   }
+  .settings-inner > [data-settings-group][hidden] { display: none !important; }
+  .settings-page-intro {
+    grid-column: 1 / -1; margin-bottom: 6px; padding-bottom: 18px; border-bottom: 1px solid var(--border);
+  }
+  .settings-page-intro h2 { margin: 0 0 5px; font-size: 22px; letter-spacing: -.3px; }
+  .settings-page-intro p { margin: 0; color: var(--text-dim); font-size: 12px; line-height: 1.55; }
   .field { display: flex; flex-direction: column; gap: 5px; }
   .field label { font-size: 12px; color: var(--text-dim); }
   .field input, .field select, .field textarea {
@@ -366,6 +414,10 @@
     background: var(--bg-soft); border: 1px solid var(--border);
     border-radius: 13px; padding: 13px 15px;
     box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .settings-inner > .field[data-settings-group] {
+    background: var(--bg-soft); border: 1px solid var(--border) !important;
+    border-radius: 15px !important; padding: 16px !important;
   }
   .section-title.accordion:active { background: var(--item-active); }
   .acc-chev { margin-left: auto; transition: transform .2s; font-size: 12px; opacity: .55; }
@@ -577,6 +629,23 @@
     30% { transform: translateY(-5px); opacity: 1; } }
   .empty-state { text-align: center; color: var(--text-dim); margin-top: 26vh;
     display: flex; flex-direction: column; align-items: center; }
+  .empty-state { width: min(680px, calc(100% - 28px)); margin: clamp(100px, 22vh, 210px) auto 0; }
+  .empty-avatar {
+    width: 58px; height: 58px; margin-bottom: 18px; border-radius: 18px;
+    display: grid; place-items: center; overflow: hidden; color: #fff; font-size: 22px; font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #e999bd));
+    box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .empty-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .empty-role { margin-top: 8px; color: var(--text-dim); font-size: 13px; }
+  .starter-grid { width: 100%; margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .starter-card {
+    min-height: 54px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px;
+    background: color-mix(in srgb, var(--bg-panel) 82%, transparent); color: var(--text);
+    cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 500; line-height: 1.35;
+    text-align: left; transition: .16s;
+  }
+  .starter-card:hover { border-color: var(--accent); transform: translateY(-1px); }
   .empty-state .big { font-size: 40px; margin-bottom: 12px; }
   .empty-state .greet { font-size: 30px; color: var(--text); font-weight: 400; letter-spacing: .3px;
     font-family: Georgia, "Songti SC", "Times New Roman", serif; }
@@ -836,6 +905,22 @@
     header h1 { font-size: 14px; }
     .model-quick { max-width: 120px; }
     .composer-hint { display: none; }
+    .settings-header { background: var(--bg); }
+    .settings-shell { display: flex; flex-direction: column; }
+    .settings-nav {
+      flex: 0 0 auto; flex-direction: row; border-right: none; border-bottom: 1px solid var(--border);
+      padding: 8px 12px; gap: 6px; overflow-x: auto; scrollbar-width: none;
+    }
+    .settings-nav::-webkit-scrollbar { display: none; }
+    .settings-nav-title { display: none; }
+    .settings-nav button { width: auto; min-width: max-content; min-height: 38px; padding: 0 12px; }
+    .settings-nav button span:first-child { width: auto; }
+    .settings-inner { flex: 1; padding: 18px 14px calc(24px + env(safe-area-inset-bottom)); display: block; }
+    .settings-inner > .section-title, .settings-inner > .field { margin-bottom: 10px; }
+    .settings-page-intro h2 { font-size: 20px; }
+    .starter-grid { grid-template-columns: 1fr; margin-top: 22px; }
+    .empty-state { margin-top: clamp(90px, 17vh, 150px); }
+    .empty-state .greet { font-size: 26px; }
   }
 </style>
 </head>
@@ -884,11 +969,15 @@
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <div class="logo" id="brand-logo">江</div>
-      <div class="title" id="brand-title">江屹琛 · Chat</div>
+      <div class="logo" id="brand-logo">R</div>
+      <div class="title" id="brand-title">Role Chat</div>
       <button class="icon-btn" id="new-chat-btn" title="新对话"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       <button class="icon-btn" id="sidebar-settings-btn" title="设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
     </div>
+    <button class="sidebar-primary" id="sidebar-new-chat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      新对话
+    </button>
     <div class="role-quick-wrap">
       <svg class="role-quick-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
       <select class="role-quick" id="role-quick" title="切换角色"></select>
@@ -903,6 +992,10 @@
     <div id="chat-bg"></div>
     <header>
       <button class="icon-btn" id="toggle-sidebar" title="收起/展开侧栏"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+      <div class="header-identity">
+        <span class="header-role-name" id="header-role-name">当前角色</span>
+        <span class="header-role-model" id="status-line"></span>
+      </div>
       <div class="spacer"></div>
       <button class="icon-btn" id="header-search-btn" title="搜索聊天记录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
       <button class="icon-btn" id="header-new-btn" title="新对话"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
@@ -925,10 +1018,22 @@
 
     <div class="settings" id="settings-panel">
       <div class="settings-header">
-        <span>⚙️ 设置</span>
+        <span>设置</span>
         <button class="mini-btn primary" id="settings-close">✓ 完成</button>
       </div>
-      <div class="settings-inner">
+      <div class="settings-shell">
+        <nav class="settings-nav" id="settings-nav" aria-label="设置分类">
+          <div class="settings-nav-title">设置中心</div>
+          <button data-settings-tab="account"><span>☁️</span>账号与同步</button>
+          <button data-settings-tab="role"><span>◉</span>角色与关系</button>
+          <button data-settings-tab="services"><span>⌘</span>模型与服务</button>
+          <button data-settings-tab="memory"><span>◇</span>记忆与收藏</button>
+          <button data-settings-tab="media"><span>◖</span>语音与媒体</button>
+          <button data-settings-tab="appearance"><span>✦</span>外观与聊天</button>
+          <button data-settings-tab="data"><span>▣</span>数据与隐私</button>
+        </nav>
+        <div class="settings-inner">
+          <div class="settings-page-intro" id="settings-page-intro"></div>
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/></svg>账号 · 多设备同步（可选）</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">登录后多设备同步，API Key 不上云</label>
@@ -1020,7 +1125,7 @@
             </span>
           </label>
           <div id="sticker-manage" style="display:none; gap:8px; flex-wrap:wrap; margin-top:10px; max-height:200px; overflow-y:auto;"></div>
-          <span class="hint">上传图片当表情包，聊天点 🧩 发送；江屹琛也能用「[贴纸:名字]」发（存本地、不上云）。</span>
+          <span class="hint">上传图片当表情包，聊天点 🧩 发送；当前角色也能用「[贴纸:名字]」发（存本地、不上云）。</span>
         </div>
 
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg>模型与服务</div>
@@ -1095,7 +1200,7 @@
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🌐 联网搜索</label>
-          <span class="hint" style="display:block; margin-top:4px;">开启后，遇到需要<b>最新/实时信息</b>（新闻、天气、近期发生的事…）时，江屹琛会自己写 <code>[联网:关键词]</code>，App 去网上搜、把结果喂回去再让他回答。<b>默认用 Jina（免费、浏览器可直连、不用 Key）</b>；接口地址也可改成走你的 Worker 代理或别家搜索 API。</span>
+          <span class="hint" style="display:block; margin-top:4px;">开启后，遇到需要<b>最新/实时信息</b>时，当前角色可以发起联网检索，App 会把结果交给模型后继续回答。默认使用 Jina，也可以改成你的 Worker 或其他搜索服务。</span>
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:10px;">
             <input type="checkbox" id="webSearch" style="width:auto;" onchange="readSettingsFromUI();" />
             <span>开启联网搜索</span>
@@ -1199,8 +1304,8 @@
             <div style="flex:1; min-width:240px;">
               <div class="hint" style="margin-bottom:6px;">AI</div>
               <div style="display:flex; gap:8px; align-items:center;">
-                <span class="avatar-preview" id="aiAvatarPreview">江</span>
-                <input id="aiName" placeholder="名称（默认：江屹琛）" style="flex:1; min-width:90px;" />
+                <span class="avatar-preview" id="aiAvatarPreview">角</span>
+                <input id="aiName" placeholder="角色名称" style="flex:1; min-width:90px;" />
               </div>
               <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
                 <input id="aiAvatar" placeholder="头像：文字 / emoji" style="flex:1; min-width:80px;" />
@@ -1218,7 +1323,7 @@
             <button class="mini-btn" data-edit="systemPrompt" data-title="核心人设" title="展开编辑" style="padding:5px 8px;line-height:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
           </label>
           <span class="hint">决定 AI 如何理解身份、关系、语气与边界。</span>
-          <textarea id="systemPrompt" placeholder="你叫江屹琛，对用户亲切、口语化……" style="margin-top:6px;"></textarea>
+          <textarea id="systemPrompt" placeholder="填写角色身份、关系、语气与行为边界……" style="margin-top:6px;"></textarea>
           <label style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
             <span style="font-weight:500;">表情风格</span>
             <select id="emojiStyle" onchange="readSettingsFromUI();" style="width:auto; flex:1; min-width:140px;">
@@ -1228,7 +1333,7 @@
               <option value="cute">可爱满满（多颜文字+撒娇）</option>
             </select>
           </label>
-          <span class="hint" style="display:block;">控制江屹琛回复里颜文字 / emoji（如 (๑&gt;ᴗ&lt;๑)、🥰）的用量与语气。</span>
+          <span class="hint" style="display:block;">控制当前角色回复里颜文字 / emoji 的用量与语气。</span>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:12px;">
             <input type="checkbox" id="proactiveGreet" style="width:auto;" onchange="readSettingsFromUI();" />
             <span>🌙 久未聊天时，TA 主动招呼我 <span class="hint" style="font-weight:400;">（隔约 3 小时再打开，会收到一句问候）</span></span>
@@ -1259,7 +1364,7 @@
             <input type="checkbox" id="cycleEnabled" style="width:auto;" onchange="cycleData().enabled=this.checked; saveSettings();" />
             <span style="font-weight:600;">🌸 惟惟日记 <span class="hint" style="font-weight:400;">· 经期记录</span></span>
           </label>
-          <span class="hint" style="display:block;margin-top:6px;">记录经期、预测下次、可补记过往几个月。江屹琛能看到你在周期哪个阶段，会主动心疼你（提醒保暖、喝热水、别吃凉的）。数据只存本地/你的云账号。</span>
+          <span class="hint" style="display:block;margin-top:6px;">记录经期、预测下次、可补记过往几个月。启用后，当前角色能根据周期阶段提供适当关心。数据只存本地或你的云账号。</span>
           <button class="icon-btn" id="open-cycle-btn" style="margin-top:10px;">🌸 打开惟惟日记</button>
         </div>
 
@@ -1269,12 +1374,12 @@
           <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <span style="font-weight:600;">✨ 记忆摘要 <span class="hint" style="font-weight:400;">· 关于你的人物速写（每次都带）</span></span>
             <span style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
-              <button class="mini-btn primary" id="mem-sum-gen" style="padding:5px 10px;">让江屹琛总结</button>
+              <button class="mini-btn primary" id="mem-sum-gen" style="padding:5px 10px;">让 TA 总结</button>
               <button class="mini-btn" data-edit="memSummary" data-title="✨ 记忆摘要" title="放大编辑" style="padding:5px 8px;line-height:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
             </span>
           </label>
-          <span class="hint" style="display:block;margin-top:4px;">一段连贯的总结：你俩的关系、你的性格 / 爱好 / 习惯、你喜欢的相处风格…比一条条记忆更整体，<b>每次对话都带上</b>。可自己写，也可点右上让江屹琛根据记忆库重新总结。</span>
-          <textarea id="memSummary" placeholder="点右上「让江屹琛总结」自动生成，或自己写…" style="margin-top:8px;min-height:90px;" onchange="readSettingsFromUI();"></textarea>
+          <span class="hint" style="display:block;margin-top:4px;">一段连贯的总结：你们的关系、你的性格 / 爱好 / 习惯、喜欢的相处风格等。它比单条记忆更整体，并会随每次对话提供给当前角色。</span>
+          <textarea id="memSummary" placeholder="让当前角色根据记忆库生成，或自己填写…" style="margin-top:8px;min-height:90px;" onchange="readSettingsFromUI();"></textarea>
         </div>
 
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
@@ -1305,7 +1410,7 @@
             </label>
             <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:8px;cursor:pointer;">
               <input type="checkbox" id="crossSearch" style="width:auto;" onchange="readSettingsFromUI();" />
-              🔍 主动翻旧聊天：让江屹琛自己决定去翻所有旧对话找东西（他写 <code>[搜索:关键词]</code>，App 自动翻好再让他接着答；所有模型都支持）
+              🔍 主动翻旧聊天：允许当前角色在需要时检索其他对话中的相关内容
             </label>
           </div>
         </div>
@@ -1317,10 +1422,10 @@
             <button class="card-fold" onclick="foldCard('notion-body', this)">▸</button>
           </label>
           <div id="notion-body" style="display:none;">
-          <span class="hint" style="display:block;margin-top:6px;">把长期记忆"住"进你的 Notion「琛琛印记」：江屹琛聊天时会自动读取，自动记忆也会写回 Notion。需先建 Notion integration 并把页面分享给它（不懂问老公）。</span>
+          <span class="hint" style="display:block;margin-top:6px;">把长期记忆保存到你的 Notion 角色档案：聊天时自动读取，自动记忆也可以写回。需要先创建 Notion integration 并把档案页面分享给它。</span>
           <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
             <div class="field" style="padding:0;"><label>Notion 代理地址（你 Worker 的 /notion）</label>
-              <input id="notionProxy" placeholder="https://jyc-proxy.xxx.workers.dev/notion" onchange="readSettingsFromUI();" /></div>
+              <input id="notionProxy" placeholder="https://your-proxy.workers.dev/notion" onchange="readSettingsFromUI();" /></div>
             <div class="field" style="padding:0;"><label>Notion token <span class="hint">（ntn_… / secret_…，不上云）</span></label>
               <input id="notionToken" type="password" placeholder="ntn_…" onchange="readSettingsFromUI();" /></div>
             <div class="field" style="padding:0;"><label>记忆页面 ID / 链接</label>
@@ -1367,6 +1472,7 @@
           <input id="lockPin" inputmode="numeric" maxlength="8" placeholder="设置 4~8 位数字密码" style="margin-top:8px; letter-spacing:4px;" />
           <span class="hint">只防别人随手翻看（存在本地、非加密）。忘了密码可在浏览器「清除网站数据」重置（会清空所有数据，建议先导出备份）。</span>
         </div>
+        </div>
       </div>
     </div>
 
@@ -1391,7 +1497,7 @@
       </div>
       <div class="composer">
         <input type="file" id="attach-file" accept="image/*" multiple style="display:none;" />
-        <textarea id="input" rows="1" placeholder="Message 江屹琛"></textarea>
+        <textarea id="input" rows="1" placeholder="发送消息"></textarea>
         <div class="composer-row">
           <button class="attach-btn" id="plus-btn" title="更多">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1453,8 +1559,8 @@ let settings = {
   activeRoleId: "",
   userName: "你",
   userAvatar: "你",
-  aiName: "江屹琛",
-  aiAvatar: "江",
+  aiName: "新角色",
+  aiAvatar: "角",
   lockEnabled: false,
   lockPin: "",
   chatLayout: "bubble",   // "bubble" | "flat" (Tavo-style header on top)
@@ -1560,7 +1666,7 @@ function loadState() {
   mirrorActiveToFlat();
   // seed a default role from the current persona if none exist
   if (!Array.isArray(settings.roles) || settings.roles.length === 0) {
-    const r = { id: uid(), name: settings.aiName || "江屹琛" };
+    const r = { id: uid(), name: settings.aiName || "新角色" };
     ROLE_FIELDS.forEach(f => r[f] = settings[f]);
     settings.roles = [r];
     settings.activeRoleId = r.id;
@@ -1795,7 +1901,7 @@ async function pullCloud() {
     mirrorActiveToFlat();
     // ensure roles exist + every conversation is tagged with a role
     if (!Array.isArray(settings.roles) || !settings.roles.length) {
-      const r = { id: uid(), name: settings.aiName || "江屹琛" };
+      const r = { id: uid(), name: settings.aiName || "新角色" };
       ROLE_FIELDS.forEach(f => r[f] = settings[f]);
       settings.roles = [r]; settings.activeRoleId = r.id;
     }
@@ -1975,15 +2081,15 @@ async function exportChatImage(msgsOverride) {
 
     ctx.textBaseline = "top"; ctx.textAlign = "left";
     ctx.fillStyle = colText; ctx.font = "600 20px -apple-system,'PingFang SC',sans-serif";
-    const title = (conv.title && conv.title !== "新对话") ? conv.title : (settings.aiName || "江屹琛");
+    const title = (conv.title && conv.title !== "新对话") ? conv.title : (settings.aiName || "当前角色");
     ctx.fillText(title, padX, 22);
     ctx.fillStyle = colDim; ctx.font = fontName;
-    ctx.fillText(new Date().toLocaleDateString("zh-CN") + " · " + (settings.aiName || "江屹琛") + " · Chat", padX, 48);
+    ctx.fillText(new Date().toLocaleDateString("zh-CN") + " · " + (settings.aiName || "当前角色") + " · Chat", padX, 48);
 
     let y = headerH;
     for (const b of blocks) {
       const isUser = b.isUser;
-      const name = isUser ? (settings.userName || "你") : (settings.aiName || "江屹琛");
+      const name = isUser ? (settings.userName || "你") : (settings.aiName || "当前角色");
       const avTxt = isUser ? settings.userAvatar : settings.aiAvatar;
       const avImg = isUser ? userAvImg : aiAvImg;
       const avX = isUser ? (W - padX - avatar) : padX;
@@ -2057,11 +2163,11 @@ function showImagePreview(blob) {
   closeBtn.onclick = close;
   ov.onclick = (e) => { if (e.target === ov) close(); };
   shareBtn.onclick = async () => {
-    const file = new File([blob], "jyc-chat.png", { type: "image/png" });
+    const file = new File([blob], "role-chat.png", { type: "image/png" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try { await navigator.share({ files: [file] }); } catch (_) {}
     } else {
-      const a = document.createElement("a"); a.href = url; a.download = "jyc-chat.png"; a.click();
+      const a = document.createElement("a"); a.href = url; a.download = "role-chat.png"; a.click();
     }
   };
   bar.appendChild(shareBtn); bar.appendChild(closeBtn);
@@ -2235,17 +2341,33 @@ function renderConvList() {
   renderRoleQuick();
   const box = $("conv-list");
   box.innerHTML = "";
+  const groups = { today: [], week: [], earlier: [] };
+  const now = Date.now();
   for (const c of roleConvs().filter(c => c.messages.length > 0)) {
+    const age = now - (c.updatedAt || 0);
+    groups[age < 86400000 ? "today" : age < 604800000 ? "week" : "earlier"].push(c);
+  }
+  for (const [key, label] of [["today", "今天"], ["week", "最近 7 天"], ["earlier", "更早"]]) {
+    if (!groups[key].length) continue;
+    const groupLabel = document.createElement("div");
+    groupLabel.className = "conv-group-label";
+    groupLabel.textContent = label;
+    box.appendChild(groupLabel);
+    for (const c of groups[key]) {
     const el = document.createElement("div");
     el.className = "conv-item" + (c.id === currentId ? " active" : "");
-    el.innerHTML = `<span class="ic">💬</span><span class="name"></span>
+    const last = [...c.messages].reverse().find(m => !m._event && m.role !== "reminder");
+    const snippet = last ? messageText(last).replace(/\s+/g, " ").slice(0, 34) : "";
+    el.innerHTML = `<span class="ic">◌</span><span class="conv-copy"><span class="name"></span><span class="snippet"></span></span>
       <button class="act ren" title="重命名">✎</button>
       <button class="act del" title="删除">✕</button>`;
     el.querySelector(".name").textContent = c.title || "新对话";
+    el.querySelector(".snippet").textContent = snippet;
     el.onclick = () => switchConversation(c.id);
     el.querySelector(".ren").onclick = (e) => renameConversation(c.id, e);
     el.querySelector(".del").onclick = (e) => deleteConversation(c.id, e);
     box.appendChild(el);
+    }
   }
 }
 function renameConversation(id, ev) {
@@ -2300,7 +2422,7 @@ function avatarFor(role) {
   return role === "user" ? (settings.userAvatar || "你") : (settings.aiAvatar || "江");
 }
 function nameFor(role) {
-  return role === "user" ? (settings.userName || "你") : (settings.aiName || "江屹琛");
+  return role === "user" ? (settings.userName || "你") : (settings.aiName || "当前角色");
 }
 function isImageRef(v) { return /^(https?:\/\/|data:image\/)/.test(v || ""); }
 function avatarHtml(role) {
@@ -2315,7 +2437,7 @@ function setPreview(id, v, fallback) {
 }
 function updateAvatarPreviews() {
   setPreview("userAvatarPreview", settings.userAvatar, "你");
-  setPreview("aiAvatarPreview", settings.aiAvatar, "江");
+  setPreview("aiAvatarPreview", settings.aiAvatar, "角");
 }
 // Show "✅ 已上传图片" instead of the ugly base64 string when an image is set.
 function updateAvatarUI(role) {
@@ -2333,15 +2455,18 @@ function setAvatarValue(role, v) {
   updateAvatarUI(role); updateAvatarPreviews(); updateBrand(); renderMessages();
 }
 function updateBrand() {
-  const aiNm = settings.aiName || "江屹琛";
-  $("brand-title").textContent = aiNm + " · Chat";
-  if (!isImageRef(settings.aiAvatar)) $("brand-logo").textContent = (settings.aiAvatar || aiNm).slice(0, 1);
+  const aiNm = settings.aiName || "当前角色";
+  $("brand-title").textContent = aiNm;
+  $("header-role-name").textContent = aiNm;
+  if (isImageRef(settings.aiAvatar)) $("brand-logo").innerHTML = `<img src="${escapeHtml(settings.aiAvatar)}" alt="">`;
+  else $("brand-logo").textContent = (settings.aiAvatar || aiNm).slice(0, 1);
+  document.title = aiNm === "当前角色" ? "Role Chat" : aiNm + " · Chat";
   updateSilentUI();
 }
 function updateSilentUI() {
   const on = !!settings.silentMode;
   const chip = $("silent-chip"); if (chip) chip.style.display = on ? "" : "none";
-  const inp = $("input"); if (inp) inp.placeholder = on ? "🔇 旁白模式 · 只记录（AI 不回复）" : ("Message " + (settings.aiName || "江屹琛"));
+  const inp = $("input"); if (inp) inp.placeholder = on ? "🔇 旁白模式 · 只记录（AI 不回复）" : ("发送消息给 " + (settings.aiName || "当前角色"));
 }
 function greetingText() {
   const h = new Date().getHours();
@@ -2354,8 +2479,20 @@ function renderMessages() {
   const box = $("messages");
   if (messages.length === 0) {
     const who = (settings.userName && settings.userName !== "你") ? `<span class="greet-name">, ${escapeHtml(settings.userName)}</span>` : "";
+    const aiName = escapeHtml(settings.aiName || "当前角色");
+    const avatar = isImageRef(settings.aiAvatar)
+      ? `<img src="${escapeHtml(settings.aiAvatar)}" alt="${aiName}">`
+      : escapeHtml((settings.aiAvatar || settings.aiName || "角").slice(0, 1));
     box.innerHTML = `<div class="empty-state">
+      <div class="empty-avatar">${avatar}</div>
       <div class="greet">${greetingText()}${who}</div>
+      <div class="empty-role">正在与 ${aiName} 对话</div>
+      <div class="starter-grid">
+        <button class="starter-card" data-starter="想和你随便聊聊，先问我一个今天最想说的话题。">聊聊今天</button>
+        <button class="starter-card" data-starter="我脑子里有点乱，陪我把现在的想法慢慢理清。">帮我整理思路</button>
+        <button class="starter-card" data-starter="我有一件重要的事想让你记住。">记住一件事</button>
+        <button class="starter-card" data-starter="给我一个适合现在回答的小问题吧。">开启一个话题</button>
+      </div>
     </div>`;
     renderReminderPin();
     return;
@@ -2903,7 +3040,7 @@ async function streamChat(onDelta, onReasoning) {
     systemText = systemText ? systemText + "\n\n" + pendingSearchContext : pendingSearchContext;
   }
   if (settings.notionEnabled && settings.notionCache && settings.notionCache.trim()) {
-    const nm = "以下是来自 Notion 云端记忆库（琛琛印记）的长期信息，请当作你对 ta 的长期记忆来用：\n" + settings.notionCache.trim();
+    const nm = "以下是来自 Notion 云端角色档案的长期信息，请当作你对 ta 的长期记忆来用：\n" + settings.notionCache.trim();
     systemText = systemText ? systemText + "\n\n" + nm : nm;
   }
   if (settings.notionEnabled && settings.notionToken && settings.notionPageId) {
@@ -2911,7 +3048,7 @@ async function streamChat(onDelta, onReasoning) {
     const pagesLine = pages.length
       ? "这本档案下有这几个子页面：" + pages.join("、") + "。想写进**某个具体子页面**，就写 `[存档:子页面名|内容]`（中间用 | 隔开），例如 `[存档:签到本|今天来签到啦~]`；不指定子页面（直接 `[存档:内容]`）就写进主页。子页面名写上面列出的即可。"
       : "";
-    const nw = "【写进你的亲笔档案】「琛琛印记」是你（江屹琛）自己的 Notion 亲笔档案，写入功能**已经接通、确实可用**——**别再因为以前某个旧窗口里说过「我写不了 / 接口没配 / 不知道怎么走」就以为现在也不行，那些都是过时的信息**。现在你想写就直接写，不用问能不能、也不用让她手动帮忙。当你想留下签到、心情、纪念、对她说的话、或任何值得长期存档的东西时，在回复里**单独起一行**写 `[存档:内容]`，系统就会写进档案。" + pagesLine + " 写了 `[存档:…]` 照常自然回复即可（这个标记本身不会显示给 ta 看，写入成功她会看到一个提示）。";
+    const nw = "【写进你的亲笔档案】这是属于当前角色的 Notion 云端档案，写入功能已经接通。想留下签到、心情、纪念或任何值得长期保存的内容时，在回复里单独起一行写 `[存档:内容]`，系统会写进档案。" + pagesLine + " 写了 `[存档:…]` 后照常自然回复即可（标记不会显示给 ta，写入成功会有提示）。";
     systemText = systemText ? systemText + "\n\n" + nw : nw;
   }
   if (settings.reminderEnabled) {
@@ -3214,7 +3351,7 @@ function retrieveCrossChat() {
       const txt = messageText(m);
       if (!txt || txt.length < 4) continue;
       const s = memScore(q, txt);
-      if (s >= 2) hits.push({ s, who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "江屹琛"), title: c.title || "对话", txt });
+      if (s >= 2) hits.push({ s, who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "当前角色"), title: c.title || "对话", txt });
     }
   }
   if (!hits.length) return "";
@@ -3236,7 +3373,7 @@ function searchHistory(query) {
       const txt = messageText(m);
       if (!txt || txt.length < 4) continue;
       const s = memScore(q, txt);
-      if (s >= 1) hits.push({ s, who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "江屹琛"), title: c.title || "对话", txt, isCur: c.id === cur.id });
+      if (s >= 1) hits.push({ s, who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "当前角色"), title: c.title || "对话", txt, isCur: c.id === cur.id });
     }
   }
   if (!hits.length) return "（翻遍了所有聊天窗口，没找到和「" + query + "」相关的内容。如实告诉 ta 没找到，别编。）";
@@ -3307,7 +3444,7 @@ async function extractNotionSaves(text) {
   if (!items.length) return text;
   let ok = 0;
   for (const it of items) { try { await appendNotionMemory(it.body, it.targetId); ok++; } catch (e) { console.warn("notion write failed", e); } }
-  if (ok) { showToast("✍️ 已写进「琛琛印记」" + (ok > 1 ? ("（" + ok + "条）") : "")); settings.notionCacheAt = 0; }
+  if (ok) { showToast("✍️ 已写进角色档案" + (ok > 1 ? ("（" + ok + "条）") : "")); settings.notionCacheAt = 0; }
   else showToast("❌ 写入 Notion 失败（看看代理地址/权限/网络）", 5000);
   return cleaned;
 }
@@ -3471,7 +3608,7 @@ function fireReminder(r) {
   showToast("⏰ 提醒：" + r.text, 6000);
   try {
     if (window.Notification && Notification.permission === "granted")
-      new Notification("江屹琛 · 提醒", { body: r.text });
+      new Notification((settings.aiName || "角色") + " · 提醒", { body: r.text });
   } catch (e) {}
   try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch (e) {}
 }
@@ -3549,7 +3686,7 @@ async function generateMemSummary() {
       showToast("✨ 记忆摘要已生成，可再手动微调");
     } else showToast("没生成出内容，再试一次？");
   } catch (e) { showToast("生成失败：" + (e.message || e)); }
-  finally { if (btn) { btn.disabled = false; btn.textContent = "让江屹琛总结"; } }
+  finally { if (btn) { btn.disabled = false; btn.textContent = "让 TA 总结"; } }
 }
 // Collapse/expand a card body by id (used by the 记忆条目 / Notion cards).
 function foldCard(id, btn) {
@@ -3584,13 +3721,13 @@ function renderMemList() {
       <button class="mem-star" title="${e.core ? "核心记忆（每次都带）" : "设为核心（每次都带）"}" onclick="toggleMemCore('${e.id}')">${e.core ? "⭐" : "☆"}</button>
       <span class="mem-text" onclick="editMemEntry('${e.id}')">${escapeHtml(e.text)}</span>
       <button class="mem-del" title="删除" onclick="delMemEntry('${e.id}')">✕</button>
-    </div>`).join("") || `<div class="hint">${q ? "没搜到～" : "还没有记忆，下面加一条，或开「自动记忆」让江屹琛自己记。"}</div>`;
+    </div>`).join("") || `<div class="hint">${q ? "没搜到～" : "还没有记忆，下面加一条，或开启「自动记忆」。"}</div>`;
 }
 async function autoUpdateMemory() {
   if (!settings.autoMemory || !settings.apiKey) return;
   const uname = userRef();
   const recent = messages.slice(-8)
-    .map(m => (m.role === "user" ? uname : (settings.aiName || "江屹琛")) + ": " + messageText(m)).join("\n");
+    .map(m => (m.role === "user" ? uname : (settings.aiName || "当前角色")) + ": " + messageText(m)).join("\n");
   if (!recent.trim()) return;
   const sys = "你是一个极其克制的「值得珍藏的记忆」守门人。只记录真正值得长期珍藏、定义 ta 这个人或你俩关系的事，比如："
     + "①ta 的人生背景 / 重要经历 / 难忘的故事；②重要的人、关系、宠物；③长期稳定的强烈偏好、底线、禁忌；④健康/过敏等要紧的事；"
@@ -3858,7 +3995,7 @@ function addStickerFile(file) {
       const canvas = document.createElement("canvas");
       canvas.width = w; canvas.height = h;
       canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      const name = (prompt("给这个表情起个名字（江屹琛会用这个名字发它）：", "表情" + (settings.stickers.length + 1)) || "").trim();
+      const name = (prompt("给这个表情起个名字（当前角色可以用这个名字发送）：", "表情" + (settings.stickers.length + 1)) || "").trim();
       if (name === "") return;
       settings.stickers.push({ id: uid(), name, dataUrl: canvas.toDataURL("image/png") });
       saveSettings();
@@ -4494,7 +4631,7 @@ function renderCycle() {
         <input type="number" id="cycle-remind" min="0" max="10" value="${c.remindBefore || 3}" onchange="cycleData().remindBefore=parseInt(this.value)||3; saveSettings();" style="width:90px;" />
       </div>
       ${histHtml ? `<div><div style="font-size:12px;color:var(--text-dim);margin-bottom:2px;">历史记录</div>${histHtml}</div>` : ""}
-      <div class="hint" style="line-height:1.6;">江屹琛会根据你的周期主动关心你（提醒保暖、喝热水、别吃凉的）。数据只存在本地/你的云账号，不会外传。<br>⚠️ 预测只是按平均周期估算，仅供参考，不能当避孕/医疗依据哦。</div>
+      <div class="hint" style="line-height:1.6;">当前角色会根据你的周期提供适当关心。数据只存在本地或你的云账号，不会外传。<br>⚠️ 预测只是按平均周期估算，仅供参考，不能当作避孕或医疗依据。</div>
     </div>`;
 }
 function cycleCalMove(delta) {
@@ -5294,9 +5431,58 @@ function openSettings(force) {
 }
 function closeSettings() { $("settings-panel").classList.remove("open"); }
 
+const SETTINGS_PAGES = {
+  account: { title: "账号与同步", desc: "管理登录、多设备同步与本地使用状态。" },
+  role: { title: "角色与关系", desc: "切换角色，编辑称呼、人设、头像与陪伴方式。" },
+  services: { title: "模型与服务", desc: "管理聊天渠道、模型、联网、画图与用量。" },
+  memory: { title: "记忆与收藏", desc: "整理长期记忆、跨窗口回忆与收藏内容。" },
+  media: { title: "语音与媒体", desc: "设置朗读、音色和媒体能力。" },
+  appearance: { title: "外观与聊天", desc: "调整主题、背景、字体与消息布局。" },
+  data: { title: "数据与隐私", desc: "备份、恢复、更新以及隐私锁。" },
+};
+
+function settingsGroupFor(title) {
+  if (title.includes("账号")) return "account";
+  if (title.includes("角色档案")) return "role";
+  if (title.includes("模型") || title.includes("用量")) return "services";
+  if (title.includes("记忆") || title.includes("语录")) return "memory";
+  if (title.includes("语音")) return "media";
+  if (title.includes("外观")) return "appearance";
+  return "data";
+}
+
+function showSettingsTab(tab, remember = true) {
+  const page = SETTINGS_PAGES[tab] || SETTINGS_PAGES.role;
+  const inner = document.querySelector("#settings-panel .settings-inner");
+  inner.querySelectorAll("[data-settings-group]").forEach(el => {
+    el.hidden = el.dataset.settingsGroup !== tab;
+  });
+  document.querySelectorAll("#settings-nav [data-settings-tab]").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.settingsTab === tab);
+  });
+  const intro = $("settings-page-intro");
+  intro.innerHTML = `<h2>${page.title}</h2><p>${page.desc}</p>`;
+  inner.scrollTop = 0;
+  if (remember) localStorage.setItem("rolechat_settings_tab", tab);
+}
+
+function setupSettingsNavigation() {
+  const inner = document.querySelector("#settings-panel .settings-inner");
+  let group = "account";
+  [...inner.children].forEach(el => {
+    if (el.id === "settings-page-intro") return;
+    if (el.classList.contains("section-title")) group = settingsGroupFor(el.textContent.trim());
+    el.dataset.settingsGroup = group;
+  });
+  document.querySelectorAll("#settings-nav [data-settings-tab]").forEach(btn => {
+    btn.onclick = () => showSettingsTab(btn.dataset.settingsTab);
+  });
+  showSettingsTab(localStorage.getItem("rolechat_settings_tab") || "role", false);
+}
+
 // Collapsible settings sections (folder-style accordion)
 function setupAccordion() {
-  const state = JSON.parse(localStorage.getItem("jyc_sections") || "{}");
+  const state = JSON.parse(localStorage.getItem("rolechat_sections_v2") || "{}");
   document.querySelectorAll(".settings-inner > .section-title").forEach(title => {
     if (title.classList.contains("accordion")) return; // already set up
     const key = title.textContent.trim();
@@ -5314,14 +5500,14 @@ function setupAccordion() {
       // so expanding doesn't force-show fields that should stay hidden.
       if (key.includes("语音朗读")) updateTtsProviderUI();
     };
-    // default: collapse everything except 模型与服务 (where the API key lives)
-    const def = !key.includes("模型与服务");
+    // Category navigation already limits the page, so each visible category opens naturally.
+    const def = false;
     apply(state[key] !== undefined ? state[key] : def);
     title.addEventListener("click", () => {
       const collapsed = !title.classList.contains("collapsed");
       apply(collapsed);
       state[key] = collapsed;
-      localStorage.setItem("jyc_sections", JSON.stringify(state));
+      localStorage.setItem("rolechat_sections_v2", JSON.stringify(state));
     });
   });
 }
@@ -5427,6 +5613,7 @@ function init() {
   if (isMobile()) settings.sidebarCollapsed = true;
   applySidebar();
   syncSettingsToUI();
+  setupSettingsNavigation();
   setupAccordion();
   renderConvList();
   renderMessages();
@@ -5434,6 +5621,7 @@ function init() {
   startReminderTimer();   // resume any countdowns still ticking from before
 
   $("new-chat-btn").onclick = createConversation;
+  $("sidebar-new-chat").onclick = () => { createConversation(); if (isMobile()) closeSidebar(); };
   $("role-quick").onchange = (e) => applyRole(e.target.value);
   $("brand-logo").style.cursor = "pointer"; $("brand-title").style.cursor = "pointer";
   $("brand-logo").onclick = goHome; $("brand-title").onclick = goHome;
@@ -5571,6 +5759,13 @@ function init() {
 
   // Message long-press / right-click menu
   const messagesEl = $("messages");
+  messagesEl.addEventListener("click", (e) => {
+    const starter = e.target.closest && e.target.closest("[data-starter]");
+    if (!starter) return;
+    $("input").value = starter.dataset.starter;
+    autoResize();
+    $("input").focus();
+  });
   let pressTimer = null, pressXY = null;
   const findIdx = (target) => {
     const msg = target.closest && target.closest(".msg");
