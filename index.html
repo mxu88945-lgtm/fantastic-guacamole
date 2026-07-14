@@ -118,14 +118,6 @@
     font-size: 14px; font-weight: 600;
     flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .sidebar-primary {
-    margin: 12px 12px 2px; min-height: 42px; border: none; border-radius: 12px;
-    background: var(--text); color: var(--bg); cursor: pointer;
-    font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1;
-    display: flex; align-items: center; justify-content: center; gap: 8px; transition: .15s;
-  }
-  .sidebar-primary svg { width: 17px; height: 17px; }
-  .sidebar-primary:active { transform: scale(.985); }
   /* round "dot" icon buttons in the sidebar header — same clean style as the main top bar */
   .sidebar .brand .icon-btn {
     width: 34px; height: 34px; padding: 0; border-radius: 50%;
@@ -145,18 +137,6 @@
     color: var(--text); font-size: 13px; font-weight: 600; font-family: inherit;
     cursor: pointer; width: 100%;
   }
-  .new-chat-btn {
-    margin: 12px; padding: 10px; border-radius: 10px;
-    border: 1px solid var(--border); background: var(--bg-panel);
-    color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600;
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-    transition: .15s;
-  }
-  #search-input {
-    margin: 0 12px 8px; padding: 8px 10px; border-radius: 9px; font-size: 13px;
-    background: var(--bg-panel); border: 1px solid var(--border); color: var(--text); outline: none;
-  }
-  #search-input:focus { border-color: var(--accent); }
   .conv-list { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
   .search-result { padding: 9px 10px; border-radius: 9px; cursor: pointer; margin-bottom: 4px; }
   .search-result:active, .search-result.active { background: var(--item-active); }
@@ -195,7 +175,7 @@
   /* Hover effects only on devices that truly hover (desktop) — on touch they cause
      the "needs two taps" bug, so we skip them and keep action icons always visible. */
   @media (hover: hover) {
-    .new-chat-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .sidebar-action-bubble:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0,0,0,.14); }
     .conv-item:hover { background: var(--item-active); color: var(--text); }
     .conv-item .act { opacity: 0; }
     .conv-item:hover .act { opacity: .6; }
@@ -203,15 +183,19 @@
     .conv-item .act.del:hover { color: var(--danger); }
   }
   .sidebar .brand #sidebar-settings-btn { display: none; }
-  .sidebar-settings-bubble {
-    position: relative; width: 54px; height: 54px; margin: 8px 14px 10px; padding: 0;
-    border: 1px solid var(--border); border-radius: 50%; flex: 0 0 auto; align-self: flex-start;
+  .sidebar-footer-actions {
+    display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto;
+    padding: 8px 14px 10px;
+  }
+  .sidebar-action-bubble {
+    position: relative; width: 54px; height: 54px; margin: 0; padding: 0;
+    border: 1px solid var(--border); border-radius: 50%; flex: 0 0 auto;
     background: var(--bg-panel); color: var(--text); cursor: pointer;
     display: grid; place-items: center; transition: transform .16s, box-shadow .16s;
     box-shadow: 0 8px 22px rgba(0,0,0,.12);
   }
-  .sidebar-settings-bubble:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0,0,0,.16); }
-  .sidebar-settings-bubble:active { transform: scale(.95); }
+  .sidebar-action-bubble:active { transform: scale(.95); }
+  .sidebar-action-bubble > svg { width: 24px; height: 24px; }
   .sidebar-settings-avatar {
     width: 100%; height: 100%; border-radius: 50%; overflow: hidden;
     display: grid; place-items: center; background: var(--bg-panel);
@@ -224,7 +208,7 @@
     border: 2px solid var(--bg-soft); box-shadow: 0 2px 8px rgba(0,0,0,.18);
   }
   .sidebar-settings-badge svg { width: 12px; height: 12px; }
-  html[data-glass="1"] .sidebar-settings-bubble { background: rgba(255,255,255,.5); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+  html[data-glass="1"] .sidebar-action-bubble { background: rgba(255,255,255,.5); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
   .side-entry {
     margin: 8px 12px 0; padding: 9px 12px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--bg-panel);
@@ -350,30 +334,40 @@
     border-bottom: 1px solid var(--border); background: var(--bg-soft);
     font-weight: 700; font-size: 16px; flex-shrink: 0;
   }
+  .settings-header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .settings-back {
+    width: 36px; height: 36px; border: none; border-radius: 50%; padding: 0;
+    background: var(--bg-panel); color: var(--text); cursor: pointer; display: none; place-items: center;
+  }
+  .settings-back svg { width: 19px; height: 19px; }
   .settings-shell {
-    flex: 1; min-height: 0; width: min(1120px, 100%); margin: 0 auto;
-    display: grid; grid-template-columns: 224px minmax(0, 1fr);
+    flex: 1; min-height: 0; width: min(760px, 100%); margin: 0 auto; overflow: hidden;
   }
   .settings-nav {
-    border-right: 1px solid var(--border); padding: 18px 12px;
-    display: flex; flex-direction: column; gap: 4px; overflow-y: auto;
+    height: 100%; padding: 24px clamp(16px, 5vw, 38px) calc(28px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 0; overflow-y: auto;
   }
-  .settings-nav-title { padding: 4px 10px 10px; font-size: 11px; color: var(--text-dim); }
+  .settings-nav-title { padding: 4px 4px 14px; font-size: 13px; font-weight: 650; color: var(--text-dim); }
   .settings-nav button {
-    width: 100%; min-height: 42px; border: none; border-radius: 10px; padding: 0 12px;
-    background: transparent; color: var(--text-dim); cursor: pointer;
-    font-family: inherit; font-size: 13px; font-weight: 500; line-height: 1;
+    width: 100%; min-height: 58px; border: 1px solid var(--border); border-bottom: none; border-radius: 0; padding: 0 16px;
+    background: var(--bg-soft); color: var(--text); cursor: pointer;
+    font-family: inherit; font-size: 15px; font-weight: 500; line-height: 1;
     display: flex; align-items: center; gap: 10px; text-align: left;
   }
-  .settings-nav button:hover { background: var(--bg-soft); color: var(--text); }
-  .settings-nav button.active { background: var(--item-active); color: var(--text); font-weight: 650; }
-  .settings-nav button span:first-child { width: 20px; text-align: center; font-size: 16px; }
+  .settings-nav button:first-of-type { border-radius: 16px 16px 0 0; }
+  .settings-nav button:last-of-type { border-bottom: 1px solid var(--border); border-radius: 0 0 16px 16px; }
+  .settings-nav button:hover, .settings-nav button:active { background: var(--item-active); }
+  .settings-nav button.active { background: var(--bg-soft); }
+  .settings-nav button span:first-child { width: 24px; text-align: center; font-size: 18px; }
+  .settings-chevron { margin-left: auto; width: auto !important; color: var(--text-dim); font-size: 22px !important; font-weight: 300; }
   .settings-inner {
-    min-width: 0; overflow-y: auto; padding: 24px clamp(16px, 4vw, 42px);
+    min-width: 0; height: 100%; overflow-y: auto; padding: 24px clamp(16px, 4vw, 42px);
     padding-bottom: calc(24px + env(safe-area-inset-bottom));
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;
+    display: none; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;
     align-content: start;
   }
+  .settings-shell.subpage .settings-nav { display: none; }
+  .settings-shell.subpage .settings-inner { display: grid; }
   .settings-inner > [data-settings-group][hidden] { display: none !important; }
   .settings-page-intro {
     grid-column: 1 / -1; margin-bottom: 6px; padding-bottom: 18px; border-bottom: 1px solid var(--border);
@@ -912,16 +906,9 @@
     .model-quick { max-width: 120px; }
     .composer-hint { display: none; }
     .settings-header { background: var(--bg); }
-    .settings-shell { display: flex; flex-direction: column; }
-    .settings-nav {
-      flex: 0 0 auto; flex-direction: row; border-right: none; border-bottom: 1px solid var(--border);
-      padding: 8px 12px; gap: 6px; overflow-x: auto; scrollbar-width: none;
-    }
-    .settings-nav::-webkit-scrollbar { display: none; }
-    .settings-nav-title { display: none; }
-    .settings-nav button { width: auto; min-width: max-content; min-height: 38px; padding: 0 12px; }
-    .settings-nav button span:first-child { width: auto; }
-    .settings-inner { flex: 1; padding: 18px 14px calc(24px + env(safe-area-inset-bottom)); display: block; }
+    .settings-nav { padding: 20px 14px calc(24px + env(safe-area-inset-bottom)); }
+    .settings-inner { padding: 18px 14px calc(24px + env(safe-area-inset-bottom)); }
+    .settings-shell.subpage .settings-inner { display: block; }
     .settings-inner > .section-title, .settings-inner > .field { margin-bottom: 10px; }
     .settings-page-intro h2 { font-size: 20px; }
     .starter-grid { grid-template-columns: 1fr; margin-top: 22px; }
@@ -977,23 +964,22 @@
     <div class="brand">
       <div class="logo" id="brand-logo">R</div>
       <div class="title" id="brand-title">Role Chat</div>
-      <button class="icon-btn" id="new-chat-btn" title="新对话"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       <button class="icon-btn" id="sidebar-settings-btn" title="设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
     </div>
-    <button class="sidebar-primary" id="sidebar-new-chat">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      新对话
-    </button>
     <div class="role-quick-wrap">
       <svg class="role-quick-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
       <select class="role-quick" id="role-quick" title="切换角色"></select>
     </div>
-    <input id="search-input" placeholder="🔍 搜索聊天记录…" />
     <div class="conv-list" id="conv-list"></div>
-    <button class="sidebar-settings-bubble" id="sidebar-settings-footer" aria-label="打开设置" title="设置">
-      <span class="sidebar-settings-avatar" id="sidebar-settings-avatar">你</span>
-      <span class="sidebar-settings-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"/></svg></span>
-    </button>
+    <div class="sidebar-footer-actions">
+      <button class="sidebar-action-bubble" id="sidebar-new-chat" aria-label="新对话" title="新对话">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h6"/><path d="M17 3v8M13 7h8"/></svg>
+      </button>
+      <button class="sidebar-action-bubble" id="sidebar-settings-footer" aria-label="打开设置" title="设置">
+        <span class="sidebar-settings-avatar" id="sidebar-settings-avatar">你</span>
+        <span class="sidebar-settings-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"/></svg></span>
+      </button>
+    </div>
   </aside>
 
   <!-- Main -->
@@ -1026,19 +1012,22 @@
 
     <div class="settings" id="settings-panel">
       <div class="settings-header">
-        <span>设置</span>
+        <div class="settings-header-left">
+          <button class="settings-back" id="settings-back" aria-label="返回设置分类"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+          <span id="settings-title">设置</span>
+        </div>
         <button class="mini-btn primary" id="settings-close">✓ 完成</button>
       </div>
-      <div class="settings-shell">
+      <div class="settings-shell" id="settings-shell">
         <nav class="settings-nav" id="settings-nav" aria-label="设置分类">
-          <div class="settings-nav-title">设置中心</div>
-          <button data-settings-tab="account"><span>☁️</span>账号与同步</button>
-          <button data-settings-tab="role"><span>◉</span>角色与关系</button>
-          <button data-settings-tab="services"><span>⌘</span>模型与服务</button>
-          <button data-settings-tab="memory"><span>◇</span>记忆与收藏</button>
-          <button data-settings-tab="media"><span>◖</span>语音与媒体</button>
-          <button data-settings-tab="appearance"><span>✦</span>外观与聊天</button>
-          <button data-settings-tab="data"><span>▣</span>数据与隐私</button>
+          <div class="settings-nav-title">应用设置</div>
+          <button data-settings-tab="account"><span>☁</span>账号与同步<span class="settings-chevron">›</span></button>
+          <button data-settings-tab="role"><span>◎</span>角色与关系<span class="settings-chevron">›</span></button>
+          <button data-settings-tab="services"><span>⌘</span>模型与服务<span class="settings-chevron">›</span></button>
+          <button data-settings-tab="memory"><span>◇</span>记忆与收藏<span class="settings-chevron">›</span></button>
+          <button data-settings-tab="media"><span>◖</span>语音与媒体<span class="settings-chevron">›</span></button>
+          <button data-settings-tab="appearance"><span>✦</span>外观与聊天<span class="settings-chevron">›</span></button>
+          <button data-settings-tab="data"><span>▣</span>数据与隐私<span class="settings-chevron">›</span></button>
         </nav>
         <div class="settings-inner">
           <div class="settings-page-intro" id="settings-page-intro"></div>
@@ -2305,7 +2294,6 @@ function runSearch(q) {
     const safe = escapeHtml(snip).replace(new RegExp("(" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig"), "<mark>$1</mark>");
     el.innerHTML = `<div class="sr-title">💬 ${escapeHtml(r.title)}</div><div class="sr-snip">${safe}</div>`;
     el.onclick = () => {
-      $("search-input").value = "";
       switchConversation(r.convId);
       setTimeout(() => flashMessage(r.mid), 250);
     };
@@ -5413,8 +5401,12 @@ function updateStatusLine() {
 function openSettings(force) {
   const panel = $("settings-panel");
   if (force) panel.classList.add("open"); else panel.classList.toggle("open");
+  if (panel.classList.contains("open")) showSettingsHome();
 }
-function closeSettings() { $("settings-panel").classList.remove("open"); }
+function closeSettings() {
+  $("settings-panel").classList.remove("open");
+  showSettingsHome();
+}
 
 const SETTINGS_PAGES = {
   account: { title: "账号与同步", desc: "管理登录、多设备同步与本地使用状态。" },
@@ -5439,6 +5431,9 @@ function settingsGroupFor(title) {
 function showSettingsTab(tab, remember = true) {
   const page = SETTINGS_PAGES[tab] || SETTINGS_PAGES.role;
   const inner = document.querySelector("#settings-panel .settings-inner");
+  $("settings-shell").classList.add("subpage");
+  $("settings-title").textContent = page.title;
+  $("settings-back").style.display = "grid";
   inner.querySelectorAll("[data-settings-group]").forEach(el => {
     el.hidden = el.dataset.settingsGroup !== tab;
   });
@@ -5449,6 +5444,15 @@ function showSettingsTab(tab, remember = true) {
   intro.innerHTML = `<h2>${page.title}</h2><p>${page.desc}</p>`;
   inner.scrollTop = 0;
   if (remember) localStorage.setItem("rolechat_settings_tab", tab);
+}
+
+function showSettingsHome() {
+  const shell = $("settings-shell");
+  if (!shell) return;
+  shell.classList.remove("subpage");
+  $("settings-title").textContent = "设置";
+  $("settings-back").style.display = "none";
+  document.querySelectorAll("#settings-nav [data-settings-tab]").forEach(btn => btn.classList.remove("active"));
 }
 
 function setupSettingsNavigation() {
@@ -5462,7 +5466,7 @@ function setupSettingsNavigation() {
   document.querySelectorAll("#settings-nav [data-settings-tab]").forEach(btn => {
     btn.onclick = () => showSettingsTab(btn.dataset.settingsTab);
   });
-  showSettingsTab(localStorage.getItem("rolechat_settings_tab") || "role", false);
+  showSettingsHome();
 }
 
 // Collapsible settings sections (folder-style accordion)
@@ -5605,17 +5609,17 @@ function init() {
   updateConvTitle();
   startReminderTimer();   // resume any countdowns still ticking from before
 
-  $("new-chat-btn").onclick = createConversation;
   $("sidebar-new-chat").onclick = () => { createConversation(); if (isMobile()) closeSidebar(); };
   $("role-quick").onchange = (e) => applyRole(e.target.value);
   $("brand-logo").style.cursor = "pointer"; $("brand-title").style.cursor = "pointer";
   $("brand-logo").onclick = goHome; $("brand-title").onclick = goHome;
-  $("search-input").addEventListener("input", (e) => runSearch(e.target.value));
   if ($("conv-title")) $("conv-title").onclick = () => renameConversation(currentId);
   $("toggle-sidebar").onclick = toggleSidebar;
   $("header-search-btn").onclick = () => {
+    const q = prompt("搜索聊天记录");
+    if (!q || !q.trim()) return;
     settings.sidebarCollapsed = false; saveSettings(); applySidebar();
-    setTimeout(() => { const s = $("search-input"); if (s) s.focus(); }, 60);
+    runSearch(q.trim());
   };
   $("backdrop").onclick = closeSidebar;
   window.addEventListener("resize", applySidebar);
@@ -5644,6 +5648,7 @@ function init() {
   });
   document.addEventListener("click", () => $("header-menu").classList.remove("show"));
   $("settings-close").onclick = closeSettings;
+  $("settings-back").onclick = showSettingsHome;
   document.querySelectorAll("[data-edit]").forEach(btn =>
     btn.onclick = () => openBigEditor(btn.dataset.edit, btn.dataset.title));
   $("editor-done").onclick = closeBigEditor;
