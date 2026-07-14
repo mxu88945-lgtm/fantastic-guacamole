@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="light">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -9,22 +9,11 @@
 <meta name="apple-mobile-web-app-title" content="Role Chat" />
 <meta name="theme-color" content="#f5f4ef" />
 <script>
-/* Pre-paint theme priming: iOS standalone PWAs snapshot the status-bar color at
-   launch. The app used to start on the hardcoded dark theme, so iOS locked the
-   notch strip to black even when the saved theme is light. Read the last-applied
-   theme bg (persisted by applyTheme) and set --bg + data-theme + theme-color
-   BEFORE first paint, so the launch color already matches the real theme. */
+/* Pre-paint theme priming. All current themes are light and use fixed dark text.
+   Start from the neutral light canvas; applyTheme will paint the saved palette. */
 (function () {
   try {
-    var bg = localStorage.getItem("jyc_themebg");
-    var dark = localStorage.getItem("jyc_themedark");
-    if (dark === "1" || dark === "0")
-      document.documentElement.setAttribute("data-theme", dark === "1" ? "dark" : "light");
-    if (bg) {
-      document.documentElement.style.setProperty("--bg", bg);
-      var m = document.querySelector('meta[name="theme-color"]');
-      if (m) m.setAttribute("content", bg);
-    }
+    document.documentElement.setAttribute("data-theme", "light");
     /* Pre-paint sidebar state: this page is one big inline file, so iOS standalone
        PWAs paint the raw HTML (sidebar open) before the bottom script runs and
        tucks it away — the user sees the sidebar flash over the chat on every launch.
@@ -413,7 +402,7 @@
   .field .row input[type="range"] { flex: 1; }
   .field .hint { font-size: 11px; color: var(--text-dim); }
   .section-title {
-    grid-column: 1 / -1; font-size: 14px; font-weight: 600; color: var(--accent);
+    grid-column: 1 / -1; font-size: 14px; font-weight: 600; color: var(--text);
     margin: 4px 0 2px; display: flex; align-items: center; gap: 6px;
   }
   .section-title:first-child { border-top: none; padding-top: 0; }
@@ -464,7 +453,14 @@
     position: absolute; bottom: 6px; right: 6px; width: 14px; height: 14px; border-radius: 50%;
     border: 2px solid #fff;
   }
-  .theme-card .tname { font-size: 12px; color: var(--text); }
+  .theme-card .tname {
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    font-size: 12px; color: var(--text);
+  }
+  .theme-hint {
+    width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto;
+    box-shadow: 0 0 0 2px rgba(255,255,255,.8), 0 0 0 3px rgba(0,0,0,.08);
+  }
 
   /* Chat area */
   .chat { flex: 1; overflow-y: auto; padding: 24px 0; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
@@ -1637,11 +1633,12 @@ function loadState() {
     if (s) settings = { ...settings, ...s };
     // migrate old dark/light flag to the named-theme system
     if (s && !s.themeName) settings.themeName = (s.theme === "light") ? "white" : "gold";
-    // 主题精简（2026-06-21）：删掉的旧主题 → 迁移到相近的保留/新主题，避免白屏
+    // 主题精简：删掉的旧主题 → 迁移到相近的保留主题，避免白屏
     const THEME_MIGRATE = {
-      night:"gold", ocean:"gold", rose:"dusk", metalrose:"glaze",
-      sakura:"mistpink", peach:"mistpink", milktea:"claude", mint:"mistgreen",
-      aurora:"glaze", sunset:"mistpink", milkyblue:"mistgreen", lavender:"glaze",
+      night:"gold", ocean:"mistgreen", rose:"claude", metalrose:"white",
+      sakura:"claude", peach:"claude", milktea:"claude", mint:"mistgreen",
+      aurora:"white", sunset:"claude", milkyblue:"mistgreen", lavender:"white",
+      butter:"claude", mistpink:"claude", glaze:"white", dusk:"gold",
     };
     if (THEME_MIGRATE[settings.themeName]) settings.themeName = THEME_MIGRATE[settings.themeName];
     const cs = JSON.parse(localStorage.getItem("jyc_conversations") || "null");
@@ -4883,55 +4880,27 @@ const ACCENT_PRESETS = [
 ];
 // Full theme presets: each defines the whole palette (CSS variables).
 const THEMES = [
-  // ✳️ Claude 暖杏（默认）— 扁平暖奶油
-  { key: "claude", name: "暖杏 Claude", emoji: "✳️", dark: false, vars: {
-    bg:"#f5f4ef", "bg-soft":"#faf9f5", "bg-panel":"#eeece4", border:"#e3e0d6", text:"#3d3a34",
-    "text-dim":"#8a8678", accent:"#d97757", "accent-soft":"#f0ddd4", "assistant-bubble":"#faf9f5",
+  // 暖杏 Claude（默认）— 扁平暖奶油
+  { key: "claude", name: "暖杏 Claude", dark: false, vars: {
+    bg:"#f5f4ef", "bg-soft":"#faf9f5", "bg-panel":"#eeece4", border:"#e3e0d6", text:"#111111",
+    "text-dim":"#666666", accent:"#d97757", "accent-soft":"#f0ddd4", "assistant-bubble":"#faf9f5",
     "code-bg":"#efece3", "err-bg":"#fbe9e3", "err-text":"#b3503a", "item-active":"#eae7dd" } },
-  { key: "white",  name: "极简白", emoji: "🤍", dark: false, vars: {
-    bg:"#f8f8f8", "bg-soft":"#ffffff", "bg-panel":"#f0f0f0", border:"#e2e2e2", text:"#1a1a1a",
-    "text-dim":"#8a8a8a", accent:"#5d63e6", "accent-soft":"#eaeaee", "assistant-bubble":"#ffffff",
+  { key: "white", name: "极简白", dark: false, vars: {
+    bg:"#f8f8f8", "bg-soft":"#ffffff", "bg-panel":"#f0f0f0", border:"#e2e2e2", text:"#111111",
+    "text-dim":"#666666", accent:"#5d63e6", "accent-soft":"#eaeaee", "assistant-bubble":"#ffffff",
     "code-bg":"#f4f4f4", "err-bg":"#fdecec", "err-text":"#b3343a", "item-active":"#ebebeb" } },
-  { key: "gold",   name: "墨黑金", emoji: "🖤", dark: true, vars: {
-    bg:"#0e0e0f", "bg-soft":"#161617", "bg-panel":"#1d1d1f", border:"#2e2e31", text:"#ececec",
-    "text-dim":"#9a9a9e", accent:"#e3b341", "accent-soft":"#3a3320", "assistant-bubble":"#1d1d1f",
-    "code-bg":"#0a0a0b", "err-bg":"#3a1f24", "err-text":"#ffb4b4", "item-active":"#262620" } },
-  // Soft goose-yellow custard: near-white cream → gentle pale butter, glass bubbles
-  { key: "butter", name: "鹅黄奶油", emoji: "🍮", dark: false, glass: true,
-    gradient: "linear-gradient(180deg,#fefdf6 0%,#fdf8e2 35%,#fbf2c8 70%,#f6ebac 100%)",
-    vars: {
-    bg:"#fefdf6", "bg-soft":"#fbf6e6", "bg-panel":"#f8f1d8", border:"#ece4c4", text:"#4a4326",
-    "text-dim":"#8c8154", accent:"#d8a838", "accent-soft":"#f6edc8", "assistant-bubble":"#ffffff",
-    "code-bg":"#f8f1d8", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#f1e8ca" } },
-  // ───── 毛玻璃 · 高级感雾系（照 IMG_2530 设计稿）─────
-  // 🌸 雾粉 — 雾系奶粉 + 一点黛灰（#EBD5D0 / #E4C5C1 / #CED8CF / #F2F4F1）
-  { key: "mistpink", name: "雾粉", emoji: "🌸", dark: false, glass: true,
-    gradient: "linear-gradient(180deg,#f6e8e3 0%,#ecd6d1 30%,#e3cbc6 56%,#d8d6cf 80%,#ced8cf 100%)",
-    vars: {
-    bg:"#f6e8e3", "bg-soft":"#f3e2dd", "bg-panel":"#ecd9d4", border:"#e0cfc9", text:"#4a3f3c",
-    "text-dim":"#9c8a85", accent:"#c98d88", "accent-soft":"#f0ddd8", "assistant-bubble":"#ffffff",
-    "code-bg":"#ecd9d4", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#ecd6d0" } },
-  // 🌿 黛绿 — 雾感灰绿 · 蓝灰（#CED8CF / #CCCCC0 偏冷）
-  { key: "mistgreen", name: "黛绿", emoji: "🌿", dark: false, glass: true,
+  // 墨黑金保留黑金点缀，但改为浅色画布，确保固定黑字始终清晰。
+  { key: "gold", name: "墨黑金", dark: false, vars: {
+    bg:"#f4f2ec", "bg-soft":"#fbfaf6", "bg-panel":"#ece8dc", border:"#d8d1bd", text:"#111111",
+    "text-dim":"#666666", accent:"#b88918", "accent-soft":"#eee3c5", "assistant-bubble":"#fbfaf6",
+    "code-bg":"#ece8dc", "err-bg":"#f8e6e6", "err-text":"#a83232", "item-active":"#e6e0d1" } },
+  // 黛绿 — 雾感灰绿 · 蓝灰
+  { key: "mistgreen", name: "黛绿", dark: false, glass: true,
     gradient: "linear-gradient(180deg,#eef2ec 0%,#dde6dd 30%,#cdd8cf 56%,#c2cdc8 80%,#b6c4c2 100%)",
     vars: {
-    bg:"#eef2ec", "bg-soft":"#e6ece6", "bg-panel":"#dbe4dc", border:"#cad6cd", text:"#2f3b36",
-    "text-dim":"#71837b", accent:"#6f9e8d", "accent-soft":"#dbe8e1", "assistant-bubble":"#ffffff",
+    bg:"#eef2ec", "bg-soft":"#e6ece6", "bg-panel":"#dbe4dc", border:"#cad6cd", text:"#111111",
+    "text-dim":"#666666", accent:"#6f9e8d", "accent-soft":"#dbe8e1", "assistant-bubble":"#ffffff",
     "code-bg":"#dbe4dc", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#d6e0d8" } },
-  // 🔮 琉璃 — 全息流光玻璃（薰衣草蓝 → 粉 → 蓝青，iridescent）
-  { key: "glaze", name: "琉璃", emoji: "🔮", dark: false, glass: true,
-    gradient: "linear-gradient(160deg,#e4e2fb 0%,#ecddf6 24%,#f6dcee 48%,#dde6fb 72%,#cfe7f1 100%)",
-    vars: {
-    bg:"#e4e2fb", "bg-soft":"#ece8fa", "bg-panel":"#e7e1f7", border:"#dad2ee", text:"#3c3a52",
-    "text-dim":"#807d98", accent:"#9b7fe0", "accent-soft":"#ece3fa", "assistant-bubble":"#ffffff",
-    "code-bg":"#e7e1f7", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#e3ddf6" } },
-  // 🌙 暮夜 — 暖调深棕 · 金（#4A3A2C / #6B5544 / #C9A876 / #2E2620），暗色玻璃
-  { key: "dusk", name: "暮夜", emoji: "🌙", dark: true, glass: true,
-    gradient: "linear-gradient(160deg,#2e2620 0%,#4a3a2c 34%,#6b5544 60%,#8b7355 84%,#3f3022 100%)",
-    vars: {
-    bg:"#2e2620", "bg-soft":"#3a2f26", "bg-panel":"#43362a", border:"#5a4838", text:"#f0e6d8",
-    "text-dim":"#c2ad92", accent:"#c9a876", "accent-soft":"#4a3a2c", "assistant-bubble":"#43362a",
-    "code-bg":"#241d17", "err-bg":"#3a1f24", "err-text":"#ffb4b4", "item-active":"#4a3a2c" } },
 ];
 function currentTheme() { return THEMES.find(t => t.key === settings.themeName) || THEMES[0]; }
 function applyTheme() {
@@ -4939,6 +4908,9 @@ function applyTheme() {
   document.documentElement.setAttribute("data-theme", t.dark ? "dark" : "light");
   const root = document.documentElement;
   for (const k in t.vars) root.style.setProperty("--" + k, t.vars[k]);
+  // Theme colors may change surfaces and accents, but never recolor readable copy.
+  root.style.setProperty("--text", "#111111");
+  root.style.setProperty("--text-dim", "#666666");
   // metallic gradient background + translucent glass bubbles (per-theme opt-in)
   if (t.gradient) root.style.setProperty("--app-gradient", t.gradient);
   else root.style.removeProperty("--app-gradient");
@@ -5048,7 +5020,7 @@ function toggleTheme() {
   const i = THEMES.findIndex(t => t.key === settings.themeName);
   const next = THEMES[(i + 1) % THEMES.length];
   setTheme(next.key);
-  showToast(next.emoji + " " + next.name);
+  showToast("主题 · " + next.name);
 }
 function renderThemeCards() {
   const box = $("theme-cards");
@@ -5059,7 +5031,7 @@ function renderThemeCards() {
     card.className = "theme-card" + (t.key === settings.themeName ? " active" : "");
     card.innerHTML = `<div class="preview" style="background:${t.gradient || t.vars.bg}">
         <div class="dot" style="background:${t.vars.accent}"></div></div>
-      <div class="tname">${t.emoji} ${t.name}</div>`;
+      <div class="tname"><span class="theme-hint" style="background:${t.vars.accent}"></span>${t.name}</div>`;
     card.onclick = () => setTheme(t.key);
     box.appendChild(card);
   }
