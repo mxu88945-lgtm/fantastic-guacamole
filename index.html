@@ -9,11 +9,18 @@
 <meta name="apple-mobile-web-app-title" content="Role Chat" />
 <meta name="theme-color" content="#f5f4ef" />
 <script>
-/* Pre-paint theme priming. All current themes are light and use fixed dark text.
-   Start from the neutral light canvas; applyTheme will paint the saved palette. */
+/* Pre-paint theme priming. Restore the true dark canvas immediately for 墨黑金;
+   all other themes start from the neutral light canvas until applyTheme runs. */
 (function () {
   try {
-    document.documentElement.setAttribute("data-theme", "light");
+    var primed = JSON.parse(localStorage.getItem("jyc_settings") || "{}");
+    var isBlackGold = primed.themeName === "gold";
+    document.documentElement.setAttribute("data-theme", isBlackGold ? "dark" : "light");
+    if (isBlackGold) {
+      document.documentElement.style.setProperty("--bg", "#0e0e0f");
+      var themeMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeMeta) themeMeta.setAttribute("content", "#0e0e0f");
+    }
     /* Pre-paint sidebar state: this page is one big inline file, so iOS standalone
        PWAs paint the raw HTML (sidebar open) before the bottom script runs and
        tucks it away — the user sees the sidebar flash over the chat on every launch.
@@ -51,6 +58,9 @@
     --hover: #20243400;
     --item-active: #232844;
     --radius: 14px;
+    --control: #111111;
+    --control-text: #ffffff;
+    --control-border: #f2f2f2;
   }
   html[data-theme="light"] {
     --bg: #f5f6fa;
@@ -69,6 +79,9 @@
     --err-text: #b3343a;
     --item-active: #e9ebf7;
     --radius: 14px;
+    --control: #111111;
+    --control-text: #ffffff;
+    --control-border: #111111;
   }
   * { box-sizing: border-box; }
   /* iOS standalone PWA paints the status-bar / notch strip with the ROOT element's
@@ -108,6 +121,15 @@
     display: flex; align-items: center; gap: 10px;
     padding: 12px 10px 12px 16px; border-bottom: 1px solid var(--border);
   }
+  .brand-role-picker {
+    position: relative; flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+    cursor: pointer;
+  }
+  .brand-role-picker .role-chevron { width: 16px; height: 16px; flex: 0 0 auto; color: var(--text-dim); }
+  .brand-role-picker .role-quick {
+    position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0;
+    cursor: pointer; appearance: auto;
+  }
   .sidebar .brand .logo {
     width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
     background: linear-gradient(135deg, #7c83ff, #b06bff);
@@ -126,17 +148,6 @@
   }
   .sidebar .brand .icon-btn svg { width: 19px; height: 19px; }
   .sidebar .brand .icon-btn:hover, .sidebar .brand .icon-btn:active { background: var(--item-active); color: var(--text); }
-  .role-quick-wrap { position: relative; margin: 12px 12px 10px; }
-  .role-quick-icon {
-    position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
-    width: 15px; height: 15px; color: var(--text-dim); pointer-events: none;
-  }
-  .role-quick {
-    padding: 9px 10px 9px 33px; border-radius: 10px;
-    border: 1px solid var(--border); background: var(--bg-panel);
-    color: var(--text); font-size: 13px; font-weight: 600; font-family: inherit;
-    cursor: pointer; width: 100%;
-  }
   .conv-list { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
   .search-result { padding: 9px 10px; border-radius: 9px; cursor: pointer; margin-bottom: 4px; }
   .search-result:active, .search-result.active { background: var(--item-active); }
@@ -196,18 +207,6 @@
   }
   .sidebar-action-bubble:active { transform: scale(.95); }
   .sidebar-action-bubble > svg { width: 24px; height: 24px; }
-  .sidebar-settings-avatar {
-    width: 100%; height: 100%; border-radius: 50%; overflow: hidden;
-    display: grid; place-items: center; background: var(--bg-panel);
-    color: var(--text); font-size: 13px; font-weight: 650;
-  }
-  .sidebar-settings-avatar img { width: 100%; height: 100%; object-fit: cover; }
-  .sidebar-settings-badge {
-    position: absolute; right: -3px; bottom: -2px; width: 22px; height: 22px; border-radius: 50%;
-    display: grid; place-items: center; background: var(--text); color: var(--bg);
-    border: 2px solid var(--bg-soft); box-shadow: 0 2px 8px rgba(0,0,0,.18);
-  }
-  .sidebar-settings-badge svg { width: 12px; height: 12px; }
   html[data-glass="1"] .sidebar-action-bubble { background: rgba(255,255,255,.5); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
   .side-entry {
     margin: 8px 12px 0; padding: 9px 12px; border-radius: 10px;
@@ -420,7 +419,7 @@
     border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;
   }
   .mini-btn:hover { border-color: var(--accent); }
-  .mini-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .mini-btn.primary { background: var(--control); color: var(--control-text); border-color: var(--control-border); }
   .avatar-preview {
     width: 40px; height: 40px; border-radius: 9px; flex-shrink: 0;
     display: grid; place-items: center; font-weight: 700; font-size: 15px;
@@ -439,7 +438,7 @@
     background: var(--bg-panel); transition: .15s; text-align: center;
   }
   .theme-card:hover { transform: translateY(-2px); }
-  .theme-card.active { border-color: var(--accent); }
+  .theme-card.active { border-color: var(--control-border); }
   .theme-card .preview {
     height: 40px; border-radius: 8px; margin-bottom: 6px; position: relative; overflow: hidden;
   }
@@ -757,7 +756,7 @@
     cursor: pointer; font-size: 11px; line-height: 1; display: grid; place-items: center;
   }
   .send-btn {
-    background: var(--accent); border: none; color: #fff; width: 38px; height: 38px;
+    background: var(--control); border: none; color: var(--control-text); width: 38px; height: 38px;
     border-radius: 50%; cursor: pointer; display: grid; place-items: center;
     flex-shrink: 0; transition: .15s;
   }
@@ -794,7 +793,7 @@
     flex: 1; border: none; border-radius: 11px; padding: 11px; font-size: 14px; font-weight: 600;
     cursor: pointer; font-family: inherit;
   }
-  .remind-btns .rb-done { background: var(--accent); color: #fff; }
+  .remind-btns .rb-done { background: var(--control); color: var(--control-text); }
   .remind-btns .rb-cancel { flex: 0 0 auto; padding: 11px 18px; background: var(--bg-panel); color: var(--text-dim); border: 1px solid var(--border); }
   /* 完成态：✓ 已完成 · 用时 X · 提前 Y″ */
   .remind-done-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -829,7 +828,7 @@
   .pin-count { font-size: 18px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
   .pin-done {
     pointer-events: auto; flex: 0 0 auto;
-    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    background: var(--control); color: var(--control-text); border: none; border-radius: 8px;
     padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
   }
   .err-banner {
@@ -962,13 +961,13 @@
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <div class="logo" id="brand-logo">R</div>
-      <div class="title" id="brand-title">Role Chat</div>
+      <div class="brand-role-picker" title="切换角色">
+        <div class="logo" id="brand-logo">R</div>
+        <div class="title" id="brand-title">Role Chat</div>
+        <svg class="role-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 9 4-4 4 4M16 15l-4 4-4-4"/></svg>
+        <select class="role-quick" id="role-quick" aria-label="切换角色"></select>
+      </div>
       <button class="icon-btn" id="sidebar-settings-btn" title="设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-    </div>
-    <div class="role-quick-wrap">
-      <svg class="role-quick-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
-      <select class="role-quick" id="role-quick" title="切换角色"></select>
     </div>
     <div class="conv-list" id="conv-list"></div>
     <div class="sidebar-footer-actions">
@@ -976,8 +975,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h6"/><path d="M17 3v8M13 7h8"/></svg>
       </button>
       <button class="sidebar-action-bubble" id="sidebar-settings-footer" aria-label="打开设置" title="设置">
-        <span class="sidebar-settings-avatar" id="sidebar-settings-avatar">你</span>
-        <span class="sidebar-settings-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"/></svg></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
     </div>
   </aside>
@@ -2429,12 +2427,12 @@ function avatarHtml(role) {
 }
 function setPreview(id, v, fallback) {
   const el = $(id);
+  if (!el) return;
   if (isImageRef(v)) el.innerHTML = `<img src="${escapeHtml(v)}" alt="">`;
   else el.textContent = v || fallback;
 }
 function updateAvatarPreviews() {
   setPreview("userAvatarPreview", settings.userAvatar, "你");
-  setPreview("sidebar-settings-avatar", settings.userAvatar, "你");
   setPreview("aiAvatarPreview", settings.aiAvatar, "角");
 }
 // Show "✅ 已上传图片" instead of the ugly base64 string when an image is set.
@@ -4877,11 +4875,11 @@ const THEMES = [
     bg:"#f8f8f8", "bg-soft":"#ffffff", "bg-panel":"#f0f0f0", border:"#e2e2e2", text:"#111111",
     "text-dim":"#666666", accent:"#5d63e6", "accent-soft":"#eaeaee", "assistant-bubble":"#ffffff",
     "code-bg":"#f4f4f4", "err-bg":"#fdecec", "err-text":"#b3343a", "item-active":"#ebebeb" } },
-  // 墨黑金保留黑金点缀，但改为浅色画布，确保固定黑字始终清晰。
-  { key: "gold", name: "墨黑金", dark: false, vars: {
-    bg:"#f4f2ec", "bg-soft":"#fbfaf6", "bg-panel":"#ece8dc", border:"#d8d1bd", text:"#111111",
-    "text-dim":"#666666", accent:"#b88918", "accent-soft":"#eee3c5", "assistant-bubble":"#fbfaf6",
-    "code-bg":"#ece8dc", "err-bg":"#f8e6e6", "err-text":"#a83232", "item-active":"#e6e0d1" } },
+  // 墨黑金 — 真正的深黑画布，金色只保留为细节点缀。
+  { key: "gold", name: "墨黑金", dark: true, vars: {
+    bg:"#0e0e0f", "bg-soft":"#161617", "bg-panel":"#1d1d1f", border:"#343438", text:"#f2f2f2",
+    "text-dim":"#ababaf", accent:"#b88918", "accent-soft":"#3a3320", "assistant-bubble":"#1d1d1f",
+    "code-bg":"#0a0a0b", "err-bg":"#3a1f24", "err-text":"#ffb4b4", "item-active":"#29292c" } },
   // 黛绿 — 雾感灰绿 · 蓝灰
   { key: "mistgreen", name: "黛绿", dark: false, glass: true,
     gradient: "linear-gradient(180deg,#eef2ec 0%,#dde6dd 30%,#cdd8cf 56%,#c2cdc8 80%,#b6c4c2 100%)",
@@ -4896,9 +4894,9 @@ function applyTheme() {
   document.documentElement.setAttribute("data-theme", t.dark ? "dark" : "light");
   const root = document.documentElement;
   for (const k in t.vars) root.style.setProperty("--" + k, t.vars[k]);
-  // Theme colors may change surfaces and accents, but never recolor readable copy.
-  root.style.setProperty("--text", "#111111");
-  root.style.setProperty("--text-dim", "#666666");
+  // Keep readable copy neutral: black/grey on light themes, white/grey on true dark themes.
+  root.style.setProperty("--text", t.dark ? "#f2f2f2" : "#111111");
+  root.style.setProperty("--text-dim", t.dark ? "#ababaf" : "#666666");
   // metallic gradient background + translucent glass bubbles (per-theme opt-in)
   if (t.gradient) root.style.setProperty("--app-gradient", t.gradient);
   else root.style.removeProperty("--app-gradient");
@@ -5611,8 +5609,6 @@ function init() {
 
   $("sidebar-new-chat").onclick = () => { createConversation(); if (isMobile()) closeSidebar(); };
   $("role-quick").onchange = (e) => applyRole(e.target.value);
-  $("brand-logo").style.cursor = "pointer"; $("brand-title").style.cursor = "pointer";
-  $("brand-logo").onclick = goHome; $("brand-title").onclick = goHome;
   if ($("conv-title")) $("conv-title").onclick = () => renameConversation(currentId);
   $("toggle-sidebar").onclick = toggleSidebar;
   $("header-search-btn").onclick = () => {
