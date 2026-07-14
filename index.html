@@ -1274,7 +1274,6 @@
             <input id="roleName" placeholder="新角色名，如：磁性男A" style="flex:1; min-width:140px;" />
             <button class="icon-btn" id="role-add-btn">＋ 存为新角色</button>
           </div>
-          <span class="hint" style="display:block; margin-top:6px;">切换角色会一起换掉「核心人设 / 音色 / 长期记忆 / 名字头像」。下面的编辑会自动存进「使用中」的角色。</span>
         </div>
 
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
@@ -1338,7 +1337,6 @@
               <button class="mini-btn" data-edit="memSummary" data-title="✨ 记忆摘要" title="放大编辑" style="padding:5px 8px;line-height:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
             </span>
           </label>
-          <span class="hint" style="display:block;margin-top:4px;">一段连贯的总结：你们的关系、你的性格 / 爱好 / 习惯、喜欢的相处风格等。它比单条记忆更整体，并会随每次对话提供给当前角色。</span>
           <textarea id="memSummary" placeholder="让当前角色根据记忆库生成，或自己填写…" style="margin-top:8px;min-height:90px;" onchange="readSettingsFromUI();"></textarea>
         </div>
 
@@ -1382,7 +1380,6 @@
             <button class="card-fold" onclick="foldCard('notion-body', this)">▸</button>
           </label>
           <div id="notion-body" style="display:none;">
-          <span class="hint" style="display:block;margin-top:6px;">把长期记忆保存到你的 Notion 角色档案：聊天时自动读取，自动记忆也可以写回。需要先创建 Notion integration 并把档案页面分享给它。</span>
           <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
             <div class="field" style="padding:0;"><label>Notion 代理地址（你 Worker 的 /notion）</label>
               <input id="notionProxy" placeholder="https://your-proxy.workers.dev/notion" onchange="readSettingsFromUI();" /></div>
@@ -2447,7 +2444,6 @@ function renderMessages() {
     box.innerHTML = `<div class="empty-state">
       <div class="empty-avatar">${avatar}</div>
       <div class="greet">${greetingText()}${who}</div>
-      <div class="empty-role">正在与 ${aiName} 对话</div>
       <div class="starter-grid">
         <button class="starter-card" data-starter="想和你随便聊聊，先问我一个今天最想说的话题。">聊聊今天</button>
         <button class="starter-card" data-starter="我脑子里有点乱，陪我把现在的想法慢慢理清。">帮我整理思路</button>
