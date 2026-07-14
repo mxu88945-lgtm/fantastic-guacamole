@@ -213,17 +213,23 @@
     .conv-item .act:hover { opacity: 1; color: var(--accent); }
     .conv-item .act.del:hover { color: var(--danger); }
   }
-  .side-settings-btn {
-    margin: 6px 12px; padding: 10px; border-radius: 10px;
-    border: 1px solid var(--border); background: var(--bg-panel);
-    color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600;
-    display: flex; align-items: center; justify-content: center; gap: 6px; transition: .15s;
+  .sidebar .brand #sidebar-settings-btn { display: none; }
+  .sidebar-settings-entry {
+    margin: 8px 10px; min-height: 58px; padding: 8px 10px; border: none; border-radius: 13px;
+    background: transparent; color: var(--text); cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; gap: 10px; text-align: left; transition: .15s;
   }
-  .side-settings-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .sidebar .foot {
-    padding: 10px 12px; border-top: 1px solid var(--border);
-    font-size: 11px; color: var(--text-dim); text-align: center;
+  .sidebar-settings-entry:hover, .sidebar-settings-entry:active { background: var(--item-active); }
+  .sidebar-settings-avatar {
+    width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+    display: grid; place-items: center; background: var(--bg-panel); border: 1px solid var(--border);
+    color: var(--text); font-size: 13px; font-weight: 650;
   }
+  .sidebar-settings-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .sidebar-settings-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .sidebar-settings-copy strong { font-size: 13px; font-weight: 650; }
+  .sidebar-settings-copy small { color: var(--text-dim); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sidebar-settings-entry > svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--text-dim); }
   .side-entry {
     margin: 8px 12px 0; padding: 9px 12px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--bg-panel);
@@ -295,10 +301,8 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   header .sub { font-size: 11px; color: var(--text-dim); }
   header .spacer { flex: 1; }
-  .header-identity { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .header-identity { min-width: 0; display: flex; align-items: center; }
   .header-role-name { max-width: 230px; color: var(--text); font-size: 14px; font-weight: 650;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .header-role-model { max-width: 230px; color: var(--text-dim); font-size: 10px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .icon-btn {
     background: var(--bg-panel); border: 1px solid var(--border);
@@ -984,7 +988,11 @@
     </div>
     <input id="search-input" placeholder="🔍 搜索聊天记录…" />
     <div class="conv-list" id="conv-list"></div>
-    <div class="foot">数据仅存于本地浏览器</div>
+    <button class="sidebar-settings-entry" id="sidebar-settings-footer">
+      <span class="sidebar-settings-avatar" id="sidebar-settings-avatar">你</span>
+      <span class="sidebar-settings-copy"><strong>设置</strong><small>角色、模型、记忆与外观</small></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
   </aside>
 
   <!-- Main -->
@@ -994,7 +1002,6 @@
       <button class="icon-btn" id="toggle-sidebar" title="收起/展开侧栏"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
       <div class="header-identity">
         <span class="header-role-name" id="header-role-name">当前角色</span>
-        <span class="header-role-model" id="status-line"></span>
       </div>
       <div class="spacer"></div>
       <button class="icon-btn" id="header-search-btn" title="搜索聊天记录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
@@ -2437,6 +2444,7 @@ function setPreview(id, v, fallback) {
 }
 function updateAvatarPreviews() {
   setPreview("userAvatarPreview", settings.userAvatar, "你");
+  setPreview("sidebar-settings-avatar", settings.userAvatar, "你");
   setPreview("aiAvatarPreview", settings.aiAvatar, "角");
 }
 // Show "✅ 已上传图片" instead of the ugly base64 string when an image is set.
@@ -5635,6 +5643,7 @@ function init() {
   $("backdrop").onclick = closeSidebar;
   window.addEventListener("resize", applySidebar);
   $("sidebar-settings-btn").onclick = () => { openSettings(); if (isMobile()) closeSidebar(); };
+  $("sidebar-settings-footer").onclick = () => { openSettings(true); if (isMobile()) closeSidebar(); };
   $("open-cycle-btn").onclick = openCyclePanel;
   $("cycle-close").onclick = closeCyclePanel;
   $("notion-test").onclick = notionTest;
