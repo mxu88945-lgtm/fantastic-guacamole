@@ -36,8 +36,8 @@
   } catch (e) {}
 })();
 </script>
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=80" />
-<link rel="icon" type="image/png" href="apple-touch-icon.png?v=80" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=83" />
+<link rel="icon" type="image/png" href="apple-touch-icon.png?v=83" />
 <title>Role Chat</title>
 <style>
   :root, html[data-theme="dark"] {
@@ -1385,18 +1385,20 @@
               <button class="icon-btn" style="font-size:12px;" onclick="organizeMemories(this)">✨ 检查重复与冲突</button>
               <button class="icon-btn" style="font-size:12px;" onclick="fixMemUserWord()">🔁 修正记忆称呼</button>
             </div>
-            <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:10px;cursor:pointer;">
-              <input type="checkbox" id="autoMemory" style="width:auto;" />
-              ✨ 自动记忆：聊天时自动把值得记住的事补进记忆库（新记的默认是普通条目，按需取用）
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:8px;cursor:pointer;">
-              <input type="checkbox" id="crossChat" style="width:auto;" onchange="readSettingsFromUI();" />
-              🪟 跨窗口回忆：聊到相关话题时，自动想起你在<b>其他聊天窗口</b>里说过的事（按需检索、限量，省 token）
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:8px;cursor:pointer;">
-              <input type="checkbox" id="crossSearch" style="width:auto;" onchange="readSettingsFromUI();" />
-              🔍 主动翻旧聊天：允许当前角色在需要时检索其他对话中的相关内容
-            </label>
+            <div style="margin-top:10px;border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+              <label style="display:flex;align-items:center;gap:10px;min-height:46px;padding:0 12px;font-size:13px;font-weight:600;cursor:pointer;">
+                <input type="checkbox" id="autoMemory" style="width:auto;flex-shrink:0;" />
+                <span>✨ 自动记忆</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;min-height:46px;padding:0 12px;border-top:1px solid var(--border);font-size:13px;font-weight:600;cursor:pointer;">
+                <input type="checkbox" id="crossChat" style="width:auto;flex-shrink:0;" onchange="readSettingsFromUI();" />
+                <span>🪟 跨对话回忆</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;min-height:46px;padding:0 12px;border-top:1px solid var(--border);font-size:13px;font-weight:600;cursor:pointer;">
+                <input type="checkbox" id="crossSearch" style="width:auto;flex-shrink:0;" onchange="readSettingsFromUI();" />
+                <span>🔍 搜索旧聊天</span>
+              </label>
+            </div>
           </div>
         </div>
 
