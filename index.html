@@ -946,7 +946,6 @@
   <button data-mact="edit">✏️ 编辑重发</button>
   <button data-mact="edittext">✏️ 改文字</button>
   <button data-mact="quote">↩︎ 引用回复</button>
-  <button data-mact="fav">⭐ 收藏</button>
   <button data-mact="mem">🧠 存记忆</button>
   <button data-mact="del">🗑️ 删除</button>
 </div>
@@ -954,7 +953,6 @@
 <input type="file" id="aiAvatarFile" accept="image/*" style="display:none;" />
 <input type="file" id="importFile" accept=".json,application/json" style="display:none;" />
 <input type="file" id="chatBgFile" accept="image/*" style="display:none;" />
-<input type="file" id="stickerFile" accept="image/*" multiple style="display:none;" />
 <input type="file" id="file-input" accept=".txt,.md,.markdown,.json,.csv,.log,.js,.ts,.py,.html,.css,.xml,.yml,.yaml,text/*" style="display:none;" />
 <div class="app">
   <div class="backdrop" id="backdrop"></div>
@@ -1022,7 +1020,8 @@
           <button data-settings-tab="account"><span>☁</span>账号与同步<span class="settings-chevron">›</span></button>
           <button data-settings-tab="role"><span>◎</span>角色与关系<span class="settings-chevron">›</span></button>
           <button data-settings-tab="services"><span>⌘</span>模型与服务<span class="settings-chevron">›</span></button>
-          <button data-settings-tab="memory"><span>◇</span>记忆与收藏<span class="settings-chevron">›</span></button>
+          <button data-settings-tab="billing"><span>＄</span>用量与账单<span class="settings-chevron">›</span></button>
+          <button data-settings-tab="memory"><span>◇</span>记忆<span class="settings-chevron">›</span></button>
           <button data-settings-tab="media"><span>◖</span>语音与媒体<span class="settings-chevron">›</span></button>
           <button data-settings-tab="appearance"><span>✦</span>外观与聊天<span class="settings-chevron">›</span></button>
           <button data-settings-tab="data"><span>▣</span>数据与隐私<span class="settings-chevron">›</span></button>
@@ -1111,18 +1110,6 @@
           </div>
           <span class="hint">「平铺式」像 Tavo：头像名字在文字上方、文字铺满更宽。透明度调低能透出背景图。</span>
         </div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
-          <label style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-            <span style="font-weight:600;">🧩 表情包 <span class="hint" style="font-weight:400;">· 共 <span id="sticker-count">0</span> 个</span></span>
-            <span>
-              <button class="mini-btn primary" id="sticker-upload">＋ 上传</button>
-              <button class="mini-btn" id="sticker-toggle">展开 ▾</button>
-            </span>
-          </label>
-          <div id="sticker-manage" style="display:none; gap:8px; flex-wrap:wrap; margin-top:10px; max-height:200px; overflow-y:auto;"></div>
-          <span class="hint">上传图片当表情包，聊天点 🧩 发送；当前角色也能用「[贴纸:名字]」发（存本地、不上云）。</span>
-        </div>
-
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg>模型与服务</div>
         <div class="field" style="grid-column: 1 / -1;">
           <label>接口配置（可存多个，随时切换）</label>
@@ -1319,39 +1306,6 @@
           </label>
           <span class="hint">决定 AI 如何理解身份、关系、语气与边界。</span>
           <textarea id="systemPrompt" placeholder="填写角色身份、关系、语气与行为边界……" style="margin-top:6px;"></textarea>
-          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
-            <span style="font-weight:500;">表情风格</span>
-            <select id="emojiStyle" onchange="readSettingsFromUI();" style="width:auto; flex:1; min-width:140px;">
-              <option value="off">不用表情（纯文字）</option>
-              <option value="cool">克制高冷（极少用）</option>
-              <option value="normal">适中（偶尔点缀）</option>
-              <option value="cute">可爱满满（多颜文字+撒娇）</option>
-            </select>
-          </label>
-          <span class="hint" style="display:block;">控制当前角色回复里颜文字 / emoji 的用量与语气。</span>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:12px;">
-            <input type="checkbox" id="proactiveGreet" style="width:auto;" onchange="readSettingsFromUI();" />
-            <span>🌙 久未聊天时，TA 主动招呼我 <span class="hint" style="font-weight:400;">（隔约 3 小时再打开，会收到一句问候）</span></span>
-          </label>
-          <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
-            <span style="font-weight:500;display:block;margin-bottom:4px;">💬 拟真聊天</span>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;">
-              <input type="checkbox" id="multiBubble" style="width:auto;" onchange="readSettingsFromUI();" />
-              <span>TA 可以像真人发微信那样连发好几条短消息 <span class="hint" style="font-weight:400;">（逐条冒出来，带「正在输入」）</span></span>
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;">
-              <input type="checkbox" id="aiSticker" style="width:auto;" onchange="readSettingsFromUI();" />
-              <span>TA 可以主动发表情包 <span class="hint" style="font-weight:400;">（单独成一条气泡，用 emoji 大贴纸；有同名上传表情就用你的）</span></span>
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;">
-              <input type="checkbox" id="aiGenSticker" style="width:auto;" onchange="readSettingsFromUI();" />
-              <span>进一步：用画图模型把表情包生成成真实图片 <span class="hint" style="font-weight:400;">（较慢、耗额度，需先设「画图模型」）</span></span>
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;">
-              <input type="checkbox" id="reminderEnabled" style="width:auto;" onchange="readSettingsFromUI();" />
-              <span>⏰ TA 可以给我下「任务提醒」 <span class="hint" style="font-weight:400;">（喝水/吃饭/早睡…在输入框上方弹倒计时卡片，时间到自动提醒）</span></span>
-            </label>
-          </div>
         </div>
 
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
@@ -1433,12 +1387,6 @@
           </div>
         </div>
 
-        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>语录集（收藏的消息）</div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
-          <label style="font-weight:600;">共 <span id="fav-count">0</span> 条 —— 长按聊天消息即可收藏</label>
-          <div id="fav-list" style="margin-top:8px; display:flex; flex-direction:column; gap:8px;"></div>
-        </div>
-
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>数据（本地备份 / 恢复）</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">把所有对话和设置导出成一个文件，换设备时再导入恢复</label>
@@ -1486,7 +1434,6 @@
       <div id="sticker-panel"></div>
       <div id="plus-menu">
         <button data-act="image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>图片</button>
-        <button data-act="sticker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 10h.01M15 10h.01M8 15s1.5 2 4 2 4-2 4-2"/></svg>表情包</button>
         <button data-act="file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>文件</button>
         <button data-act="draw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2.5 2.5 0 0 0 2.5-2.5c0-.6-.2-1.1-.6-1.5-.4-.4-.6-.9-.6-1.5A2.5 2.5 0 0 1 15.8 14H18a4 4 0 0 0 4-4 8 8 0 0 0-10-8Z"/></svg>生成图片</button>
       </div>
@@ -1678,11 +1625,18 @@ function loadState() {
     const _r = activeRole();
     ROLE_FIELDS.forEach(f => { if (_r[f] !== undefined) settings[f] = _r[f]; });
   }
-  // give every message a stable id (for starring / deleting)
+  // Retired chat-simulation controls stay disabled, while their old local data is preserved.
+  settings.emojiStyle = "normal";
+  settings.proactiveGreet = false;
+  settings.multiBubble = false;
+  settings.aiSticker = false;
+  settings.aiGenSticker = false;
+  settings.reminderEnabled = false;
+  // give every message a stable id (for deleting and stable references)
   for (const c of conversations) for (const m of c.messages) if (!m.id) m.id = uid();
 }
 // Persona fields bundled into a switchable 角色.
-const ROLE_FIELDS = ["systemPrompt", "aiName", "aiAvatar", "memory", "ttsVoice", "emojiStyle"];
+const ROLE_FIELDS = ["systemPrompt", "aiName", "aiAvatar", "memory", "ttsVoice"];
 function activeRole() { return (settings.roles || []).find(r => r.id === settings.activeRoleId); }
 // Keep the active role in sync with the live persona fields (so edits aren't lost).
 function mirrorActiveRole() {
@@ -2502,7 +2456,6 @@ function renderMessages() {
     const el = makeMsgEl(m.role, m.content, { actions: true, isLast, reasoning: m.reasoning, ts: m.ts, tokens: m.tokens });
     el.dataset.idx = i;
     if (m.id) el.dataset.mid = m.id;
-    if (m.id && settings.favorites.some(f => f.id === m.id)) el.classList.add("starred");
     if (m._summary) el.querySelector(".bubble").classList.add("summary");
     box.appendChild(el);
   }
@@ -4228,16 +4181,13 @@ function importBackup(file) {
   reader.readAsText(file);
 }
 
-// ---------- Message long-press menu + favorites ----------
+// ---------- Message long-press menu ----------
 let menuTargetIdx = null;
 let menuOpenedAt = 0;   // guards against iOS firing a synthetic click right after long-press (would insta-close the menu)
 function openMsgMenu(x, y, idx) {
   menuTargetIdx = idx;
   menuOpenedAt = Date.now();
   const m = messages[idx];
-  const favBtn = $("msg-menu").querySelector('[data-mact="fav"]');
-  const isFav = m && m.id && settings.favorites.some(f => f.id === m.id);
-  favBtn.textContent = isFav ? "⭐ 取消收藏" : "⭐ 收藏";
   // edit/resend only makes sense for your own messages; in-place "改文字" for his replies
   $("msg-menu").querySelector('[data-mact="edit"]').style.display = (m && m.role === "user") ? "" : "none";
   $("msg-menu").querySelector('[data-mact="edittext"]').style.display = (m && m.role === "assistant") ? "" : "none";
@@ -5124,18 +5074,10 @@ function syncSettingsToUI() {
   $("imageBaseUrl").value = settings.imageBaseUrl || "";
   $("imageApiKey").value = settings.imageApiKey || "";
   $("systemPrompt").value = settings.systemPrompt;
-  $("emojiStyle").value = (settings.emojiStyle === true || settings.emojiStyle === undefined) ? "normal"
-    : (settings.emojiStyle === false ? "off" : settings.emojiStyle);
-  $("proactiveGreet").checked = settings.proactiveGreet !== false;
-  $("multiBubble").checked = settings.multiBubble !== false;
-  $("aiSticker").checked = settings.aiSticker !== false;
-  $("aiGenSticker").checked = !!settings.aiGenSticker;
-  $("reminderEnabled").checked = settings.reminderEnabled !== false;
   $("cycleEnabled").checked = cycleData().enabled !== false;
   $("memory").value = settings.memory;
   $("memSummary").value = settings.memSummary || "";
   renderMemList();
-  renderFavorites();
   $("autoMemory").checked = settings.autoMemory;
   $("crossChat").checked = settings.crossChat !== false;
   $("crossSearch").checked = settings.crossSearch !== false;
@@ -5285,12 +5227,6 @@ function readSettingsFromUI() {
   settings.imageBaseUrl = $("imageBaseUrl").value.trim();
   settings.imageApiKey = $("imageApiKey").value.trim();
   settings.systemPrompt = $("systemPrompt").value;
-  settings.emojiStyle = $("emojiStyle").value;
-  settings.proactiveGreet = $("proactiveGreet").checked;
-  settings.multiBubble = $("multiBubble").checked;
-  settings.aiSticker = $("aiSticker").checked;
-  settings.aiGenSticker = $("aiGenSticker").checked;
-  settings.reminderEnabled = $("reminderEnabled").checked;
   settings.memory = $("memory").value;
   settings.memSummary = $("memSummary").value;
   settings.autoMemory = $("autoMemory").checked;
@@ -5409,8 +5345,9 @@ function closeSettings() {
 const SETTINGS_PAGES = {
   account: { title: "账号与同步", desc: "管理登录、多设备同步与本地使用状态。" },
   role: { title: "角色与关系", desc: "切换角色，编辑称呼、人设、头像与陪伴方式。" },
-  services: { title: "模型与服务", desc: "管理聊天渠道、模型、联网、画图与用量。" },
-  memory: { title: "记忆与收藏", desc: "整理长期记忆、跨窗口回忆与收藏内容。" },
+  services: { title: "模型与服务", desc: "管理聊天渠道、模型、联网与画图能力。" },
+  billing: { title: "用量与账单", desc: "查看本地 token、调用次数与花费记录。" },
+  memory: { title: "记忆", desc: "整理长期记忆与跨窗口回忆内容。" },
   media: { title: "语音与媒体", desc: "设置朗读、音色和媒体能力。" },
   appearance: { title: "外观与聊天", desc: "调整主题、背景、字体与消息布局。" },
   data: { title: "数据与隐私", desc: "备份、恢复、更新以及隐私锁。" },
@@ -5419,8 +5356,9 @@ const SETTINGS_PAGES = {
 function settingsGroupFor(title) {
   if (title.includes("账号")) return "account";
   if (title.includes("角色档案")) return "role";
-  if (title.includes("模型") || title.includes("用量")) return "services";
-  if (title.includes("记忆") || title.includes("语录")) return "memory";
+  if (title.includes("用量")) return "billing";
+  if (title.includes("模型")) return "services";
+  if (title.includes("记忆")) return "memory";
   if (title.includes("语音")) return "media";
   if (title.includes("外观")) return "appearance";
   return "data";
@@ -5692,19 +5630,9 @@ function init() {
     e.target.value = "";
   };
   setupEmoji();
-  renderStickerManage();
-  renderStickerPanel();
-  $("sticker-upload").onclick = () => $("stickerFile").click();
-  $("sticker-toggle").onclick = () => {
-    const box = $("sticker-manage");
-    const open = box.style.display !== "none";
-    box.style.display = open ? "none" : "flex";
-    $("sticker-toggle").textContent = open ? "展开 ▾" : "收起 ▴";
-  };
-  $("stickerFile").onchange = (e) => { for (const f of e.target.files) addStickerFile(f); e.target.value = ""; };
   $("file-input").onchange = (e) => { handleTextFile(e.target.files[0]); e.target.value = ""; };
 
-  // "+" menu in the composer (图片 / 表情 / 表情包)
+  // "+" menu in the composer
   const closePopups = () => {
     $("plus-menu").classList.remove("show");
     $("emoji-panel").classList.remove("show");
@@ -5722,7 +5650,6 @@ function init() {
       const act = btn.dataset.act;
       $("plus-menu").classList.remove("show");
       if (act === "image") $("attach-file").click();
-      else if (act === "sticker") $("sticker-panel").classList.toggle("show");
       else if (act === "file") $("file-input").click();
       else if (act === "compact") compactConversation();
       else if (act === "export") openExportDialog();
@@ -5784,7 +5711,6 @@ function init() {
       else if (a === "edit") editMessage(idx);
       else if (a === "edittext") editMessageText(idx);
       else if (a === "quote") quoteMessage(idx);
-      else if (a === "fav") toggleFavorite(idx);
       else if (a === "mem") { const t = messageText(messages[idx]).trim(); if (t) { addMemEntry(t.slice(0, 200), false); showToast("🧠 已存进记忆库"); } }
       else if (a === "del") deleteMessage(idx);
     };
@@ -5793,8 +5719,6 @@ function init() {
     if (Date.now() - menuOpenedAt < 300) return;   // ignore the synthetic click iOS fires right after a long-press
     if (!$("msg-menu").contains(e.target)) closeMsgMenu();
   });
-  renderFavorites();
-
   // Chat background image + frosted-glass blur
   $("bg-upload").onclick = () => $("chatBgFile").click();
   $("chatBgFile").onchange = (e) => { setChatBgFile(e.target.files[0]); e.target.value = ""; };
