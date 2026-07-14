@@ -339,6 +339,28 @@
     background: var(--bg-panel); color: var(--text); cursor: pointer; display: none; place-items: center;
   }
   .settings-back svg { width: 19px; height: 19px; }
+  .settings-close-btn {
+    width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid var(--border);
+    border-radius: 50%; padding: 0; background: var(--bg-panel); color: var(--text);
+    cursor: pointer; display: grid; place-items: center; box-shadow: 0 4px 14px rgba(0,0,0,.06);
+  }
+  .settings-close-btn svg { width: 23px; height: 23px; }
+  .settings-close-btn:active { transform: scale(.96); }
+  .model-fetch-card { grid-column: 1 / -1; }
+  .model-fetch-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-bottom: 7px;
+  }
+  .model-fetch-title { font-size: 14px; font-weight: 650; }
+  .model-fetch-status { margin-top: 2px; color: var(--text-dim); font-size: 12px; }
+  .model-fetch-btn {
+    min-height: 38px; flex: 0 0 auto; border: 0; border-radius: 999px; padding: 0 15px;
+    background: var(--control); color: var(--control-text); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px; font: 600 13px/1 inherit;
+  }
+  .model-fetch-btn svg { width: 16px; height: 16px; }
+  .model-fetch-btn:disabled { opacity: .55; cursor: wait; }
+  .model-fetch-card textarea { min-height: 112px; }
   .settings-shell {
     flex: 1; min-height: 0; width: min(760px, 100%); margin: 0 auto; overflow: hidden;
   }
@@ -1012,7 +1034,7 @@
           <button class="settings-back" id="settings-back" aria-label="返回设置分类"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
           <span id="settings-title">设置</span>
         </div>
-        <button class="mini-btn primary" id="settings-close">✓ 完成</button>
+        <button class="settings-close-btn" id="settings-close" aria-label="关闭设置" title="关闭设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
       <div class="settings-shell" id="settings-shell">
         <nav class="settings-nav" id="settings-nav" aria-label="设置分类">
@@ -1140,7 +1162,7 @@
           </div>
         </div>
         <div class="field">
-          <label>当前模型（下拉选择 · 先点下面「拉取可用模型」）</label>
+          <label>当前模型</label>
           <select id="model-select"></select>
           <input id="model" placeholder="或手动输入模型名（列表里没有时用）" style="margin-top:6px;" />
         </div>
@@ -1154,17 +1176,18 @@
           <label>最大输出 tokens</label>
           <input id="maxTokens" type="number" placeholder="2048" />
         </div>
-        <div class="field" style="grid-column: 1 / -1;">
-          <label style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-            常用模型列表（每行一个，会出现在顶部下拉里）
-            <button class="icon-btn" id="fetch-models-btn" style="padding:4px 10px; font-size:12px;">📥 拉取可用模型</button>
-          </label>
-          <textarea id="modelList" placeholder="claude-opus-4-8-thinking | K-极·Opus 4.8&#10;xiaomi/mimo-v2.5-pro | 小米 Mimo&#10;gpt-4o"></textarea>
-          <span class="hint" style="display:block;">想给模型起个好认的显示名？用 <b>模型id | 显示名</b>（中间一根竖线 |），下拉里就显示别名、调用仍用真实 id。不写竖线就直接显示原 id。</span>
+        <div class="field model-fetch-card">
+          <div class="model-fetch-head">
+            <div>
+              <div class="model-fetch-title">可用模型</div>
+              <div class="model-fetch-status" id="model-fetch-status">可手动填写，或从当前接口同步</div>
+            </div>
+            <button class="model-fetch-btn" id="fetch-models-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg><span>拉取模型</span></button>
+          </div>
+          <textarea id="modelList" aria-label="可用模型列表" placeholder="每行一个模型 ID"></textarea>
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">👀 读图模型（视觉转述）</label>
-          <span class="hint" style="display:block; margin-top:4px;">给一个<b>会看图</b>的模型 id，开启下面开关后：你发图时，先让它把图<b>读成文字</b>，再喂给当前模型——这样<b>纯文字模型也不会因为看不了图而卡住/报错</b>了。<b>接口地址 / Key 选填</b>：填了就走它自己的独立接口（切换主供应商也不影响读图）；留空则用当前接口。</span>
           <input id="visionModel" placeholder="会读图的模型 id，如 gpt-4o / google/gemini-2.5-pro" style="margin-top:8px;" onchange="readSettingsFromUI();" />
           <input id="visionBaseUrl" placeholder="读图接口地址（选填，留空就用当前接口）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
           <input id="visionApiKey" type="password" placeholder="读图 API Key（选填，不上云；留空用当前接口）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
@@ -1175,14 +1198,12 @@
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🎨 文生图（让 TA 画图）</label>
-          <span class="hint" style="display:block; margin-top:4px;">在输入框写要画什么 → 点「＋」→「生成图片」，TA 就画给你。需要一个支持画图的接口（标准 <code>/v1/images/generations</code>，如 Grok / DALL·E / gpt-image 等）。</span>
           <input id="imageModel" placeholder="画图模型 id，如 grok-2-image / dall-e-3 / gpt-image-1" style="margin-top:8px;" onchange="readSettingsFromUI();" />
           <input id="imageBaseUrl" placeholder="画图接口地址（选填，留空就用当前接口）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
           <input id="imageApiKey" type="password" placeholder="画图 API Key（选填，不上云；留空用当前接口）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🌐 联网搜索</label>
-          <span class="hint" style="display:block; margin-top:4px;">开启后，遇到需要<b>最新/实时信息</b>时，当前角色可以发起联网检索，App 会把结果交给模型后继续回答。默认使用 Jina，也可以改成你的 Worker 或其他搜索服务。</span>
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:10px;">
             <input type="checkbox" id="webSearch" style="width:auto;" onchange="readSettingsFromUI();" />
             <span>开启联网搜索</span>
@@ -3816,30 +3837,51 @@ function notionAutoSync() {
 
 // Fetch the provider's available model list (GET /models) and fill the model list box.
 async function fetchModels() {
-  if (!settings.apiKey) { showToast("请先填 API Key"); return; }
+  readSettingsFromUI();
+  const btn = $("fetch-models-btn");
+  const btnLabel = btn?.querySelector("span");
+  const status = $("model-fetch-status");
+  const setState = (text, label) => {
+    if (status) status.textContent = text;
+    if (btnLabel && label) btnLabel.textContent = label;
+  };
+  if (!settings.apiKey) {
+    setState("请先填写 API Key", "拉取模型");
+    showToast("请先填 API Key");
+    return;
+  }
   const isAnthropic = settings.provider === "anthropic";
   const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
   const headers = isAnthropic
     ? { "x-api-key": settings.apiKey, "anthropic-version": "2023-06-01",
         "anthropic-dangerous-direct-browser-access": "true" }
     : { "authorization": "Bearer " + settings.apiKey };
-  showToast("正在拉取模型…");
+  if (btn) btn.disabled = true;
+  setState("正在连接当前接口…", "同步中");
   try {
     const resp = await fetch(base + "/models", { headers });
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
     const list = (data.data || data.models || [])
       .map(m => m.id || m.name || m).filter(x => typeof x === "string");
-    if (!list.length) { showToast("没拉到模型，可能该服务不支持"); return; }
+    if (!list.length) {
+      setState("当前接口没有返回模型", "拉取模型");
+      showToast("没拉到模型，可能该服务不支持");
+      return;
+    }
     list.sort();
     activeProvider().modelList = list.join("\n");
     mirrorActiveToFlat();
     saveSettings();
     $("modelList").value = settings.modelList;
     renderModelQuick();
+    setState("已同步 " + list.length + " 个模型", "重新拉取");
     showToast("✅ 拉到 " + list.length + " 个模型");
   } catch (e) {
+    setState("同步失败 · " + (e.message || e), "重试");
     showToast("拉取失败：" + (e.message || e));
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
