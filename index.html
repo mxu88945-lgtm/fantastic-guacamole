@@ -244,6 +244,11 @@
   .mem-text { flex:1; min-width:0; font-size:13px; line-height:1.4; cursor:text; word-break:break-word; }
   .mem-del { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:13px; padding:2px 4px; flex-shrink:0; }
   .mem-del:hover { color:var(--err-text); }
+  .memory-api-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; margin-top:10px; }
+  .memory-api-grid .field { padding:0; }
+  .memory-api-badge { display:inline-flex; align-items:center; gap:6px; color:var(--text-dim); font-size:11px; }
+  .memory-api-badge::before { content:""; width:7px; height:7px; border-radius:50%; background:#56c596; }
+  @media (max-width: 560px) { .memory-api-grid { grid-template-columns:1fr; } }
   .card-fold { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; padding:2px 6px; flex-shrink:0; line-height:1; }
   .card-fold:hover { color:var(--text); }
 
@@ -1331,6 +1336,25 @@
 
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-weight:600;">🧠 记忆模型 API</span>
+            <span class="memory-api-badge" id="memory-api-status">跟随聊天模型</span>
+          </label>
+          <div class="memory-api-grid">
+            <div class="field"><label>全局记忆接口</label><select id="memory-provider"></select></div>
+            <div class="field"><label>全局记忆模型</label><select id="memory-model"></select></div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:12px;cursor:pointer;">
+            <input type="checkbox" id="memory-role-override" style="width:auto;" /> 当前角色单独指定记忆模型
+          </label>
+          <div class="memory-api-grid" id="memory-role-api" style="display:none;">
+            <div class="field"><label>当前角色接口</label><select id="memory-role-provider"></select></div>
+            <div class="field"><label>当前角色模型</label><select id="memory-role-model"></select></div>
+          </div>
+          <span class="hint" style="display:block;margin-top:8px;">自动记忆与人物速写走这里；留空时跟随当前聊天模型。其他角色默认复用全局设置，也可单独覆盖。</span>
+        </div>
+
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <span style="font-weight:600;">✨ 记忆摘要 <span class="hint" style="font-weight:400;">· 关于你的人物速写（每次都带）</span></span>
             <span style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
               <button class="mini-btn primary" id="mem-sum-gen" style="padding:5px 10px;">让 TA 总结</button>
@@ -1357,7 +1381,10 @@
               <input id="mem-add" placeholder="加一条记忆，回车也行…" style="flex:1;" onkeydown="if(event.key==='Enter'){addMemEntry(this.value);this.value='';}" />
               <button class="icon-btn" id="mem-add-btn">＋ 加</button>
             </div>
-            <button class="icon-btn" style="margin-top:8px;font-size:12px;" onclick="fixMemUserWord()">🔁 把已存记忆里的「用户」改成我的称呼</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+              <button class="icon-btn" style="font-size:12px;" onclick="organizeMemories(this)">✨ 检查重复与冲突</button>
+              <button class="icon-btn" style="font-size:12px;" onclick="fixMemUserWord()">🔁 修正记忆称呼</button>
+            </div>
             <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:10px;cursor:pointer;">
               <input type="checkbox" id="autoMemory" style="width:auto;" />
               ✨ 自动记忆：聊天时自动把值得记住的事补进记忆库（新记的默认是普通条目，按需取用）
@@ -1398,6 +1425,7 @@
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>数据（本地备份 / 恢复）</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">把所有对话和设置导出成一个文件，换设备时再导入恢复</label>
+          <span class="hint" id="storage-status" style="display:block;margin-top:7px;">正在检查本地存储…</span>
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
             <button class="mini-btn primary" id="export-btn">📤 导出备份</button>
             <button class="mini-btn" id="import-btn">📥 恢复备份</button>
@@ -1539,6 +1567,9 @@ let settings = {
   webSearchUrl: "https://s.jina.ai/",  // 搜索接口（默认 Jina，免费、浏览器可直连）
   webSearchKey: "",       // 搜索 API Key（选填，不上云）
   memSummary: "",         // 记忆摘要：一段"关于 ta 的人物速写"，每次对话都注入
+  memoryProviderId: "",   // 全局记忆专用接口（空 = 当前聊天接口）
+  memoryModel: "",        // 全局记忆专用模型（空 = 所选接口当前模型）
+  roleMemoryV2: false,     // 已把旧的全局记忆安全归入当前角色
   reminderEnabled: true,  // 任务提醒：让江屹琛能写 [提醒:做的事|分钟] 给惟惟下个带倒计时的任务（卡片作为消息存进对话）
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
@@ -1556,7 +1587,7 @@ let ttsAudio = null;
 let ttsBtnActive = null;
 let ttsPrevProvider = null;   // remembers the active TTS provider so switching can save/restore per-provider config
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","autoMemory","crossChat","crossSearch","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent",
+  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","autoMemory","crossChat","crossSearch","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
   "reminderEnabled"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
@@ -1569,7 +1600,73 @@ let pendingSearchContext = "";   // [搜索:…] results to inject into the next
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
 // ---------- Persistence ----------
-function loadState() {
+const DB_NAME = "jyc_role_chat";
+const DB_VERSION = 1;
+const DB_STORE = "app";
+let appDb = null;
+let dbWriteQueue = Promise.resolve();
+function openAppDb() {
+  if (appDb) return Promise.resolve(appDb);
+  if (!("indexedDB" in window)) return Promise.reject(new Error("IndexedDB unavailable"));
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+    };
+    req.onsuccess = () => { appDb = req.result; resolve(appDb); };
+    req.onerror = () => reject(req.error || new Error("IndexedDB open failed"));
+  });
+}
+async function dbGet(key) {
+  const db = await openAppDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(DB_STORE, "readonly").objectStore(DB_STORE).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error("IndexedDB read failed"));
+  });
+}
+async function dbPut(key, value) {
+  const db = await openAppDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, "readwrite");
+    tx.objectStore(DB_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error("IndexedDB write failed"));
+    tx.onabort = () => reject(tx.error || new Error("IndexedDB write aborted"));
+  });
+}
+function queueConversationWrite(snapshot, selectedId) {
+  dbWriteQueue = dbWriteQueue.then(async () => {
+    await dbPut("conversations", snapshot);
+    await dbPut("currentId", selectedId || "");
+    // The verified IndexedDB copy is now canonical. Removing the legacy JSON is what
+    // frees localStorage space previously consumed by embedded chat images.
+    localStorage.removeItem("jyc_conversations");
+  }).catch(err => {
+    console.warn("IndexedDB save failed; keeping localStorage fallback", err);
+    try { localStorage.setItem("jyc_conversations", JSON.stringify(snapshot)); } catch (_) {}
+  });
+  return dbWriteQueue;
+}
+async function migrateConversationsToDb(legacy, legacyCurrent) {
+  await dbPut("conversations", legacy);
+  await dbPut("currentId", legacyCurrent || "");
+  const verify = await dbGet("conversations");
+  if (!Array.isArray(verify) || verify.length !== legacy.length) throw new Error("IndexedDB migration verification failed");
+  localStorage.removeItem("jyc_conversations");
+  return verify;
+}
+async function refreshStorageStatus() {
+  const el = $("storage-status"); if (!el) return;
+  let usage = 0, quota = 0;
+  let mode = "IndexedDB";
+  try { await openAppDb(); } catch (_) { mode = "localStorage 回退模式"; }
+  try { const e = await navigator.storage?.estimate?.(); usage = e?.usage || 0; quota = e?.quota || 0; } catch (_) {}
+  const fmt = n => n ? (n / 1048576).toFixed(n >= 10485760 ? 0 : 1) + " MB" : "—";
+  el.textContent = "对话与聊天图片：" + mode + (quota ? (" · 已用 " + fmt(usage) + " / 可用 " + fmt(quota)) : (mode === "IndexedDB" ? " · 已启用大容量存储" : ""));
+}
+async function loadState() {
   try {
     const s = JSON.parse(localStorage.getItem("jyc_settings") || "null");
     if (s) settings = { ...settings, ...s };
@@ -1583,9 +1680,21 @@ function loadState() {
       butter:"claude", mistpink:"claude", glaze:"white", dusk:"gold",
     };
     if (THEME_MIGRATE[settings.themeName]) settings.themeName = THEME_MIGRATE[settings.themeName];
-    const cs = JSON.parse(localStorage.getItem("jyc_conversations") || "null");
-    if (Array.isArray(cs)) conversations = cs;
-    currentId = localStorage.getItem("jyc_current") || null;
+    const legacyCurrent = localStorage.getItem("jyc_current") || null;
+    let stored = null;
+    try { stored = await dbGet("conversations"); } catch (e) { console.warn("IndexedDB load failed", e); }
+    if (Array.isArray(stored)) {
+      conversations = stored;
+      try { currentId = (await dbGet("currentId")) || legacyCurrent; } catch (_) { currentId = legacyCurrent; }
+    } else {
+      const cs = JSON.parse(localStorage.getItem("jyc_conversations") || "null");
+      if (Array.isArray(cs)) {
+        conversations = cs;
+        currentId = legacyCurrent;
+        try { conversations = await migrateConversationsToDb(cs, currentId); }
+        catch (e) { console.warn("IndexedDB migration deferred", e); }
+      } else currentId = legacyCurrent;
+    }
   } catch (e) { console.warn(e); }
 
   // migrate old single-conversation storage
@@ -1624,6 +1733,26 @@ function loadState() {
   }
   if (!settings.roles.find(r => r.id === settings.activeRoleId))
     settings.activeRoleId = settings.roles[0].id;
+  // One-time, non-destructive memory migration: the old build kept memEntries and
+  // memSummary globally. Give that data to the active role, while other roles start
+  // with their own empty searchable library (their legacy `memory` text is kept).
+  if (!settings.roleMemoryV2) {
+    const openRoleId = conversations.find(c => c.id === currentId)?.roleId;
+    const owner = (settings.roles || []).find(r => r.id === openRoleId) || activeRole();
+    (settings.roles || []).forEach(r => {
+      if (!Array.isArray(r.memEntries)) {
+        r.memEntries = r === owner && Array.isArray(settings.memEntries)
+          ? settings.memEntries.map(e => ({ ...e }))
+          : (r.memory || "").split(/\n+/).map(s => s.replace(/^[-*]\s*/, "").trim()).filter(Boolean)
+              .map(text => ({ id: uid(), text, core: true }));
+      }
+      if (r.memSummary == null) r.memSummary = r === owner ? (settings.memSummary || "") : "";
+      if (r.memoryOverrideEnabled == null) r.memoryOverrideEnabled = false;
+      if (r.memoryProviderId == null) r.memoryProviderId = "";
+      if (r.memoryModel == null) r.memoryModel = "";
+    });
+    settings.roleMemoryV2 = true;
+  }
   // tag any conversation that predates roles with the default/active role
   conversations.forEach(c => { if (!c.roleId) c.roleId = settings.activeRoleId; });
   // reopen where we left off: make the open conversation's role the active one + load its persona
@@ -1642,9 +1771,12 @@ function loadState() {
   settings.reminderEnabled = false;
   // give every message a stable id (for deleting and stable references)
   for (const c of conversations) for (const m of c.messages) if (!m.id) m.id = uid();
+  saveSettings();
+  saveConversations();
 }
-// Persona fields bundled into a switchable 角色.
-const ROLE_FIELDS = ["systemPrompt", "aiName", "aiAvatar", "memory", "ttsVoice"];
+// Persona fields bundled into a switchable 角色. Memory V2 keeps each role's
+// searchable entries and summary isolated instead of leaking them across personas.
+const ROLE_FIELDS = ["systemPrompt", "aiName", "aiAvatar", "memory", "memEntries", "memSummary", "ttsVoice"];
 function activeRole() { return (settings.roles || []).find(r => r.id === settings.activeRoleId); }
 // Keep the active role in sync with the live persona fields (so edits aren't lost).
 function mirrorActiveRole() {
@@ -1685,6 +1817,11 @@ function addRole() {
     aiName: name,
     aiAvatar: ([...name][0] || "AI"),
     memory: "",
+    memEntries: [],
+    memSummary: "",
+    memoryOverrideEnabled: false,
+    memoryProviderId: "",
+    memoryModel: "",
     ttsVoice: "",
     emojiStyle: settings.emojiStyle || "normal",
   };
@@ -1724,6 +1861,72 @@ function renderRoles() {
 function activeProvider() {
   return settings.providers.find(p => p.id === settings.activeProviderId) || settings.providers[0];
 }
+function providerById(id) { return (settings.providers || []).find(p => p.id === id); }
+function memoryRuntimeConfig() {
+  const role = activeRole();
+  const useRole = !!(role && role.memoryOverrideEnabled);
+  const providerId = useRole && role.memoryProviderId ? role.memoryProviderId : settings.memoryProviderId;
+  const profile = providerById(providerId) || activeProvider();
+  const modelOverride = useRole && role.memoryModel ? role.memoryModel : settings.memoryModel;
+  return {
+    provider: profile?.provider || settings.provider,
+    baseUrl: profile?.baseUrl || settings.baseUrl,
+    apiKey: profile?.apiKey || settings.apiKey,
+    model: modelOverride || profile?.model || settings.model,
+    profile,
+    source: useRole ? "role" : (settings.memoryProviderId || settings.memoryModel ? "global" : "chat"),
+  };
+}
+function modelLinesFor(profile) {
+  const out = [];
+  const push = v => { v = (v || "").trim(); if (v && !out.includes(v)) out.push(v); };
+  push(profile?.model);
+  (profile?.modelList || "").split("\n").forEach(raw => push(parseModelLine(raw).id));
+  return out;
+}
+function fillMemoryModelSelect(select, profile, value, followText) {
+  if (!select) return;
+  select.innerHTML = "";
+  const follow = document.createElement("option"); follow.value = ""; follow.textContent = followText; select.appendChild(follow);
+  modelLinesFor(profile).forEach(id => { const o = document.createElement("option"); o.value = id; o.textContent = id; select.appendChild(o); });
+  if (value && ![...select.options].some(o => o.value === value)) {
+    const o = document.createElement("option"); o.value = value; o.textContent = value + "（自定义）"; select.appendChild(o);
+  }
+  select.value = value || "";
+}
+function renderMemoryApiControls() {
+  const gp = $("memory-provider"), gm = $("memory-model"), rp = $("memory-role-provider"), rm = $("memory-role-model");
+  if (!gp || !gm || !rp || !rm) return;
+  const fillProviders = (select, firstText) => {
+    select.innerHTML = "";
+    const first = document.createElement("option"); first.value = ""; first.textContent = firstText; select.appendChild(first);
+    (settings.providers || []).forEach(p => { const o = document.createElement("option"); o.value = p.id; o.textContent = p.name; select.appendChild(o); });
+  };
+  fillProviders(gp, "跟随当前聊天接口");
+  gp.value = settings.memoryProviderId || "";
+  fillMemoryModelSelect(gm, providerById(gp.value) || activeProvider(), settings.memoryModel || "", "跟随接口当前模型");
+  const role = activeRole();
+  fillProviders(rp, "跟随全局记忆接口");
+  rp.value = role?.memoryProviderId || "";
+  fillMemoryModelSelect(rm, providerById(rp.value) || providerById(settings.memoryProviderId) || activeProvider(), role?.memoryModel || "", "跟随全局记忆模型");
+  $("memory-role-override").checked = !!role?.memoryOverrideEnabled;
+  $("memory-role-api").style.display = role?.memoryOverrideEnabled ? "" : "none";
+  const cfg = memoryRuntimeConfig();
+  const status = $("memory-api-status");
+  if (status) status.textContent = (cfg.source === "role" ? "当前角色 · " : cfg.source === "global" ? "全局 · " : "跟随聊天 · ")
+    + ((cfg.profile && cfg.profile.name) || "当前接口") + " / " + (cfg.model || "未选模型");
+}
+function saveMemoryApiControls() {
+  settings.memoryProviderId = $("memory-provider").value;
+  settings.memoryModel = $("memory-model").value;
+  const role = activeRole();
+  if (role) {
+    role.memoryOverrideEnabled = $("memory-role-override").checked;
+    role.memoryProviderId = $("memory-role-provider").value;
+    role.memoryModel = $("memory-role-model").value;
+  }
+  saveSettings(); renderMemoryApiControls();
+}
 // Keep the flat settings.* fields (used by streamChat etc.) in sync with the active profile.
 function mirrorActiveToFlat() {
   const p = activeProvider();
@@ -1737,8 +1940,9 @@ function saveSettings() {
   schedulePush();
 }
 function saveConversations() {
-  localStorage.setItem("jyc_conversations", JSON.stringify(conversations));
   localStorage.setItem("jyc_current", currentId);
+  const snapshot = (typeof structuredClone === "function") ? structuredClone(conversations) : JSON.parse(JSON.stringify(conversations));
+  queueConversationWrite(snapshot, currentId);
   if (!applyingCloud) localStorage.setItem("jyc_dataAt", String(Date.now()));  // mark local as freshly changed
   schedulePush();
 }
@@ -1872,7 +2076,7 @@ async function pullCloud() {
         const rr = activeRole();
         ROLE_FIELDS.forEach(f => { if (rr[f] !== undefined) settings[f] = rr[f]; });
       } }
-    localStorage.setItem("jyc_conversations", JSON.stringify(conversations));
+    queueConversationWrite((typeof structuredClone === "function") ? structuredClone(conversations) : JSON.parse(JSON.stringify(conversations)), currentId);
     saveSettings();
     applyingCloud = false;
     localStorage.setItem("jyc_dataAt", String(cloudAt || Date.now()));   // local now matches cloud
@@ -3218,20 +3422,23 @@ function renderUsage() {
 }
 
 // Non-streaming one-shot completion (used by auto-memory extraction).
-async function completeOnce(systemText, userText, maxTokens) {
-  const isAnthropic = settings.provider === "anthropic";
-  const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
-  const model = settings.model || DEFAULTS[settings.provider].model;
+async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
+  const cfg = useMemoryApi ? memoryRuntimeConfig() : settings;
+  const provider = cfg.provider || settings.provider;
+  const apiKey = cfg.apiKey || settings.apiKey;
+  const isAnthropic = provider === "anthropic";
+  const base = (cfg.baseUrl || DEFAULTS[provider].baseUrl).replace(/\/$/, "");
+  const model = cfg.model || DEFAULTS[provider].model;
   let url, headers, body;
   if (isAnthropic) {
     url = base + "/messages";
-    headers = { "content-type": "application/json", "x-api-key": settings.apiKey,
+    headers = { "content-type": "application/json", "x-api-key": apiKey,
       "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
     body = { model, max_tokens: maxTokens, temperature: 0,
       system: systemText, messages: [{ role: "user", content: userText }] };
   } else {
     url = base + "/chat/completions";
-    headers = { "content-type": "application/json", "authorization": "Bearer " + settings.apiKey };
+    headers = { "content-type": "application/json", "authorization": "Bearer " + apiKey };
     body = { model, temperature: 0, max_tokens: maxTokens, messages: [
       { role: "system", content: systemText }, { role: "user", content: userText } ] };
   }
@@ -3614,7 +3821,7 @@ function reminderStatusNote() {
 function addMemEntry(text, core) {
   text = (text || "").trim(); if (!text) return;
   if (memList().some(e => e.text.toLowerCase() === text.toLowerCase())) { showToast("已经有这条啦"); return; }
-  memList().push({ id: uid(), text, core: !!core });
+  memList().push({ id: uid(), text, core: !!core, source: "manual", updatedAt: Date.now() });
   saveSettings(); renderMemList();
 }
 function delMemEntry(id) { settings.memEntries = memList().filter(e => e.id !== id); saveSettings(); renderMemList(); }
@@ -3626,7 +3833,7 @@ function editMemEntry(id) {
 }
 // Ask the model to synthesize a concise "person sketch" from the memory库 + recent chat.
 async function generateMemSummary() {
-  if (!settings.apiKey) { showToast("请先在设置里填 API Key"); return; }
+  if (!memoryRuntimeConfig().apiKey) { showToast("请先给记忆模型选择一个已填写 Key 的接口"); return; }
   const btn = $("mem-sum-gen"); if (btn) { btn.disabled = true; btn.textContent = "总结中…"; }
   try {
     const mem = memList().map(e => "- " + e.text).join("\n") || "（暂无）";
@@ -3634,7 +3841,7 @@ async function generateMemSummary() {
     const sys = "你在为一段亲密的陪伴关系整理一份『关于 ta 的人物速写』。基于记忆库和最近对话，用简洁、温暖的中文写一段总结（200~350字，可用短句分点），涵盖："
       + "你和 ta 的关系、ta 的性格、爱好、习惯、ta 喜欢的相处/聊天风格、需要留意的点。只写确定且稳定的，不确定就略过。直接给出速写本身，别加多余开场白。";
     const usr = "【记忆库】\n" + mem + "\n\n【最近对话】\n" + (recent || "（无）") + "\n\n请写出这份人物速写：";
-    const out = await completeOnce(sys, usr, 1200);
+    const out = await completeOnce(sys, usr, 1200, true);
     if (out && out.trim()) {
       settings.memSummary = out.trim();
       if ($("memSummary")) $("memSummary").value = settings.memSummary;
@@ -3679,8 +3886,36 @@ function renderMemList() {
       <button class="mem-del" title="删除" onclick="delMemEntry('${e.id}')">✕</button>
     </div>`).join("") || `<div class="hint">${q ? "没搜到～" : "还没有记忆，下面加一条，或开启「自动记忆」。"}</div>`;
 }
+async function organizeMemories(btn) {
+  const list = memList();
+  if (list.length < 2) { showToast("记忆太少，暂时不用整理"); return; }
+  if (!memoryRuntimeConfig().apiKey) { showToast("先给记忆模型选择一个已填写 Key 的接口"); return; }
+  const old = btn?.textContent || "";
+  if (btn) { btn.disabled = true; btn.textContent = "检查中…"; }
+  try {
+    const payload = list.map(e => ({ id: e.id, text: e.text, core: !!e.core }));
+    const sys = "你是长期记忆库的谨慎校对员。只处理两类问题：①内容实质相同的重复条目；②同一事实明确冲突时，保留更新、更具体的一条。"
+      + "不要因为你觉得不重要就删除，不要猜测。输出严格 JSON，不加解释："
+      + '{"remove":["要删除的id"],"updates":[{"id":"要改的id","text":"合并后的准确文本"}]}。没有问题就输出 {"remove":[],"updates":[]}。';
+    const out = await completeOnce(sys, JSON.stringify(payload), 900, true);
+    const raw = (out || "").replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    const plan = JSON.parse(raw);
+    const ids = new Set(list.map(e => e.id));
+    const remove = [...new Set(Array.isArray(plan.remove) ? plan.remove.filter(id => ids.has(id)) : [])];
+    const updates = (Array.isArray(plan.updates) ? plan.updates : [])
+      .filter(x => x && ids.has(x.id) && typeof x.text === "string" && x.text.trim())
+      .filter(x => !remove.includes(x.id));
+    if (!remove.length && !updates.length) { showToast("✨ 没发现需要整理的重复或冲突"); return; }
+    const preview = remove.map(id => "删除：" + (list.find(e => e.id === id)?.text || id)).concat(updates.map(x => "合并：" + x.text.trim())).slice(0, 8);
+    if (!confirm("记忆模型发现 " + (remove.length + updates.length) + " 处可整理：\n\n" + preview.join("\n") + "\n\n确认应用吗？")) return;
+    settings.memEntries = list.filter(e => !remove.includes(e.id));
+    updates.forEach(x => { const e = settings.memEntries.find(v => v.id === x.id); if (e) { e.text = x.text.trim(); e.updatedAt = Date.now(); } });
+    saveSettings(); renderMemList(); showToast("✨ 记忆已整理");
+  } catch (e) { showToast("检查失败：" + (e.message || e)); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = old; } }
+}
 async function autoUpdateMemory() {
-  if (!settings.autoMemory || !settings.apiKey) return;
+  if (!settings.autoMemory || !memoryRuntimeConfig().apiKey) return;
   const uname = userRef();
   const recent = messages.slice(-8)
     .map(m => (m.role === "user" ? uname : (settings.aiName || "当前角色")) + ": " + messageText(m)).join("\n");
@@ -3696,16 +3931,17 @@ async function autoUpdateMemory() {
   const usr = "【已有长期记忆】\n" + existingText
     + "\n\n【最近对话】\n" + recent + "\n\n请输出需要新增的记忆条目：";
   let out;
-  try { out = await completeOnce(sys, usr, 300); } catch (e) { return; }
+  try { out = await completeOnce(sys, usr, 300, true); } catch (e) { return; }
   if (!out || /^NONE\b/i.test(out)) return;
   const existing = existingText.toLowerCase();
   const additions = out.split("\n").map(s => s.trim())
     .filter(s => /^[-*]\s+/.test(s))
     .map(s => s.replace(/^[-*]\s+/, "").trim())
-    .filter(s => s && !existing.includes(s.toLowerCase()));
+    .filter(s => s && !existing.includes(s.toLowerCase()))
+    .slice(0, 3);
   if (additions.length === 0) return;
   // new auto-extracted facts go in as normal (searchable) entries — keeps the prompt lean
-  additions.forEach(a => memList().push({ id: uid(), text: a, core: false }));
+  additions.forEach(a => memList().push({ id: uid(), text: a, core: false, source: "auto", updatedAt: Date.now() }));
   saveSettings();
   renderMemList();
   showToast("🧠 记忆已更新：新增 " + additions.length + " 条");
@@ -4200,8 +4436,7 @@ function importBackup(file) {
     currentId = conversations[0].id;
     messages = currentConv().messages;
     saveSettings();
-    localStorage.setItem("jyc_conversations", JSON.stringify(conversations));
-    localStorage.setItem("jyc_current", currentId);
+    saveConversations();
     applyTheme(); syncSettingsToUI(); updateAvatarPreviews();
     renderConvList(); renderMessages(); updateConvTitle();
     showToast("📥 备份已恢复");
@@ -5153,6 +5388,7 @@ function syncSettingsToUI() {
   highlightLayoutButtons();
   highlightFontButtons();
   renderProviderSelect();
+  renderMemoryApiControls();
   renderThemeCards();
   renderAccentSwatches();
   updateProviderHint();
@@ -5559,8 +5795,8 @@ function closeSidebar() {
 }
 
 // ---------- Wire up ----------
-function init() {
-  loadState();
+async function init() {
+  await loadState();
   applyTheme();
   // On phones, start with the sidebar tucked away so the chat is front-and-center.
   if (isMobile()) settings.sidebarCollapsed = true;
@@ -5571,6 +5807,7 @@ function init() {
   renderConvList();
   renderMessages();
   updateConvTitle();
+  refreshStorageStatus();
   startReminderTimer();   // resume any countdowns still ticking from before
 
   $("sidebar-new-chat").onclick = () => { createConversation(); if (isMobile()) closeSidebar(); };
@@ -5624,6 +5861,11 @@ function init() {
   $("fetch-models-btn").onclick = fetchModels;
   $("usage-clear-btn").onclick = () => { if (confirm("清空所有用量记录？（不影响对话）")) { localStorage.removeItem("jyc_usage"); renderUsage(); showToast("已清空用量记录"); } };
   $("role-add-btn").onclick = addRole;
+  $("memory-provider").onchange = () => { settings.memoryProviderId = $("memory-provider").value; settings.memoryModel = ""; saveSettings(); renderMemoryApiControls(); };
+  $("memory-model").onchange = saveMemoryApiControls;
+  $("memory-role-override").onchange = saveMemoryApiControls;
+  $("memory-role-provider").onchange = () => { const r = activeRole(); if (r) { r.memoryProviderId = $("memory-role-provider").value; r.memoryModel = ""; } saveSettings(); renderMemoryApiControls(); };
+  $("memory-role-model").onchange = saveMemoryApiControls;
   $("active-provider").addEventListener("change", () => switchProvider($("active-provider").value));
   $("provider-add").onclick = addProvider;
   $("provider-rename").onclick = renameProvider;
@@ -5830,7 +6072,10 @@ function init() {
   document.addEventListener("visibilitychange", () => { if (document.hidden) markSeen(); else onAppActive(); });
   setTimeout(onAppActive, 2000);
 }
-init();
+init().catch(e => {
+  console.error("App init failed", e);
+  try { showToast("启动失败，请刷新重试"); } catch (_) {}
+});
 
 // Auto-update: register a network-first service worker so future code changes
 // load on next launch instead of getting stuck behind an old cache.
