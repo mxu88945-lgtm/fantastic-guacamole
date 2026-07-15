@@ -9,17 +9,19 @@
 <meta name="apple-mobile-web-app-title" content="Role Chat" />
 <meta name="theme-color" content="#f5f4ef" />
 <script>
-/* Pre-paint theme priming. Restore the true dark canvas immediately for 墨黑金;
-   all other themes start from the neutral light canvas until applyTheme runs. */
+/* Pre-paint theme priming: iOS standalone snapshots the status-bar color at
+   launch, so restore the last-applied theme BEFORE the first paint. applyTheme
+   persists both values whenever the user switches themes. */
 (function () {
   try {
-    var primed = JSON.parse(localStorage.getItem("jyc_settings") || "{}");
-    var isBlackGold = primed.themeName === "gold";
-    document.documentElement.setAttribute("data-theme", isBlackGold ? "dark" : "light");
-    if (isBlackGold) {
-      document.documentElement.style.setProperty("--bg", "#0e0e0f");
+    var bg = localStorage.getItem("jyc_themebg");
+    var dark = localStorage.getItem("jyc_themedark");
+    if (dark === "1" || dark === "0")
+      document.documentElement.setAttribute("data-theme", dark === "1" ? "dark" : "light");
+    if (bg) {
+      document.documentElement.style.setProperty("--bg", bg);
       var themeMeta = document.querySelector('meta[name="theme-color"]');
-      if (themeMeta) themeMeta.setAttribute("content", "#0e0e0f");
+      if (themeMeta) themeMeta.setAttribute("content", bg);
     }
     /* Pre-paint sidebar state: this page is one big inline file, so iOS standalone
        PWAs paint the raw HTML (sidebar open) before the bottom script runs and
