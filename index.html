@@ -479,6 +479,42 @@
     box-shadow: 0 0 0 2px rgba(255,255,255,.8), 0 0 0 3px rgba(0,0,0,.08);
   }
 
+  /* Roaming desk pets */
+  @keyframes pet-float { 0%,100% { transform:translateY(0) rotate(-3deg) } 50% { transform:translateY(-5px) rotate(3deg) } }
+  @keyframes pet-hop { 0% { transform:translateY(0) scale(1) } 32% { transform:translateY(-17px) scale(1.15) rotate(-7deg) } 58% { transform:translateY(0) scale(.96) } 78% { transform:translateY(-5px) scale(1.04) rotate(5deg) } 100% { transform:translateY(0) scale(1) } }
+  @keyframes pet-body-bob { 0%,100% { transform:translateY(0) } 50% { transform:translateY(-1.5px) } }
+  @keyframes pet-leg-a { 0%,100% { transform:rotate(0) } 50% { transform:rotate(16deg) } }
+  @keyframes pet-leg-b { 0%,100% { transform:rotate(16deg) } 50% { transform:rotate(0) } }
+  @keyframes pet-bubble-in { from { transform:translate(-50%,4px) scale(.65); opacity:0 } to { transform:translate(-50%,0) scale(1); opacity:1 } }
+  @keyframes pet-heart-rise { 0% { transform:translate(-50%,0) scale(.6); opacity:0 } 20% { opacity:1 } 100% { transform:translate(-50%,-43px) scale(1.1); opacity:0 } }
+  #desk-pet { position:fixed; z-index:42; width:54px; height:54px; transform:translate(-50%,-50%); pointer-events:none; user-select:none; -webkit-user-select:none; }
+  #desk-pet[hidden] { display:none; }
+  .desk-pet-button { width:54px; height:54px; padding:0; border:0; border-radius:50%; background:transparent; color:inherit; cursor:grab; display:grid; place-items:center; pointer-events:auto; touch-action:none; filter:drop-shadow(0 7px 8px rgba(35,28,45,.16)); }
+  .desk-pet-button:active { cursor:grabbing; }
+  .desk-pet-button svg { width:50px; height:46px; overflow:visible; }
+  .desk-pet-critter.pet-idle { animation:pet-float 3.4s ease-in-out infinite; }
+  .desk-pet-critter.pet-hop { animation:pet-hop .62s ease; }
+  .desk-pet-critter.walk { animation:pet-body-bob .34s ease-in-out infinite; }
+  .desk-pet-critter .pet-leg { transform-box:fill-box; transform-origin:top center; }
+  .desk-pet-critter.walk .leg-a { animation:pet-leg-a .34s ease-in-out infinite; }
+  .desk-pet-critter.walk .leg-b { animation:pet-leg-b .34s ease-in-out infinite; }
+  .desk-pet-bubble { position:absolute; left:50%; top:-27px; padding:5px 9px; border:1px solid var(--border); border-radius:999px; color:var(--text); background:color-mix(in srgb,var(--bg-panel) 94%,transparent); box-shadow:0 6px 16px rgba(35,28,45,.14); font-size:11px; font-weight:700; white-space:nowrap; animation:pet-bubble-in .2s ease both; }
+  .desk-pet-heart { position:absolute; left:50%; top:-2px; font-size:15px; pointer-events:none; animation:pet-heart-rise .9s ease-out forwards; }
+  .pet-settings-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .pet-settings-head strong,.pet-settings-head span { display:block; }
+  .pet-settings-head span { margin-top:4px; color:var(--text-dim); font-size:11px; }
+  .pet-toggle { width:44px; height:25px; flex:0 0 auto; padding:3px; border:0; border-radius:999px; background:var(--border); cursor:pointer; }
+  .pet-toggle i { width:19px; height:19px; display:block; border-radius:50%; background:var(--bg-panel); box-shadow:0 2px 6px rgba(35,28,45,.18); transition:transform .2s ease; }
+  .pet-toggle.active { background:var(--accent); }
+  .pet-toggle.active i { transform:translateX(19px); }
+  .pet-choice-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin-top:13px; }
+  .pet-choice { min-width:0; min-height:82px; padding:8px 3px 7px; border:1px solid transparent; border-radius:14px; color:var(--text); background:var(--bg-panel); display:grid; place-items:center; gap:4px; cursor:pointer; }
+  .pet-choice.active { border-color:var(--accent); background:var(--item-active); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent); }
+  .pet-choice svg { width:46px; height:41px; overflow:visible; }
+  .pet-choice span { min-width:0; font-size:10px; font-weight:700; white-space:nowrap; }
+  .pet-reset { margin-top:11px; }
+  @media (prefers-reduced-motion:reduce) { .desk-pet-critter,.desk-pet-critter.walk,.desk-pet-critter.walk .leg-a,.desk-pet-critter.walk .leg-b { animation:none !important; } }
+
   /* Chat area */
   .chat { flex: 1; overflow-y: auto; padding: 24px 0; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
   .messages { max-width: 820px; margin: 0 auto; padding: 0 18px; }
@@ -1005,6 +1041,10 @@
   <!-- Main -->
   <div class="main">
     <div id="chat-bg"></div>
+    <div id="desk-pet" hidden>
+      <div class="desk-pet-bubble" id="desk-pet-bubble" hidden></div>
+      <button class="desk-pet-button" id="desk-pet-button" type="button" aria-label="桌宠，按住可拖动"></button>
+    </div>
     <header>
       <button class="icon-btn" id="toggle-sidebar" title="收起/展开侧栏"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
       <div class="header-identity">
@@ -1099,6 +1139,16 @@
             </div>
           </div>
           <span class="hint">背景图存在本地（不上云）。调高「雾化/蒙版」能让文字更清楚。</span>
+        </div>
+        <div class="field" id="pet-settings-card" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <div class="pet-settings-head">
+            <div><strong>桌宠 · 小挂件</strong><span>会自己慢慢爬，可拖动，点一下还会回应你。</span></div>
+            <button class="pet-toggle" id="pet-toggle" type="button" aria-label="开启或关闭桌宠" aria-pressed="false"><i></i></button>
+          </div>
+          <div id="pet-settings-body">
+            <div class="pet-choice-grid" id="pet-choice-grid"></div>
+            <button class="mini-btn pet-reset" id="pet-reset" type="button">让它回到右下角</button>
+          </div>
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">💬 对话样式</label>
@@ -1529,6 +1579,10 @@ let settings = {
   chatBg: "",
   chatBgBlur: 6,
   chatBgDim: 35,
+  petEnabled: true,
+  petVariant: "phone",
+  petX: 0.84,
+  petY: 0.68,
   modelList: "",
   sidebarCollapsed: false,
   supabaseUrl: "",
@@ -1589,7 +1643,7 @@ let ttsAudio = null;
 let ttsBtnActive = null;
 let ttsPrevProvider = null;   // remembers the active TTS provider so switching can save/restore per-provider config
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","autoMemory","crossChat","crossSearch","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent",
+  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","autoMemory","crossChat","crossSearch","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
   "reminderEnabled"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
@@ -5187,6 +5241,115 @@ function applyChatBg() {
     bg.style.backgroundImage = "none";
   }
 }
+
+const PET_DEFS = [
+  { id:"bird", name:"小玄凤" },
+  { id:"claude", name:"橘团团" },
+  { id:"octo", name:"紫章鱼" },
+  { id:"phone", name:"手机方方" },
+];
+function petSvg(variant, extraClass) {
+  const cls = `desk-pet-critter ${extraClass || ""}`;
+  if (variant === "bird") return `<svg viewBox="0 0 64 56" class="${cls}" aria-hidden="true"><g><rect class="pet-leg leg-a" x="26" y="42" width="4" height="10" rx="2" fill="#E0913A"/><rect class="pet-leg leg-b" x="34" y="42" width="4" height="10" rx="2" fill="#E0913A"/></g><ellipse cx="32" cy="28" rx="20" ry="18" fill="#F5D06A"/><ellipse cx="32" cy="33" rx="12" ry="9" fill="#FBE49B" opacity=".6"/><path class="pet-leg leg-a" d="M14 27q-8 3-1 9 4-3 6-6z" fill="#EBC24E"/><path class="pet-leg leg-b" d="M50 27q8 3 1 9-4-3-6-6z" fill="#EBC24E"/><path d="M32 10q2 4-1 7m1-7q-2 4 1 7" stroke="#EBC24E" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="26" cy="26" r="3.2" fill="#3A2E1A"/><circle cx="38" cy="26" r="3.2" fill="#3A2E1A"/><circle cx="27" cy="24.9" r="1" fill="#fff"/><circle cx="39" cy="24.9" r="1" fill="#fff"/><path d="m30 31h4l-2 3z" fill="#E8801F"/><ellipse cx="21" cy="31" rx="3" ry="2" fill="#E85C7A" opacity=".35"/><ellipse cx="43" cy="31" rx="3" ry="2" fill="#E85C7A" opacity=".35"/></svg>`;
+  if (variant === "octo") return `<svg viewBox="0 0 64 56" class="${cls}" aria-hidden="true"><g><rect class="pet-leg leg-a" x="14" y="34" width="6" height="16" rx="3" fill="#B06FC4"/><rect class="pet-leg leg-b" x="22" y="36" width="6" height="16" rx="3" fill="#C58BD9"/><rect class="pet-leg leg-a" x="30" y="37" width="6" height="16" rx="3" fill="#B06FC4"/><rect class="pet-leg leg-b" x="38" y="36" width="6" height="16" rx="3" fill="#C58BD9"/><rect class="pet-leg leg-a" x="46" y="34" width="6" height="16" rx="3" fill="#B06FC4"/></g><path d="M11 30a21 20 0 0 1 42 0v6H11z" fill="#C58BD9"/><ellipse cx="32" cy="30" rx="14" ry="9" fill="#DCAEEA" opacity=".5"/><circle cx="25" cy="24" r="3.4" fill="#3A2A3A"/><circle cx="39" cy="24" r="3.4" fill="#3A2A3A"/><circle cx="26.1" cy="22.8" r="1.1" fill="#fff"/><circle cx="40.1" cy="22.8" r="1.1" fill="#fff"/><ellipse cx="19.5" cy="29" rx="3" ry="2" fill="#E85C8A" opacity=".4"/><ellipse cx="44.5" cy="29" rx="3" ry="2" fill="#E85C8A" opacity=".4"/><path d="M29 29q3 2.4 6 0" stroke="#3A2A3A" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>`;
+  if (variant === "phone") return `<svg viewBox="0 0 72 58" class="${cls}" aria-hidden="true"><g><rect class="pet-leg leg-a" x="25" y="40" width="6" height="14" rx="1.5" fill="#F27122"/><rect class="pet-leg leg-b" x="34" y="40" width="6" height="14" rx="1.5" fill="#E96216"/><rect class="pet-leg leg-a" x="43" y="40" width="6" height="14" rx="1.5" fill="#F27122"/><rect class="pet-leg leg-b" x="52" y="40" width="6" height="14" rx="1.5" fill="#E96216"/></g><path d="M20 15h39v31H20z" fill="#FF7A2D"/><path d="M55 15h4v31h-6V19H20v-4z" fill="#E96516" opacity=".65"/><path d="M59 28h9v9h-9zM15 29h7v8h-7z" fill="#ED6818"/><path d="M29 27q3-5 6 0" stroke="#24180F" stroke-width="3" fill="none" stroke-linecap="square"/><path d="M45 27q3-5 6 0" stroke="#24180F" stroke-width="3" fill="none" stroke-linecap="square"/><rect x="37" y="31" width="5" height="2.5" rx="1.2" fill="#F65A62"/><rect x="4" y="20" width="14" height="25" rx="2" fill="#4D535A" transform="rotate(-7 11 32.5)"/><rect x="6.5" y="22.5" width="9" height="18" rx="1" fill="#AEB5B8" transform="rotate(-7 11 32.5)"/><circle cx="9" cy="25" r="1.2" fill="#222"/><circle cx="13" cy="25" r="1.2" fill="#222"/><path d="M8 42h7" stroke="#30343A" stroke-width="1.4" stroke-linecap="round" transform="rotate(-7 11.5 42)"/></svg>`;
+  return `<svg viewBox="0 0 64 56" class="${cls}" aria-hidden="true"><g><rect class="pet-leg leg-a" x="18" y="36" width="5.5" height="13" rx="2.75" fill="#B85C3C"/><rect class="pet-leg leg-b" x="27" y="38" width="5.5" height="13" rx="2.75" fill="#A64F32"/><rect class="pet-leg leg-a" x="34" y="38" width="5.5" height="13" rx="2.75" fill="#A64F32"/><rect class="pet-leg leg-b" x="41" y="36" width="5.5" height="13" rx="2.75" fill="#B85C3C"/></g><ellipse cx="32" cy="27" rx="23" ry="19" fill="#D97757"/><ellipse cx="32" cy="32" rx="15" ry="11" fill="#E8967A" opacity=".55"/><path d="M53 30q9 2 8-6-3 5-8 1z" fill="#C15F3C"/><circle cx="25" cy="25" r="3.4" fill="#3A2A24"/><circle cx="39" cy="25" r="3.4" fill="#3A2A24"/><circle cx="26.1" cy="23.8" r="1.1" fill="#fff"/><circle cx="40.1" cy="23.8" r="1.1" fill="#fff"/><ellipse cx="19.5" cy="31" rx="3.2" ry="2.1" fill="#E85C7A" opacity=".35"/><ellipse cx="44.5" cy="31" rx="3.2" ry="2.1" fill="#E85C7A" opacity=".35"/><path d="M29 31q3 2.6 6 0" stroke="#3A2A24" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>`;
+}
+
+let petWalkTimer = null;
+let petWalkEndTimer = null;
+let petDragging = false;
+let petDragged = false;
+let petPointerOffset = { x:0, y:0 };
+function petBounds() {
+  return { minX:30, maxX:Math.max(30, innerWidth - 30), minY:85, maxY:Math.max(85, innerHeight - 118) };
+}
+function placeDeskPet(x, y, transitionMs) {
+  const pet = $("desk-pet"); if (!pet) return;
+  const b = petBounds();
+  x = Math.min(b.maxX, Math.max(b.minX, x));
+  y = Math.min(b.maxY, Math.max(b.minY, y));
+  pet.style.transition = transitionMs ? `left ${transitionMs}ms linear, top ${transitionMs}ms ease-in-out` : "none";
+  pet.style.left = x + "px"; pet.style.top = y + "px";
+  settings.petX = x / innerWidth; settings.petY = y / innerHeight;
+}
+function renderPetSettings() {
+  const enabled = settings.petEnabled !== false;
+  const toggle = $("pet-toggle"); if (!toggle) return;
+  toggle.classList.toggle("active", enabled); toggle.setAttribute("aria-pressed", String(enabled));
+  $("pet-settings-body").hidden = !enabled;
+  $("pet-choice-grid").innerHTML = PET_DEFS.map(p => `<button type="button" class="pet-choice ${settings.petVariant === p.id ? "active" : ""}" data-pet="${p.id}">${petSvg(p.id)}<span>${p.name}</span></button>`).join("");
+  $("pet-choice-grid").querySelectorAll("[data-pet]").forEach(btn => btn.onclick = () => {
+    settings.petVariant = btn.dataset.pet; saveSettings(); renderPetSettings(); renderDeskPet();
+  });
+}
+function renderDeskPet() {
+  const pet = $("desk-pet"); if (!pet) return;
+  const enabled = settings.petEnabled !== false;
+  pet.hidden = !enabled;
+  clearTimeout(petWalkTimer); clearTimeout(petWalkEndTimer);
+  if (!enabled) return;
+  $("desk-pet-button").innerHTML = petSvg(settings.petVariant || "phone", "pet-idle");
+  placeDeskPet((settings.petX || .84) * innerWidth, (settings.petY || .68) * innerHeight, 0);
+  schedulePetWalk();
+}
+function schedulePetWalk(delay) {
+  clearTimeout(petWalkTimer);
+  if (settings.petEnabled === false || petDragging || document.hidden) return;
+  petWalkTimer = setTimeout(walkDeskPet, delay || (5000 + Math.random() * 6500));
+}
+function walkDeskPet() {
+  if (settings.petEnabled === false || petDragging) return;
+  const pet = $("desk-pet"), btn = $("desk-pet-button"), b = petBounds();
+  const fromX = parseFloat(pet.style.left) || innerWidth * .84;
+  const fromY = parseFloat(pet.style.top) || innerHeight * .68;
+  const x = b.minX + Math.random() * (b.maxX - b.minX);
+  const y = b.minY + Math.random() * (b.maxY - b.minY);
+  const distance = Math.hypot(x - fromX, y - fromY);
+  const duration = Math.max(2800, Math.min(8500, distance * 20));
+  btn.style.transform = `scaleX(${x < fromX ? -1 : 1})`;
+  const svg = btn.querySelector("svg"); if (svg) { svg.classList.remove("pet-idle"); svg.classList.add("walk"); }
+  requestAnimationFrame(() => placeDeskPet(x, y, duration));
+  clearTimeout(petWalkEndTimer);
+  petWalkEndTimer = setTimeout(() => {
+    pet.style.transition = "none";
+    const current = btn.querySelector("svg"); if (current) { current.classList.remove("walk"); current.classList.add("pet-idle"); }
+    schedulePetWalk();
+  }, duration + 40);
+}
+function petReact() {
+  const svg = $("desk-pet-button").querySelector("svg");
+  if (svg) { svg.classList.remove("walk", "pet-idle", "pet-hop"); void svg.offsetWidth; svg.classList.add("pet-hop"); setTimeout(() => { svg.classList.remove("pet-hop"); svg.classList.add("pet-idle"); }, 650); }
+  const bubble = $("desk-pet-bubble");
+  const lines = ["我在呢～", "抓到我啦", "陪着惟惟", "啵啵♡"];
+  bubble.textContent = lines[Math.floor(Math.random() * lines.length)]; bubble.hidden = false;
+  clearTimeout(bubble._hideTimer); bubble._hideTimer = setTimeout(() => { bubble.hidden = true; }, 1600);
+  const heart = document.createElement("span"); heart.className = "desk-pet-heart"; heart.textContent = "♥"; $("desk-pet").appendChild(heart); setTimeout(() => heart.remove(), 950);
+}
+function setupDeskPet() {
+  const pet = $("desk-pet"), btn = $("desk-pet-button"); if (!pet || !btn) return;
+  $("pet-toggle").onclick = () => { settings.petEnabled = settings.petEnabled === false; saveSettings(); renderPetSettings(); renderDeskPet(); };
+  $("pet-reset").onclick = () => { settings.petX = .84; settings.petY = .68; saveSettings(); renderDeskPet(); showToast("桌宠已经回到右下角"); };
+  btn.addEventListener("pointerdown", e => {
+    petDragging = true; petDragged = false; clearTimeout(petWalkTimer); clearTimeout(petWalkEndTimer);
+    pet.style.transition = "none"; btn.setPointerCapture(e.pointerId);
+    const svg = btn.querySelector("svg"); if (svg) { svg.classList.remove("walk"); svg.classList.add("pet-idle"); }
+    const r = pet.getBoundingClientRect(); petPointerOffset = { x:e.clientX - (r.left + r.width / 2), y:e.clientY - (r.top + r.height / 2) };
+  });
+  btn.addEventListener("pointermove", e => {
+    if (!petDragging) return;
+    petDragged = true; placeDeskPet(e.clientX - petPointerOffset.x, e.clientY - petPointerOffset.y, 0);
+  });
+  const finishDrag = e => {
+    if (!petDragging) return;
+    petDragging = false; try { btn.releasePointerCapture(e.pointerId); } catch (_) {}
+    saveSettings(); schedulePetWalk(3500);
+  };
+  btn.addEventListener("pointerup", finishDrag); btn.addEventListener("pointercancel", finishDrag);
+  btn.addEventListener("click", () => { if (petDragged) { petDragged = false; return; } petReact(); });
+  window.addEventListener("resize", () => placeDeskPet((settings.petX || .84) * innerWidth, (settings.petY || .68) * innerHeight, 0));
+  document.addEventListener("visibilitychange", () => { if (document.hidden) clearTimeout(petWalkTimer); else schedulePetWalk(1800); });
+}
 function setChatBgFile(file) {
   if (!file || !file.type.startsWith("image/")) return;
   const reader = new FileReader();
@@ -5364,6 +5527,8 @@ function syncSettingsToUI() {
   $("bgBlurVal").textContent = settings.chatBgBlur;
   $("chatBgDim").value = settings.chatBgDim;
   $("bgDimVal").textContent = settings.chatBgDim;
+  renderPetSettings();
+  renderDeskPet();
   $("lockEnabled").checked = settings.lockEnabled;
   $("lockPin").value = settings.lockPin;
   $("bubbleOpacity").value = settings.bubbleOpacity;
@@ -5804,6 +5969,7 @@ async function init() {
   if (isMobile()) settings.sidebarCollapsed = true;
   applySidebar();
   syncSettingsToUI();
+  setupDeskPet();
   setupSettingsNavigation();
   setupAccordion();
   renderConvList();
