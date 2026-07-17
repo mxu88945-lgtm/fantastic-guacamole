@@ -3092,6 +3092,20 @@ function mergeApiContent(a, b) {
   const arr = (x) => typeof x === "string" ? (x.trim() ? [{ type: "text", text: x }] : []) : (Array.isArray(x) ? x : []);
   return [...arr(a), ...arr(b)];
 }
+// Provider APIs reject empty turns (Kimi official is especially strict). The UI
+// temporarily appends an empty assistant bubble while streaming, and older failed /
+// stopped generations may also have left empty bubbles in saved history. Keep those
+// visible-history details local instead of sending an invalid API message.
+function apiContentHasValue(content) {
+  if (typeof content === "string") return !!content.trim();
+  if (!Array.isArray(content)) return false;
+  return content.some(part => {
+    if (!part || typeof part !== "object") return false;
+    if (part.type === "text") return !!String(part.text || "").trim();
+    if (part.type === "image" || part.type === "image_url") return true;
+    return Object.keys(part).length > 1;
+  });
+}
 // Build the wire-format message list, coalescing consecutive same-role turns.
 // (Multi-bubble replies store several assistant messages; APIs — esp. Anthropic —
 // need strictly alternating roles, so we glue neighbours back together here.)
@@ -3100,6 +3114,7 @@ function apiMessagesFor(isAnthropic) {
   for (const m of messages) {
     if (m.role === "reminder") continue;   // reminder cards aren't chat turns; model sees them via reminderStatusNote()
     const content = toApiContent(sendContent(m), isAnthropic);
+    if (!apiContentHasValue(content)) continue;
     const last = out[out.length - 1];
     if (last && last.role === m.role) last.content = mergeApiContent(last.content, content);
     else out.push({ role: m.role, content });
@@ -5090,7 +5105,13 @@ async function generateReply() {
     console.error("[generateReply error]", e);
     if (e.name === "AbortError") {
       assistantMsg.content = assistantMsg.content.replace(/\[\s*(?:搜索|联网|提醒)\s*[:：][^\]\n]*\]/g, "").trim();
-      bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content || "_（已停止）_", assistantMsg.reasoning);
+      if (!assistantMsg.content && !(assistantMsg.reasoning || "").trim()) {
+        const idx = messages.findIndex(m => m.id === assistantMsg.id);
+        if (idx >= 0) messages.splice(idx, 1);
+        el.remove();
+      } else {
+        bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning);
+      }
     } else {
       messages.pop(); el.remove();
       showError(e.message || String(e));
