@@ -3219,6 +3219,13 @@ function chatStyleNote() {
   }
   return parts.join("\n");
 }
+// Some OpenAI-compatible models expose a temperature setting in their API shape,
+// but only accept one fixed value. Moonshot's Kimi K2 family currently requires
+// temperature=1 (including kimi-k2.7-code), so adapt the outgoing request without
+// overwriting the user's preferred temperature for every other model.
+function compatibleTemperature(model, requested) {
+  return /(?:^|[\\/_:.-])kimi[\\/_:.-]?k2(?:$|[\\/_:.-])/i.test(String(model || "")) ? 1 : requested;
+}
 async function streamChat(onDelta, onReasoning) {
   onReasoning = onReasoning || (() => {});
   const isAnthropic = settings.provider === "anthropic";
@@ -3326,7 +3333,7 @@ async function streamChat(onDelta, onReasoning) {
     msgs.push(...apiMessagesFor(false));
     body = {
       model,
-      temperature: settings.temperature,
+      temperature: compatibleTemperature(model, settings.temperature),
       max_tokens: settings.maxTokens || undefined,
       stream: true,
       messages: msgs,
@@ -3497,7 +3504,7 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
   } else {
     url = base + "/chat/completions";
     headers = { "content-type": "application/json", "authorization": "Bearer " + apiKey };
-    body = { model, temperature: 0, max_tokens: maxTokens, messages: [
+    body = { model, temperature: compatibleTemperature(model, 0), max_tokens: maxTokens, messages: [
       { role: "system", content: systemText }, { role: "user", content: userText } ] };
   }
   const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
