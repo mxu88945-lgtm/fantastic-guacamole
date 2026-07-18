@@ -1638,9 +1638,11 @@ let stickBottom = true;   // whether streaming should keep auto-scrolling to bot
 
 // ---------- Cloud (Supabase) runtime state ----------
 let sb = null;          // supabase client
+let sbConfigKey = ""; // identifies the URL/key pair used to create `sb`
 let cloudUser = null;   // logged-in user object
 let applyingCloud = false;
 let pushTimer = null;
+let cloudPushQueue = Promise.resolve(); // serialize uploads so an older payload cannot land last
 let ttsAudio = null;
 let ttsBtnActive = null;
 let ttsPrevProvider = null;   // remembers the active TTS provider so switching can save/restore per-provider config
@@ -1907,10 +1909,16 @@ function renderRoles() {
     del.className = "icon-btn"; del.textContent = "✕"; del.title = "删除角色";
     del.onclick = () => {
       if ((settings.roles || []).length <= 1) { showToast("至少保留一个角色"); return; }
-      if (!confirm("删除角色「" + r.name + "」？\n（它的人设/记忆/音色绑定会一起删掉，对话不受影响）")) return;
+      const fallback = settings.roles.find(x => x.id !== r.id);
+      const boundCount = conversations.filter(c => c.roleId === r.id).length;
+      const moveNote = boundCount ? ("\n它原有的 " + boundCount + " 个对话会移到「" + fallback.name + "」，不会丢失。") : "";
+      if (!confirm("删除角色「" + r.name + "」？\n它的人设、记忆和音色绑定会一起删除。" + moveNote)) return;
       settings.roles = settings.roles.filter(x => x.id !== r.id);
+      // A conversation whose role no longer exists disappears from every role-filtered
+      // sidebar. Reassign it instead of leaving recoverable data stranded as an orphan.
+      conversations.forEach(c => { if (c.roleId === r.id) c.roleId = fallback.id; });
       if (settings.activeRoleId === r.id) applyRole(settings.roles[0].id);
-      else { saveSettings(); renderRoles(); }
+      else { saveSettings(); saveConversations(); renderRoles(); renderConvList(); }
     };
     row.appendChild(name); row.appendChild(use); row.appendChild(del);
     list.appendChild(row);
@@ -2023,11 +2031,29 @@ async function loadSupabaseLib() {
   throw new Error("加载云同步库失败（网络/CDN 可能被挡）：" + (lastErr && lastErr.message || lastErr));
 }
 async function getSb() {
-  if (sb) return sb;
-  if (!settings.supabaseUrl || !settings.supabaseKey) return null;
+  const nextConfigKey = cloudConfigSignature();
+  if (!nextConfigKey) {
+    sb = null; sbConfigKey = ""; cloudUser = null;
+    return null;
+  }
+  if (sb && sbConfigKey === nextConfigKey) return sb;
+  // Settings can change while the page remains open. Never keep talking to a client
+  // created for the previous project URL/key pair.
+  if (sbConfigKey && sbConfigKey !== nextConfigKey) cloudUser = null;
   const { createClient } = await loadSupabaseLib();
   sb = createClient(settings.supabaseUrl.replace(/\/+$/, ""), settings.supabaseKey);
+  sbConfigKey = nextConfigKey;
   return sb;
+}
+function cloudConfigSignature() {
+  const url = (settings.supabaseUrl || "").trim().replace(/\/+$/, "");
+  const key = (settings.supabaseKey || "").trim();
+  return url && key ? url + "\u0000" + key : "";
+}
+function resetCloudRuntime(status) {
+  sb = null; sbConfigKey = ""; cloudUser = null;
+  clearTimeout(pushTimer); pushTimer = null;
+  if (status && $("auth-status")) setAuthStatus(status, false);
 }
 function setAuthStatus(text, loggedIn) {
   $("auth-status").textContent = text;
@@ -2099,9 +2125,9 @@ async function pullCloud() {
   const localAt = +(localStorage.getItem("jyc_dataAt") || 0);
   // Direction: only pull (overwrite local) when the cloud is STRICTLY newer, or local is empty.
   // Otherwise local is the latest → push it up (this fixes "cloud overwrote my new history").
-  if (!hasCloud) { pushCloudNow(); return; }
+  if (!hasCloud) { await pushCloudNow(); return; }
   if (!(cloudAt > localAt || !hasLocal)) {
-    if (localAt > cloudAt) { pushCloudNow(); showToast("✅ 本地是最新的，已上传云端"); }
+    if (localAt > cloudAt) { await pushCloudNow(); showToast("✅ 本地是最新的，已上传云端"); }
     return;   // in sync (or local newer & pushed) — keep local, don't clobber
   }
   {
@@ -2147,22 +2173,32 @@ async function pullCloud() {
 function schedulePush() {
   if (applyingCloud || !cloudUser) return;
   clearTimeout(pushTimer);
-  pushTimer = setTimeout(pushCloudNow, 1500);
+  pushTimer = setTimeout(() => { void pushCloudNow(); }, 1500);
 }
-async function pushCloudNow() {
-  const client = await getSb();
-  if (!client || !cloudUser) return;
+function pushCloudNow() {
+  if (!cloudUser) return Promise.resolve();
+  const userId = cloudUser.id;
+  const configAtQueueTime = cloudConfigSignature();
   const syncedSettings = {};
   for (const k of SYNCED_KEYS) syncedSettings[k] = settings[k];
   // never send API keys to the cloud
   if (Array.isArray(syncedSettings.providers))
     syncedSettings.providers = syncedSettings.providers.map(p => ({ ...p, apiKey: "" }));
-  const payload = { conversations, settings: syncedSettings };
-  const nowIso = new Date().toISOString();
-  const { error } = await client.from("chats")
-    .upsert({ user_id: cloudUser.id, payload, updated_at: nowIso });
-  if (error) console.warn("cloud push failed:", error.message);
-  else localStorage.setItem("jyc_dataAt", String(Date.parse(nowIso)));   // local & cloud now in sync
+  // Capture an immutable payload now. Each queued upload runs after the previous one,
+  // so network completion order can no longer roll the cloud back to older state.
+  const clone = value => (typeof structuredClone === "function") ? structuredClone(value) : JSON.parse(JSON.stringify(value));
+  const payload = { conversations: clone(conversations), settings: clone(syncedSettings) };
+  cloudPushQueue = cloudPushQueue.catch(() => undefined).then(async () => {
+    if (!configAtQueueTime || cloudConfigSignature() !== configAtQueueTime) return;
+    const client = await getSb();
+    if (!client || !cloudUser || cloudUser.id !== userId) return;
+    const nowIso = new Date().toISOString();
+    const { error } = await client.from("chats")
+      .upsert({ user_id: userId, payload, updated_at: nowIso });
+    if (error) console.warn("cloud push failed:", error.message);
+    else localStorage.setItem("jyc_dataAt", String(Date.parse(nowIso)));   // local & cloud now in sync
+  });
+  return cloudPushQueue;
 }
 
 function newConversation() {
@@ -4470,15 +4506,51 @@ async function forceUpdate() {
   location.href = location.pathname + "?u=" + Date.now();
 }
 
+const BACKUP_SECRET_KEYS = [
+  "apiKey", "supabaseKey", "visionApiKey", "imageApiKey",
+  "notionToken", "webSearchKey", "ttsApiKey",
+];
+function settingsWithoutSecrets(source) {
+  const clean = { ...source };
+  BACKUP_SECRET_KEYS.forEach(key => { clean[key] = ""; });
+  if (Array.isArray(clean.providers))
+    clean.providers = clean.providers.map(p => ({ ...p, apiKey: "" }));
+  if (clean.ttsConfigs && typeof clean.ttsConfigs === "object") {
+    clean.ttsConfigs = Object.fromEntries(Object.entries(clean.ttsConfigs)
+      .map(([provider, config]) => [provider, { ...(config || {}), ttsApiKey: "" }]));
+  }
+  return clean;
+}
+function mergeBackupSettings(incoming, current) {
+  const merged = { ...current, ...incoming };
+  // A normal backup deliberately contains blank secrets. Restoring it on the same
+  // device must not erase credentials that are already configured locally.
+  BACKUP_SECRET_KEYS.forEach(key => {
+    if (!incoming[key] && current[key]) merged[key] = current[key];
+  });
+  if (Array.isArray(incoming.providers)) {
+    const localProviders = Array.isArray(current.providers) ? current.providers : [];
+    merged.providers = incoming.providers.map((provider, index) => {
+      const local = localProviders.find(p => p.id === provider.id)
+        || localProviders.find(p => p.name === provider.name && p.provider === provider.provider)
+        || localProviders[index];
+      return { ...provider, apiKey: provider.apiKey || local?.apiKey || "" };
+    });
+  }
+  if (incoming.ttsConfigs && typeof incoming.ttsConfigs === "object") {
+    merged.ttsConfigs = Object.fromEntries(Object.entries(incoming.ttsConfigs).map(([provider, config]) => {
+      const local = current.ttsConfigs?.[provider] || {};
+      return [provider, { ...(config || {}), ttsApiKey: config?.ttsApiKey || local.ttsApiKey || "" }];
+    }));
+  }
+  return merged;
+}
+
 // Export all data (conversations + settings) as a downloadable JSON file.
 function exportBackup() {
   const out = { app: "jyc-chat", version: 1, exportedAt: new Date().toISOString(),
     conversations, settings: { ...settings } };
-  if (!$("exportWithKey").checked) {
-    out.settings = { ...out.settings, apiKey: "", supabaseKey: "" };
-    if (Array.isArray(out.settings.providers))
-      out.settings.providers = out.settings.providers.map(p => ({ ...p, apiKey: "" }));
-  }
+  if (!$("exportWithKey").checked) out.settings = settingsWithoutSecrets(out.settings);
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -4498,14 +4570,9 @@ function importBackup(file) {
     try { data = JSON.parse(reader.result); } catch (e) { showToast("文件解析失败"); return; }
     if (!data || !Array.isArray(data.conversations)) { showToast("不是有效的备份文件"); return; }
     if (!confirm("恢复备份会覆盖当前所有对话和设置，确定吗？")) return;
+    const previousCloudConfig = cloudConfigSignature();
     conversations = data.conversations.length ? data.conversations : [newConversation()];
-    if (data.settings) {
-      for (const k in data.settings) {
-        // keep current API key if the backup didn't include one
-        if ((k === "apiKey" || k === "supabaseKey") && !data.settings[k]) continue;
-        settings[k] = data.settings[k];
-      }
-    }
+    if (data.settings) settings = mergeBackupSettings(data.settings, settings);
     if (!Array.isArray(settings.providers) || !settings.providers.length) settings.providers = [{
       id: uid(), name: "接口 1", provider: settings.provider || "openai",
       baseUrl: settings.baseUrl || "", apiKey: settings.apiKey || "",
@@ -4515,11 +4582,14 @@ function importBackup(file) {
     mirrorActiveToFlat();
     currentId = conversations[0].id;
     messages = currentConv().messages;
+    const cloudConfigChanged = cloudConfigSignature() !== previousCloudConfig;
+    if (cloudConfigChanged) resetCloudRuntime("备份中的云配置已载入，正在重新连接…");
     saveSettings();
     saveConversations();
     applyTheme(); syncSettingsToUI(); updateAvatarPreviews();
     renderConvList(); renderMessages(); updateConvTitle();
     showToast("📥 备份已恢复");
+    if (cloudConfigChanged) void initCloud();
   };
   reader.readAsText(file);
 }
@@ -5671,6 +5741,7 @@ function switchTtsProvider() {
   readSettingsFromUI();
 }
 function readSettingsFromUI() {
+  const previousCloudConfig = cloudConfigSignature();
   const ap = activeProvider();
   ap.provider = $("provider").value;
   ap.baseUrl = $("baseUrl").value.trim();
@@ -5702,6 +5773,8 @@ function readSettingsFromUI() {
   settings.notionPageId = $("notionPageId").value.trim();
   settings.supabaseUrl = $("sbUrl").value.trim();
   settings.supabaseKey = $("sbKey").value.trim();
+  if (cloudConfigSignature() !== previousCloudConfig)
+    resetCloudRuntime("云同步配置已变更，请重新登录");
   settings.userName = $("userName").value.trim();
   settings.aiName = $("aiName").value.trim();
   // avatars are managed by updateAvatarUI / upload / clear handlers (so an empty
