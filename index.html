@@ -453,6 +453,27 @@
   }
   .avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
   .avatar-status { font-size: 12px; color: var(--accent); white-space: nowrap; }
+  .text-color-grid { display: grid; gap: 9px; margin-top: 9px; }
+  .text-color-row {
+    display: grid; grid-template-columns: 58px 38px minmax(105px, 1fr) minmax(120px, 1.2fr);
+    gap: 8px; align-items: center; min-height: 44px; padding: 7px 9px;
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 11px;
+  }
+  .text-color-row > strong { font-size: 13px; font-weight: 650; }
+  .text-color-row input[type="color"] {
+    width: 36px; height: 32px; min-height: 0; padding: 3px; border-radius: 9px; cursor: pointer;
+  }
+  .text-color-hex {
+    min-width: 0; color: var(--text-dim); font: 11px/1.2 "SF Mono",Consolas,monospace;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .text-opacity-control { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .text-opacity-control input[type="range"] { min-width: 0; width: 100%; padding: 0; }
+  .text-opacity-control span { width: 37px; color: var(--text-dim); font-size: 11px; text-align: right; }
+  @media (max-width: 520px) {
+    .text-color-row { grid-template-columns: 52px 36px minmax(0, 1fr); }
+    .text-opacity-control { grid-column: 1 / -1; }
+  }
   .swatch {
     width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
     border: 2px solid transparent; padding: 0;
@@ -588,6 +609,23 @@
     border-top-right-radius: 6px;
     background: linear-gradient(135deg, rgba(255,255,255,.26), rgba(255,205,222,.22));
   }
+  /* Tavo-style AI/system text colors. User messages and app chrome keep the theme color. */
+  .msg.assistant .bubble {
+    color: color-mix(in srgb, var(--system-text-color, var(--text)) var(--system-text-opacity, 100%), transparent);
+  }
+  .msg.assistant .bubble em,
+  .msg.assistant .bubble .chat-narration {
+    color: color-mix(in srgb, var(--narration-text-color, var(--system-text-color, var(--text))) var(--narration-text-opacity, 100%), transparent);
+    font-style: italic;
+  }
+  .msg.assistant .bubble blockquote,
+  .msg.assistant .bubble .chat-quote {
+    color: color-mix(in srgb, var(--quote-text-color, var(--system-text-color, var(--text))) var(--quote-text-opacity, 100%), transparent);
+  }
+  .msg.assistant .bubble blockquote {
+    margin: 7px 0; padding: 3px 0 3px 11px; border-left: 3px solid currentColor;
+  }
+  .msg.assistant .bubble .chat-quote { font-weight: inherit; }
   /* keep names/timestamps legible where the metallic gradient goes dark */
   html[data-glass="1"] .msg .name,
   html[data-glass="1"] .msg .time { text-shadow: 0 1px 2px rgba(255,255,255,.45); }
@@ -1124,14 +1162,41 @@
             <input type="color" id="accent-color-picker" title="自定义颜色" style="width:30px;height:30px;border:none;background:none;cursor:pointer;padding:0;flex-shrink:0;" />
           </div>
         </div>
-        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
-          <label style="font-weight:600;">🖋️ 系统文字颜色</label>
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
-            <input type="color" id="system-text-color-picker" title="选择系统文字颜色" style="width:42px;height:36px;border:1px solid var(--border);border-radius:9px;background:var(--bg-panel);cursor:pointer;padding:3px;flex-shrink:0;" />
-            <button class="mini-btn" id="system-text-color-reset" type="button">跟随主题</button>
-            <span class="hint" id="system-text-color-value">跟随主题</span>
+        <div class="field" id="system-text-style-card" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="font-weight:600;">✒️ 系统文字 · Tavo 式</label>
+          <div class="text-color-grid">
+            <div class="text-color-row">
+              <strong>正文</strong>
+              <input type="color" id="system-text-color-picker" title="系统正文颜色" />
+              <span class="text-color-hex" id="system-text-color-value">跟随主题</span>
+              <label class="text-opacity-control" title="正文透明度">
+                <input type="range" id="system-text-opacity" min="10" max="100" step="1" value="100" />
+                <span id="system-text-opacity-value">100%</span>
+              </label>
+            </div>
+            <div class="text-color-row">
+              <strong>旁白</strong>
+              <input type="color" id="narration-text-color-picker" title="旁白颜色" />
+              <span class="text-color-hex" id="narration-text-color-value">跟随正文</span>
+              <label class="text-opacity-control" title="旁白透明度">
+                <input type="range" id="narration-text-opacity" min="10" max="100" step="1" value="100" />
+                <span id="narration-text-opacity-value">100%</span>
+              </label>
+            </div>
+            <div class="text-color-row">
+              <strong>引用</strong>
+              <input type="color" id="quote-text-color-picker" title="引用颜色" />
+              <span class="text-color-hex" id="quote-text-color-value">跟随正文</span>
+              <label class="text-opacity-control" title="引用透明度">
+                <input type="range" id="quote-text-opacity" min="10" max="100" step="1" value="100" />
+                <span id="quote-text-opacity-value">100%</span>
+              </label>
+            </div>
           </div>
-          <span class="hint">调整页面标题、按钮、设置项与对话正文的主要文字颜色；点「跟随主题」即可恢复当前主题默认值。</span>
+          <div style="display:flex; justify-content:flex-end; margin-top:9px;">
+            <button class="mini-btn" id="system-text-color-reset" type="button">全部跟随主题</button>
+          </div>
+          <span class="hint">只调整 AI / 系统回复：正文、*旁白*、整行括号旁白、引用行和引号内容可分别配色；用户消息与界面按钮保持原主题。</span>
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🖼️ 聊天背景图（毛玻璃雾化）</label>
@@ -1587,7 +1652,12 @@ let settings = {
   theme: "light",
   themeName: "claude",
   accent: "",
-  systemTextColor: "",   // 可选：覆盖主题的主要系统文字颜色
+  systemTextColor: "",   // AI / 系统正文颜色；空值跟随主题
+  systemTextOpacity: 100,
+  narrationTextColor: "",
+  narrationTextOpacity: 100,
+  quoteTextColor: "",
+  quoteTextOpacity: 100,
   chatBg: "",
   chatBgBlur: 6,
   chatBgDim: 35,
@@ -2661,6 +2731,11 @@ function renderMarkdown(text) {
     return " B" + i + " ";
   });
   text = escapeHtml(text);
+  // Tavo-like quote recognition. Run before Markdown injects tags with quoted attributes.
+  text = text.replace(/(^|[\s(（])"([^"\n]+)"/g, '$1<span class="chat-quote">"$2"</span>');
+  text = text.replace(/“([^”\n]+)”/g, '<span class="chat-quote">“$1”</span>');
+  text = text.replace(/「([^」\n]+)」/g, '<span class="chat-quote">「$1」</span>');
+  text = text.replace(/『([^』\n]+)』/g, '<span class="chat-quote">『$1』</span>');
   text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   text = text.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
@@ -2668,12 +2743,18 @@ function renderMarkdown(text) {
   const lines = text.split("\n");
   let html = "", inUl = false;
   for (let line of lines) {
-    if (/^\s*[-*]\s+/.test(line)) {
+    if (/^\s*&gt;\s?/.test(line)) {
+      if (inUl) { html += "</ul>"; inUl = false; }
+      html += '<blockquote class="chat-quote">' + line.replace(/^\s*&gt;\s?/, "") + "</blockquote>";
+    } else if (/^\s*[-*]\s+/.test(line)) {
       if (!inUl) { html += "<ul>"; inUl = true; }
       html += "<li>" + line.replace(/^\s*[-*]\s+/, "") + "</li>";
     } else {
       if (inUl) { html += "</ul>"; inUl = false; }
-      if (line.trim() === "") { /* blank line: paragraph <p> margins handle the spacing */ }
+      const trimmed = line.trim();
+      if (trimmed === "") { /* blank line: paragraph <p> margins handle the spacing */ }
+      else if (/^(?:\([\s\S]+\)|（[\s\S]+）)$/.test(trimmed))
+        html += '<p class="chat-narration">' + line + "</p>";
       else html += "<p>" + line + "</p>";
     }
   }
@@ -5311,17 +5392,45 @@ function applyTheme() {
   applyBubbleStyle();
   applyFont();
 }
+function clampTextOpacity(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.min(100, Math.max(10, Math.round(n))) : 100;
+}
+function validTextColor(value) {
+  return /^#[0-9a-f]{6}$/i.test(value || "") ? value : "";
+}
+function syncTextStyleControl(prefix, custom, fallback, opacity, follows) {
+  const picker = $(prefix + "-color-picker");
+  const value = $(prefix + "-color-value");
+  const range = $(prefix + "-opacity");
+  const pct = $(prefix + "-opacity-value");
+  if (picker) picker.value = custom || fallback;
+  if (value) value.textContent = custom ? custom.toUpperCase() : (follows + " " + fallback.toUpperCase());
+  if (range) range.value = opacity;
+  if (pct) pct.textContent = opacity + "%";
+}
 function applySystemTextColor() {
-  const fallback = currentTheme().dark ? "#f2f2f2" : "#111111";
-  const custom = /^#[0-9a-f]{6}$/i.test(settings.systemTextColor || "") ? settings.systemTextColor : "";
-  const color = custom || fallback;
-  document.documentElement.style.setProperty("--text", color);
-  const picker = $("system-text-color-picker");
-  const value = $("system-text-color-value");
+  const themeColor = currentTheme().dark ? "#f2f2f2" : "#111111";
+  const system = validTextColor(settings.systemTextColor);
+  const narration = validTextColor(settings.narrationTextColor);
+  const quote = validTextColor(settings.quoteTextColor);
+  const systemBase = system || themeColor;
+  const systemOpacity = clampTextOpacity(settings.systemTextOpacity);
+  const narrationOpacity = clampTextOpacity(settings.narrationTextOpacity);
+  const quoteOpacity = clampTextOpacity(settings.quoteTextOpacity);
+  const root = document.documentElement;
+  root.style.setProperty("--system-text-color", systemBase);
+  root.style.setProperty("--system-text-opacity", systemOpacity + "%");
+  root.style.setProperty("--narration-text-color", narration || systemBase);
+  root.style.setProperty("--narration-text-opacity", narrationOpacity + "%");
+  root.style.setProperty("--quote-text-color", quote || systemBase);
+  root.style.setProperty("--quote-text-opacity", quoteOpacity + "%");
+  syncTextStyleControl("system-text", system, themeColor, systemOpacity, "主题");
+  syncTextStyleControl("narration-text", narration, systemBase, narrationOpacity, "正文");
+  syncTextStyleControl("quote-text", quote, systemBase, quoteOpacity, "正文");
   const reset = $("system-text-color-reset");
-  if (picker) picker.value = color;
-  if (value) value.textContent = custom ? custom.toUpperCase() : "跟随主题";
-  if (reset) reset.disabled = !custom;
+  if (reset) reset.disabled = !system && !narration && !quote
+    && systemOpacity === 100 && narrationOpacity === 100 && quoteOpacity === 100;
 }
 function applyBubbleStyle() {
   const pct = settings.bubbleOpacity == null ? 100 : settings.bubbleOpacity;
@@ -6148,16 +6257,31 @@ async function init() {
   $("editor-done").onclick = closeBigEditor;
   $("accent-color-picker").oninput = (e) => { settings.accent = e.target.value; saveSettings(); applyAccent(); };
   $("accent-color-picker").onchange = () => renderAccentSwatches();
-  $("system-text-color-picker").oninput = (e) => {
-    settings.systemTextColor = e.target.value;
-    saveSettings();
-    applySystemTextColor();
+  const bindTextStyleControl = (prefix, colorKey, opacityKey) => {
+    $(prefix + "-color-picker").oninput = (e) => {
+      settings[colorKey] = e.target.value;
+      saveSettings();
+      applySystemTextColor();
+    };
+    $(prefix + "-opacity").oninput = (e) => {
+      settings[opacityKey] = clampTextOpacity(e.target.value);
+      saveSettings();
+      applySystemTextColor();
+    };
   };
+  bindTextStyleControl("system-text", "systemTextColor", "systemTextOpacity");
+  bindTextStyleControl("narration-text", "narrationTextColor", "narrationTextOpacity");
+  bindTextStyleControl("quote-text", "quoteTextColor", "quoteTextOpacity");
   $("system-text-color-reset").onclick = () => {
     settings.systemTextColor = "";
+    settings.systemTextOpacity = 100;
+    settings.narrationTextColor = "";
+    settings.narrationTextOpacity = 100;
+    settings.quoteTextColor = "";
+    settings.quoteTextOpacity = 100;
     saveSettings();
-    applyTheme();
-    showToast("已恢复主题默认文字颜色");
+    applySystemTextColor();
+    showToast("系统文字已全部恢复为跟随主题");
   };
   $("send-btn").onclick = () => { if (abortController) abortController.abort(); else send(); };
 
