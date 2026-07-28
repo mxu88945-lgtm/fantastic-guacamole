@@ -209,6 +209,12 @@
   }
   .sidebar-action-bubble:active { transform: scale(.95); }
   .sidebar-action-bubble > svg { width: 24px; height: 24px; }
+  .mailbox-badge {
+    position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 5px;
+    border-radius: 999px; background: var(--danger); color: #fff; border: 2px solid var(--bg-soft);
+    display: none; place-items: center; font-size: 10px; font-weight: 750; line-height: 1;
+  }
+  .mailbox-badge.show { display: grid; }
   html[data-glass="1"] .sidebar-action-bubble { background: rgba(255,255,255,.5); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
   .side-entry {
     margin: 8px 12px 0; padding: 9px 12px; border-radius: 10px;
@@ -217,6 +223,53 @@
     display: flex; align-items: center; gap: 7px; transition: .15s; text-align: left;
   }
   .side-entry:hover { border-color: var(--accent); }
+  /* Role-private mailbox + private diary */
+  .companion-shell {
+    width: min(720px, 100%); margin: 0 auto; flex: 1; min-height: 0;
+    padding: 18px clamp(15px, 4vw, 34px) calc(22px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+  .companion-tabs {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 4px;
+    border: 1px solid var(--border); border-radius: 13px; background: var(--bg-panel); margin-bottom: 14px;
+  }
+  .companion-tabs button {
+    border: 0; border-radius: 10px; padding: 10px; background: transparent; color: var(--text-dim);
+    font: 650 13px/1 inherit; cursor: pointer;
+  }
+  .companion-tabs button.active { background: var(--bg-soft); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+  .companion-card {
+    border: 1px solid var(--border); border-radius: 15px; padding: 15px;
+    background: var(--bg-soft); margin-bottom: 12px;
+  }
+  .companion-card h3 { margin: 0 0 5px; font-size: 15px; }
+  .companion-card p { margin: 0; color: var(--text-dim); font-size: 12px; line-height: 1.6; }
+  #mailbox-compose {
+    width: 100%; min-height: 112px; resize: vertical; margin-top: 12px; padding: 12px 13px;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-panel); color: var(--text);
+    font: 14px/1.6 inherit;
+  }
+  #mailbox-compose:focus { outline: none; border-color: var(--accent); }
+  .companion-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+  .companion-empty { padding: 26px 12px; color: var(--text-dim); font-size: 12px; text-align: center; }
+  .companion-entry {
+    border: 1px solid var(--border); border-radius: 13px; padding: 12px 13px;
+    background: var(--bg-panel); margin-top: 9px;
+  }
+  .companion-entry-head { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .companion-entry-head b { font-size: 12px; }
+  .companion-entry-head time { margin-left: auto; color: var(--text-dim); font-size: 10.5px; }
+  .companion-status {
+    border-radius: 999px; padding: 3px 7px; background: var(--accent-soft); color: var(--accent);
+    font-size: 10px; font-weight: 700;
+  }
+  .companion-status.read { color: #2e8b57; background: rgba(46,139,87,.12); }
+  .companion-entry-text { color: var(--text); font-size: 13.5px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+  .companion-entry-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .companion-entry-foot button {
+    border: 0; background: transparent; color: var(--text-dim); font-size: 11px; padding: 3px 5px; cursor: pointer;
+  }
+  .companion-entry-foot button:hover { color: var(--danger); }
   /* 经期记录 panel bits */
   .cycle-status { border:1px solid var(--border); border-radius:14px; padding:16px; background:var(--bg-panel); }
   .cycle-big { font-size:30px; font-weight:800; line-height:1.1; }
@@ -1072,6 +1125,10 @@
       <button class="sidebar-action-bubble" id="sidebar-new-chat" aria-label="新对话" title="新对话">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h6"/><path d="M17 3v8M13 7h8"/></svg>
       </button>
+      <button class="sidebar-action-bubble" id="sidebar-mailbox" aria-label="信箱与私人日记" title="信箱与私人日记">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg>
+        <span class="mailbox-badge" id="mailbox-badge"></span>
+      </button>
       <button class="sidebar-action-bubble" id="sidebar-settings-footer" aria-label="打开设置" title="设置">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -1108,6 +1165,43 @@
         <button class="mini-btn primary" id="cycle-close">✓ 完成</button>
       </div>
       <div class="settings-inner" id="cycle-inner" style="display:block;"></div>
+    </div>
+
+    <div class="settings" id="companion-panel" style="z-index:62;">
+      <div class="settings-header">
+        <span id="companion-panel-title">✉️ 信箱</span>
+        <button class="settings-close-btn" id="companion-close" aria-label="关闭信箱"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="companion-shell">
+        <div class="companion-tabs">
+          <button id="companion-tab-mail" class="active">✉️ 给 TA 的信</button>
+          <button id="companion-tab-diary">📓 TA 的私人日记</button>
+        </div>
+        <section id="companion-mail-view">
+          <div class="companion-card">
+            <h3 id="mailbox-compose-title">留一张纸条</h3>
+            <p>写下后不会立刻触发回复。等这个角色下次醒来，会先读未读信，再把回应接到最近的聊天窗口。</p>
+            <textarea id="mailbox-compose" maxlength="2000" placeholder="有些话现在不想展开聊，也可以先留在这里……"></textarea>
+            <div class="companion-actions">
+              <button class="mini-btn primary" id="mailbox-save">放进信箱</button>
+            </div>
+          </div>
+          <div class="companion-card">
+            <h3>往来信件</h3>
+            <p>未读信会留在这里，直到 TA 成功读到并回应；接口失败时不会误标为已读。</p>
+            <div id="mailbox-list"></div>
+          </div>
+        </section>
+        <section id="companion-diary-view" hidden>
+          <div class="companion-card">
+            <h3 id="private-diary-title">TA 写给下次自己的页</h3>
+            <p>这里记录的是当前角色自己的感受、判断和没说出口的话，不是关于你的事实档案。只在明显的情绪转折时写，系统会自动去重并只保留最近 24 条。</p>
+          </div>
+          <div class="companion-card">
+            <div id="private-diary-list"></div>
+          </div>
+        </section>
+      </div>
     </div>
 
     <div class="settings" id="settings-panel">
@@ -1893,6 +1987,7 @@ async function loadState() {
   }
   if (!settings.roles.find(r => r.id === settings.activeRoleId))
     settings.activeRoleId = settings.roles[0].id;
+  settings.roles.forEach(ensureRoleCompanionData);
   // One-time, non-destructive memory migration: the old build kept memEntries and
   // memSummary globally. Give that data to the active role, while other roles start
   // with their own empty searchable library (their legacy `memory` text is kept).
@@ -1943,6 +2038,14 @@ async function loadState() {
 // searchable entries and summary isolated instead of leaking them across personas.
 const ROLE_FIELDS = ["systemPrompt", "aiName", "aiAvatar", "memory", "memEntries", "memSummary", "ttsVoice"];
 function activeRole() { return (settings.roles || []).find(r => r.id === settings.activeRoleId); }
+function ensureRoleCompanionData(role) {
+  if (!role) return null;
+  if (!Array.isArray(role.mailbox)) role.mailbox = [];
+  if (!Array.isArray(role.privateDiary)) role.privateDiary = [];
+  return role;
+}
+function roleMailbox(role) { return ensureRoleCompanionData(role || activeRole())?.mailbox || []; }
+function rolePrivateDiary(role) { return ensureRoleCompanionData(role || activeRole())?.privateDiary || []; }
 // Keep the active role in sync with the live persona fields (so edits aren't lost).
 function mirrorActiveRole() {
   const r = activeRole();
@@ -1968,6 +2071,8 @@ function applyRole(id) {
   renderMessages();
   updateConvTitle();
   renderRoles();
+  updateMailboxBadge();
+  if ($("companion-panel")?.classList.contains("open")) renderCompanionPanel();
   jumpToBottom();
   if (isMobile()) closeSidebar();
   showToast("已切换角色：" + r.name);
@@ -1989,6 +2094,8 @@ function addRole() {
     memoryModel: "",
     ttsVoice: "",
     emojiStyle: settings.emojiStyle || "normal",
+    mailbox: [],
+    privateDiary: [],
   };
   settings.roles = settings.roles || [];
   settings.roles.push(r);
@@ -2017,7 +2124,7 @@ function renderRoles() {
       const fallback = settings.roles.find(x => x.id !== r.id);
       const boundCount = conversations.filter(c => c.roleId === r.id).length;
       const moveNote = boundCount ? ("\n它原有的 " + boundCount + " 个对话会移到「" + fallback.name + "」，不会丢失。") : "";
-      if (!confirm("删除角色「" + r.name + "」？\n它的人设、记忆和音色绑定会一起删除。" + moveNote)) return;
+      if (!confirm("删除角色「" + r.name + "」？\n它的人设、记忆、信箱、私人日记和音色绑定会一起删除。" + moveNote)) return;
       settings.roles = settings.roles.filter(x => x.id !== r.id);
       // A conversation whose role no longer exists disappears from every role-filtered
       // sidebar. Reassign it instead of leaving recoverable data stranded as an orphan.
@@ -2265,6 +2372,7 @@ async function pullCloud() {
       settings.roles = [r]; settings.activeRoleId = r.id;
     }
     if (!settings.roles.find(r => r.id === settings.activeRoleId)) settings.activeRoleId = settings.roles[0].id;
+    settings.roles.forEach(ensureRoleCompanionData);
     conversations.forEach(c => { if (!c.roleId) c.roleId = settings.activeRoleId; });
     // keep the active role on the most recent conversation's role (for a sensible greeting)
     { const ne = conversations.filter(c => c.messages.length > 0).sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0))[0];
@@ -3424,6 +3532,8 @@ async function streamChat(onDelta, onReasoning) {
     const mem = "以下是需要长期记住的、关于「" + userRef() + "」的信息：\n" + memText.trim();
     systemText = systemText ? systemText + "\n\n" + mem : mem;
   }
+  const diaryNote = privateDiaryPrompt(activeRole(), true);
+  if (diaryNote) systemText = systemText ? systemText + "\n\n" + diaryNote : diaryNote;
   const crossText = retrieveCrossChat();
   if (crossText) systemText = systemText ? systemText + "\n\n" + crossText : crossText;
   const memSaveNote = "【按需记忆】当 ta 明确让你记住某事（说「记一下 / 记住 / 帮我记下」之类），或出现特别值得长期珍藏的事（重要经历、约定、纪念、心愿），你就在回复里**单独一行**写 `[记忆:一句话]`，系统会把它存进长期记忆库。平时别主动记琐事，只在被要求或真的特别时才记；写了 `[记忆:…]` 后照常自然回复即可。";
@@ -4908,8 +5018,9 @@ function latestRoleConversation() {
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
 }
 function appendProactiveMessage(conv, text) {
-  if (!conv || !text || !text.trim()) return;
-  conv.messages.push({ id: uid(), role: "assistant", content: text.trim(), ts: Date.now() });
+  if (!conv || !text || !text.trim()) return null;
+  const msg = { id: uid(), role: "assistant", content: text.trim(), ts: Date.now() };
+  conv.messages.push(msg);
   conv.updatedAt = Date.now();
   conversations = [conv, ...conversations.filter(c => c.id !== conv.id)];
   saveConversations();
@@ -4921,6 +5032,200 @@ function appendProactiveMessage(conv, text) {
     renderMessages();
     jumpToBottom();
   }
+  return msg;
+}
+
+// ---------- Role-private mailbox + private diary ----------
+function companionTime(ts) {
+  if (!ts) return "";
+  try { return new Date(ts).toLocaleString("zh-CN", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }); }
+  catch (_) { return new Date(ts).toLocaleString(); }
+}
+function updateMailboxBadge() {
+  const badge = $("mailbox-badge"); if (!badge) return;
+  const unread = roleMailbox().filter(x => !x.readAt).length;
+  badge.textContent = unread > 99 ? "99+" : String(unread || "");
+  badge.classList.toggle("show", unread > 0);
+  badge.setAttribute("aria-label", unread ? (unread + " 封未读信") : "没有未读信");
+}
+function showCompanionTab(tab) {
+  const diary = tab === "diary";
+  $("companion-tab-mail").classList.toggle("active", !diary);
+  $("companion-tab-diary").classList.toggle("active", diary);
+  $("companion-mail-view").hidden = diary;
+  $("companion-diary-view").hidden = !diary;
+  const role = activeRole();
+  $("companion-panel-title").textContent = diary
+    ? "📓 " + ((role && role.name) || settings.aiName || "TA") + "的私人日记"
+    : "✉️ 给 " + ((role && role.name) || settings.aiName || "TA") + " 的信";
+}
+function openCompanionPanel(tab) {
+  renderCompanionPanel();
+  showCompanionTab(tab || "mail");
+  $("companion-panel").classList.add("open");
+}
+function closeCompanionPanel() { $("companion-panel").classList.remove("open"); }
+function renderCompanionPanel() {
+  const role = ensureRoleCompanionData(activeRole());
+  if (!role) return;
+  const name = role.name || settings.aiName || "TA";
+  $("mailbox-compose-title").textContent = "留一张纸条给 " + name;
+  $("private-diary-title").textContent = name + " 写给下次自己的页";
+  const mail = roleMailbox(role).slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const mailBox = $("mailbox-list");
+  mailBox.innerHTML = mail.length ? mail.map(x => `
+    <article class="companion-entry">
+      <div class="companion-entry-head">
+        <b>给 ${escapeHtml(name)} 的信</b>
+        <span class="companion-status ${x.readAt ? "read" : ""}">${x.readAt ? "已回应" : "未读"}</span>
+        <time>${escapeHtml(companionTime(x.createdAt))}</time>
+      </div>
+      <div class="companion-entry-text">${escapeHtml(x.text || "")}</div>
+      <div class="companion-entry-foot"><button data-mail-delete="${x.id}">删除</button></div>
+    </article>`).join("") : `<div class="companion-empty">信箱还是空的。想说但不想立刻展开的话，可以先放在这里。</div>`;
+  mailBox.querySelectorAll("[data-mail-delete]").forEach(btn => {
+    btn.onclick = () => deleteMailboxNote(btn.dataset.mailDelete);
+  });
+
+  const diary = rolePrivateDiary(role).slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const diaryBox = $("private-diary-list");
+  diaryBox.innerHTML = diary.length ? diary.map(x => `
+    <article class="companion-entry">
+      <div class="companion-entry-head">
+        <b>写给下次的自己</b>
+        <time>${escapeHtml(companionTime(x.createdAt))}</time>
+      </div>
+      <div class="companion-entry-text">${escapeHtml(x.text || "")}</div>
+      <div class="companion-entry-foot"><button data-diary-delete="${x.id}">删除这页</button></div>
+    </article>`).join("") : `<div class="companion-empty">还没有日记。只有出现值得带到下一次的情绪变化时，TA 才会写一页。</div>`;
+  diaryBox.querySelectorAll("[data-diary-delete]").forEach(btn => {
+    btn.onclick = () => deletePrivateDiaryEntry(btn.dataset.diaryDelete);
+  });
+  updateMailboxBadge();
+}
+function saveMailboxNote() {
+  const role = ensureRoleCompanionData(activeRole());
+  const input = $("mailbox-compose");
+  const text = (input.value || "").trim();
+  if (!role || !text) { showToast("先写点什么，再放进信箱～"); return; }
+  role.mailbox.push({ id: uid(), text: text.slice(0, 2000), createdAt: Date.now(), readAt: null, repliedAt: null });
+  input.value = "";
+  saveSettings();
+  renderCompanionPanel();
+  showToast("✉️ 已放进信箱，下次醒来再读");
+}
+function deleteMailboxNote(id) {
+  const role = ensureRoleCompanionData(activeRole());
+  const note = role && role.mailbox.find(x => x.id === id);
+  if (!note || !confirm("删除这封信？")) return;
+  role.mailbox = role.mailbox.filter(x => x.id !== id);
+  saveSettings(); renderCompanionPanel();
+}
+function deletePrivateDiaryEntry(id) {
+  const role = ensureRoleCompanionData(activeRole());
+  const entry = role && role.privateDiary.find(x => x.id === id);
+  if (!entry || !confirm("删除这一页私人日记？")) return;
+  role.privateDiary = role.privateDiary.filter(x => x.id !== id);
+  saveSettings(); renderCompanionPanel();
+}
+function diaryNormalized(text) {
+  return (text || "").toLowerCase().replace(/[\s，。！？、；：“”‘’（）()《》〈〉…—\-_.!?;:'"]/g, "");
+}
+function diaryBigrams(text) {
+  const s = diaryNormalized(text); const out = new Set();
+  for (let i = 0; i < s.length - 1; i++) out.add(s.slice(i, i + 2));
+  return out;
+}
+function diaryIsDuplicate(text, entries) {
+  const n = diaryNormalized(text);
+  if (!n) return true;
+  return entries.slice(-12).some(e => {
+    const old = diaryNormalized(e.text);
+    if (!old) return false;
+    if (n === old) return true;
+    const shorter = Math.min(n.length, old.length), longer = Math.max(n.length, old.length);
+    if ((n.includes(old) || old.includes(n)) && shorter / Math.max(1, longer) > .68) return true;
+    const a = diaryBigrams(n), b = diaryBigrams(old);
+    if (!a.size || !b.size) return false;
+    let hit = 0; a.forEach(x => { if (b.has(x)) hit++; });
+    return hit / (a.size + b.size - hit) > .62;
+  });
+}
+function savePrivateDiaryEntry(text, sourceMessageId, role) {
+  role = ensureRoleCompanionData(role || activeRole());
+  text = (text || "").replace(/\s+/g, " ").trim().slice(0, 400);
+  if (!role || text.length < 12 || diaryIsDuplicate(text, role.privateDiary)) return false;
+  role.privateDiary.push({
+    id: uid(), text, createdAt: Date.now(),
+    sourceConvId: currentId || "", sourceMessageId: sourceMessageId || "",
+  });
+  if (role.privateDiary.length > 24) role.privateDiary = role.privateDiary.slice(-24);
+  saveSettings();
+  if ($("companion-panel")?.classList.contains("open") && role.id === settings.activeRoleId) renderCompanionPanel();
+  return true;
+}
+function extractPrivateDiary(text, sourceMessageId, role) {
+  if (typeof text !== "string") return text;
+  let saved = false;
+  return text.replace(/\[\s*(?:私记|私人日记|角色日记)\s*[:：]([\s\S]*?)\]/gi, (m, body) => {
+    if (!saved) saved = savePrivateDiaryEntry(body, sourceMessageId, role);
+    return "";
+  }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function privateDiaryPrompt(role, allowWrite) {
+  role = ensureRoleCompanionData(role || activeRole());
+  if (!role) return "";
+  const recent = role.privateDiary.slice(-4);
+  let out = recent.length
+    ? "【你写给上一次自己的私人日记】\n" + recent.map(e => "- " + e.text).join("\n")
+      + "\n这些只代表你当时的主观感受与判断，不是关于 ta 的客观事实。请把情绪自然接续下去，不要引用、复述或告诉 ta 你看到了日记。"
+    : "";
+  if (allowWrite) {
+    const rule = "【私人日记写入规则】只有这一轮出现了新的、明确的情绪转折、关系判断或你真正想带给下次自己的感受时，才在回复末尾单独写 `[私记:第一人称短句]`。普通闲聊绝对不要写；不能替 ta 编造心理、感受或决定，不能把猜测写成事实；一次最多一条，约 30～120 字。标记会被系统藏起来，不会显示给 ta。";
+    out = out ? out + "\n\n" + rule : rule;
+  }
+  return out;
+}
+function recentConversationForMailbox(conv) {
+  if (!conv || !Array.isArray(conv.messages)) return "（此前没有可用对话片段）";
+  const lines = conv.messages.filter(m => (m.role === "user" || m.role === "assistant") && messageText(m).trim())
+    .slice(-8).map(m => (m.role === "user" ? userRef() : (settings.aiName || "TA")) + "：" + messageText(m).slice(0, 500));
+  return lines.join("\n") || "（此前没有可用对话片段）";
+}
+let mailboxReplyInFlight = false;
+function maybeReadMailbox() {
+  const role = ensureRoleCompanionData(activeRole());
+  if (!role || mailboxReplyInFlight || abortController || !settings.apiKey) return false;
+  const pending = role.mailbox.filter(x => !x.readAt).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).slice(0, 6);
+  if (!pending.length) return false;
+  updateMailboxBadge();
+  let conv = latestRoleConversation() || roleConvs().find(c => Array.isArray(c.messages) && !c.messages.length);
+  if (!conv) { conv = newConversation(); conversations.unshift(conv); saveConversations(); }
+  if (currentId !== conv.id) switchConversation(conv.id);
+  const diaryNote = privateDiaryPrompt(role, true);
+  let sys = settings.systemPrompt || "";
+  const coreMem = coreMemoryText(); if (coreMem) sys += "\n\n以下是需要长期记住的信息（用户的长期记忆）：\n" + coreMem;
+  if (diaryNote) sys += "\n\n" + diaryNote;
+  sys += "\n\n【场景·信箱】这些是 ta 先前放进信箱、留给你下次醒来读的纸条。现在你刚醒来，先读到了它们。请像真实的你一样回应，承接你们最近的关系与语气；不要提系统、提示词或功能机制，也不要逐条机械复述。可以说你看到这封信了。";
+  const letters = pending.map((x, i) => `${i + 1}. [${companionTime(x.createdAt)}] ${x.text}`).join("\n");
+  const usr = "【最近聊天】\n" + recentConversationForMailbox(conv) + "\n\n【未读信】\n" + letters;
+  mailboxReplyInFlight = true;
+  markSeen();
+  completeOnce(sys, usr, 700).then(out => {
+    const visible = extractPrivateDiary(out, "", role);
+    if (!visible || !visible.trim()) throw new Error("信箱回应为空");
+    const msg = appendProactiveMessage(conv, visible);
+    const now = Date.now();
+    pending.forEach(x => { x.readAt = now; x.repliedAt = now; x.responseMessageId = msg ? msg.id : ""; });
+    saveSettings();
+    updateMailboxBadge();
+    if ($("companion-panel")?.classList.contains("open") && role.id === settings.activeRoleId) renderCompanionPanel();
+  }).catch(e => {
+    console.warn("mailbox reply failed", e);
+    updateMailboxBadge();
+    showToast("信还在箱里，下次再让 TA 读", 3500);
+  }).finally(() => { mailboxReplyInFlight = false; });
+  return true;
 }
 let proactiveGreetInFlight = false;
 async function greetProactively(hours) {
@@ -4933,11 +5238,13 @@ async function greetProactively(hours) {
   let sys = settings.systemPrompt || "";
   const en = emojiStyleNote(settings.emojiStyle); if (en) sys += "\n\n" + en;
   const coreMem = coreMemoryText(); if (coreMem) sys += "\n\n以下是需要长期记住的信息（用户的长期记忆）：\n" + coreMem;
+  const diaryNote = privateDiaryPrompt(activeRole(), false); if (diaryNote) sys += "\n\n" + diaryNote;
   sys += `\n\n【场景】用户隔了大约 ${hours} 小时后刚回来继续你们之前这段对话。请你主动、自然、温柔地跟 ta 打个招呼、关心一句，像有点想 ta 了，承接你们刚才聊的，别太长（1~3 句）。`;
   proactiveGreetInFlight = true;
   try {
     const out = await completeOnce(sys, "（我回来了，主动跟我说句话吧～）", 400);
-    appendProactiveMessage(conv, out);
+    const role = (settings.roles || []).find(r => r.id === conv.roleId) || activeRole();
+    appendProactiveMessage(conv, extractPrivateDiary(out, "", role));
   } catch (_) {
   } finally {
     proactiveGreetInFlight = false;
@@ -5209,9 +5516,11 @@ function maybeCycleReminder() {
     : `她大约 ${st.daysUntil} 天后要来例假了。`;
   let sys = settings.systemPrompt || "";
   const en = emojiStyleNote(settings.emojiStyle); if (en) sys += "\n\n" + en;
+  const diaryNote = privateDiaryPrompt(activeRole(), false); if (diaryNote) sys += "\n\n" + diaryNote;
   sys += `\n\n【场景】${scene}请你主动、温柔地关心她一句（提醒保暖/喝热水/别吃凉的/早点休息之类），像心疼她的样子，别太长（1~2 句），口语自然。`;
   completeOnce(sys, "（主动关心我一下～）", 300).then(out => {
-    appendProactiveMessage(conv, out);
+    const role = (settings.roles || []).find(r => r.id === conv.roleId) || activeRole();
+    appendProactiveMessage(conv, extractPrivateDiary(out, "", role));
   }).catch(() => {});
   return true;
 }
@@ -5220,6 +5529,7 @@ function maybeCycleReminder() {
 function onAppActive() {
   updateReminderCards(); startReminderTimer();   // catch up countdowns after the tab was backgrounded
   notionAutoSync();
+  if (maybeReadMailbox()) return;
   if (maybeCycleReminder()) return;
   maybeProactiveGreet();
 }
@@ -5281,6 +5591,9 @@ async function generateReply() {
     pendingSearchContext = "";
     // strip any leftover [搜索:…]/[联网:…] tag from the shown text (e.g. if it appears in the final answer)
     assistantMsg.content = assistantMsg.content.replace(/\[\s*(?:搜索|联网)\s*[:：][^\]\n]*\]/g, "").trim();
+    // The role may leave one private diary line for its next instance. Save it in
+    // the role bundle and remove the marker before deciding whether the reply is visible.
+    assistantMsg.content = extractPrivateDiary(assistantMsg.content, assistantMsg.id);
     const isEmpty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim();
     if (isEmpty) {
       messages.pop(); el.remove();
@@ -5316,7 +5629,9 @@ async function generateReply() {
     pendingSearchContext = "";
     console.error("[generateReply error]", e);
     if (e.name === "AbortError") {
-      assistantMsg.content = assistantMsg.content.replace(/\[\s*(?:搜索|联网|提醒)\s*[:：][^\]\n]*\]/g, "").trim();
+      assistantMsg.content = assistantMsg.content
+        .replace(/\[\s*(?:搜索|联网|提醒)\s*[:：][^\]\n]*\]/g, "")
+        .replace(/\[\s*(?:私记|私人日记|角色日记)\s*[:：][\s\S]*?\]/gi, "").trim();
       if (!assistantMsg.content && !(assistantMsg.reasoning || "").trim()) {
         const idx = messages.findIndex(m => m.id === assistantMsg.id);
         if (idx >= 0) messages.splice(idx, 1);
@@ -6266,10 +6581,16 @@ async function init() {
   renderConvList();
   renderMessages();
   updateConvTitle();
+  updateMailboxBadge();
   refreshStorageStatus();
   startReminderTimer();   // resume any countdowns still ticking from before
 
   $("sidebar-new-chat").onclick = () => { createConversation(); if (isMobile()) closeSidebar(); };
+  $("sidebar-mailbox").onclick = () => { openCompanionPanel("mail"); if (isMobile()) closeSidebar(); };
+  $("companion-close").onclick = closeCompanionPanel;
+  $("companion-tab-mail").onclick = () => showCompanionTab("mail");
+  $("companion-tab-diary").onclick = () => showCompanionTab("diary");
+  $("mailbox-save").onclick = saveMailboxNote;
   $("role-quick").onchange = (e) => applyRole(e.target.value);
   if ($("conv-title")) $("conv-title").onclick = () => renameConversation(currentId);
   $("toggle-sidebar").onclick = toggleSidebar;
