@@ -737,7 +737,8 @@
   }
   .msg-act svg { width: 16px; height: 16px; }
   .msg-act:hover { color: var(--accent); background: var(--item-active); }
-  .msg-tokens { align-self: center; font-size: 11px; color: var(--text-dim); white-space: nowrap; margin-left: 2px; }
+  .msg-tokens, .msg-latency { align-self: center; font-size: 11px; color: var(--text-dim); white-space: nowrap; margin-left: 2px; }
+  .msg-latency { cursor: pointer; }
   .msg-act.playing { color: var(--accent); }
   .msg-act.tts-loading { opacity: .45; pointer-events: none; animation: tts-pulse .8s ease-in-out infinite; }
   @keyframes tts-pulse { 0%,100%{opacity:.45} 50%{opacity:.2} }
@@ -857,17 +858,21 @@
   #plus-menu button:hover { background: var(--item-active); }
   #plus-menu button:hover svg { color: var(--accent); }
 
-  /* Scroll-to-bottom floating button */
-  .scroll-bottom-btn {
+  /* Floating chat navigation. It wakes while the user scrolls, then fades away. */
+  .scroll-nav {
     position: absolute; right: 18px; z-index: 5;
     bottom: calc(96px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 8px;
+    pointer-events: none;
+  }
+  .scroll-jump-btn {
     width: 40px; height: 40px; border-radius: 50%;
     background: var(--bg-panel); border: 1px solid var(--border); color: var(--text);
     display: grid; place-items: center; cursor: pointer; box-shadow: 0 3px 12px rgba(0,0,0,.18);
     opacity: 0; transform: translateY(8px); pointer-events: none; transition: .18s;
   }
-  .scroll-bottom-btn.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
-  .scroll-bottom-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .scroll-jump-btn.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .scroll-jump-btn:hover { border-color: var(--accent); color: var(--accent); }
 
   /* Emoji picker panel */
   #emoji-panel {
@@ -1708,9 +1713,14 @@
     </div>
     <div id="reminder-pin"></div>
 
-    <button class="scroll-bottom-btn" id="scroll-bottom-btn" title="回到底部">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-    </button>
+    <div class="scroll-nav" id="scroll-nav" aria-label="聊天滚动导航">
+      <button class="scroll-jump-btn" id="scroll-top-btn" title="回到顶部" aria-label="回到顶部">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"></polyline></svg>
+      </button>
+      <button class="scroll-jump-btn" id="scroll-bottom-btn" title="回到底部" aria-label="回到底部">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+    </div>
     <div class="composer-wrap">
       <div id="err-slot"></div>
       <div id="attach-preview" style="max-width:820px; margin:0 auto 8px; display:none; gap:8px; flex-wrap:wrap;"></div>
@@ -1835,7 +1845,9 @@ let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
 let imageStaging = [];    // in-flight stageImageFile() promises (iOS PWA race fix)
 let lastCallUsage = null; // usage of the most recent streamChat call (for token label)
+let lastCallTiming = null;// timing of the most recent streamChat call (channel diagnostics)
 let stickBottom = true;   // whether streaming should keep auto-scrolling to bottom
+let scrollControlsAwake = false, scrollControlsHideTimer = null;
 
 // ---------- Cloud (Supabase) runtime state ----------
 let sb = null;          // supabase client
@@ -2989,6 +3001,7 @@ function renderMessages() {
       </div>
     </div>`;
     renderReminderPin();
+    requestAnimationFrame(updateScrollControls);
     return;
   }
   box.innerHTML = "";
@@ -2997,13 +3010,17 @@ function renderMessages() {
     if (m._event) continue;                       // hidden system-event turn (e.g. "she finished the task")
     if (m.role === "reminder") { box.appendChild(reminderCardEl(m)); continue; }   // countdown / done card
     const isLast = i === messages.length - 1;
-    const el = makeMsgEl(m.role, m.content, { actions: true, isLast, reasoning: m.reasoning, ts: m.ts, tokens: m.tokens });
+    const el = makeMsgEl(m.role, m.content, {
+      actions: true, isLast, reasoning: m.reasoning, ts: m.ts,
+      tokens: m.tokens, timing: m.timing,
+    });
     el.dataset.idx = i;
     if (m.id) el.dataset.mid = m.id;
     if (m._summary && el.querySelector(".bubble")) el.querySelector(".bubble").classList.add("summary");
     box.appendChild(el);
   }
   renderReminderPin();
+  requestAnimationFrame(updateScrollControls);
 }
 function flashMessage(mid) {
   const el = $("messages").querySelector(`.msg[data-mid="${mid}"]`);
@@ -3216,6 +3233,11 @@ function formatTime(ts) {
   const sameDay = d.toDateString() === now.toDateString();
   return sameDay ? hm : (d.getMonth() + 1) + "/" + d.getDate() + " " + hm;
 }
+function formatLatency(ms) {
+  if (!Number.isFinite(ms)) return "—";
+  if (ms < 1000) return Math.max(0, Math.round(ms)) + "ms";
+  return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + "s";
+}
 function makeMsgEl(role, content, opts) {
   opts = opts || {};
   const flat = settings.chatLayout === "flat";
@@ -3263,14 +3285,57 @@ function makeMsgEl(role, content, opts) {
       tk.textContent = Number(opts.tokens).toLocaleString() + " tokens";
       bar.appendChild(tk);
     }
+    if (opts.timing && Number.isFinite(opts.timing.totalMs)) {
+      const tm = document.createElement("span");
+      const visibleMs = Number.isFinite(opts.timing.visibleMs)
+        ? opts.timing.visibleMs : opts.timing.firstTokenMs;
+      tm.className = "msg-latency";
+      tm.textContent = "首字 " + formatLatency(visibleMs) + " · 完成 " + formatLatency(opts.timing.totalMs);
+      tm.title = "渠道响应：" +
+        "响应头 " + formatLatency(opts.timing.headersMs) +
+        "，首包 " + formatLatency(opts.timing.firstByteMs) +
+        "，模型首 token " + formatLatency(opts.timing.firstTokenMs) +
+        "，前端可见首字 " + formatLatency(visibleMs) +
+        "，共 " + (opts.timing.attempts || 1) + " 次请求";
+      tm.onclick = () => showToast(tm.title, 6500);
+      bar.appendChild(tm);
+    }
     container.appendChild(bar);
   }
   return el;
 }
+function updateScrollControls() {
+  const c = $("chat"), topBtn = $("scroll-top-btn"), bottomBtn = $("scroll-bottom-btn");
+  if (!c || !topBtn || !bottomBtn) return;
+  const max = Math.max(0, c.scrollHeight - c.clientHeight);
+  const fromTop = Math.max(0, c.scrollTop);
+  const fromBottom = Math.max(0, max - fromTop);
+  const scrollable = max > 120;
+  topBtn.classList.toggle("show", scrollControlsAwake && scrollable && fromTop > 180);
+  bottomBtn.classList.toggle("show", scrollControlsAwake && scrollable && fromBottom > 180);
+}
+function wakeScrollControls() {
+  scrollControlsAwake = true;
+  updateScrollControls();
+  clearTimeout(scrollControlsHideTimer);
+  scrollControlsHideTimer = setTimeout(() => {
+    scrollControlsAwake = false;
+    updateScrollControls();
+  }, 3200);
+}
+function scrollToTop() {
+  const c = $("chat");
+  stickBottom = false;
+  c.scrollTo({ top: 0, behavior: "smooth" });
+  wakeScrollControls();
+}
 function scrollToBottom() {
   const c = $("chat");
   c.scrollTop = c.scrollHeight;
-  requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; }); // again after layout settles
+  requestAnimationFrame(() => {
+    c.scrollTop = c.scrollHeight; // again after layout settles
+    updateScrollControls();
+  });
 }
 // Robust jump-to-bottom for opening a conversation: content height keeps changing
 // as images/avatars load, so re-scroll a few times and whenever an image finishes.
@@ -3281,6 +3346,8 @@ function jumpToBottom() {
   $("chat").querySelectorAll("img").forEach(img => {
     if (!img.complete) img.addEventListener("load", scrollToBottom, { once: true });
   });
+  scrollControlsAwake = false;
+  updateScrollControls();
 }
 function showError(msg) { $("err-slot").innerHTML = `<div class="err-banner">⚠️ ${escapeHtml(msg)}</div>`; }
 function clearError() { $("err-slot").innerHTML = ""; }
@@ -3663,6 +3730,23 @@ async function streamChat(onDelta, onReasoning) {
   const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
   const model = settings.model || DEFAULTS[settings.provider].model;
   abortController = new AbortController();
+  const callStartedAt = performance.now();
+  let headersAt = 0, firstByteAt = 0, firstTokenAt = 0, attempts = 0;
+  lastCallTiming = null;
+  const markToken = (delta) => {
+    if (delta && !firstTokenAt) firstTokenAt = performance.now();
+  };
+  const finishTiming = () => {
+    const doneAt = performance.now();
+    lastCallTiming = {
+      headersMs: headersAt ? headersAt - callStartedAt : NaN,
+      firstByteMs: firstByteAt ? firstByteAt - callStartedAt : NaN,
+      firstTokenMs: firstTokenAt ? firstTokenAt - callStartedAt : NaN,
+      totalMs: doneAt - callStartedAt,
+      attempts: attempts || 1,
+    };
+    return lastCallTiming;
+  };
 
   let systemText = settings.systemPrompt || "";
   const emojiNote = emojiStyleNote(settings.emojiStyle);
@@ -3782,10 +3866,11 @@ async function streamChat(onDelta, onReasoning) {
   const MAX_ATTEMPTS = 3;
   let resp, lastDetail = "";
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    attempts = attempt;
     resp = await fetch(url, {
       method: "POST", headers, body: JSON.stringify(body), signal: abortController.signal,
     });
-    if (resp.ok) break;
+    if (resp.ok) { headersAt = performance.now(); break; }
     lastDetail = "";
     try { lastDetail = JSON.stringify(await resp.json()); } catch (e) { lastDetail = await resp.text().catch(()=>""); }
     if (TRANSIENT.has(resp.status) && attempt < MAX_ATTEMPTS) {
@@ -3808,6 +3893,7 @@ async function streamChat(onDelta, onReasoning) {
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
+    if (value && value.length && !firstByteAt) firstByteAt = performance.now();
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
     buffer = lines.pop();
@@ -3815,28 +3901,29 @@ async function streamChat(onDelta, onReasoning) {
       const trimmed = line.trim();
       if (!trimmed.startsWith("data:")) continue;
       const data = trimmed.slice(5).trim();
-      if (data === "[DONE]") { recordUsage(model, usageRaw, isAnthropic); return; }
+      if (data === "[DONE]") { recordUsage(model, usageRaw, isAnthropic); return finishTiming(); }
       let json;
       try { json = JSON.parse(data); } catch (e) { continue; }
       if (isAnthropic) {
         if (json.type === "message_start" && json.message?.usage) usageRaw = { ...json.message.usage };
         if (json.type === "message_delta" && json.usage) usageRaw = { ...(usageRaw || {}), ...json.usage };
         if (json.type === "content_block_delta") {
-          if (json.delta?.text) onDelta(json.delta.text);
-          if (json.delta?.thinking) onReasoning(json.delta.thinking);
+          if (json.delta?.text) { markToken(json.delta.text); onDelta(json.delta.text); }
+          if (json.delta?.thinking) { markToken(json.delta.thinking); onReasoning(json.delta.thinking); }
         }
         if (json.type === "error") throw new Error(json.error?.message || "stream error");
       } else {
         if (json.usage) usageRaw = json.usage;
         const d = json.choices?.[0]?.delta;
         // reasoning models expose the chain-of-thought separately
-        if (d?.reasoning_content) onReasoning(d.reasoning_content);   // DeepSeek
-        if (d?.reasoning) onReasoning(d.reasoning);                   // OpenRouter & others
-        if (d?.content) onDelta(d.content);
+        if (d?.reasoning_content) { markToken(d.reasoning_content); onReasoning(d.reasoning_content); } // DeepSeek
+        if (d?.reasoning) { markToken(d.reasoning); onReasoning(d.reasoning); } // OpenRouter & others
+        if (d?.content) { markToken(d.content); onDelta(d.content); }
       }
     }
   }
   recordUsage(model, usageRaw, isAnthropic);   // stream ended without an explicit [DONE]
+  return finishTiming();
 }
 
 // Normalize a raw usage object (OpenAI/OpenRouter or Anthropic) and log one entry.
@@ -4859,6 +4946,10 @@ async function revealSegments(segments, baseMsg) {
     const last = messages[messages.length - 1];
     if (last && last.role === "assistant") last.tokens = baseMsg.tokens;
   }
+  if (baseMsg.timing) {
+    const last = messages[messages.length - 1];
+    if (last && last.role === "assistant") last.timing = baseMsg.timing;
+  }
 }
 // Optionally turn an emoji sticker into a real generated image (画图模型), in place.
 async function generateStickerImage(msg) {
@@ -5711,21 +5802,32 @@ async function generateReply() {
     let searchRounds = 0;
     while (true) {
       assistantMsg.content = ""; assistantMsg.reasoning = "";
+      const visibleStartedAt = performance.now();
+      let visibleAt = 0, roundTiming = null;
       const contentGate = createStreamContentGate(
-        (delta) => { assistantMsg.content += delta; },
+        (delta) => {
+          if (delta && !visibleAt) visibleAt = performance.now();
+          assistantMsg.content += delta;
+        },
         (rdelta) => {
           if (rdelta && !(assistantMsg.reasoning || "").includes(rdelta))
             assistantMsg.reasoning = [assistantMsg.reasoning || "", rdelta].filter(Boolean).join("\n").trim();
         }
       );
       try {
-        await streamChat(
+        roundTiming = await streamChat(
           (delta) => { contentGate.push(delta); paint(); },
           (rdelta) => { assistantMsg.reasoning += rdelta; paint(); }
         );
       } finally {
         contentGate.finish();
         paint();
+      }
+      if (roundTiming) {
+        assistantMsg.timing = {
+          ...roundTiming,
+          visibleMs: visibleAt ? visibleAt - visibleStartedAt : roundTiming.totalMs,
+        };
       }
       let act = null;
       if (searchRounds < 2 && settings.crossSearch) {
@@ -6911,13 +7013,23 @@ async function init() {
     if (!inUI) closePopups();
   });
 
-  // Scroll-to-bottom button
-  $("scroll-bottom-btn").onclick = () => { stickBottom = true; scrollToBottom(); };
+  // Two-way chat navigation. Controls wake on user interaction and fade after a few seconds.
+  $("scroll-top-btn").onclick = scrollToTop;
+  $("scroll-bottom-btn").onclick = () => {
+    stickBottom = true;
+    $("chat").scrollTo({ top: $("chat").scrollHeight, behavior: "smooth" });
+    wakeScrollControls();
+  };
+  const wakeNav = () => wakeScrollControls();
+  $("chat").addEventListener("pointerdown", wakeNav, { passive: true });
+  $("chat").addEventListener("wheel", wakeNav, { passive: true });
+  $("scroll-nav").addEventListener("pointerenter", () => clearTimeout(scrollControlsHideTimer));
+  $("scroll-nav").addEventListener("pointerleave", wakeNav);
   $("chat").addEventListener("scroll", () => {
     const c = $("chat");
     const fromBottom = c.scrollHeight - c.scrollTop - c.clientHeight;
-    $("scroll-bottom-btn").classList.toggle("show", fromBottom > 240);
     stickBottom = fromBottom < 140;   // scrolled up to read history → stop auto-following
+    updateScrollControls();
   }, { passive: true });
 
   // Message long-press / right-click menu
