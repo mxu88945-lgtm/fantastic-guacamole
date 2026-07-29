@@ -1437,8 +1437,8 @@
             <input type="checkbox" id="webSearch" style="width:auto;" onchange="readSettingsFromUI();" />
             <span>开启联网搜索</span>
           </label>
-          <input id="webSearchUrl" placeholder="搜索接口地址（默认 https://s.jina.ai/ ）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
-          <input id="webSearchKey" type="password" placeholder="搜索 API Key（选填，不上云；Jina 免费额度可留空）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+          <input id="webSearchUrl" placeholder="搜索接口地址（默认 Jina；无 Key 自动走后备）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+          <input id="webSearchKey" type="password" placeholder="Jina API Key（选填；留空自动使用免费后备，不上云）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
         </div>
 
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>用量 · 账单</div>
@@ -1832,8 +1832,8 @@ let settings = {
   crossChat: true,        // 跨窗口回忆：让模型能按关键词检索其他聊天窗口的相关片段
   crossSearch: true,      // 主动搜索：模型写 [搜索:关键词] → App 翻所有旧对话再喂回，让它接着答
   webSearch: false,       // 联网搜索：模型写 [联网:关键词] → App 调搜索接口再喂回（默认关，开了才会联网）
-  webSearchUrl: "https://s.jina.ai/",  // 搜索接口（默认 Jina，免费、浏览器可直连）
-  webSearchKey: "",       // 搜索 API Key（选填，不上云）
+  webSearchUrl: "https://s.jina.ai/",  // 搜索接口（默认 Jina；无 Key 时自动使用浏览器可直连的后备搜索）
+  webSearchKey: "",       // Jina 搜索 API Key（选填，不上云）
   memSummary: "",         // 记忆摘要：一段"关于 ta 的人物速写"，每次对话都注入
   memoryProviderId: "",   // 全局记忆专用接口（空 = 当前聊天接口）
   memoryModel: "",        // 全局记忆专用模型（空 = 所选接口当前模型）
@@ -4154,34 +4154,116 @@ function searchHistory(query) {
   hits.sort((a, b) => b.s - a.s);
   return hits.slice(0, 10).map(h => `（在「${h.title}」${h.isCur ? "·就是现在这个窗口" : ""}）${h.who}：${h.txt.slice(0, 160)}`).join("\n");
 }
-// Web search via a browser-CORS-friendly endpoint (default Jina s.jina.ai — free, no key needed).
+// Web search via a browser-CORS-friendly endpoint. Jina Search now requires an API key;
+// older saved configs may still point at s.jina.ai with no key, so those requests
+// transparently fall back to DuckDuckGo rendered through Jina Reader.
+function isDefaultJinaSearch(raw) {
+  return /^https:\/\/s\.jina\.ai\/?$/i.test((raw || "").trim());
+}
+function unwrapDuckDuckGoUrl(raw) {
+  try {
+    const u = new URL(raw);
+    if (/(^|\.)duckduckgo\.com$/i.test(u.hostname) && u.pathname === "/l/") {
+      return u.searchParams.get("uddg") || raw;
+    }
+  } catch (_) {}
+  return raw;
+}
+function plainMarkdownLine(line) {
+  return (line || "")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[*_`>#]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function compactReaderSearch(text) {
+  const lines = (text || "").split(/\r?\n/);
+  const results = [];
+  for (let i = 0; i < lines.length && results.length < 5; i++) {
+    const m = lines[i].match(/^##\s+\[([^\]]+)\]\((https?:\/\/[^)]+)\)/);
+    if (!m) continue;
+    const title = plainMarkdownLine(m[1]);
+    const url = unwrapDuckDuckGoUrl(m[2]);
+    let snippet = "";
+    for (let j = i + 1; j < lines.length && j <= i + 8; j++) {
+      if (/^##\s+/.test(lines[j])) break;
+      if (/\[!\[Image/i.test(lines[j])) continue;
+      const candidate = plainMarkdownLine(lines[j]);
+      if (!candidate || /^https?:\/\//i.test(candidate)) continue;
+      if (candidate.length > snippet.length) snippet = candidate;
+    }
+    results.push(`${results.length + 1}. ${title}\n${url}\n${snippet.slice(0, 360)}`);
+  }
+  if (results.length) return results.join("\n\n");
+  const cleaned = (text || "")
+    .replace(/^Title:.*$/gmi, "")
+    .replace(/^URL Source:.*$/gmi, "")
+    .replace(/^Markdown Content:\s*$/gmi, "")
+    .trim();
+  return cleaned.slice(0, 6000) || "（没搜到结果）";
+}
+function compactSearchPayload(text) {
+  let data;
+  try { data = JSON.parse(text); } catch (_) { return compactReaderSearch(text); }
+  const arr = data && (data.data || data.results || (Array.isArray(data) ? data : []));
+  if (Array.isArray(arr) && arr.length) {
+    return arr.slice(0, 5).map((r, i) =>
+      `${i + 1}. ${r.title || r.name || ""}\n${r.url || r.link || ""}\n${(r.content || r.description || r.snippet || r.text || "").toString().slice(0, 360)}`
+    ).join("\n\n");
+  }
+  return JSON.stringify(data).slice(0, 2500);
+}
+function webSearchFallbackUrl(query) {
+  return "https://r.jina.ai/http://html.duckduckgo.com/html/?q=" + encodeURIComponent(query);
+}
 // Returns a compact text digest of the top results to feed back to the model.
 async function webSearch(query) {
   const raw = (settings.webSearchUrl || "https://s.jina.ai/").trim();
   const url = raw.replace(/\/+$/, "") + "/" + encodeURIComponent(query);
   const headers = { "Accept": "application/json" };
   if (settings.webSearchKey) headers["Authorization"] = "Bearer " + settings.webSearchKey;
-  let resp;
+  const canFallback = !settings.webSearchKey && isDefaultJinaSearch(raw);
+  let resp, usedFallback = false;
   try {
     resp = await fetch(url, { headers, signal: abortController ? abortController.signal : undefined });
   } catch (e) {
     if (e.name === "AbortError") throw e;
-    return "（联网搜索失败：" + (e.message || e) + "。可能是网络或跨域问题——可在设置里把『联网搜索接口』改成走你的 Worker 代理。）";
-  }
-  if (!resp.ok) return "（联网搜索失败：HTTP " + resp.status + "。可能需要在设置里填一个搜索 API Key。）";
-  try {
-    const data = await resp.json();
-    const arr = data.data || data.results || (Array.isArray(data) ? data : []);
-    if (Array.isArray(arr) && arr.length) {
-      return arr.slice(0, 5).map((r, i) =>
-        `${i + 1}. ${r.title || r.name || ""}\n${r.url || r.link || ""}\n${(r.content || r.description || r.snippet || r.text || "").toString().slice(0, 320)}`
-      ).join("\n\n");
+    if (!canFallback) {
+      return "（联网搜索失败：" + (e.message || e) + "。可能是网络或跨域问题——可在设置里把『联网搜索接口』改成走你的 Worker 代理。）";
     }
-    return JSON.stringify(data).slice(0, 2000);
-  } catch (e) {
-    const t = await resp.text().catch(() => "");
-    return t.slice(0, 2500) || "（没搜到结果）";
+    try {
+      usedFallback = true;
+      resp = await fetch(webSearchFallbackUrl(query), {
+        headers: { "Accept": "text/plain" },
+        signal: abortController ? abortController.signal : undefined
+      });
+    } catch (fallbackError) {
+      if (fallbackError.name === "AbortError") throw fallbackError;
+      return "（联网搜索失败：" + (fallbackError.message || fallbackError) + "。主搜索与无 Key 后备线路均无法连接。）";
+    }
   }
+  if (!usedFallback && canFallback && (resp.status === 401 || resp.status === 403)) {
+    try {
+      usedFallback = true;
+      resp = await fetch(webSearchFallbackUrl(query), {
+        headers: { "Accept": "text/plain" },
+        signal: abortController ? abortController.signal : undefined
+      });
+    } catch (e) {
+      if (e.name === "AbortError") throw e;
+      return "（联网搜索失败：" + (e.message || e) + "。Jina 要求 API Key，且无 Key 后备线路无法连接。）";
+    }
+  }
+  if (!resp.ok) {
+    const hint = resp.status === 401 || resp.status === 403
+      ? "请检查搜索 API Key，或恢复默认 Jina 地址以使用无 Key 后备线路。"
+      : "请稍后重试或检查搜索接口地址。";
+    return "（联网搜索失败：HTTP " + resp.status + "。" + hint + "）";
+  }
+  const text = await resp.text().catch(() => "");
+  const digest = compactSearchPayload(text);
+  return usedFallback ? "【无 Key 后备搜索结果】\n" + digest : digest;
 }
 // Pull [记忆:…] tokens out of an assistant reply, save them to the library, return cleaned text.
 function extractMemorySaves(text) {
