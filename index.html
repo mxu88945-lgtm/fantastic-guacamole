@@ -3724,6 +3724,14 @@ function chatStyleNote() {
 function compatibleTemperature(model, requested) {
   return /(?:^|[\\/_:.-])kimi[\\/_:.-]?k2(?:$|[\\/_:.-])/i.test(String(model || "")) ? 1 : requested;
 }
+function temperatureIsDeprecated(detail) {
+  return /temperature[\s\S]{0,120}(?:deprecated|not supported|unsupported|not allowed)/i
+    .test(String(detail || ""));
+}
+async function responseErrorDetail(resp) {
+  try { return await resp.text(); }
+  catch (e) { return ""; }
+}
 async function streamChat(onDelta, onReasoning) {
   onReasoning = onReasoning || (() => {});
   const isAnthropic = settings.provider === "anthropic";
@@ -3864,15 +3872,24 @@ async function streamChat(onDelta, onReasoning) {
   // backoff before surfacing the error, so the user rarely sees a one-off blip.
   const TRANSIENT = new Set([429, 500, 502, 503, 504]);
   const MAX_ATTEMPTS = 3;
-  let resp, lastDetail = "";
+  let resp, lastDetail = "", omittedDeprecatedTemperature = false;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     attempts = attempt;
     resp = await fetch(url, {
       method: "POST", headers, body: JSON.stringify(body), signal: abortController.signal,
     });
     if (resp.ok) { headersAt = performance.now(); break; }
-    lastDetail = "";
-    try { lastDetail = JSON.stringify(await resp.json()); } catch (e) { lastDetail = await resp.text().catch(()=>""); }
+    lastDetail = await responseErrorDetail(resp);
+    // Some Claude Code / reasoning routes reject temperature entirely. Retry
+    // once without it instead of making the user guess which model supports it.
+    if (resp.status === 400 && !omittedDeprecatedTemperature
+        && Object.prototype.hasOwnProperty.call(body, "temperature")
+        && temperatureIsDeprecated(lastDetail)) {
+      omittedDeprecatedTemperature = true;
+      delete body.temperature;
+      showToast("当前模型不使用温度参数，已自动兼容重试", 2800);
+      continue;
+    }
     if (TRANSIENT.has(resp.status) && attempt < MAX_ATTEMPTS) {
       const wait = attempt * 1500; // 1.5s, then 3s
       showToast(`接口繁忙(${resp.status})，${wait/1000}秒后自动重试…(${attempt}/${MAX_ATTEMPTS - 1})`, wait + 400);
@@ -4027,8 +4044,17 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
     body = { model, temperature: compatibleTemperature(model, 0), max_tokens: maxTokens, messages: [
       { role: "system", content: systemText }, { role: "user", content: userText } ] };
   }
-  const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
-  if (!resp.ok) throw new Error("memory HTTP " + resp.status);
+  let resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  if (!resp.ok) {
+    let detail = await responseErrorDetail(resp);
+    if (resp.status === 400 && Object.prototype.hasOwnProperty.call(body, "temperature")
+        && temperatureIsDeprecated(detail)) {
+      delete body.temperature;
+      resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+      if (!resp.ok) detail = await responseErrorDetail(resp);
+    }
+    if (!resp.ok) throw new Error("memory HTTP " + resp.status + (detail ? " — " + detail.slice(0, 240) : ""));
+  }
   const data = await resp.json();
   if (isAnthropic) return (data.content || []).map(c => c.text || "").join("").trim();
   return (data.choices?.[0]?.message?.content || "").trim();
