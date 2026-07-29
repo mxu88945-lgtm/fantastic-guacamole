@@ -3030,6 +3030,11 @@ function splitThink(text) {
 // remain untouched. If a Chinese answer follows after a blank line, the prefix is
 // treated as reasoning; while streaming, an obvious reasoning-only prefix is also
 // kept out of the visible answer.
+function looksLikeReasoningStart(text) {
+  text = String(text || "").trimStart()
+    .replace(/^[“”‘’"'`*_#>\-\s]+/, "");
+  return /^(?:<(?:think|thinking|analysis|reasoning)>|analysis\s*[:：]|reasoning\s*[:：]|(?:I|we) (?:need|should|must|have|want) to\b|(?:I|we) should\b|the user\b|user (?:said|asked|wants|needs)\b|(?:she|he|they) (?:said|asked|gave|wants|needs|did|has|deflected|sidestepped)\b|(?:the )?(?:goal|task|real move|best response|answer) (?:here )?(?:is|should)\b|need to (?:answer|respond|write|acknowledge)\b|let(?:'s| us) (?:think|craft|answer|respond)\b)/i.test(text);
+}
 function looksLikeBareReasoning(text) {
   text = (text || "").trim();
   const letters = (text.match(/[A-Za-z]/g) || []).length;
@@ -3055,7 +3060,10 @@ function splitBareReasoning(text, streaming) {
     const prefix = text.slice(0, gap.index).trim();
     const answer = text.slice(gap.index + gap[0].length).trimStart();
     const answerCjk = (answer.match(/[\u3400-\u9fff]/g) || []).length;
-    if (/^[\u3400-\u9fff]/.test(answer) && answerCjk >= 8 && looksLikeBareReasoning(prefix)) {
+    const prefixLetters = (prefix.match(/[A-Za-z]/g) || []).length;
+    const suspiciousPrefix = looksLikeBareReasoning(prefix)
+      || (prefixLetters >= 60 && looksLikeReasoningStart(prefix));
+    if (/^[\u3400-\u9fff]/.test(answer) && answerCjk >= 8 && suspiciousPrefix) {
       return { think: prefix, answer };
     }
   }
@@ -3070,11 +3078,74 @@ function extractAssistantReasoning(text, streaming) {
     answer: bare.answer,
   };
 }
+function extractHeldStreamReasoning(text) {
+  const tagged = splitThink(text || "");
+  const gaps = [...tagged.answer.matchAll(/\n[ \t]*\n/g)];
+  for (const gap of gaps) {
+    const prefix = tagged.answer.slice(0, gap.index).trim();
+    const answer = tagged.answer.slice(gap.index + gap[0].length).trimStart();
+    const letters = (prefix.match(/[A-Za-z]/g) || []).length;
+    const prefixCjk = (prefix.match(/[\u3400-\u9fff]/g) || []).length;
+    const answerCjk = (answer.match(/[\u3400-\u9fff]/g) || []).length;
+    // The role normally answers this user in Chinese. A long English-only preface
+    // followed by a Chinese answer is the relay's flattened reasoning channel,
+    // regardless of the exact planning vocabulary used by a future model.
+    if (letters >= 60 && prefixCjk <= Math.max(12, letters * .12)
+        && /^[\u3400-\u9fff]/.test(answer) && answerCjk >= 8) {
+      return {
+        reasoning: [tagged.think, prefix].filter(Boolean).join("\n").trim(),
+        answer,
+      };
+    }
+  }
+  const bare = splitBareReasoning(tagged.answer, false);
+  return {
+    reasoning: [tagged.think, bare.think].filter(Boolean).join("\n").trim(),
+    answer: bare.answer,
+  };
+}
 function visibleAssistantText(text) {
   const normalized = extractAssistantReasoning(text, false);
   if (normalized.answer.trim()) return normalized.answer.trim();
   return normalized.reasoning && !looksLikeBareReasoning(normalized.reasoning)
     ? normalized.reasoning.trim() : "";
+}
+// Hold a suspicious English opening before it ever reaches the message DOM.
+// Normal Chinese streams immediately; ordinary English is delayed only for a
+// short probe. A suspected self-planning preface stays buffered until the call
+// ends, then is separated from the real answer in one shot.
+function createStreamContentGate(onContent, onReasoning) {
+  let mode = "probe", buffer = "";
+  function push(delta) {
+    if (!delta) return;
+    if (mode === "visible") { onContent(delta); return; }
+    buffer += delta;
+    const sample = buffer.trimStart();
+    if (!sample) return;
+    const probe = sample.replace(/^[“”‘’"'`*_#>\-\s]+/, "");
+    // Hold every Latin-script opening off-screen. Genuine English replies are
+    // released unchanged at finish; English reasoning followed by the role's
+    // Chinese answer is split without ever flashing in the message body.
+    if (/^[A-Za-z]/.test(probe) || looksLikeReasoningStart(sample)) { mode = "held"; return; }
+    // Chinese answers are safe to show at once. For other text, keep only a
+    // tiny prefix off-screen while deciding whether it is self-planning.
+    if (/^[\u3400-\u9fff]/.test(sample) || sample.length >= 36) {
+      mode = "visible";
+      onContent(buffer);
+      buffer = "";
+    }
+  }
+  function finish() {
+    if (!buffer) return;
+    const normalized = mode === "held"
+      ? extractHeldStreamReasoning(buffer)
+      : extractAssistantReasoning(buffer, false);
+    if (normalized.reasoning) onReasoning(normalized.reasoning);
+    if (normalized.answer.trim()) onContent(normalized.answer);
+    else if (!normalized.reasoning || !looksLikeBareReasoning(normalized.reasoning)) onContent(buffer);
+    buffer = "";
+  }
+  return { push, finish, isHolding: () => mode !== "visible" };
 }
 function thinkBlockHtml(reasoning, open) {
   if (!reasoning || !reasoning.trim()) return "";
@@ -5640,10 +5711,22 @@ async function generateReply() {
     let searchRounds = 0;
     while (true) {
       assistantMsg.content = ""; assistantMsg.reasoning = "";
-      await streamChat(
-        (delta) => { assistantMsg.content += delta; paint(); },
-        (rdelta) => { assistantMsg.reasoning += rdelta; paint(); }
+      const contentGate = createStreamContentGate(
+        (delta) => { assistantMsg.content += delta; },
+        (rdelta) => {
+          if (rdelta && !(assistantMsg.reasoning || "").includes(rdelta))
+            assistantMsg.reasoning = [assistantMsg.reasoning || "", rdelta].filter(Boolean).join("\n").trim();
+        }
       );
+      try {
+        await streamChat(
+          (delta) => { contentGate.push(delta); paint(); },
+          (rdelta) => { assistantMsg.reasoning += rdelta; paint(); }
+        );
+      } finally {
+        contentGate.finish();
+        paint();
+      }
       let act = null;
       if (searchRounds < 2 && settings.crossSearch) {
         const m = assistantMsg.content.match(/\[\s*搜索\s*[:：]\s*([^\]\n]+)\]/);
