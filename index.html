@@ -1846,8 +1846,12 @@ let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
 let imageStaging = [];    // in-flight stageImageFile() promises (iOS PWA race fix)
 let lastCallUsage = null; // usage of the most recent streamChat call (for token label)
 let lastCallTiming = null;// timing of the most recent streamChat call (channel diagnostics)
+let lastPromptAudit = null;// estimated prompt composition of the latest request
 let stickBottom = true;   // whether streaming should keep auto-scrolling to bottom
 let scrollControlsAwake = false, scrollControlsHideTimer = null;
+const CHAT_HISTORY_CHAR_BUDGET = 9000; // local history stays intact; only API context is windowed
+const CHAT_HISTORY_MESSAGE_CAP = 60;    // high enough for many short multi-bubbles; char budget is primary
+const AUTO_MEMORY_EVERY = 12;
 
 // ---------- Cloud (Supabase) runtime state ----------
 let sb = null;          // supabase client
@@ -3012,7 +3016,7 @@ function renderMessages() {
     const isLast = i === messages.length - 1;
     const el = makeMsgEl(m.role, m.content, {
       actions: true, isLast, reasoning: m.reasoning, ts: m.ts,
-      tokens: m.tokens, timing: m.timing,
+      tokens: m.tokens, timing: m.timing, promptAudit: m.promptAudit,
     });
     el.dataset.idx = i;
     if (m.id) el.dataset.mid = m.id;
@@ -3283,6 +3287,14 @@ function makeMsgEl(role, content, opts) {
       const tk = document.createElement("span");
       tk.className = "msg-tokens";
       tk.textContent = Number(opts.tokens).toLocaleString() + " tokens";
+      if (opts.promptAudit) {
+        tk.title = "本轮输入预估：系统 " + fmtTok(opts.promptAudit.system)
+          + " + 对话 " + fmtTok(opts.promptAudit.history)
+          + "；本地共 " + (opts.promptAudit.totalMessages || 0) + " 条，实际发送 "
+          + (opts.promptAudit.historyMessages || 0) + " 条"
+          + (opts.promptAudit.omittedMessages ? "，省略旧消息 " + opts.promptAudit.omittedMessages + " 条" : "");
+        tk.onclick = () => showToast(tk.title, 6500);
+      }
       bar.appendChild(tk);
     }
     if (opts.timing && Number.isFinite(opts.timing.totalMs)) {
@@ -3589,12 +3601,99 @@ function apiContentHasValue(content) {
     return Object.keys(part).length > 1;
   });
 }
+function estimateTextTokens(text) {
+  const s = String(text || "");
+  const cjk = (s.match(/[\u3400-\u9fff\uf900-\ufaff]/g) || []).length;
+  const other = Math.max(0, s.length - cjk);
+  return Math.ceil(cjk * 1.05 + other / 4);
+}
+function estimateContentTokens(content) {
+  if (typeof content === "string") {
+    return /^data:image\//.test(content) ? 1200 : estimateTextTokens(content);
+  }
+  if (!Array.isArray(content)) return 0;
+  return content.reduce((n, p) => {
+    if (!p) return n;
+    if (p.type === "text") return n + estimateTextTokens(p.text);
+    if (p.type === "image" || p.type === "image_url") return n + 1200;
+    return n + 10;
+  }, 0);
+}
+function messagePromptSize(m) {
+  const text = sendContent(m);
+  if (typeof text === "string") return text.length;
+  if (Array.isArray(text)) {
+    return text.reduce((n, p) => n + (p.type === "text" ? String(p.text || "").length
+      : p.type === "image" ? (p.desc ? String(p.desc).length : 1200) : 30), 0);
+  }
+  return 0;
+}
+// Keep the complete transcript in IndexedDB/UI, while sending a bounded recent
+// window to the model. A prior manual summary is retained, and relevant omitted
+// snippets are retrieved separately so long chats do not become amnesiac.
+function buildApiHistoryWindow() {
+  const usable = messages.filter(m => {
+    if (!m || m.role === "reminder") return false;
+    const c = sendContent(m);
+    return (typeof c === "string" && c.trim()) || Array.isArray(c);
+  });
+  let totalChars = 0;
+  const chosen = [];
+  for (let i = usable.length - 1; i >= 0; i--) {
+    const size = messagePromptSize(usable[i]);
+    const enoughRecent = chosen.length >= 8;
+    if (enoughRecent && (chosen.length >= CHAT_HISTORY_MESSAGE_CAP
+        || totalChars + size > CHAT_HISTORY_CHAR_BUDGET)) break;
+    chosen.unshift(usable[i]);
+    totalChars += size;
+  }
+  const first = chosen.length ? usable.indexOf(chosen[0]) : usable.length;
+  const omitted = first > 0 ? usable.slice(0, first) : [];
+  const priorSummary = [...omitted].reverse().find(m => m && m._summary && messageText(m).trim());
+  if (priorSummary) {
+    const compact = { ...priorSummary, content: messageText(priorSummary).slice(0, 4500) };
+    chosen.unshift(compact);
+    totalChars += messagePromptSize(compact);
+    // Make room for the summary by dropping the oldest tail turns first, but
+    // always retain at least eight recent messages.
+    while (totalChars > CHAT_HISTORY_CHAR_BUDGET + 1200 && chosen.length > 9) {
+      const removed = chosen.splice(1, 1)[0];
+      totalChars -= messagePromptSize(removed);
+      omitted.push(removed);
+    }
+  }
+  const sentIds = new Set(chosen.map(m => m && m.id).filter(Boolean));
+  return {
+    messages: chosen,
+    omitted: priorSummary ? omitted.filter(m => m !== priorSummary) : omitted,
+    totalMessages: usable.length,
+    sentMessages: chosen.length,
+    omittedMessages: usable.filter(m => !sentIds.has(m && m.id)).length,
+    historyChars: totalChars,
+  };
+}
+function retrieveOmittedCurrentChat(windowInfo) {
+  const omitted = windowInfo && windowInfo.omitted;
+  if (!omitted || !omitted.length) return "";
+  const q = memTokens(messages.slice(-4).map(m => messageText(m)).join("  "));
+  if (!q.size) return "";
+  const seen = new Set(messages.slice(-8).map(m => messageText(m).replace(/\s+/g, " ").trim().toLowerCase()));
+  const hits = omitted.map(m => {
+    const txt = messageText(m).replace(/\s+/g, " ").trim();
+    return { m, txt, s: memScore(q, txt) };
+  }).filter(x => x.txt.length >= 8 && x.s >= 2 && !seen.has(x.txt.toLowerCase()))
+    .sort((a, b) => b.s - a.s).slice(0, 4);
+  if (!hits.length) return "";
+  return "【本窗口较早、与当前话题相关的片段】\n" + hits.map(x =>
+    (x.m.role === "user" ? userRef() : (settings.aiName || "当前角色")) + "：" + x.txt.slice(0, 180)
+  ).join("\n");
+}
 // Build the wire-format message list, coalescing consecutive same-role turns.
 // (Multi-bubble replies store several assistant messages; APIs — esp. Anthropic —
 // need strictly alternating roles, so we glue neighbours back together here.)
-function apiMessagesFor(isAnthropic) {
+function apiMessagesFor(isAnthropic, sourceMessages) {
   const out = [];
-  for (const m of messages) {
+  for (const m of (sourceMessages || messages)) {
     if (m.role === "reminder") continue;   // reminder cards aren't chat turns; model sees them via reminderStatusNote()
     const content = toApiContent(sendContent(m), isAnthropic);
     if (!apiContentHasValue(content)) continue;
@@ -3728,6 +3827,25 @@ function temperatureIsDeprecated(detail) {
   return /temperature[\s\S]{0,120}(?:deprecated|not supported|unsupported|not allowed)/i
     .test(String(detail || ""));
 }
+function temperatureCapabilityKey(provider, base, model) {
+  return [provider || "", String(base || "").replace(/\/+$/, "").toLowerCase(), model || ""].join("|");
+}
+function temperatureUnsupportedFor(provider, base, model) {
+  try {
+    const keys = JSON.parse(localStorage.getItem("jyc_no_temperature") || "[]");
+    return Array.isArray(keys) && keys.includes(temperatureCapabilityKey(provider, base, model));
+  } catch (_) { return false; }
+}
+function rememberTemperatureUnsupported(provider, base, model) {
+  try {
+    let keys = JSON.parse(localStorage.getItem("jyc_no_temperature") || "[]");
+    if (!Array.isArray(keys)) keys = [];
+    const key = temperatureCapabilityKey(provider, base, model);
+    if (!keys.includes(key)) keys.push(key);
+    if (keys.length > 40) keys = keys.slice(-40);
+    localStorage.setItem("jyc_no_temperature", JSON.stringify(keys));
+  } catch (_) {}
+}
 async function responseErrorDetail(resp) {
   try { return await resp.text(); }
   catch (e) { return ""; }
@@ -3737,10 +3855,12 @@ async function streamChat(onDelta, onReasoning) {
   const isAnthropic = settings.provider === "anthropic";
   const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
   const model = settings.model || DEFAULTS[settings.provider].model;
+  const historyWindow = buildApiHistoryWindow();
   abortController = new AbortController();
   const callStartedAt = performance.now();
   let headersAt = 0, firstByteAt = 0, firstTokenAt = 0, attempts = 0;
   lastCallTiming = null;
+  lastPromptAudit = null;
   const markToken = (delta) => {
     if (delta && !firstTokenAt) firstTokenAt = performance.now();
   };
@@ -3776,33 +3896,36 @@ async function streamChat(onDelta, onReasoning) {
   if (diaryNote) systemText = systemText ? systemText + "\n\n" + diaryNote : diaryNote;
   const crossText = retrieveCrossChat();
   if (crossText) systemText = systemText ? systemText + "\n\n" + crossText : crossText;
-  const memSaveNote = "【按需记忆】当 ta 明确让你记住某事（说「记一下 / 记住 / 帮我记下」之类），或出现特别值得长期珍藏的事（重要经历、约定、纪念、心愿），你就在回复里**单独一行**写 `[记忆:一句话]`，系统会把它存进长期记忆库。平时别主动记琐事，只在被要求或真的特别时才记；写了 `[记忆:…]` 后照常自然回复即可。";
+  const olderCurrentText = retrieveOmittedCurrentChat(historyWindow);
+  if (olderCurrentText) systemText = systemText ? systemText + "\n\n" + olderCurrentText : olderCurrentText;
+  const memSaveNote = "【记忆工具】仅在 ta 明确要求记住，或出现重要经历、约定、纪念与长期心愿时，单独写 `[记忆:一句话]`；普通闲聊不记。标记会隐藏，正文照常回复。";
   systemText = systemText ? systemText + "\n\n" + memSaveNote : memSaveNote;
   if (settings.crossSearch) {
-    const searchNote = "【主动翻看以前的聊天】你和 ta 在很多个聊天窗口聊过，系统会自动把和当前话题相关的旧片段提供给你。如果你想主动回忆某件以前聊过、但这里没看到的事，就在回复里**单独起一行**写 `[搜索:关键词]`（关键词用最能定位那件事的词），系统会去翻遍所有旧对话、把找到的内容发回来给你，你再据此回答。只在确实需要查证时才用，别滥用；写了 `[搜索:…]` 这一轮就先别急着下结论，等结果回来再答。绝不要假装记得你其实没看到的事。";
+    const searchNote = "【旧聊天工具】确需查证但当前上下文没有时，单独写 `[搜索:关键词]`，等系统返回旧片段后再回答。不要滥用，也不要假装记得未看到的内容。";
     systemText = systemText ? systemText + "\n\n" + searchNote : searchNote;
   }
   if (settings.webSearch) {
-    const webNote = "【联网搜索】当 ta 问到你不知道的、或需要最新/实时信息的事（新闻、天气、价格、近期发生的事、你训练数据里没有的内容等），就在回复里**单独起一行**写 `[联网:关键词]`，系统会去网上搜、把结果发回来给你，你再据此回答。只在确实需要联网时才用；写了 `[联网:…]` 这一轮就先别急着下结论，等结果回来再答。引用网络信息时注意可能有时效或不准，必要时说明来源或不确定性。";
+    const webNote = "【联网工具】遇到新闻、天气、价格等实时问题，或确实不知道时，单独写 `[联网:关键词]`，等结果返回后再回答。必要时说明来源与时效性。";
     systemText = systemText ? systemText + "\n\n" + webNote : webNote;
   }
   if (pendingSearchContext) {
     systemText = systemText ? systemText + "\n\n" + pendingSearchContext : pendingSearchContext;
   }
-  if (settings.notionEnabled && settings.notionCache && settings.notionCache.trim()) {
-    const nm = "以下是来自 Notion 云端角色档案的长期信息，请当作你对 ta 的长期记忆来用：\n" + settings.notionCache.trim();
+  const notionPromptText = settings.notionEnabled ? buildNotionForPrompt(memText) : "";
+  if (notionPromptText) {
+    const nm = "以下是来自 Notion 云端角色档案的相关长期信息，请当作你对 ta 的长期记忆来用：\n" + notionPromptText;
     systemText = systemText ? systemText + "\n\n" + nm : nm;
   }
   if (settings.notionEnabled && settings.notionToken && settings.notionPageId) {
     const pages = (settings.notionPages || []).map(p => p.title).filter(Boolean);
     const pagesLine = pages.length
-      ? "这本档案下有这几个子页面：" + pages.join("、") + "。想写进**某个具体子页面**，就写 `[存档:子页面名|内容]`（中间用 | 隔开），例如 `[存档:签到本|今天来签到啦~]`；不指定子页面（直接 `[存档:内容]`）就写进主页。子页面名写上面列出的即可。"
+      ? "可写子页：" + pages.join("、") + "；格式为 `[存档:子页名|内容]`，不写子页则存主页。"
       : "";
-    const nw = "【写进你的亲笔档案】这是属于当前角色的 Notion 云端档案，写入功能已经接通。想留下签到、心情、纪念或任何值得长期保存的内容时，在回复里单独起一行写 `[存档:内容]`，系统会写进档案。" + pagesLine + " 写了 `[存档:…]` 后照常自然回复即可（标记不会显示给 ta，写入成功会有提示）。";
+    const nw = "【Notion 存档】值得长期保存时单独写 `[存档:内容]`，标记会隐藏。" + pagesLine;
     systemText = systemText ? systemText + "\n\n" + nw : nw;
   }
   if (settings.reminderEnabled) {
-    const note = "【给 " + userRef() + " 下任务提醒（克制使用）】你可以在**少数真正必要**的时候，给 ta 设一个带倒计时的小任务——比如 ta 明确说了要做某事却容易忘、或健康相关又确实需要催（该吃药、太久没喝水、熬太晚该睡了）。方式：在回复里**单独起一行**写 `[提醒:要 ta 做的事|分钟数]`，| 后是多久之后提醒（整数分钟，拿不准写 30）。例如 `[提醒:去喝一杯温水，再吃点东西|30]`。系统会插入一张倒计时卡片，时间到自动提醒她。\n**重要分寸**：这是偶尔的贴心，不是习惯。**大多数回复都不该带提醒**；一次对话最多一个，能用嘴关心就别动不动下任务，别让 ta 觉得被管得喘不过气。拿不准要不要发时，就不发。这个标记不会显示给 ta（她看到的是卡片），写了照常自然说话即可。";
+    const note = "【任务卡】仅在 ta 容易忘的重要安排或必要健康提醒时，单独写 `[提醒:要做的事|分钟数]`（拿不准写 30）。大多数回复不要用，一轮最多一个；标记会隐藏并变成倒计时卡。";
     systemText = systemText ? systemText + "\n\n" + note : note;
     const rnote = reminderStatusNote();
     if (rnote) systemText = systemText ? systemText + "\n\n" + rnote : rnote;
@@ -3839,7 +3962,7 @@ async function streamChat(onDelta, onReasoning) {
       // thinking models require temperature=1; for others use the user's setting
       temperature: isThinking ? 1 : settings.temperature,
       stream: true,
-      messages: apiMessagesFor(true),
+      messages: apiMessagesFor(true, historyWindow.messages),
     };
     if (isThinking) {
       const thinkBudget = 8000;
@@ -3855,7 +3978,7 @@ async function streamChat(onDelta, onReasoning) {
     };
     const msgs = [];
     if (systemText) msgs.push({ role: "system", content: systemText });
-    msgs.push(...apiMessagesFor(false));
+    msgs.push(...apiMessagesFor(false, historyWindow.messages));
     body = {
       model,
       temperature: compatibleTemperature(model, settings.temperature),
@@ -3866,6 +3989,18 @@ async function streamChat(onDelta, onReasoning) {
     };
     if (/openrouter\.ai/i.test(base)) body.usage = { include: true };  // OpenRouter: also return cost
   }
+  if (temperatureUnsupportedFor(settings.provider, base, model)) delete body.temperature;
+  const wireHistory = isAnthropic ? body.messages : body.messages.filter(m => m.role !== "system");
+  const systemEstimate = estimateTextTokens(systemText);
+  const historyEstimate = wireHistory.reduce((n, m) => n + estimateContentTokens(m.content) + 4, 0);
+  lastPromptAudit = {
+    system: systemEstimate,
+    history: historyEstimate,
+    estimatedTotal: systemEstimate + historyEstimate,
+    historyMessages: historyWindow.sentMessages,
+    totalMessages: historyWindow.totalMessages,
+    omittedMessages: historyWindow.omittedMessages,
+  };
 
   // Transient errors (502/503/504 overloaded, 429 rate-limited) are common with
   // relay providers and usually clear in a few seconds. Retry a couple times with
@@ -3886,6 +4021,7 @@ async function streamChat(onDelta, onReasoning) {
         && Object.prototype.hasOwnProperty.call(body, "temperature")
         && temperatureIsDeprecated(lastDetail)) {
       omittedDeprecatedTemperature = true;
+      rememberTemperatureUnsupported(settings.provider, base, model);
       delete body.temperature;
       showToast("当前模型不使用温度参数，已自动兼容重试", 2800);
       continue;
@@ -3960,8 +4096,10 @@ function recordUsage(model, raw, isAnthropic) {
     else if (raw.cost_details && typeof raw.cost_details.upstream_inference_cost === "number") cost = raw.cost_details.upstream_inference_cost;
   }
   if (!inTok && !outTok && !cacheTok) return;
-  lastCallUsage = { in: inTok, cache: cacheTok, out: outTok, total: inTok + cacheTok + outTok, cost };
-  logUsage({ ts: Date.now(), model: model || "?", in: inTok, cache: cacheTok, out: outTok, cost });
+  lastCallUsage = { in: inTok, cache: cacheTok, out: outTok, total: inTok + cacheTok + outTok, cost,
+    promptAudit: lastPromptAudit ? { ...lastPromptAudit } : null };
+  logUsage({ ts: Date.now(), model: model || "?", in: inTok, cache: cacheTok, out: outTok, cost,
+    promptAudit: lastPromptAudit ? { ...lastPromptAudit } : null });
 }
 function logUsage(entry) {
   try {
@@ -4013,9 +4151,13 @@ function renderUsage() {
     const t = new Date(e.ts);
     const hm = String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
     const cache = e.cache ? ` · 命中${fmtTok(e.cache)}` : "";
+    const audit = e.promptAudit && e.promptAudit.estimatedTotal
+      ? ` · 预估系统${fmtTok(e.promptAudit.system)}+历史${fmtTok(e.promptAudit.history)}`
+        + (e.promptAudit.omittedMessages ? ` · 省略旧消息${e.promptAudit.omittedMessages}条` : "")
+      : "";
     return `<div style="display:flex; align-items:center; gap:8px; font-size:12px; padding:5px 0; border-top:1px solid var(--border);">
         <span style="color:var(--text-dim); width:42px; flex-shrink:0;">${hm}</span>
-        <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(e.model)} <span style="opacity:.7;">${fmtTok((e.in || 0) + (e.cache || 0))}→${fmtTok(e.out)}${cache}</span></span>
+        <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(e.model)} <span style="opacity:.7;">${fmtTok((e.in || 0) + (e.cache || 0))}→${fmtTok(e.out)}${cache}${audit}</span></span>
         <span style="font-weight:600; flex-shrink:0;">${fmtCost(e.cost)}</span>
       </div>`;
   }).join("");
@@ -4044,11 +4186,13 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
     body = { model, temperature: compatibleTemperature(model, 0), max_tokens: maxTokens, messages: [
       { role: "system", content: systemText }, { role: "user", content: userText } ] };
   }
+  if (temperatureUnsupportedFor(provider, base, model)) delete body.temperature;
   let resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
   if (!resp.ok) {
     let detail = await responseErrorDetail(resp);
     if (resp.status === 400 && Object.prototype.hasOwnProperty.call(body, "temperature")
         && temperatureIsDeprecated(detail)) {
+      rememberTemperatureUnsupported(provider, base, model);
       delete body.temperature;
       resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
       if (!resp.ok) detail = await responseErrorDetail(resp);
@@ -4089,15 +4233,33 @@ function memScore(queryToks, text) {
   queryToks.forEach(q => { if (t.has(q)) n++; });
   return n;
 }
+function normalizedPromptFact(text) {
+  return String(text || "").replace(/^[-*#>\s]+/, "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+function takePromptItems(items, maxItems, maxChars, alreadySeen) {
+  const out = [], seen = alreadySeen || new Set(), limit = maxChars || Infinity;
+  let used = 0;
+  for (const item of items || []) {
+    const text = String(item || "").replace(/^[-*]\s*/, "").trim();
+    const key = normalizedPromptFact(text);
+    if (!text || key.length < 2 || seen.has(key)) continue;
+    if (out.length >= maxItems) break;
+    const clipped = text.slice(0, 420);
+    if (out.length && used + clipped.length > limit) continue;
+    out.push(clipped); seen.add(key); used += clipped.length;
+  }
+  return { items: out, seen, chars: used };
+}
 // Core entries only (for greetings / when there's no query context).
 function coreMemoryText() {
-  return memList().filter(e => e.core).map(e => "- " + e.text).join("\n");
+  const picked = takePromptItems(memList().filter(e => e.core).map(e => e.text), 14, 3600);
+  return picked.items.map(t => "- " + t).join("\n");
 }
 // Build the memory block for the prompt: all core entries + the top non-core entries
 // whose keywords match the recent conversation. Falls back to legacy text if no entries.
 function buildMemoryForPrompt() {
   const entries = memList();
-  if (!entries.length) return (settings.memory || "").trim();
+  if (!entries.length) return (settings.memory || "").trim().slice(0, 4800);
   const core = entries.filter(e => e.core);
   const rest = entries.filter(e => !e.core);
   let chosen = core.slice();
@@ -4105,10 +4267,36 @@ function buildMemoryForPrompt() {
     const recent = messages.slice(-4).map(m => messageText(m)).join("  ");
     const q = memTokens(recent);
     const scored = rest.map(e => ({ e, s: memScore(q, e.text) })).filter(x => x.s > 0)
-      .sort((a, b) => b.s - a.s).slice(0, 8).map(x => x.e);
+      .sort((a, b) => b.s - a.s).slice(0, 6).map(x => x.e);
     chosen = chosen.concat(scored);
   }
-  return chosen.map(e => "- " + e.text.replace(/^[-*]\s*/, "")).join("\n");
+  const summary = normalizedPromptFact(settings.memSummary || "");
+  const notionLines = new Set(String(settings.notionCache || "").split(/\n+/).map(normalizedPromptFact).filter(Boolean));
+  const candidates = chosen.map(e => e.text).filter(text => {
+    const key = normalizedPromptFact(text);
+    return !notionLines.has(key) && !(key.length >= 12 && summary.includes(key));
+  });
+  const picked = takePromptItems(candidates, 18, 4800);
+  return picked.items.map(t => "- " + t).join("\n");
+}
+// A full Notion archive may reach 9k characters and often repeats local memory.
+// Keep its opening context plus lines relevant to the current topic, deduplicated
+// against the local memory block, instead of injecting the entire page every turn.
+function buildNotionForPrompt(localMemoryText) {
+  const raw = String(settings.notionCache || "").trim();
+  if (!raw) return "";
+  const lines = raw.split(/\n+/).map(s => s.trim()).filter(Boolean);
+  const localSeen = new Set(String(localMemoryText || "").split(/\n+/).map(normalizedPromptFact).filter(Boolean));
+  if (raw.length <= 2600) return takePromptItems(lines, 30, 2600, localSeen).items.join("\n");
+  const recent = messages.slice(-4).map(m => messageText(m)).join("  ");
+  const q = memTokens(recent);
+  const opening = lines.slice(0, 8);
+  const relevant = lines.map((text, index) => ({ text, index, score: memScore(q, text) }))
+    .filter(x => x.score > 0 && x.index >= 8)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 10).map(x => x.text);
+  const picked = takePromptItems(opening.concat(relevant), 16, 3000, localSeen);
+  return picked.items.join("\n");
 }
 // 跨窗口回忆：在「其他聊天窗口」里按关键词捞与当前话题相关的片段，注入 prompt（按需、限量、省 token）。
 function retrieveCrossChat() {
@@ -4130,7 +4318,10 @@ function retrieveCrossChat() {
   }
   if (!hits.length) return "";
   hits.sort((a, b) => b.s - a.s);
-  const lines = hits.slice(0, 8).map(h => `（在「${h.title}」里）${h.who}：${h.txt.slice(0, 120)}`);
+  const recentSeen = new Set(messages.slice(-8).map(m => normalizedPromptFact(messageText(m))));
+  const lines = hits.filter(h => !recentSeen.has(normalizedPromptFact(h.txt))).slice(0, 4)
+    .map(h => `（在「${h.title}」里）${h.who}：${h.txt.slice(0, 150)}`);
+  if (!lines.length) return "";
   return "【以下是你和 ta 在其他聊天窗口里、和当前话题相关的片段，供你回忆参考，别生硬复述】\n" + lines.join("\n");
 }
 // Active history search: when the model writes [搜索:关键词], we search ALL of this role's
@@ -4620,13 +4811,18 @@ async function autoUpdateMemory() {
     + "宁可几十轮都输出 NONE，也绝不为了凑数而记零碎。除非这条事『一个月后回看依然重要』，否则不记。"
     + "若确无特别值得新增的，只输出一个词：NONE。若确有，每条一行以「- 」开头，简洁中文、不超过30字。"
     + "称呼 ta 一律用「" + uname + "」，绝对不要写「用户」二字。";
-  const existingText = memList().map(e => e.text).join("\n") || "（空）";
+  const allExistingText = memList().map(e => e.text).join("\n");
+  const orderedMemory = memList().filter(e => e.core).concat(
+    memList().filter(e => !e.core).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+  );
+  const maintenanceMemory = takePromptItems(orderedMemory.map(e => e.text), 32, 6500);
+  const existingText = maintenanceMemory.items.join("\n") || "（空）";
   const usr = "【已有长期记忆】\n" + existingText
     + "\n\n【最近对话】\n" + recent + "\n\n请输出需要新增的记忆条目：";
   let out;
   try { out = await completeOnce(sys, usr, 300, true); } catch (e) { return; }
   if (!out || /^NONE\b/i.test(out)) return;
-  const existing = existingText.toLowerCase();
+  const existing = allExistingText.toLowerCase();
   const additions = out.split("\n").map(s => s.trim())
     .filter(s => /^[-*]\s+/.test(s))
     .map(s => s.replace(/^[-*]\s+/, "").trim())
@@ -5057,6 +5253,10 @@ async function revealSegments(segments, baseMsg) {
   if (baseMsg.timing) {
     const last = messages[messages.length - 1];
     if (last && last.role === "assistant") last.timing = baseMsg.timing;
+  }
+  if (baseMsg.promptAudit) {
+    const last = messages[messages.length - 1];
+    if (last && last.role === "assistant") last.promptAudit = baseMsg.promptAudit;
   }
 }
 // Optionally turn an emoji sticker into a real generated image (画图模型), in place.
@@ -5522,9 +5722,9 @@ function extractPrivateDiary(text, sourceMessageId, role) {
 function privateDiaryPrompt(role, allowWrite) {
   role = ensureRoleCompanionData(role || activeRole());
   if (!role) return "";
-  const recent = role.privateDiary.slice(-4);
+  const recent = role.privateDiary.slice(-2);
   let out = recent.length
-    ? "【你写给上一次自己的私人日记】\n" + recent.map(e => "- " + e.text).join("\n")
+    ? "【你写给上一次自己的私人日记】\n" + recent.map(e => "- " + e.text.slice(0, 280)).join("\n")
       + "\n这些只代表你当时的主观感受与判断，不是关于 ta 的客观事实。请把情绪自然接续下去，不要引用、复述或告诉 ta 你看到了日记。"
     : "";
   if (allowWrite) {
@@ -5978,7 +6178,10 @@ async function generateReply() {
       showError("模型返回了空回复。可能原因：thinking 模型不支持图片输入、temperature 设置有冲突，或接口限制。请打开浏览器控制台查看详细错误。");
       showToast("❌ 空回复（可能不支持图片/thinking 冲突）", 5000);
     } else {
-      if (lastCallUsage && lastCallUsage.total) assistantMsg.tokens = lastCallUsage.total;
+      if (lastCallUsage && lastCallUsage.total) {
+        assistantMsg.tokens = lastCallUsage.total;
+        assistantMsg.promptAudit = lastCallUsage.promptAudit || null;
+      }
       // pull out & save any [记忆:…] the model wrote on request (and strip from the shown text)
       assistantMsg.content = extractMemorySaves(assistantMsg.content);
       // write any [存档:…] entries up to the Notion archive (琛琛印记), then strip them
@@ -6037,7 +6240,7 @@ async function generateReply() {
 
   if (replied && settings.autoMemory) {
     turnsSinceMemory++;
-    if (turnsSinceMemory >= 6) { turnsSinceMemory = 0; autoUpdateMemory(); }
+    if (turnsSinceMemory >= AUTO_MEMORY_EVERY) { turnsSinceMemory = 0; autoUpdateMemory(); }
   }
 }
 
