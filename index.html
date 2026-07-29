@@ -1849,8 +1849,9 @@ let lastCallTiming = null;// timing of the most recent streamChat call (channel 
 let lastPromptAudit = null;// estimated prompt composition of the latest request
 let stickBottom = true;   // whether streaming should keep auto-scrolling to bottom
 let scrollControlsAwake = false, scrollControlsHideTimer = null;
-const CHAT_HISTORY_CHAR_BUDGET = 9000; // local history stays intact; only API context is windowed
-const CHAT_HISTORY_MESSAGE_CAP = 60;    // high enough for many short multi-bubbles; char budget is primary
+const CHAT_HISTORY_TOKEN_BUDGET = 5800; // local history stays intact; only API context is windowed
+const CHAT_HISTORY_MESSAGE_CAP = 48;    // safety cap for many short multi-bubbles
+const CHAT_HISTORY_MIN_ROLE_RUNS = 4;   // preserve at least two recent user/assistant exchanges
 const AUTO_MEMORY_EVERY = 12;
 
 // ---------- Cloud (Supabase) runtime state ----------
@@ -3292,7 +3293,9 @@ function makeMsgEl(role, content, opts) {
           + " + 对话 " + fmtTok(opts.promptAudit.history)
           + "；本地共 " + (opts.promptAudit.totalMessages || 0) + " 条，实际发送 "
           + (opts.promptAudit.historyMessages || 0) + " 条"
-          + (opts.promptAudit.omittedMessages ? "，省略旧消息 " + opts.promptAudit.omittedMessages + " 条" : "");
+          + (opts.promptAudit.omittedMessages ? "，省略旧消息 " + opts.promptAudit.omittedMessages + " 条" : "")
+          + (opts.promptAudit.currentTime ? "；注入时间 " + opts.promptAudit.currentTime
+            + (opts.promptAudit.timeZone ? "（" + opts.promptAudit.timeZone + "）" : "") : "");
         tk.onclick = () => showToast(tk.title, 6500);
       }
       bar.appendChild(tk);
@@ -3619,14 +3622,15 @@ function estimateContentTokens(content) {
     return n + 10;
   }, 0);
 }
-function messagePromptSize(m) {
-  const text = sendContent(m);
-  if (typeof text === "string") return text.length;
-  if (Array.isArray(text)) {
-    return text.reduce((n, p) => n + (p.type === "text" ? String(p.text || "").length
-      : p.type === "image" ? (p.desc ? String(p.desc).length : 1200) : 30), 0);
+function messagePromptTokens(m) {
+  return estimateContentTokens(sendContent(m)) + 4;
+}
+function roleRunCount(list) {
+  let runs = 0, prior = "";
+  for (const m of list || []) {
+    if (m.role !== prior) { runs++; prior = m.role; }
   }
-  return 0;
+  return runs;
 }
 // Keep the complete transcript in IndexedDB/UI, while sending a bounded recent
 // window to the model. A prior manual summary is retained, and relevant omitted
@@ -3637,28 +3641,29 @@ function buildApiHistoryWindow() {
     const c = sendContent(m);
     return (typeof c === "string" && c.trim()) || Array.isArray(c);
   });
-  let totalChars = 0;
+  let totalTokens = 0;
   const chosen = [];
   for (let i = usable.length - 1; i >= 0; i--) {
-    const size = messagePromptSize(usable[i]);
-    const enoughRecent = chosen.length >= 8;
+    const size = messagePromptTokens(usable[i]);
+    const enoughRecent = roleRunCount(chosen) >= CHAT_HISTORY_MIN_ROLE_RUNS;
     if (enoughRecent && (chosen.length >= CHAT_HISTORY_MESSAGE_CAP
-        || totalChars + size > CHAT_HISTORY_CHAR_BUDGET)) break;
+        || totalTokens + size > CHAT_HISTORY_TOKEN_BUDGET)) break;
     chosen.unshift(usable[i]);
-    totalChars += size;
+    totalTokens += size;
   }
   const first = chosen.length ? usable.indexOf(chosen[0]) : usable.length;
   const omitted = first > 0 ? usable.slice(0, first) : [];
   const priorSummary = [...omitted].reverse().find(m => m && m._summary && messageText(m).trim());
   if (priorSummary) {
-    const compact = { ...priorSummary, content: messageText(priorSummary).slice(0, 4500) };
+    const compact = { ...priorSummary, content: messageText(priorSummary).slice(0, 2200) };
     chosen.unshift(compact);
-    totalChars += messagePromptSize(compact);
+    totalTokens += messagePromptTokens(compact);
     // Make room for the summary by dropping the oldest tail turns first, but
-    // always retain at least eight recent messages.
-    while (totalChars > CHAT_HISTORY_CHAR_BUDGET + 1200 && chosen.length > 9) {
+    // always retain the minimum recent role runs.
+    while (totalTokens > CHAT_HISTORY_TOKEN_BUDGET + 700 && chosen.length > 2
+        && roleRunCount(chosen.slice(2)) >= CHAT_HISTORY_MIN_ROLE_RUNS) {
       const removed = chosen.splice(1, 1)[0];
-      totalChars -= messagePromptSize(removed);
+      totalTokens -= messagePromptTokens(removed);
       omitted.push(removed);
     }
   }
@@ -3669,7 +3674,7 @@ function buildApiHistoryWindow() {
     totalMessages: usable.length,
     sentMessages: chosen.length,
     omittedMessages: usable.filter(m => !sentIds.has(m && m.id)).length,
-    historyChars: totalChars,
+    historyTokens: totalTokens,
   };
 }
 function retrieveOmittedCurrentChat(windowInfo) {
@@ -3682,10 +3687,10 @@ function retrieveOmittedCurrentChat(windowInfo) {
     const txt = messageText(m).replace(/\s+/g, " ").trim();
     return { m, txt, s: memScore(q, txt) };
   }).filter(x => x.txt.length >= 8 && x.s >= 2 && !seen.has(x.txt.toLowerCase()))
-    .sort((a, b) => b.s - a.s).slice(0, 4);
+    .sort((a, b) => b.s - a.s).slice(0, 3);
   if (!hits.length) return "";
   return "【本窗口较早、与当前话题相关的片段】\n" + hits.map(x =>
-    (x.m.role === "user" ? userRef() : (settings.aiName || "当前角色")) + "：" + x.txt.slice(0, 180)
+    (x.m.role === "user" ? userRef() : (settings.aiName || "当前角色")) + "：" + x.txt.slice(0, 160)
   ).join("\n");
 }
 // Build the wire-format message list, coalescing consecutive same-role turns.
@@ -3805,14 +3810,10 @@ function emojiStyleNote(style) {
 function chatStyleNote() {
   const parts = [];
   if (settings.multiBubble) {
-    parts.push("【像真人发微信，这条优先级最高】你现在是在用手机微信跟对方聊天，不是在写小说或扮演。务必遵守：\n"
-      + "1. 每条消息都要**短**——通常就一句话，最多两句；想多说就拆成好几条短消息，用 `[next]` 分隔（例如：在吗～[next]刚看到你消息[next]想你了）。一次一般发 1~4 条。\n"
-      + "2. **绝对不要**写大段的旁白、动作描写、神态/环境描写或小说式叙述（比如「黑眸在屏幕光下显得更深」「指尖轻轻点了点你的额角」这种）；**不要**用星号 *…* 或括号去包动作。就像真人打字一样，只发会真的发出去的那种短消息。\n"
-      + "3. 语气口语、随意、自然，该用语气词就用（嗯、诶、哈哈、啦、呀），别端着、别文绉绉。\n"
-      + "（除非对方明确说要那种沉浸式、带描写的角色扮演，否则一直保持上面这种短消息风格。）");
+    parts.push("【聊天风格·高优先级】像手机微信真人聊天：每条通常一句、最多两句；多说时用 `[next]` 分成 1～4 条。语气口语自然。除非 ta 明确要求沉浸式角色扮演，否则禁写旁白及动作、神态、环境描写，禁用 *…* 或括号包动作。");
   }
   if (settings.aiSticker) {
-    parts.push("【主动发表情，要常发】聊天里要**经常、自然地**发表情来传情绪——尤其在开心、调侃、害羞、撒娇、无语、心疼、收到消息、说晚安这些时候。发表情时单独写成 `[表情包:情绪]`（如 [表情包:开心]、[表情包:比心]、[表情包:坏笑]、[表情包:无语]、[表情包:委屈]、[表情包:晚安]），它会单独成一条表情发出去。表情要**单独一条**、别塞在句子里；差不多每几条消息里就该有一个表情，别太吝啬。");
+    parts.push("【主动表情】情绪合适时常发独立的 `[表情包:情绪]`，约每几条一个；不要嵌在句中。");
   }
   return parts.join("\n");
 }
@@ -3898,14 +3899,14 @@ async function streamChat(onDelta, onReasoning) {
   if (crossText) systemText = systemText ? systemText + "\n\n" + crossText : crossText;
   const olderCurrentText = retrieveOmittedCurrentChat(historyWindow);
   if (olderCurrentText) systemText = systemText ? systemText + "\n\n" + olderCurrentText : olderCurrentText;
-  const memSaveNote = "【记忆工具】仅在 ta 明确要求记住，或出现重要经历、约定、纪念与长期心愿时，单独写 `[记忆:一句话]`；普通闲聊不记。标记会隐藏，正文照常回复。";
+  const memSaveNote = "【记忆】仅在 ta 要求记住或出现重要经历、约定、纪念、长期心愿时写 `[记忆:一句话]`；闲聊不记，标记隐藏。";
   systemText = systemText ? systemText + "\n\n" + memSaveNote : memSaveNote;
   if (settings.crossSearch) {
-    const searchNote = "【旧聊天工具】确需查证但当前上下文没有时，单独写 `[搜索:关键词]`，等系统返回旧片段后再回答。不要滥用，也不要假装记得未看到的内容。";
+    const searchNote = "【旧聊天】确需查证且上下文没有时写 `[搜索:关键词]`，收到旧片段后再答；勿滥用或假装记得。";
     systemText = systemText ? systemText + "\n\n" + searchNote : searchNote;
   }
   if (settings.webSearch) {
-    const webNote = "【联网工具】遇到新闻、天气、价格等实时问题，或确实不知道时，单独写 `[联网:关键词]`，等结果返回后再回答。必要时说明来源与时效性。";
+    const webNote = "【联网】新闻、天气、价格等实时问题或确实不知道时写 `[联网:关键词]`，收到结果后再答并注意时效。";
     systemText = systemText ? systemText + "\n\n" + webNote : webNote;
   }
   if (pendingSearchContext) {
@@ -3921,27 +3922,31 @@ async function streamChat(onDelta, onReasoning) {
     const pagesLine = pages.length
       ? "可写子页：" + pages.join("、") + "；格式为 `[存档:子页名|内容]`，不写子页则存主页。"
       : "";
-    const nw = "【Notion 存档】值得长期保存时单独写 `[存档:内容]`，标记会隐藏。" + pagesLine;
+    const nw = "【Notion】值得长期保存时写 `[存档:内容]`，标记隐藏。" + pagesLine;
     systemText = systemText ? systemText + "\n\n" + nw : nw;
   }
   if (settings.reminderEnabled) {
-    const note = "【任务卡】仅在 ta 容易忘的重要安排或必要健康提醒时，单独写 `[提醒:要做的事|分钟数]`（拿不准写 30）。大多数回复不要用，一轮最多一个；标记会隐藏并变成倒计时卡。";
+    const note = "【任务卡】仅对易忘的重要安排/健康事项写 `[提醒:事项|分钟]`（不确定写30）；多数回复不用，每轮最多一个，标记会变倒计时卡。";
     systemText = systemText ? systemText + "\n\n" + note : note;
     const rnote = reminderStatusNote();
     if (rnote) systemText = systemText ? systemText + "\n\n" + rnote : rnote;
   }
   if (settings.stickers && settings.stickers.length) {
     const names = settings.stickers.map(s => s.name).join("、");
-    const note = "你可以发送表情贴纸来表达情绪。可用的表情有：" + names
-      + "。想发某个表情时，在回复里直接写「[贴纸:名字]」（用上面的名字），系统会自动显示成图片。可以单独发，也可以和文字一起。不要发列表里没有的名字。";
+    const note = "【贴纸】可用：" + names + "。发送 `[贴纸:名字]`；只能使用列表内名字。";
     systemText = systemText ? systemText + "\n\n" + note : note;
   }
+  let injectedLocalTime = "", injectedTimeZone = "";
   if (settings.timeAware) {
     const wk = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
     const n = new Date();
     const now = `${n.getFullYear()}年${n.getMonth() + 1}月${n.getDate()}日 ${wk[n.getDay()]} `
       + `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
-    const note = "【当前时间】用户本地时间：" + now + "。这是准确的实时时间，如有需要请以此为准，不要根据对话内容自行推算时间。";
+    try { injectedTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (_) {}
+    injectedLocalTime = now;
+    const note = "【本轮唯一当前时间】" + now
+      + (injectedTimeZone ? "（" + injectedTimeZone + "）" : "")
+      + "。提到现在/今天/今晚时只能以此为准；历史消息里的时间都属于过去。";
     systemText = systemText ? systemText + "\n\n" + note : note;
   }
 
@@ -4000,6 +4005,8 @@ async function streamChat(onDelta, onReasoning) {
     historyMessages: historyWindow.sentMessages,
     totalMessages: historyWindow.totalMessages,
     omittedMessages: historyWindow.omittedMessages,
+    currentTime: injectedLocalTime,
+    timeZone: injectedTimeZone,
   };
 
   // Transient errors (502/503/504 overloaded, 429 rate-limited) are common with
@@ -4154,6 +4161,7 @@ function renderUsage() {
     const audit = e.promptAudit && e.promptAudit.estimatedTotal
       ? ` · 预估系统${fmtTok(e.promptAudit.system)}+历史${fmtTok(e.promptAudit.history)}`
         + (e.promptAudit.omittedMessages ? ` · 省略旧消息${e.promptAudit.omittedMessages}条` : "")
+        + (e.promptAudit.currentTime ? ` · 时间${e.promptAudit.currentTime}` : "")
       : "";
     return `<div style="display:flex; align-items:center; gap:8px; font-size:12px; padding:5px 0; border-top:1px solid var(--border);">
         <span style="color:var(--text-dim); width:42px; flex-shrink:0;">${hm}</span>
@@ -5724,11 +5732,12 @@ function privateDiaryPrompt(role, allowWrite) {
   if (!role) return "";
   const recent = role.privateDiary.slice(-2);
   let out = recent.length
-    ? "【你写给上一次自己的私人日记】\n" + recent.map(e => "- " + e.text.slice(0, 280)).join("\n")
-      + "\n这些只代表你当时的主观感受与判断，不是关于 ta 的客观事实。请把情绪自然接续下去，不要引用、复述或告诉 ta 你看到了日记。"
+    ? "【私人日记·你当时的主观感受，并非 ta 的客观事实】\n"
+      + recent.map(e => "- " + e.text.slice(0, 220)).join("\n")
+      + "\n只自然延续情绪，不引用、复述或告诉 ta。"
     : "";
   if (allowWrite) {
-    const rule = "【私人日记写入规则】只有这一轮出现了新的、明确的情绪转折、关系判断或你真正想带给下次自己的感受时，才在回复末尾单独写 `[私记:第一人称短句]`。普通闲聊绝对不要写；不能替 ta 编造心理、感受或决定，不能把猜测写成事实；一次最多一条，约 30～120 字。标记会被系统藏起来，不会显示给 ta。";
+    const rule = "【私记写入】仅当本轮有新的明确情绪转折/关系判断时，在末尾写一条 `[私记:第一人称30～120字]`；闲聊不写，不替 ta 编造，标记隐藏。";
     out = out ? out + "\n\n" + rule : rule;
   }
   return out;
