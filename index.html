@@ -700,10 +700,17 @@
   .msg.flat.user .msg-head { flex-direction: row-reverse; }
   .msg.flat.user .name { text-align: right; }
   .msg.flat .bubble { width: fit-content; max-width: 100%; }
-  .bubble .msg-img {
-    max-width: 220px; max-height: 220px; border-radius: 8px; display: block;
-    margin: 4px 0; cursor: pointer;
+  .msg-media {
+    display: flex; flex-direction: column; gap: 6px; max-width: 100%;
   }
+  .msg-media .msg-img,
+  .bubble .msg-img {
+    max-width: min(280px, 78vw); max-height: 320px; border-radius: 12px; display: block;
+    margin: 0; cursor: pointer; object-fit: contain;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  }
+  .msg.user .msg-media { align-items: flex-end; }
+  .msg.assistant .msg-media { align-items: flex-start; }
   /* Claude-style subtle thinking line — no box, just a faint collapsible row */
   .think { border: none; background: none; padding: 0; margin: 2px 0 10px; font-size: 12.5px; }
   .think > summary {
@@ -2993,7 +3000,7 @@ function renderMessages() {
     const el = makeMsgEl(m.role, m.content, { actions: true, isLast, reasoning: m.reasoning, ts: m.ts, tokens: m.tokens });
     el.dataset.idx = i;
     if (m.id) el.dataset.mid = m.id;
-    if (m._summary) el.querySelector(".bubble").classList.add("summary");
+    if (m._summary && el.querySelector(".bubble")) el.querySelector(".bubble").classList.add("summary");
     box.appendChild(el);
   }
   renderReminderPin();
@@ -3005,13 +3012,69 @@ function flashMessage(mid) {
   el.classList.add("flash");
   setTimeout(() => el.classList.remove("flash"), 1700);
 }
-// Pull <think>...</think> (including an unclosed, still-streaming one) out of the text.
+// Pull tagged reasoning (including an unclosed, still-streaming tag) out of the text.
 function splitThink(text) {
   let think = "";
-  text = text.replace(/<think>([\s\S]*?)<\/think>/g, (_, t) => { think += t; return ""; });
-  const open = text.indexOf("<think>");
-  if (open !== -1) { think += text.slice(open + 7); text = text.slice(0, open); }
+  text = String(text || "").replace(/<(think|thinking|analysis|reasoning)>([\s\S]*?)<\/\1>/gi,
+    (_, tag, body) => { think += (think ? "\n" : "") + body; return ""; });
+  const open = text.match(/<(think|thinking|analysis|reasoning)>/i);
+  if (open) {
+    const at = open.index;
+    think += (think ? "\n" : "") + text.slice(at + open[0].length);
+    text = text.slice(0, at);
+  }
   return { think: think.trim(), answer: text };
+}
+// Some relay endpoints flatten a model's private reasoning into the normal text
+// channel. Detect only strong "self-planning" prose so ordinary English replies
+// remain untouched. If a Chinese answer follows after a blank line, the prefix is
+// treated as reasoning; while streaming, an obvious reasoning-only prefix is also
+// kept out of the visible answer.
+function looksLikeBareReasoning(text) {
+  text = (text || "").trim();
+  const letters = (text.match(/[A-Za-z]/g) || []).length;
+  const cjk = (text.match(/[\u3400-\u9fff]/g) || []).length;
+  if (text.length < 90 || letters < 60 || cjk > Math.max(24, letters * .18)) return false;
+  const signals = [
+    /\bI (?:need|should|must|want|have) to\b/i,
+    /\b(?:the )?user (?:said|asked|wants|needs|gave|did|has|is)\b/i,
+    /\b(?:she|he|they) (?:said|asked|gave|deflected|sidestepped|wants|needs|did|has)\b/i,
+    /\bthe (?:real )?(?:move|goal|response|answer) (?:here )?is\b/i,
+    /\b(?:write|create|add|mark) (?:a |the )?(?:diary|memory|private note|entry)\b/i,
+    /\b(?:I|we) (?:can't|cannot|shouldn't|needn't) (?:promise|mention|reveal|overdo)\b/i,
+    /\bwithout being (?:too |overly )?[a-z-]+\b/i,
+    /\bthis is important enough\b/i,
+    /\bwhich tells me\b/i,
+  ].reduce((n, re) => n + (re.test(text) ? 1 : 0), 0);
+  return signals >= 2;
+}
+function splitBareReasoning(text, streaming) {
+  text = String(text || "");
+  const gaps = [...text.matchAll(/\n[ \t]*\n/g)];
+  for (const gap of gaps) {
+    const prefix = text.slice(0, gap.index).trim();
+    const answer = text.slice(gap.index + gap[0].length).trimStart();
+    const answerCjk = (answer.match(/[\u3400-\u9fff]/g) || []).length;
+    if (/^[\u3400-\u9fff]/.test(answer) && answerCjk >= 8 && looksLikeBareReasoning(prefix)) {
+      return { think: prefix, answer };
+    }
+  }
+  if (looksLikeBareReasoning(text)) return { think: text.trim(), answer: "" };
+  return { think: "", answer: text };
+}
+function extractAssistantReasoning(text, streaming) {
+  const tagged = splitThink(text || "");
+  const bare = splitBareReasoning(tagged.answer, streaming);
+  return {
+    reasoning: [tagged.think, bare.think].filter(Boolean).join("\n").trim(),
+    answer: bare.answer,
+  };
+}
+function visibleAssistantText(text) {
+  const normalized = extractAssistantReasoning(text, false);
+  if (normalized.answer.trim()) return normalized.answer.trim();
+  return normalized.reasoning && !looksLikeBareReasoning(normalized.reasoning)
+    ? normalized.reasoning.trim() : "";
 }
 function thinkBlockHtml(reasoning, open) {
   if (!reasoning || !reasoning.trim()) return "";
@@ -3027,24 +3090,29 @@ function stickerHtml(p) {
   const emoji = (p && p.emoji) || emojiForName(p && p.name);
   return `<span class="sticker-emoji" title="${escapeHtml((p && p.name) || "")}">${escapeHtml(emoji)}</span>`;
 }
+function imagePartsHtml(content) {
+  if (!Array.isArray(content)) return "";
+  return content.filter(p => p.type === "image" && p.dataUrl)
+    .map(p => `<img class="msg-img" src="${escapeHtml(p.dataUrl)}" onclick="openImageLightbox(this.src)" alt="">`).join("");
+}
 function bubbleHtml(role, content, reasoning, streaming) {
-  let imgs = "", text = content;
+  let text = content, stickerParts = "";
   if (Array.isArray(content)) {
-    imgs = content.filter(p => p.type === "image")
-      .map(p => `<img class="msg-img" src="${escapeHtml(p.dataUrl)}" onclick="openImageLightbox(this.src)" alt="">`).join("");
-    imgs += content.filter(p => p.type === "sticker")
-      .map(p => stickerHtml(p)).join("");
+    stickerParts = content.filter(p => p.type === "sticker").map(p => stickerHtml(p)).join("");
     text = content.filter(p => p.type === "text").map(p => p.text).join("\n");
   }
   let thinkHtml = "", answer = text;
   if (role === "assistant") {
-    const split = splitThink(text || "");
+    const split = extractAssistantReasoning(text || "", streaming);
     answer = split.answer;
-    let reason = (reasoning || "") + (split.think ? "\n" + split.think : "");
+    let reason = [reasoning || "", split.reasoning].filter(Boolean).join("\n").trim();
     // Safety net (only AFTER streaming finishes): if the model dumped its whole reply into
-    // the "thinking" channel and left the answer empty, show that text as the actual reply.
+    // the "thinking" channel and left the answer empty, promote it only when it does
+    // not look like private self-planning. Real reasoning stays collapsed.
     // During streaming we keep reasoning inside the think box (don't leak it into the body).
-    if (!streaming && !answer.trim() && reason.trim()) { answer = reason; reason = ""; }
+    if (!streaming && !answer.trim() && reason.trim() && !looksLikeBareReasoning(reason)) {
+      answer = reason; reason = "";
+    }
     // While the model is still thinking (streaming, no answer yet) keep the box
     // auto-expanded so you can watch it live; it collapses itself once the reply starts.
     thinkHtml = thinkBlockHtml(reason, streaming && !!reason.trim() && !answer.trim());
@@ -3059,7 +3127,16 @@ function bubbleHtml(role, content, reasoning, streaming) {
     // hide any [记忆:…] token from display (it's parsed/saved separately)
     textHtml = textHtml.replace(/\[\s*(?:记忆|记住|存记忆|memory)\s*[:：][^\]]*\]/gi, "");
   }
-  return imgs + thinkHtml + textHtml;
+  return stickerParts + thinkHtml + textHtml;
+}
+function messageContentHtml(role, content, reasoning) {
+  const media = imagePartsHtml(content);
+  if (!media) return `<div class="bubble">${bubbleHtml(role, content, reasoning)}</div>`;
+  const rest = content.filter(p => p.type !== "image");
+  const hasTextOrSticker = rest.some(p => p.type === "sticker" || (p.type === "text" && (p.text || "").trim()));
+  const hasReasoning = role === "assistant" && !!(reasoning || "").trim();
+  return `<div class="msg-media">${media}</div>` +
+    ((hasTextOrSticker || hasReasoning) ? `<div class="bubble">${bubbleHtml(role, rest, reasoning)}</div>` : "");
 }
 function formatTime(ts) {
   if (!ts) return "";
@@ -3078,11 +3155,11 @@ function makeMsgEl(role, content, opts) {
   const nameHtml = escapeHtml(nameFor(role)) + timeHtml;
   if (flat) {
     el.innerHTML = `<div class="msg-head">${avatarHtml(role)}<span class="name">${nameHtml}</span></div>
-      <div class="bubble">${bubbleHtml(role, content, opts.reasoning)}</div>`;
+      ${messageContentHtml(role, content, opts.reasoning)}`;
   } else {
     el.innerHTML = `${avatarHtml(role)}
       <div class="body"><div class="name">${nameHtml}</div>
-      <div class="bubble">${bubbleHtml(role, content, opts.reasoning)}</div></div>`;
+      ${messageContentHtml(role, content, opts.reasoning)}</div>`;
   }
   if (opts.actions && role === "assistant") {
     const container = flat ? el : el.querySelector(".body");
@@ -5212,7 +5289,7 @@ function maybeReadMailbox() {
   mailboxReplyInFlight = true;
   markSeen();
   completeOnce(sys, usr, 700).then(out => {
-    const visible = extractPrivateDiary(out, "", role);
+    const visible = extractPrivateDiary(visibleAssistantText(out), "", role);
     if (!visible || !visible.trim()) throw new Error("信箱回应为空");
     const msg = appendProactiveMessage(conv, visible);
     const now = Date.now();
@@ -5244,7 +5321,7 @@ async function greetProactively(hours) {
   try {
     const out = await completeOnce(sys, "（我回来了，主动跟我说句话吧～）", 400);
     const role = (settings.roles || []).find(r => r.id === conv.roleId) || activeRole();
-    appendProactiveMessage(conv, extractPrivateDiary(out, "", role));
+    appendProactiveMessage(conv, extractPrivateDiary(visibleAssistantText(out), "", role));
   } catch (_) {
   } finally {
     proactiveGreetInFlight = false;
@@ -5520,7 +5597,7 @@ function maybeCycleReminder() {
   sys += `\n\n【场景】${scene}请你主动、温柔地关心她一句（提醒保暖/喝热水/别吃凉的/早点休息之类），像心疼她的样子，别太长（1~2 句），口语自然。`;
   completeOnce(sys, "（主动关心我一下～）", 300).then(out => {
     const role = (settings.roles || []).find(r => r.id === conv.roleId) || activeRole();
-    appendProactiveMessage(conv, extractPrivateDiary(out, "", role));
+    appendProactiveMessage(conv, extractPrivateDiary(visibleAssistantText(out), "", role));
   }).catch(() => {});
   return true;
 }
@@ -5589,6 +5666,14 @@ async function generateReply() {
       paint();
     }
     pendingSearchContext = "";
+    // Normalize reasoning that a relay flattened into ordinary content. This
+    // persists the clean answer and keeps the detected reasoning collapsed on
+    // future renders instead of only hiding it for the current paint.
+    const normalized = extractAssistantReasoning(assistantMsg.content, false);
+    if (normalized.reasoning) {
+      assistantMsg.reasoning = [assistantMsg.reasoning || "", normalized.reasoning].filter(Boolean).join("\n").trim();
+      assistantMsg.content = normalized.answer.trim();
+    }
     // strip any leftover [搜索:…]/[联网:…] tag from the shown text (e.g. if it appears in the final answer)
     assistantMsg.content = assistantMsg.content.replace(/\[\s*(?:搜索|联网)\s*[:：][^\]\n]*\]/g, "").trim();
     // The role may leave one private diary line for its next instance. Save it in
@@ -5629,6 +5714,11 @@ async function generateReply() {
     pendingSearchContext = "";
     console.error("[generateReply error]", e);
     if (e.name === "AbortError") {
+      const normalized = extractAssistantReasoning(assistantMsg.content, false);
+      if (normalized.reasoning) {
+        assistantMsg.reasoning = [assistantMsg.reasoning || "", normalized.reasoning].filter(Boolean).join("\n").trim();
+        assistantMsg.content = normalized.answer.trim();
+      }
       assistantMsg.content = assistantMsg.content
         .replace(/\[\s*(?:搜索|联网|提醒)\s*[:：][^\]\n]*\]/g, "")
         .replace(/\[\s*(?:私记|私人日记|角色日记)\s*[:：][\s\S]*?\]/gi, "").trim();
