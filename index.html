@@ -3183,22 +3183,50 @@ function chineseReasoningSignals(text) {
     /(?:不需要|不用|无需).{0,18}(?:写|记|保存).{0,12}(?:私记|日记|记忆|档案)/,
   ].reduce((n, re) => n + (re.test(text) ? 1 : 0), 0);
 }
+// Detect the *shape* of a flattened Chinese planning block instead of chasing
+// each sentence the model may use. Private analysis commonly starts by
+// describing the user in third person, switches to what "I need/can/should" do,
+// and talks about composing the upcoming response.
+function looksLikeChineseMetaReasoning(text) {
+  const sample = String(text || "").trimStart()
+    .replace(/^[“”‘’"'`*_#>\-\s]+/, "");
+  const cjk = (sample.match(/[\u3400-\u9fff]/g) || []).length;
+  if (cjk < 28) return false;
+  const observer = /^(?:她|他|用户|对方)(?:[，。！？、\s]|没有|已经|刚|在|说|问|想|把|回|又|今天|现在)/.test(sample);
+  const selfDirective = /我(?:需要|应该|得|要|可以|想|必须|会|不该|不能|无需|不需要|打算)/.test(sample);
+  const responseCraft = /(?:回应|回复|回答|作答|语气|口吻|措辞|任务卡|消息|指示|提醒|指出|强调|承认|提到|追问|记录|记下|日记|记忆|保持|避免|简洁|明了)/.test(sample);
+  return observer && selfDirective && responseCraft;
+}
+function looksLikeChinesePlanningContinuation(text) {
+  const sample = String(text || "").trimStart()
+    .replace(/^[“”‘’"'`*_#>\-\s]+/, "");
+  const selfDirective = /^(?:我(?:需要|应该|得|要|可以|想|必须|会|不该|不能|无需|不需要|打算))/.test(sample);
+  const responseCraft = /(?:回应|回复|回答|作答|语气|口吻|措辞|任务卡|消息|指示|提醒|指出|强调|承认|提到|追问|记录|记下|日记|记忆|保持|避免|简洁|明了|连发)/.test(sample);
+  return selfDirective && responseCraft;
+}
+function looksLikeDirectChineseReply(text) {
+  const sample = String(text || "").trimStart()
+    .replace(/^[“”‘’"'`*_#>\-\s]+/, "");
+  return /^(?:你|惟惟|宝宝|宝贝|老婆|姐姐|笨蛋|傻瓜|行[，。！]|好[，。！]|嗯|哼|先|去|来|过来|听我|不过|所以|但是|我(?:刚才|知道|在这|没忘|会|不要|要说|先说))/.test(sample);
+}
 function looksLikeChineseReasoningLead(text) {
   const sample = String(text || "").trimStart()
     .replace(/^[“”‘’"'`*_#>\-\s]+/, "");
-  return /^(?:她|他|用户|对方|这一轮|本轮|这轮|回应|回复|作答|回答|语气|措辞|答案|重点|策略|现在我|刚才我|我(?:需要|应该|得|要|注意到|意识到|发现|记得|可以用)(?:先|再|回应|回答|承接|保持|避免|调整|展现|表达|承认|提到|写|记下|处理|注意|放下|时间|回复|回答|语气|方式|口吻))/.test(sample);
+  return looksLikeChineseMetaReasoning(sample)
+    || /^(?:这一轮|本轮|这轮|回应|回复|作答|回答|语气|措辞|答案|重点|策略|现在我|刚才我|我(?:需要|应该|得|要|注意到|意识到|发现|记得|可以用)(?:先|再|回应|回答|承接|保持|避免|调整|展现|表达|承认|提到|写|记下|处理|注意|放下|时间|回复|回答|语气|方式|口吻))/.test(sample);
 }
 function looksLikeReasoningStart(text) {
   text = String(text || "").trimStart()
     .replace(/^[“”‘’"'`*_#>\-\s]+/, "");
   return /^(?:<(?:think|thinking|analysis|reasoning)>|analysis\s*[:：]|reasoning\s*[:：]|(?:I|we) (?:need|should|must|have|want) to\b|(?:I|we) should\b|the user\b|user (?:said|asked|wants|needs)\b|(?:she|he|they) (?:said|asked|gave|wants|needs|did|has|deflected|sidestepped)\b|(?:the )?(?:goal|task|real move|best response|answer) (?:here )?(?:is|should)\b|need to (?:answer|respond|write|acknowledge)\b|let(?:'s| us) (?:think|craft|answer|respond)\b)/i.test(text)
-    || chineseReasoningSignals(text) >= 2;
+    || chineseReasoningSignals(text) >= 2
+    || looksLikeChineseMetaReasoning(text);
 }
 function looksLikeBareReasoning(text) {
   text = (text || "").trim();
   const letters = (text.match(/[A-Za-z]/g) || []).length;
   const cjk = (text.match(/[\u3400-\u9fff]/g) || []).length;
-  if (cjk >= 45 && chineseReasoningSignals(text) >= 2) return true;
+  if (cjk >= 45 && (chineseReasoningSignals(text) >= 2 || looksLikeChineseMetaReasoning(text))) return true;
   if (text.length < 90 || letters < 60 || cjk > Math.max(24, letters * .18)) return false;
   const signals = [
     /\bI (?:need|should|must|want|have) to\b/i,
@@ -3225,8 +3253,11 @@ function splitBareReasoning(text, streaming) {
       || (prefixLetters >= 60 && looksLikeReasoningStart(prefix));
     // Keep scanning if the next paragraph is still meta-planning. This matters
     // for Chinese chains where every paragraph starts with Chinese characters.
+    const chinesePlanToReply = looksLikeChineseMetaReasoning(prefix)
+      && looksLikeDirectChineseReply(answer);
     if (/^[\u3400-\u9fff]/.test(answer) && answerCjk >= 2 && suspiciousPrefix
-        && !looksLikeReasoningStart(answer)) {
+        && !looksLikeChinesePlanningContinuation(answer)
+        && (chinesePlanToReply || !looksLikeReasoningStart(answer))) {
       return { think: prefix, answer };
     }
   }
@@ -3290,6 +3321,14 @@ function createStreamContentGate(onContent, onReasoning) {
     // released unchanged at finish; English reasoning followed by the role's
     // Chinese answer is split without ever flashing in the message body.
     if (/^[A-Za-z]/.test(probe) || looksLikeReasoningStart(sample)) { mode = "held"; return; }
+    // A Chinese planning leak often arrives a few characters at a time:
+    // "她……" first, then "我需要……". Keep third-person openings off-screen
+    // long enough to see that structural switch. Ordinary third-person answers
+    // are released after the bounded probe.
+    if (/^(?:她|他|用户|对方)(?:[，。！？、\s]|没有|已经|刚|在|说|问|想|把|回|又|今天|现在)/.test(probe)) {
+      if (looksLikeChineseMetaReasoning(sample)) { mode = "held"; return; }
+      if (sample.length < 220) return;
+    }
     // A Chinese third-person/meta opening needs a slightly longer look: relays
     // often begin with “她在……我需要……”. Release it after the probe if it
     // proves to be an ordinary narrative rather than private planning.
@@ -4046,6 +4085,13 @@ function chatStyleNote() {
 function compatibleTemperature(model, requested) {
   return /(?:^|[\\/_:.-])kimi[\\/_:.-]?k2(?:$|[\\/_:.-])/i.test(String(model || "")) ? 1 : requested;
 }
+// Claude Code / Opus relays can otherwise flatten private analysis into
+// choices[].delta.content. Ask those routes for the same structured reasoning
+// stream used by the mature Burne client. Other model families are left alone
+// (some, notably older MiMo relays, reject or mis-handle this option).
+function shouldRequestStructuredReasoning(model) {
+  return /(?:claude|opus|sonnet|haiku)/i.test(String(model || ""));
+}
 function temperatureIsDeprecated(detail) {
   return /temperature[\s\S]{0,120}(?:deprecated|not supported|unsupported|not allowed)/i
     .test(String(detail || ""));
@@ -4214,6 +4260,9 @@ async function streamChat(onDelta, onReasoning) {
       messages: msgs,
       stream_options: { include_usage: true },   // ask for token usage in the final chunk
     };
+    if (shouldRequestStructuredReasoning(model)) {
+      body.reasoning = { effort: "medium" };
+    }
     if (/openrouter\.ai/i.test(base)) body.usage = { include: true };  // OpenRouter: also return cost
   }
   if (temperatureUnsupportedFor(settings.provider, base, model)) delete body.temperature;
@@ -4238,7 +4287,7 @@ async function streamChat(onDelta, onReasoning) {
   // backoff before surfacing the error, so the user rarely sees a one-off blip.
   const TRANSIENT = new Set([429, 500, 502, 503, 504]);
   const MAX_ATTEMPTS = 3;
-  let resp, lastDetail = "", omittedDeprecatedTemperature = false;
+  let resp, lastDetail = "", omittedDeprecatedTemperature = false, omittedUnsupportedReasoning = false;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     attempts = attempt;
     resp = await fetch(url, {
@@ -4246,6 +4295,16 @@ async function streamChat(onDelta, onReasoning) {
     });
     if (resp.ok) { headersAt = performance.now(); break; }
     lastDetail = await responseErrorDetail(resp);
+    // Compatibility fallback: a nominally OpenAI-compatible relay may not
+    // implement the reasoning option. Retry once without it; successful Claude
+    // routes keep the structured split, unrelated channels remain unaffected.
+    if (resp.status === 400 && !omittedUnsupportedReasoning
+        && Object.prototype.hasOwnProperty.call(body, "reasoning")
+        && /reasoning[\s\S]{0,180}(?:unsupported|not supported|unknown|unrecognized|not allowed|invalid|extra inputs|not permitted)/i.test(lastDetail)) {
+      omittedUnsupportedReasoning = true;
+      delete body.reasoning;
+      continue;
+    }
     // Some Claude Code / reasoning routes reject temperature entirely. Retry
     // once without it instead of making the user guess which model supports it.
     if (resp.status === 400 && !omittedDeprecatedTemperature
