@@ -5907,7 +5907,7 @@ function diaryBigrams(text) {
 function diaryIsDuplicate(text, entries) {
   const n = diaryNormalized(text);
   if (!n) return true;
-  return entries.slice(-12).some(e => {
+  return entries.some(e => {
     const old = diaryNormalized(e.text);
     if (!old) return false;
     if (n === old) return true;
@@ -5927,7 +5927,6 @@ function savePrivateDiaryEntry(text, sourceMessageId, role) {
     id: uid(), text, createdAt: Date.now(),
     sourceConvId: currentId || "", sourceMessageId: sourceMessageId || "",
   });
-  if (role.privateDiary.length > 24) role.privateDiary = role.privateDiary.slice(-24);
   saveSettings();
   if ($("companion-panel")?.classList.contains("open") && role.id === settings.activeRoleId) renderCompanionPanel();
   return true;
@@ -5940,15 +5939,47 @@ function extractPrivateDiary(text, sourceMessageId, role) {
     return "";
   }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
-function privateDiaryPrompt(role, allowWrite) {
+function privateDiaryRecallQuery(extraQuery) {
+  const recentChat = Array.isArray(messages) ? messages
+    .filter(m => (m.role === "user" || m.role === "assistant") && messageText(m).trim())
+    .slice(-6)
+    .map(m => messageText(m).slice(0, 420))
+    .join("\n") : "";
+  return [String(extraQuery || "").slice(0, 1400), recentChat.slice(-1800)]
+    .filter(Boolean).join("\n");
+}
+function recallPrivateDiary(role, queryText, excludedIds) {
+  const queryTokens = memTokens(privateDiaryRecallQuery(queryText));
+  if (!queryTokens.size) return [];
+  const excluded = new Set(excludedIds || []);
+  return rolePrivateDiary(role)
+    .map((entry, order) => ({ entry, order, score: memScore(queryTokens, entry.text || "") }))
+    .filter(x => !excluded.has(x.entry.id) && x.score >= 2)
+    .sort((a, b) => b.score - a.score
+      || (b.entry.createdAt || 0) - (a.entry.createdAt || 0)
+      || b.order - a.order)
+    .slice(0, 3)
+    .map(x => x.entry);
+}
+function privateDiaryPrompt(role, allowWrite, queryText) {
   role = ensureRoleCompanionData(role || activeRole());
   if (!role) return "";
   const recent = role.privateDiary.slice(-2);
-  let out = recent.length
-    ? "【私人日记·你当时的主观感受，并非 ta 的客观事实】\n"
-      + recent.map(e => "- " + e.text.slice(0, 220)).join("\n")
-      + "\n只自然延续情绪，不引用、复述或告诉 ta。"
-    : "";
+  const recalled = recallPrivateDiary(role, queryText, recent.map(e => e.id));
+  let out = "";
+  if (recent.length || recalled.length) {
+    const lines = ["【私人日记·你当时的主观感受，并非 ta 的客观事实】"];
+    if (recent.length) {
+      lines.push("最近写下：");
+      recent.forEach(e => lines.push("- [" + companionTime(e.createdAt) + "] " + e.text.slice(0, 220)));
+    }
+    if (recalled.length) {
+      lines.push("从旧日记中翻到、与此刻相关：");
+      recalled.forEach(e => lines.push("- [" + companionTime(e.createdAt) + "] " + e.text.slice(0, 220)));
+    }
+    lines.push("只自然延续情绪，不引用、复述或告诉 ta，也不要把旧感受冒充当前事实。");
+    out = lines.join("\n");
+  }
   if (allowWrite) {
     const rule = "【私记写入】仅当本轮有新的明确情绪转折/关系判断时，在末尾写一条 `[私记:第一人称30～120字]`；闲聊不写，不替 ta 编造，标记隐藏。";
     out = out ? out + "\n\n" + rule : rule;
@@ -5971,7 +6002,7 @@ function maybeReadMailbox() {
   let conv = latestRoleConversation() || roleConvs().find(c => Array.isArray(c.messages) && !c.messages.length);
   if (!conv) { conv = newConversation(); conversations.unshift(conv); saveConversations(); }
   if (currentId !== conv.id) switchConversation(conv.id);
-  const diaryNote = privateDiaryPrompt(role, true);
+  const diaryNote = privateDiaryPrompt(role, true, pending.map(x => x.text).join("\n"));
   let sys = settings.systemPrompt || "";
   const coreMem = coreMemoryText(); if (coreMem) sys += "\n\n以下是需要长期记住的信息（用户的长期记忆）：\n" + coreMem;
   if (diaryNote) sys += "\n\n" + diaryNote;
@@ -6007,7 +6038,7 @@ async function greetProactively(hours) {
   let sys = settings.systemPrompt || "";
   const en = emojiStyleNote(settings.emojiStyle); if (en) sys += "\n\n" + en;
   const coreMem = coreMemoryText(); if (coreMem) sys += "\n\n以下是需要长期记住的信息（用户的长期记忆）：\n" + coreMem;
-  const diaryNote = privateDiaryPrompt(activeRole(), false); if (diaryNote) sys += "\n\n" + diaryNote;
+  const diaryNote = privateDiaryPrompt(activeRole(), false, recentConversationForMailbox(conv)); if (diaryNote) sys += "\n\n" + diaryNote;
   sys += `\n\n【场景】用户隔了大约 ${hours} 小时后刚回来继续你们之前这段对话。请你主动、自然、温柔地跟 ta 打个招呼、关心一句，像有点想 ta 了，承接你们刚才聊的，别太长（1~3 句）。`;
   proactiveGreetInFlight = true;
   try {
@@ -6285,7 +6316,7 @@ function maybeCycleReminder() {
     : `她大约 ${st.daysUntil} 天后要来例假了。`;
   let sys = settings.systemPrompt || "";
   const en = emojiStyleNote(settings.emojiStyle); if (en) sys += "\n\n" + en;
-  const diaryNote = privateDiaryPrompt(activeRole(), false); if (diaryNote) sys += "\n\n" + diaryNote;
+  const diaryNote = privateDiaryPrompt(activeRole(), false, scene); if (diaryNote) sys += "\n\n" + diaryNote;
   sys += `\n\n【场景】${scene}请你主动、温柔地关心她一句（提醒保暖/喝热水/别吃凉的/早点休息之类），像心疼她的样子，别太长（1~2 句），口语自然。`;
   completeOnce(sys, "（主动关心我一下～）", 300).then(out => {
     const role = (settings.roles || []).find(r => r.id === conv.roleId) || activeRole();
