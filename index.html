@@ -1850,7 +1850,7 @@ const COMPACTED_HISTORY_TOKEN_BUDGET = 4600; // a rolling summary lets recent ra
 const AUTO_COMPACT_THRESHOLD = 100;     // summarize when this many raw chat bubbles accumulate
 const AUTO_COMPACT_KEEP = 20;           // keep the newest raw bubbles visible and verbatim
 const COMPACT_TRANSCRIPT_CHAR_BUDGET = 16000; // one-off summary call must not become a token bomb
-const AUTO_MEMORY_EVERY = 12;
+const AUTO_MEMORY_EVERY = 24;
 let autoCompactInFlight = false;
 
 // ---------- Cloud (Supabase) runtime state ----------
@@ -3994,7 +3994,7 @@ async function streamChat(onDelta, onReasoning) {
   if (crossText) systemText = systemText ? systemText + "\n\n" + crossText : crossText;
   const olderCurrentText = retrieveOmittedCurrentChat(historyWindow);
   if (olderCurrentText) systemText = systemText ? systemText + "\n\n" + olderCurrentText : olderCurrentText;
-  const memSaveNote = "【记忆】仅在 ta 要求记住或出现重要经历、约定、纪念、长期心愿时写 `[记忆:一句话]`；闲聊不记，标记隐藏。";
+  const memSaveNote = "【记忆】仅当 ta 明确要求，或你判断一月后仍重要时写 `[记忆:一句话]`；闲聊、临时情绪/安排不记，标记隐藏。";
   systemText = systemText ? systemText + "\n\n" + memSaveNote : memSaveNote;
   if (settings.crossSearch) {
     const searchNote = "【旧聊天】确需查证且上下文没有时写 `[搜索:关键词]`，收到旧片段后再答；勿滥用或假装记得。";
@@ -4341,6 +4341,37 @@ function memScore(queryToks, text) {
 function normalizedPromptFact(text) {
   return String(text || "").replace(/^[-*#>\s]+/, "").replace(/\s+/g, " ").trim().toLowerCase();
 }
+function memoryFactBigrams(text) {
+  const compact = normalizedPromptFact(text).replace(/[^\p{L}\p{N}]+/gu, "");
+  const pairs = new Set();
+  for (let i = 0; i < compact.length - 1; i++) pairs.add(compact.slice(i, i + 2));
+  return pairs;
+}
+function memoryFactNearDuplicate(text, existingItems) {
+  const current = normalizedPromptFact(text);
+  if (!current) return true;
+  return (existingItems || []).some(item => {
+    const old = normalizedPromptFact(item && item.text !== undefined ? item.text : item);
+    if (!old) return false;
+    if (current === old) return true;
+    // A negation often reverses the fact ("喜欢" / "不喜欢"), so never merge
+    // across different polarities even when most words happen to overlap.
+    const negated = value => /(?:不|没|无|未|别|勿|讨厌|拒绝|禁止|不能|不要)/.test(value);
+    if (negated(current) !== negated(old)) return false;
+    const shorter = Math.min(current.length, old.length);
+    const longer = Math.max(current.length, old.length);
+    if ((current.includes(old) || old.includes(current)) && shorter / Math.max(1, longer) >= 0.72) return true;
+    const a = memoryFactBigrams(current), b = memoryFactBigrams(old);
+    if (!a.size || !b.size) return false;
+    let shared = 0;
+    a.forEach(pair => { if (b.has(pair)) shared++; });
+    if (shared / (a.size + b.size - shared) >= 0.72 || shared / Math.min(a.size, b.size) >= 0.82) return true;
+    const ta = memTokens(current), tb = memTokens(old);
+    let tokenShared = 0;
+    ta.forEach(token => { if (tb.has(token)) tokenShared++; });
+    return tokenShared / Math.max(1, Math.min(ta.size, tb.size)) >= 0.76;
+  });
+}
 function takePromptItems(items, maxItems, maxChars, alreadySeen) {
   const out = [], seen = alreadySeen || new Set(), limit = maxChars || Infinity;
   let used = 0;
@@ -4567,7 +4598,7 @@ function extractMemorySaves(text) {
   let saved = 0, last = "";
   const cleaned = text.replace(/\[\s*(?:记忆|记住|存记忆|memory)\s*[:：]\s*([^\]\n]+)\]/gi, (m, c) => {
     const t = (c || "").trim();
-    if (t) { addMemEntry(t, false); saved++; last = t; }
+    if (t && addMemEntry(t, false, "event")) { saved++; last = t; }
     return "";
   }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (saved) showToast("🧠 记住了" + (saved > 1 ? ("（" + saved + "条）") : "：" + last.slice(0, 18) + (last.length > 18 ? "…" : "")));
@@ -4807,11 +4838,15 @@ function reminderStatusNote() {
   return "【你给 " + userRef() + " 下的任务卡片·当前状态】\n" + lines.join("\n")
     + "\n（这些是你之前用提醒卡片给 ta 安排的小任务。ta 完成时你会收到系统事件、可以即时回应；平时也可以自然地关心一下进度。）";
 }
-function addMemEntry(text, core) {
-  text = (text || "").trim(); if (!text) return;
-  if (memList().some(e => e.text.toLowerCase() === text.toLowerCase())) { showToast("已经有这条啦"); return; }
-  memList().push({ id: uid(), text, core: !!core, source: "manual", updatedAt: Date.now() });
+function addMemEntry(text, core, source) {
+  text = (text || "").trim(); if (!text) return false;
+  const duplicate = source === "event"
+    ? memoryFactNearDuplicate(text, memList())
+    : memList().some(e => e.text.toLowerCase() === text.toLowerCase());
+  if (duplicate) { if (source !== "event") showToast("已经有这条啦"); return false; }
+  memList().push({ id: uid(), text, core: !!core, source: source || "manual", updatedAt: Date.now() });
   saveSettings(); renderMemList();
+  return true;
 }
 function delMemEntry(id) { settings.memEntries = memList().filter(e => e.id !== id); saveSettings(); renderMemList(); }
 function toggleMemCore(id) { const e = memList().find(x => x.id === id); if (e) { e.core = !e.core; saveSettings(); renderMemList(); } }
@@ -4909,14 +4944,14 @@ async function autoUpdateMemory() {
   const recent = messages.slice(-8)
     .map(m => (m.role === "user" ? uname : (settings.aiName || "当前角色")) + ": " + messageText(m)).join("\n");
   if (!recent.trim()) return;
-  const sys = "你是一个极其克制的「值得珍藏的记忆」守门人。只记录真正值得长期珍藏、定义 ta 这个人或你俩关系的事，比如："
+  const sys = "你是一个极其克制的「值得珍藏的记忆」守门人。这只是低频漏检，不要求本次产生内容。只记录真正值得长期珍藏、定义 ta 这个人或你俩关系的事，比如："
     + "①ta 的人生背景 / 重要经历 / 难忘的故事；②重要的人、关系、宠物；③长期稳定的强烈偏好、底线、禁忌；④健康/过敏等要紧的事；"
     + "⑤你和 ta 之间特别值得记的：约定、承诺、纪念日、有意义的瞬间、心愿。"
     + "【绝对不要记】日常琐事（今天吃了啥、做了啥）、一时的情绪心情、闲聊、天气、临时安排、对方随口一提的小事、不确定或模糊的事。"
-    + "宁可几十轮都输出 NONE，也绝不为了凑数而记零碎。除非这条事『一个月后回看依然重要』，否则不记。"
-    + "若确无特别值得新增的，只输出一个词：NONE。若确有，每条一行以「- 」开头，简洁中文、不超过30字。"
+    + "宁可几十轮都输出 NONE，也绝不为了本次检查凑内容。除非这条事『一个月后回看依然重要』，否则不记。"
+    + "已有记忆中的同一事实即使换了说法，也不要新增。若确无被遗漏的重要事实，只输出一个词：NONE。"
+    + "若确有，每条一行以「- 」开头，最多2条，简洁中文、不超过30字。"
     + "称呼 ta 一律用「" + uname + "」，绝对不要写「用户」二字。";
-  const allExistingText = memList().map(e => e.text).join("\n");
   const orderedMemory = memList().filter(e => e.core).concat(
     memList().filter(e => !e.core).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
   );
@@ -4927,12 +4962,17 @@ async function autoUpdateMemory() {
   let out;
   try { out = await completeOnce(sys, usr, 300, true); } catch (e) { return; }
   if (!out || /^NONE\b/i.test(out)) return;
-  const existing = allExistingText.toLowerCase();
-  const additions = out.split("\n").map(s => s.trim())
+  const candidates = out.split("\n").map(s => s.trim())
     .filter(s => /^[-*]\s+/.test(s))
     .map(s => s.replace(/^[-*]\s+/, "").trim())
-    .filter(s => s && !existing.includes(s.toLowerCase()))
-    .slice(0, 3);
+    .filter(Boolean);
+  const additions = [];
+  for (const candidate of candidates) {
+    const known = memList().concat(additions.map(text => ({ text })));
+    if (memoryFactNearDuplicate(candidate, known)) continue;
+    additions.push(candidate);
+    if (additions.length >= 2) break;
+  }
   if (additions.length === 0) return;
   // new auto-extracted facts go in as normal (searchable) entries — keeps the prompt lean
   additions.forEach(a => memList().push({ id: uid(), text: a, core: false, source: "auto", updatedAt: Date.now() }));
