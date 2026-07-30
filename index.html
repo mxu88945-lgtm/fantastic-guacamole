@@ -3136,19 +3136,36 @@ function splitThink(text) {
   return { think: think.trim(), answer: text };
 }
 // Some relay endpoints flatten a model's private reasoning into the normal text
-// channel. Detect only strong "self-planning" prose so ordinary English replies
-// remain untouched. If a Chinese answer follows after a blank line, the prefix is
-// treated as reasoning; while streaming, an obvious reasoning-only prefix is also
-// kept out of the visible answer.
+// channel. Detect only strong "self-planning" prose so ordinary replies remain
+// untouched. Newer Anthropic relays sometimes flatten Chinese planning too, so
+// both languages are covered here.
+function chineseReasoningSignals(text) {
+  text = String(text || "").trim();
+  return [
+    /^(?:她|他|用户|对方).{0,100}(?:提醒我|把我从|让我意识到|没有回答|回避了|表达了)/,
+    /我(?:需要|应该|得|要)(?:先|再|在本轮|回应|回答|承接|保持|避免|调整|展现|表达|承认|提到|写|记下|处理|注意|放下)/,
+    /(?:回应|回复|作答|回答).{0,30}(?:要|需要|应该|可以|不需要|不要|保持|避免)/,
+    /(?:语气|措辞|答案|重点|策略).{0,24}(?:要|需要|应该|可以|不需要|不要|保持|避免|减少)/,
+    /(?:这一轮|本轮|这轮).{0,36}(?:情绪|转折|值得|需要|应该|记下|记录|日记|记忆)/,
+    /(?:不需要|不要).{0,28}(?:强调|显得|教条|复述|引用|解释|暴露|提及)/,
+  ].reduce((n, re) => n + (re.test(text) ? 1 : 0), 0);
+}
+function looksLikeChineseReasoningLead(text) {
+  const sample = String(text || "").trimStart()
+    .replace(/^[“”‘’"'`*_#>\-\s]+/, "");
+  return /^(?:她|他|用户|对方|这一轮|本轮|这轮|回应|回复|作答|回答|语气|措辞|答案|重点|策略|我(?:需要|应该|得|要)(?:先|再|回应|回答|承接|保持|避免|调整|展现|表达|承认|提到|写|记下|处理|注意|放下))/.test(sample);
+}
 function looksLikeReasoningStart(text) {
   text = String(text || "").trimStart()
     .replace(/^[“”‘’"'`*_#>\-\s]+/, "");
-  return /^(?:<(?:think|thinking|analysis|reasoning)>|analysis\s*[:：]|reasoning\s*[:：]|(?:I|we) (?:need|should|must|have|want) to\b|(?:I|we) should\b|the user\b|user (?:said|asked|wants|needs)\b|(?:she|he|they) (?:said|asked|gave|wants|needs|did|has|deflected|sidestepped)\b|(?:the )?(?:goal|task|real move|best response|answer) (?:here )?(?:is|should)\b|need to (?:answer|respond|write|acknowledge)\b|let(?:'s| us) (?:think|craft|answer|respond)\b)/i.test(text);
+  return /^(?:<(?:think|thinking|analysis|reasoning)>|analysis\s*[:：]|reasoning\s*[:：]|(?:I|we) (?:need|should|must|have|want) to\b|(?:I|we) should\b|the user\b|user (?:said|asked|wants|needs)\b|(?:she|he|they) (?:said|asked|gave|wants|needs|did|has|deflected|sidestepped)\b|(?:the )?(?:goal|task|real move|best response|answer) (?:here )?(?:is|should)\b|need to (?:answer|respond|write|acknowledge)\b|let(?:'s| us) (?:think|craft|answer|respond)\b)/i.test(text)
+    || chineseReasoningSignals(text) >= 2;
 }
 function looksLikeBareReasoning(text) {
   text = (text || "").trim();
   const letters = (text.match(/[A-Za-z]/g) || []).length;
   const cjk = (text.match(/[\u3400-\u9fff]/g) || []).length;
+  if (cjk >= 45 && chineseReasoningSignals(text) >= 2) return true;
   if (text.length < 90 || letters < 60 || cjk > Math.max(24, letters * .18)) return false;
   const signals = [
     /\bI (?:need|should|must|want|have) to\b/i,
@@ -3173,7 +3190,10 @@ function splitBareReasoning(text, streaming) {
     const prefixLetters = (prefix.match(/[A-Za-z]/g) || []).length;
     const suspiciousPrefix = looksLikeBareReasoning(prefix)
       || (prefixLetters >= 60 && looksLikeReasoningStart(prefix));
-    if (/^[\u3400-\u9fff]/.test(answer) && answerCjk >= 8 && suspiciousPrefix) {
+    // Keep scanning if the next paragraph is still meta-planning. This matters
+    // for Chinese chains where every paragraph starts with Chinese characters.
+    if (/^[\u3400-\u9fff]/.test(answer) && answerCjk >= 2 && suspiciousPrefix
+        && !looksLikeReasoningStart(answer)) {
       return { think: prefix, answer };
     }
   }
@@ -3220,10 +3240,10 @@ function visibleAssistantText(text) {
   return normalized.reasoning && !looksLikeBareReasoning(normalized.reasoning)
     ? normalized.reasoning.trim() : "";
 }
-// Hold a suspicious English opening before it ever reaches the message DOM.
-// Normal Chinese streams immediately; ordinary English is delayed only for a
-// short probe. A suspected self-planning preface stays buffered until the call
-// ends, then is separated from the real answer in one shot.
+// Hold a suspicious opening before it ever reaches the message DOM. Ordinary
+// English and Chinese are delayed only for a short probe; a suspected
+// self-planning preface stays buffered until the call ends, then is separated
+// from the real answer in one shot.
 function createStreamContentGate(onContent, onReasoning) {
   let mode = "probe", buffer = "";
   function push(delta) {
@@ -3237,8 +3257,10 @@ function createStreamContentGate(onContent, onReasoning) {
     // released unchanged at finish; English reasoning followed by the role's
     // Chinese answer is split without ever flashing in the message body.
     if (/^[A-Za-z]/.test(probe) || looksLikeReasoningStart(sample)) { mode = "held"; return; }
-    // Chinese answers are safe to show at once. For other text, keep only a
-    // tiny prefix off-screen while deciding whether it is self-planning.
+    // A Chinese third-person/meta opening needs a slightly longer look: relays
+    // often begin with “她在……我需要……”. Release it after the probe if it
+    // proves to be an ordinary narrative rather than private planning.
+    if (looksLikeChineseReasoningLead(sample) && sample.length < 96) return;
     if (/^[\u3400-\u9fff]/.test(sample) || sample.length >= 36) {
       mode = "visible";
       onContent(buffer);
@@ -4236,18 +4258,49 @@ async function streamChat(onDelta, onReasoning) {
       if (isAnthropic) {
         if (json.type === "message_start" && json.message?.usage) usageRaw = { ...json.message.usage };
         if (json.type === "message_delta" && json.usage) usageRaw = { ...(usageRaw || {}), ...json.usage };
+        if (json.type === "content_block_start") {
+          const block = json.content_block || {};
+          if (block.type === "thinking" || block.type === "reasoning") {
+            const thought = block.thinking || block.reasoning || block.text || "";
+            if (thought) { markToken(thought); onReasoning(thought); }
+          } else if (block.type === "text" && block.text) {
+            markToken(block.text); onDelta(block.text);
+          }
+        }
         if (json.type === "content_block_delta") {
-          if (json.delta?.text) { markToken(json.delta.text); onDelta(json.delta.text); }
-          if (json.delta?.thinking) { markToken(json.delta.thinking); onReasoning(json.delta.thinking); }
+          const delta = json.delta || {};
+          const isThought = delta.type === "thinking_delta" || delta.type === "reasoning_delta";
+          const thought = delta.thinking || delta.reasoning || (isThought ? delta.text : "");
+          if (thought) { markToken(thought); onReasoning(thought); }
+          if (!isThought && delta.text) { markToken(delta.text); onDelta(delta.text); }
         }
         if (json.type === "error") throw new Error(json.error?.message || "stream error");
       } else {
         if (json.usage) usageRaw = json.usage;
         const d = json.choices?.[0]?.delta;
         // reasoning models expose the chain-of-thought separately
-        if (d?.reasoning_content) { markToken(d.reasoning_content); onReasoning(d.reasoning_content); } // DeepSeek
-        if (d?.reasoning) { markToken(d.reasoning); onReasoning(d.reasoning); } // OpenRouter & others
-        if (d?.content) { markToken(d.content); onDelta(d.content); }
+        const thought = d?.reasoning_content || d?.reasoning || d?.analysis;
+        if (thought) { markToken(thought); onReasoning(thought); }
+        if (typeof d?.content === "string" && d.content) { markToken(d.content); onDelta(d.content); }
+        if (Array.isArray(d?.content)) {
+          d.content.forEach(part => {
+            const value = part?.text || part?.content || part?.thinking || part?.reasoning || "";
+            if (!value) return;
+            if (/thinking|reasoning|analysis/i.test(part.type || "") || part.thinking || part.reasoning) {
+              markToken(value); onReasoning(value);
+            } else {
+              markToken(value); onDelta(value);
+            }
+          });
+        }
+        // Responses-style compatible streams do not use choices[].delta.
+        if (!d && typeof json.delta === "string") {
+          if (/reasoning|thinking|analysis/i.test(json.type || "")) {
+            markToken(json.delta); onReasoning(json.delta);
+          } else if (/output_text/i.test(json.type || "")) {
+            markToken(json.delta); onDelta(json.delta);
+          }
+        }
       }
     }
   }
