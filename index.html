@@ -3396,25 +3396,52 @@ function makeMsgEl(role, content, opts) {
     bar.className = "msg-actions";
     const text = (typeof content === "string") ? content
       : (Array.isArray(content) ? content.filter(p => p.type === "text").map(p => p.text).join("\n") : "");
+    const messageIndex = () => {
+      const idx = Number(el.dataset.idx);
+      return Number.isInteger(idx) ? idx : null;
+    };
     const copyBtn = document.createElement("button");
-    copyBtn.className = "msg-act"; copyBtn.title = "复制";
+    copyBtn.type = "button"; copyBtn.className = "msg-act";
+    copyBtn.title = "复制"; copyBtn.setAttribute("aria-label", "复制消息");
     copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
     copyBtn.onclick = () => { navigator.clipboard.writeText(text); showToast("已复制"); };
     bar.appendChild(copyBtn);
     if (settings.ttsEnabled) {
       const speakBtn = document.createElement("button");
-      speakBtn.className = "msg-act"; speakBtn.title = "朗读";
+      speakBtn.type = "button"; speakBtn.className = "msg-act";
+      speakBtn.title = "朗读"; speakBtn.setAttribute("aria-label", "朗读消息");
       speakBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
       speakBtn.onclick = () => speakText(text, speakBtn);
       bar.appendChild(speakBtn);
     }
     if (opts.isLast) {
       const reBtn = document.createElement("button");
-      reBtn.className = "msg-act"; reBtn.title = "重新生成";
+      reBtn.type = "button"; reBtn.className = "msg-act";
+      reBtn.title = "重新生成"; reBtn.setAttribute("aria-label", "重新生成回复");
       reBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>`;
       reBtn.onclick = regenerate;
       bar.appendChild(reBtn);
     }
+    const editBtn = document.createElement("button");
+    editBtn.type = "button"; editBtn.className = "msg-act";
+    editBtn.title = "改文字"; editBtn.setAttribute("aria-label", "修改回复文字");
+    editBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>`;
+    editBtn.onclick = (e) => {
+      e.stopPropagation();
+      const idx = messageIndex(); if (idx != null) editMessageText(idx);
+    };
+    bar.appendChild(editBtn);
+    const moreBtn = document.createElement("button");
+    moreBtn.type = "button"; moreBtn.className = "msg-act";
+    moreBtn.title = "更多"; moreBtn.setAttribute("aria-label", "更多消息操作");
+    moreBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>`;
+    moreBtn.onclick = (e) => {
+      e.stopPropagation();
+      const idx = messageIndex(); if (idx == null) return;
+      const r = moreBtn.getBoundingClientRect();
+      openMsgMenu(r.left, r.bottom + 4, idx, "assistant-more");
+    };
+    bar.appendChild(moreBtn);
     if (opts.tokens) {
       const tk = document.createElement("span");
       tk.className = "msg-tokens";
@@ -5565,18 +5592,18 @@ function importBackup(file) {
   reader.readAsText(file);
 }
 
-// ---------- Message long-press menu ----------
+// ---------- Compact message action menu ----------
 let menuTargetIdx = null;
-let menuOpenedAt = 0;   // guards against iOS firing a synthetic click right after long-press (would insta-close the menu)
+let menuOpenedAt = 0;   // guards against the opening tap immediately closing the menu
 function openMsgMenu(x, y, idx, mode) {
   menuTargetIdx = idx;
   menuOpenedAt = Date.now();
   const m = messages[idx];
-  const userMore = mode === "user-more";
-  // edit/resend only makes sense for your own messages; in-place "改文字" for his replies
-  $("msg-menu").querySelector('[data-mact="copy"]').style.display = userMore ? "none" : "";
-  $("msg-menu").querySelector('[data-mact="edit"]').style.display = (!userMore && m && m.role === "user") ? "" : "none";
-  $("msg-menu").querySelector('[data-mact="edittext"]').style.display = (m && m.role === "assistant") ? "" : "none";
+  const inlineMore = mode === "user-more" || mode === "assistant-more";
+  // Copy/edit are direct icons now; the overflow only carries secondary actions.
+  $("msg-menu").querySelector('[data-mact="copy"]').style.display = inlineMore ? "none" : "";
+  $("msg-menu").querySelector('[data-mact="edit"]').style.display = (!inlineMore && m && m.role === "user") ? "" : "none";
+  $("msg-menu").querySelector('[data-mact="edittext"]').style.display = (!inlineMore && m && m.role === "assistant") ? "" : "none";
   const menu = $("msg-menu");
   menu.classList.add("show");
   // clamp within viewport
@@ -7546,7 +7573,8 @@ async function init() {
     updateScrollControls();
   }, { passive: true });
 
-  // Message long-press / right-click menu
+  // Message actions are explicit icon buttons. Suppress the old long-press menu,
+  // while still allowing native selection inside code blocks.
   const messagesEl = $("messages");
   messagesEl.addEventListener("click", (e) => {
     const starter = e.target.closest && e.target.closest("[data-starter]");
@@ -7555,7 +7583,6 @@ async function init() {
     autoResize();
     $("input").focus();
   });
-  let pressTimer = null, pressXY = null;
   const findIdx = (target) => {
     const msg = target.closest && target.closest(".msg");
     return msg && msg.dataset.idx != null ? parseInt(msg.dataset.idx) : null;
@@ -7563,23 +7590,9 @@ async function init() {
   messagesEl.addEventListener("contextmenu", (e) => {
     const idx = findIdx(e.target);
     if (idx == null) return;
+    if (e.target.closest && e.target.closest("pre, code")) return;
     e.preventDefault();
-    // User messages already expose copy/edit/more buttons; suppress the native
-    // iOS selection callout instead of opening a second menu on long-press.
-    if (messages[idx] && messages[idx].role === "user") return;
-    openMsgMenu(e.clientX, e.clientY, idx);
   });
-  messagesEl.addEventListener("touchstart", (e) => {
-    const idx = findIdx(e.target);
-    if (idx == null) return;
-    if (messages[idx] && messages[idx].role === "user") return;
-    const t = e.touches[0]; pressXY = { x: t.clientX, y: t.clientY };
-    pressTimer = setTimeout(() => openMsgMenu(pressXY.x, pressXY.y, idx), 480);
-  }, { passive: true });
-  const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
-  messagesEl.addEventListener("touchmove", cancelPress, { passive: true });
-  messagesEl.addEventListener("touchend", cancelPress);
-  $("chat").addEventListener("scroll", cancelPress);
   $("msg-menu").querySelectorAll("button").forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
