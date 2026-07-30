@@ -1873,6 +1873,9 @@ const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
+// Async cloud restore must never steal a conversation the user selected while
+// the restore request was in flight.
+let chatNavigationRevision = 0;
 let abortController = null;
 let pendingSearchContext = "";   // [搜索:…] results to inject into the next streamChat round
 
@@ -2299,6 +2302,9 @@ function setAuthStatus(text, loggedIn) {
   $("signup-btn").style.display = loggedIn ? "none" : "";
 }
 async function initCloud() {
+  // Capture before loading the SDK/session; on iOS that can take long enough
+  // for the user to open the sidebar and choose a conversation.
+  const navigationAtCloudStart = chatNavigationRevision;
   try {
     const client = await getSb();
     if (!client) return;
@@ -2306,7 +2312,7 @@ async function initCloud() {
     if (data.session) {
       cloudUser = data.session.user;
       setAuthStatus("已登录：" + cloudUser.email, true);
-      await pullCloud();
+      await pullCloud(navigationAtCloudStart);
     }
   } catch (e) { console.warn("initCloud failed:", e); }
 }
@@ -2345,7 +2351,8 @@ async function doSignOut() {
   setAuthStatus("未登录（数据仅存本地）", false);
   showToast("已退出登录");
 }
-async function pullCloud() {
+async function pullCloud(navigationAtStart) {
+  if (navigationAtStart == null) navigationAtStart = chatNavigationRevision;
   const client = await getSb();
   if (!client || !cloudUser) return;
   const { data, error } = await client.from("chats").select("payload, updated_at")
@@ -2412,7 +2419,18 @@ async function pullCloud() {
     localStorage.setItem("jyc_dataAt", String(cloudAt || Date.now()));   // local now matches cloud
     applyTheme(); syncSettingsToUI();
     startReminderTimer();   // pick up any reminders that synced in
-    goHome();   // land on a clean greeting page; synced history sits in the sidebar (don't yank into an old chat stuck at the top)
+    // The user may have opened a conversation while the network request was
+    // running. Keep that choice if the same conversation exists in the fresh
+    // cloud snapshot; only use the greeting home when no navigation happened.
+    const selected = currentConv();
+    if (chatNavigationRevision !== navigationAtStart && selected) {
+      messages = selected.messages;
+      saveConversations();
+      renderConvList(); renderMessages(); updateConvTitle();
+      jumpToBottom();
+    } else {
+      goHome();   // no user navigation to preserve → land on the greeting page
+    }
     showToast("☁️ 已从云端同步");
   }
 }
@@ -2728,14 +2746,24 @@ function deriveTitle(msgs) {
 // ---------- Conversation management ----------
 function switchConversation(id) {
   if (abortController) abortController.abort();
-  currentId = id;
-  messages = currentConv().messages;
+  const target = conversations.find(c => c.id === id);
+  // A sidebar item can become stale if cloud data is replaced between rendering
+  // the list and the tap. Do not leave currentId pointing at a missing chat.
+  if (!target) {
+    renderConvList();
+    showToast("对话刚刚同步更新了，请再点一次", 2600);
+    return false;
+  }
+  chatNavigationRevision++;
+  currentId = target.id;
+  messages = target.messages;
   saveConversations();
   renderConvList();
   renderMessages();
   updateConvTitle();
   jumpToBottom();
   if (isMobile()) closeSidebar();
+  return true;
 }
 function createConversation() {
   if (abortController) abortController.abort();
@@ -3144,16 +3172,21 @@ function chineseReasoningSignals(text) {
   return [
     /^(?:她|他|用户|对方).{0,100}(?:提醒我|把我从|让我意识到|没有回答|回避了|表达了)/,
     /我(?:需要|应该|得|要)(?:先|再|在本轮|回应|回答|承接|保持|避免|调整|展现|表达|承认|提到|写|记下|处理|注意|放下)/,
+    /(?:现在|刚才)?我(?:注意到|意识到|发现|记得).{0,60}(?:时间|回复|回答|说法|上下文|对话|窗口)/,
+    /我(?:之前|刚才).{0,50}(?:回复|回答|说|判断).{0,24}(?:错|不对|有误|需要|应该)/,
+    /我可以用.{0,30}(?:语气|方式|口吻).{0,24}(?:回应|回答|回复|调侃|表达)/,
     /(?:回应|回复|作答|回答).{0,30}(?:要|需要|应该|可以|不需要|不要|保持|避免)/,
     /(?:语气|措辞|答案|重点|策略).{0,24}(?:要|需要|应该|可以|不需要|不要|保持|避免|减少)/,
+    /(?:保持|需要|应该|可以).{0,12}(?:简洁|口语|温柔|轻松|自然|真实|克制)/,
     /(?:这一轮|本轮|这轮).{0,36}(?:情绪|转折|值得|需要|应该|记下|记录|日记|记忆)/,
     /(?:不需要|不要).{0,28}(?:强调|显得|教条|复述|引用|解释|暴露|提及)/,
+    /(?:不需要|不用|无需).{0,18}(?:写|记|保存).{0,12}(?:私记|日记|记忆|档案)/,
   ].reduce((n, re) => n + (re.test(text) ? 1 : 0), 0);
 }
 function looksLikeChineseReasoningLead(text) {
   const sample = String(text || "").trimStart()
     .replace(/^[“”‘’"'`*_#>\-\s]+/, "");
-  return /^(?:她|他|用户|对方|这一轮|本轮|这轮|回应|回复|作答|回答|语气|措辞|答案|重点|策略|我(?:需要|应该|得|要)(?:先|再|回应|回答|承接|保持|避免|调整|展现|表达|承认|提到|写|记下|处理|注意|放下))/.test(sample);
+  return /^(?:她|他|用户|对方|这一轮|本轮|这轮|回应|回复|作答|回答|语气|措辞|答案|重点|策略|现在我|刚才我|我(?:需要|应该|得|要|注意到|意识到|发现|记得|可以用)(?:先|再|回应|回答|承接|保持|避免|调整|展现|表达|承认|提到|写|记下|处理|注意|放下|时间|回复|回答|语气|方式|口吻))/.test(sample);
 }
 function looksLikeReasoningStart(text) {
   text = String(text || "").trimStart()
