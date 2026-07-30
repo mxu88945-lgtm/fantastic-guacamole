@@ -339,9 +339,6 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   header .sub { font-size: 11px; color: var(--text-dim); }
   header .spacer { flex: 1; }
-  .header-identity { min-width: 0; display: flex; align-items: center; }
-  .header-role-name { max-width: 230px; color: var(--text); font-size: 14px; font-weight: 650;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .icon-btn {
     background: var(--bg-panel); border: 1px solid var(--border);
     color: var(--text); border-radius: 9px; padding: 7px 11px;
@@ -1156,9 +1153,6 @@
     </div>
     <header>
       <button class="icon-btn" id="toggle-sidebar" title="收起/展开侧栏"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-      <div class="header-identity">
-        <span class="header-role-name" id="header-role-name">当前角色</span>
-      </div>
       <div class="spacer"></div>
       <button class="icon-btn" id="header-search-btn" title="搜索聊天记录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
       <button class="icon-btn" id="header-new-btn" title="新对话"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
@@ -1852,7 +1846,12 @@ let scrollControlsAwake = false, scrollControlsHideTimer = null;
 const CHAT_HISTORY_TOKEN_BUDGET = 5800; // local history stays intact; only API context is windowed
 const CHAT_HISTORY_MESSAGE_CAP = 48;    // safety cap for many short multi-bubbles
 const CHAT_HISTORY_MIN_ROLE_RUNS = 4;   // preserve at least two recent user/assistant exchanges
+const COMPACTED_HISTORY_TOKEN_BUDGET = 4600; // a rolling summary lets recent raw context be smaller
+const AUTO_COMPACT_THRESHOLD = 100;     // summarize when this many raw chat bubbles accumulate
+const AUTO_COMPACT_KEEP = 20;           // keep the newest raw bubbles visible and verbatim
+const COMPACT_TRANSCRIPT_CHAR_BUDGET = 16000; // one-off summary call must not become a token bomb
 const AUTO_MEMORY_EVERY = 12;
+let autoCompactInFlight = false;
 
 // ---------- Cloud (Supabase) runtime state ----------
 let sb = null;          // supabase client
@@ -2531,7 +2530,8 @@ function cvAvatar(ctx, x, y, size, img, avText, accent) {
 }
 function exportableMsgs() {
   const conv = currentConv();
-  return (conv ? conv.messages : []).filter(m => (m.role === "user" || m.role === "assistant") && (exportPlainBody(m) || exportMsgPics(m).length));
+  return (conv ? conv.messages : []).filter(m => !m._compactedBy
+    && (m.role === "user" || m.role === "assistant") && (exportPlainBody(m) || exportMsgPics(m).length));
 }
 async function exportChatImage(msgsOverride) {
   const conv = currentConv();
@@ -2798,33 +2798,120 @@ function runSearch(q) {
     el.innerHTML = `<div class="sr-title">💬 ${escapeHtml(r.title)}</div><div class="sr-snip">${safe}</div>`;
     el.onclick = () => {
       switchConversation(r.convId);
-      setTimeout(() => flashMessage(r.mid), 250);
+      let targetId = r.mid;
+      const conv = currentConv();
+      let target = conv && conv.messages.find(m => m.id === targetId);
+      const visited = new Set();
+      while (target && target._compactedBy && !visited.has(target.id)) {
+        visited.add(target.id);
+        targetId = target._compactedBy;
+        target = conv.messages.find(m => m.id === targetId);
+      }
+      setTimeout(() => {
+        flashMessage(targetId);
+        if (targetId !== r.mid) showToast("这条原文已收进上方的对话摘要，原文仍保存在本地", 4200);
+      }, 250);
     };
     box.appendChild(el);
   }
 }
 
-// ---------- Compact a long conversation (summarize older messages) ----------
-async function compactConversation() {
-  if (abortController) { showToast("等回复完再压缩哦"); return; }
-  if (!settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
-  const keep = 6;
-  if (messages.length <= keep + 2) { showToast("对话还不长，先不用压缩～"); return; }
-  if (!confirm(`把较早的 ${messages.length - keep} 条消息压缩成一段摘要？\n（保留最近 ${keep} 条原文，省空间、更流畅；不可撤销，建议先导出备份）`)) return;
-  const old = messages.slice(0, messages.length - keep);
-  const transcript = old.map(m => nameFor(m.role) + "：" + messageText(m)).join("\n");
-  showToast("正在压缩对话…");
+// ---------- Rolling conversation compaction ----------
+// Raw messages are only folded out of the visible/API timeline, never deleted.
+// Search can still find them locally, while one rolling summary carries continuity.
+function compactableMessage(m) {
+  if (!m || m._compactedBy || m._summary || m._event || m.role === "reminder") return false;
+  if (m.role !== "user" && m.role !== "assistant") return false;
+  return !!messageText(m).trim() || messageImages(m).length > 0;
+}
+function activeRollingSummary(list) {
+  return [...(list || [])].reverse().find(m => m && m._summary && !m._compactedBy) || null;
+}
+function compactTranscript(batch, previousSummary) {
+  const prefix = previousSummary
+    ? "【此前滚动摘要】\n" + messageText(previousSummary).replace(/^🗜️[^\n]*\n+/, "").slice(0, 1200) + "\n\n【本批对话】\n"
+    : "";
+  const available = Math.max(4000, COMPACT_TRANSCRIPT_CHAR_BUDGET - prefix.length);
+  const perMessage = Math.max(40, Math.floor(available / Math.max(1, batch.length)) - 12);
+  return prefix + batch.map(m => {
+    const text = messageText(m).replace(/\s+/g, " ").trim();
+    const body = text || (messageImages(m).length ? "[图片]" : "");
+    return nameFor(m.role) + "：" + body.slice(0, perMessage);
+  }).join("\n");
+}
+async function compactMessageBatch(conv, batch, automatic) {
+  if (!conv || !batch.length || !memoryRuntimeConfig().apiKey) return false;
+  batch.forEach(m => { if (!m.id) m.id = uid(); });
+  const previousSummary = activeRollingSummary(conv.messages);
+  if (previousSummary && !previousSummary.id) previousSummary.id = uid();
+  const transcript = compactTranscript(batch, previousSummary);
+  showToast(automatic ? "🗜️ 对话满 100 条，正在自动整理摘要…" : "正在压缩对话…", 3600);
   let summary;
   try {
     summary = await completeOnce(
-      "你是对话摘要助手。把下面的对话压缩成简洁但保留关键信息的摘要：人物、发生的事、约定、情绪与称呼都要保留，用中文，分点列出。",
-      transcript, 700);
-  } catch (e) { showToast("压缩失败：" + (e.message || e)); return; }
-  if (!summary) { showToast("压缩失败：没拿到摘要"); return; }
-  const summaryMsg = { id: uid(), role: "assistant", content: "🗜️ **之前对话的摘要**\n\n" + summary, _summary: true };
-  messages.splice(0, messages.length - keep, summaryMsg);
-  saveConversations(); renderMessages(); scrollToBottom();
-  showToast("✅ 已压缩，腾出空间啦");
+      "你是滚动对话摘要助手。根据已有摘要与本批对话，输出一份新的累计摘要。保留人物、事实、事件顺序、重要原话、约定、称呼、情绪变化和未完成事项；不要编造，不要写分析过程。中文分点，尽量控制在 600 字内。",
+      transcript, 700, true);
+  } catch (e) {
+    showToast((automatic ? "自动压缩稍后重试：" : "压缩失败：") + (e.message || e), 4200);
+    return false;
+  }
+  if (!summary || !conversations.includes(conv)) {
+    if (!summary) showToast(automatic ? "自动压缩没拿到摘要，稍后重试" : "压缩失败：没拿到摘要");
+    return false;
+  }
+  const summaryMsg = {
+    id: uid(), role: "assistant",
+    content: "🗜️ **之前对话的累计摘要**\n\n" + summary.trim().slice(0, 1200),
+    ts: batch[batch.length - 1]?.ts || Date.now(), _summary: true, _autoSummary: true,
+    _summaryCount: (previousSummary?._summaryCount || 0) + batch.length,
+  };
+  const batchIds = new Set(batch.map(m => m.id));
+  let insertAt = -1;
+  conv.messages.forEach((m, i) => {
+    if (batchIds.has(m.id)) { m._compactedBy = summaryMsg.id; insertAt = Math.max(insertAt, i); }
+  });
+  if (previousSummary) {
+    previousSummary._compactedBy = summaryMsg.id;
+    insertAt = Math.max(insertAt, conv.messages.indexOf(previousSummary));
+  }
+  conv.messages.splice(insertAt + 1, 0, summaryMsg);
+  saveConversations();
+  if (currentId === conv.id) {
+    messages = conv.messages;
+    renderMessages();
+    if (stickBottom) scrollToBottom();
+  }
+  showToast(automatic
+    ? "✅ 已自动压缩：旧原文仍在本地，最近 20 条保持原样"
+    : "✅ 已压缩：旧原文仍在本地，可通过搜索找到", 4200);
+  return true;
+}
+async function maybeAutoCompactConversation() {
+  if (autoCompactInFlight || abortController) return false;
+  const conv = currentConv();
+  const raw = conv ? conv.messages.filter(compactableMessage) : [];
+  if (raw.length < AUTO_COMPACT_THRESHOLD || !memoryRuntimeConfig().apiKey) return false;
+  autoCompactInFlight = true;
+  try {
+    const batchSize = AUTO_COMPACT_THRESHOLD - AUTO_COMPACT_KEEP;
+    return await compactMessageBatch(conv, raw.slice(0, batchSize), true);
+  } finally {
+    autoCompactInFlight = false;
+  }
+}
+async function compactConversation() {
+  if (abortController || autoCompactInFlight) { showToast("等当前回复或摘要完成再压缩哦"); return; }
+  if (!memoryRuntimeConfig().apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
+  const keep = 6;
+  const raw = messages.filter(compactableMessage);
+  if (raw.length <= keep + 2) { showToast("对话还不长，先不用压缩～"); return; }
+  if (!confirm(`把较早的 ${raw.length - keep} 条消息收进一段累计摘要？\n（保留最近 ${keep} 条原文；旧原文仍保存在本地，可通过搜索找到）`)) return;
+  autoCompactInFlight = true;
+  try {
+    await compactMessageBatch(currentConv(), raw.slice(0, raw.length - keep), false);
+  } finally {
+    autoCompactInFlight = false;
+  }
 }
 
 function renderRoleQuick() {
@@ -2969,7 +3056,6 @@ function setAvatarValue(role, v) {
 function updateBrand() {
   const aiNm = settings.aiName || "当前角色";
   $("brand-title").textContent = aiNm;
-  $("header-role-name").textContent = aiNm;
   if (isImageRef(settings.aiAvatar)) $("brand-logo").innerHTML = `<img src="${escapeHtml(settings.aiAvatar)}" alt="">`;
   else $("brand-logo").textContent = (settings.aiAvatar || aiNm).slice(0, 1);
   document.title = aiNm === "当前角色" ? "Role Chat" : aiNm + " · Chat";
@@ -3012,7 +3098,7 @@ function renderMessages() {
   box.innerHTML = "";
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
-    if (m._event) continue;                       // hidden system-event turn (e.g. "she finished the task")
+    if (m._event || m._compactedBy) continue;     // hidden event or locally archived raw turn
     if (m.role === "reminder") { box.appendChild(reminderCardEl(m)); continue; }   // countdown / done card
     const isLast = i === messages.length - 1;
     const el = makeMsgEl(m.role, m.content, {
@@ -3291,7 +3377,9 @@ function makeMsgEl(role, content, opts) {
       if (opts.promptAudit) {
         tk.title = "本轮输入预估：系统 " + fmtTok(opts.promptAudit.system)
           + " + 对话 " + fmtTok(opts.promptAudit.history)
-          + "；本地共 " + (opts.promptAudit.totalMessages || 0) + " 条，实际发送 "
+          + "；本地存有 " + (opts.promptAudit.storedMessages || opts.promptAudit.totalMessages || 0) + " 条"
+          + (opts.promptAudit.archivedMessages ? "（已归档 " + opts.promptAudit.archivedMessages + " 条）" : "")
+          + "，当前上下文 " + (opts.promptAudit.totalMessages || 0) + " 条，实际发送 "
           + (opts.promptAudit.historyMessages || 0) + " 条"
           + (opts.promptAudit.omittedMessages ? "，省略旧消息 " + opts.promptAudit.omittedMessages + " 条" : "")
           + (opts.promptAudit.currentTime ? "；注入时间 " + opts.promptAudit.currentTime
@@ -3637,17 +3725,19 @@ function roleRunCount(list) {
 // snippets are retrieved separately so long chats do not become amnesiac.
 function buildApiHistoryWindow() {
   const usable = messages.filter(m => {
-    if (!m || m.role === "reminder") return false;
+    if (!m || m.role === "reminder" || m._compactedBy) return false;
     const c = sendContent(m);
     return (typeof c === "string" && c.trim()) || Array.isArray(c);
   });
+  const historyBudget = usable.some(m => m._summary)
+    ? COMPACTED_HISTORY_TOKEN_BUDGET : CHAT_HISTORY_TOKEN_BUDGET;
   let totalTokens = 0;
   const chosen = [];
   for (let i = usable.length - 1; i >= 0; i--) {
     const size = messagePromptTokens(usable[i]);
     const enoughRecent = roleRunCount(chosen) >= CHAT_HISTORY_MIN_ROLE_RUNS;
     if (enoughRecent && (chosen.length >= CHAT_HISTORY_MESSAGE_CAP
-        || totalTokens + size > CHAT_HISTORY_TOKEN_BUDGET)) break;
+        || totalTokens + size > historyBudget)) break;
     chosen.unshift(usable[i]);
     totalTokens += size;
   }
@@ -3660,7 +3750,7 @@ function buildApiHistoryWindow() {
     totalTokens += messagePromptTokens(compact);
     // Make room for the summary by dropping the oldest tail turns first, but
     // always retain the minimum recent role runs.
-    while (totalTokens > CHAT_HISTORY_TOKEN_BUDGET + 700 && chosen.length > 2
+    while (totalTokens > historyBudget + 700 && chosen.length > 2
         && roleRunCount(chosen.slice(2)) >= CHAT_HISTORY_MIN_ROLE_RUNS) {
       const removed = chosen.splice(1, 1)[0];
       totalTokens -= messagePromptTokens(removed);
@@ -3668,13 +3758,18 @@ function buildApiHistoryWindow() {
     }
   }
   const sentIds = new Set(chosen.map(m => m && m.id).filter(Boolean));
+  const storedChatMessages = messages.filter(m => m
+    && (m.role === "user" || m.role === "assistant") && !m._event);
   return {
     messages: chosen,
     omitted: priorSummary ? omitted.filter(m => m !== priorSummary) : omitted,
     totalMessages: usable.length,
+    storedMessages: storedChatMessages.length,
+    archivedMessages: storedChatMessages.filter(m => m._compactedBy).length,
     sentMessages: chosen.length,
     omittedMessages: usable.filter(m => !sentIds.has(m && m.id)).length,
     historyTokens: totalTokens,
+    historyBudget,
   };
 }
 function retrieveOmittedCurrentChat(windowInfo) {
@@ -3699,7 +3794,7 @@ function retrieveOmittedCurrentChat(windowInfo) {
 function apiMessagesFor(isAnthropic, sourceMessages) {
   const out = [];
   for (const m of (sourceMessages || messages)) {
-    if (m.role === "reminder") continue;   // reminder cards aren't chat turns; model sees them via reminderStatusNote()
+    if (m.role === "reminder" || m._compactedBy) continue;   // archived raw messages stay local
     const content = toApiContent(sendContent(m), isAnthropic);
     if (!apiContentHasValue(content)) continue;
     const last = out[out.length - 1];
@@ -4004,6 +4099,8 @@ async function streamChat(onDelta, onReasoning) {
     estimatedTotal: systemEstimate + historyEstimate,
     historyMessages: historyWindow.sentMessages,
     totalMessages: historyWindow.totalMessages,
+    storedMessages: historyWindow.storedMessages,
+    archivedMessages: historyWindow.archivedMessages,
     omittedMessages: historyWindow.omittedMessages,
     currentTime: injectedLocalTime,
     timeZone: injectedTimeZone,
@@ -5426,6 +5523,7 @@ function quoteMessage(idx) {
 function editMessage(idx) {
   const m = messages[idx];
   if (!m) return;
+  if (m._summary) { showToast("滚动摘要不能用“编辑并重发”，可以用“改文字”校正内容"); return; }
   if (idx !== messages.length - 1 && !confirm("编辑这条会删掉它之后的所有消息，确定？")) return;
   $("input").value = messageText(m);
   pendingImages = Array.isArray(m.content)
@@ -5437,6 +5535,7 @@ function editMessage(idx) {
 }
 function deleteMessage(idx) {
   if (!messages[idx]) return;
+  if (messages[idx]._summary) { showToast("滚动摘要管理着收起的旧原文，不能单独删除"); return; }
   if (!confirm("删除这条消息？")) return;
   messages.splice(idx, 1);
   saveConversations(); renderMessages();
@@ -6247,9 +6346,17 @@ async function generateReply() {
     if (stickBottom) scrollToBottom();   // respect the user reading history
   }
 
-  if (replied && settings.autoMemory) {
-    turnsSinceMemory++;
-    if (turnsSinceMemory >= AUTO_MEMORY_EVERY) { turnsSinceMemory = 0; autoUpdateMemory(); }
+  if (replied) {
+    const compacted = await maybeAutoCompactConversation();
+    if (settings.autoMemory) {
+      turnsSinceMemory++;
+      // Avoid paying for two maintenance calls on the same turn. If compaction
+      // just ran, memory extraction waits until the next successful reply.
+      if (!compacted && !autoCompactInFlight && turnsSinceMemory >= AUTO_MEMORY_EVERY) {
+        turnsSinceMemory = 0;
+        autoUpdateMemory();
+      }
+    }
   }
 }
 
