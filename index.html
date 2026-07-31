@@ -928,6 +928,28 @@
   .send-btn.stop { background: #111; color: #fff; }
   .send-btn.staging { opacity: .6; cursor: progress; animation: sendPulse 1s ease-in-out infinite; }
   @keyframes sendPulse { 0%,100% { opacity: .45; } 50% { opacity: .85; } }
+  .voice-input-btn {
+    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+    display: grid; place-items: center; cursor: pointer; transition: .16s;
+    border: none; background: var(--bg-panel); color: var(--text-dim);
+  }
+  .voice-input-btn:hover { color: var(--text); background: var(--item-active); }
+  .voice-input-btn.listening {
+    color: #fff; background: #d84b4b;
+    animation: voicePulse 1.15s ease-in-out infinite;
+  }
+  .voice-input-btn.transcribing { cursor: progress; color: var(--accent); }
+  .voice-input-btn:disabled { opacity: .55; cursor: progress; }
+  .voice-spinner {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid currentColor; border-right-color: transparent;
+    animation: voiceSpin .75s linear infinite;
+  }
+  @keyframes voicePulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(216,75,75,.28); }
+    50% { box-shadow: 0 0 0 7px rgba(216,75,75,0); }
+  }
+  @keyframes voiceSpin { to { transform: rotate(360deg); } }
   .composer-hint { max-width: 820px; margin: 6px auto 0; font-size: 11px;
     color: var(--text-dim); text-align: center; }
 
@@ -1446,6 +1468,39 @@
           <div id="usagePanel" style="margin-top:10px;"></div>
         </div>
 
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>语音输入（STT）</div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600;">
+            <input type="checkbox" id="sttEnabled" style="width:auto;" onchange="readSettingsFromUI(); updateVoiceInputButton();" />
+            在输入栏显示语音按键
+          </label>
+          <span class="hint" style="display:block; margin-top:7px;">点一下开始说，再点停止；识别结果只放进输入框，由你确认后发送。</span>
+        </div>
+        <div class="field">
+          <label>识别方式</label>
+          <select id="sttEngine" onchange="readSettingsFromUI();">
+            <option value="auto">自动（优先 iPhone 系统听写）</option>
+            <option value="browser">只用系统听写（免费）</option>
+            <option value="api">接口转写（Whisper 兼容）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>语言</label>
+          <input id="sttLanguage" placeholder="zh-CN" onchange="readSettingsFromUI();" />
+        </div>
+        <div class="field">
+          <label>STT 接口地址 <span class="hint">（接口模式）</span></label>
+          <input id="sttBaseUrl" placeholder="留空复用当前接口；或填 https://api.openai.com/v1" onchange="readSettingsFromUI();" />
+        </div>
+        <div class="field">
+          <label>STT API Key <span class="hint">（不上云；留空复用当前 Key）</span></label>
+          <input id="sttApiKey" type="password" placeholder="接口转写服务的 Key" onchange="readSettingsFromUI();" />
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <label>转写模型</label>
+          <input id="sttModel" placeholder="whisper-1 / gpt-4o-mini-transcribe" onchange="readSettingsFromUI();" />
+        </div>
+
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>语音朗读（TTS）</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600;">
@@ -1736,6 +1791,9 @@
           </button>
           <select class="model-quick" id="model-quick" title="切换模型"></select>
           <span class="spacer"></span>
+          <button class="voice-input-btn" id="voice-input-btn" type="button" title="语音输入" aria-label="语音输入">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>
+          </button>
           <button class="send-btn" id="send-btn" title="发送">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
           </button>
@@ -1816,6 +1874,12 @@ let settings = {
   multiBubble: true,      // 像真人发消息：把回复拆成多条气泡（[next] 分隔），逐条冒出来
   aiSticker: true,        // AI 主动发表情：[表情包:情绪] 单独成一条气泡（emoji 大贴纸 / 已上传的同名表情）
   aiGenSticker: false,    // 进一步用画图模型把表情包生成成真实图片（较慢、耗额度，默认关）
+  sttEnabled: true,       // 输入栏语音按钮（说话转文字，不自动发送）
+  sttEngine: "auto",      // auto | browser | api
+  sttBaseUrl: "",         // 留空复用当前聊天接口
+  sttApiKey: "",          // 只存本机，留空复用当前 Key
+  sttModel: "whisper-1",
+  sttLanguage: "zh-CN",
   ttsConfigs: {},         // 每种 TTS 服务各自的配置 {provider: {ttsBaseUrl,ttsApiKey,ttsGroupId,ttsModel,ttsVoice,ttsSpeed}}，切换不互相覆盖
   cycle: { enabled: true, log: [], cycleLen: 28, periodLen: 5, remindBefore: 3 }, // 经期记录：log=[{start:"YYYY-MM-DD",end:"YYYY-MM-DD"|null}]
   notionEnabled: false,   // 记忆库接 Notion（读写）
@@ -1865,9 +1929,16 @@ let cloudPushQueue = Promise.resolve(); // serialize uploads so an older payload
 let ttsAudio = null;
 let ttsBtnActive = null;
 let ttsPrevProvider = null;   // remembers the active TTS provider so switching can save/restore per-provider config
+let voiceRecognition = null;
+let voiceRecorder = null;
+let voiceMediaStream = null;
+let voiceChunks = [];
+let voiceInputState = "idle"; // idle | listening | transcribing
+let voiceInputBaseText = "";
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","autoMemory","crossChat","crossSearch","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
+  "sttEnabled","sttEngine","sttBaseUrl","sttModel","sttLanguage",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
   "reminderEnabled","companionFeaturesV1"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
@@ -3620,6 +3691,267 @@ function jumpToBottom() {
 }
 function showError(msg) { $("err-slot").innerHTML = `<div class="err-banner">⚠️ ${escapeHtml(msg)}</div>`; }
 function clearError() { $("err-slot").innerHTML = ""; }
+
+// ---------- Voice input (STT) ----------
+// The mic always writes back into the draft. It deliberately never calls send(),
+// so a recognition mistake cannot fly into the conversation by itself.
+const VOICE_MIC_ICON = `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>`;
+const VOICE_STOP_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>`;
+
+function joinVoiceText(base, spoken) {
+  const left = String(base || "");
+  const right = String(spoken || "").trim();
+  if (!right) return left;
+  if (!left || /\s$/.test(left)) return left + right;
+  // Chinese dictation should read naturally without a Western-style space.
+  const cjk = /[\u3400-\u9fff，。！？；：、…]$/u.test(left)
+    || /^[\u3400-\u9fff，。！？；：、…]/u.test(right);
+  return left + (cjk ? "" : " ") + right;
+}
+
+function voiceAudioExtension(type) {
+  const mime = String(type || "").toLowerCase();
+  if (mime.includes("mp4") || mime.includes("m4a")) return "m4a";
+  if (mime.includes("ogg")) return "ogg";
+  if (mime.includes("wav")) return "wav";
+  if (mime.includes("mpeg") || mime.includes("mp3")) return "mp3";
+  return "webm";
+}
+
+function voiceTranscriptionUrl(baseUrl) {
+  const base = String(baseUrl || "").trim().replace(/\/+$/, "");
+  if (!base) return "";
+  if (/\/audio\/transcriptions$/i.test(base)) return base;
+  if (/\/v\d+(?:\.\d+)?$/i.test(base)) return base + "/audio/transcriptions";
+  return base + "/v1/audio/transcriptions";
+}
+
+function speechRecognitionClass() {
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function updateVoiceInputButton() {
+  const btn = $("voice-input-btn");
+  if (!btn) return;
+  btn.hidden = settings.sttEnabled === false;
+  btn.classList.toggle("listening", voiceInputState === "listening");
+  btn.classList.toggle("transcribing", voiceInputState === "transcribing");
+  btn.disabled = voiceInputState === "transcribing";
+  if (voiceInputState === "listening") {
+    btn.innerHTML = VOICE_STOP_ICON;
+    btn.title = "停止录音";
+    btn.setAttribute("aria-label", "停止录音");
+  } else if (voiceInputState === "transcribing") {
+    btn.innerHTML = `<span class="voice-spinner" aria-hidden="true"></span>`;
+    btn.title = "正在转成文字";
+    btn.setAttribute("aria-label", "正在转成文字");
+  } else {
+    btn.innerHTML = VOICE_MIC_ICON;
+    btn.title = "语音输入";
+    btn.setAttribute("aria-label", "语音输入");
+  }
+}
+
+function setVoiceInputState(state) {
+  voiceInputState = state;
+  updateVoiceInputButton();
+}
+
+function voiceErrorMessage(error) {
+  const code = String((error && (error.error || error.name)) || error || "");
+  if (/not-allowed|permission|security/i.test(code)) return "没有麦克风权限，请在 Safari/系统设置里允许访问麦克风";
+  if (/audio-capture|notfound/i.test(code)) return "没有找到可用的麦克风";
+  if (/no-speech/i.test(code)) return "没听清，再说一次试试";
+  if (/network/i.test(code)) return "语音识别网络连接失败";
+  return (error && error.message) || code || "语音输入失败";
+}
+
+function startBrowserVoiceInput() {
+  const Recognition = speechRecognitionClass();
+  if (!Recognition) throw new Error("这台设备不支持系统听写，请在设置里改成「接口转写」");
+  const input = $("input");
+  voiceInputBaseText = input.value;
+  const recognition = new Recognition();
+  voiceRecognition = recognition;
+  recognition.lang = settings.sttLanguage || "zh-CN";
+  recognition.interimResults = true;
+  recognition.continuous = false;
+  recognition.maxAlternatives = 1;
+  recognition._voiceFailed = false;
+  recognition.onstart = () => {
+    setVoiceInputState("listening");
+    showToast("正在听…再点麦克风停止");
+  };
+  recognition.onresult = (event) => {
+    let spoken = "";
+    for (let i = 0; i < event.results.length; i++) {
+      spoken += (event.results[i][0] && event.results[i][0].transcript) || "";
+    }
+    input.value = joinVoiceText(voiceInputBaseText, spoken);
+    autoResize();
+  };
+  recognition.onerror = (event) => {
+    if (event.error === "aborted") return;
+    recognition._voiceFailed = true;
+    showToast("语音输入失败：" + voiceErrorMessage(event), 4200);
+  };
+  recognition.onend = () => {
+    const changed = input.value !== voiceInputBaseText;
+    if (voiceRecognition === recognition) voiceRecognition = null;
+    setVoiceInputState("idle");
+    if (changed && !recognition._voiceFailed) {
+      input.focus();
+      showToast("已转成文字，确认后再发送");
+    }
+  };
+  setVoiceInputState("listening");
+  try {
+    recognition.start();
+  } catch (error) {
+    voiceRecognition = null;
+    setVoiceInputState("idle");
+    throw error;
+  }
+}
+
+function preferredVoiceMimeType() {
+  if (!window.MediaRecorder || typeof MediaRecorder.isTypeSupported !== "function") return "";
+  // Safari/iPhone generally prefers MP4; Chromium generally prefers WebM.
+  return [
+    "audio/mp4;codecs=mp4a.40.2",
+    "audio/mp4",
+    "audio/webm;codecs=opus",
+    "audio/webm",
+  ].find(type => MediaRecorder.isTypeSupported(type)) || "";
+}
+
+function releaseVoiceStream() {
+  if (voiceMediaStream) voiceMediaStream.getTracks().forEach(track => track.stop());
+  voiceMediaStream = null;
+}
+
+async function transcribeVoiceBlob(blob) {
+  const base = (settings.sttBaseUrl || settings.baseUrl || "").trim();
+  const key = (settings.sttApiKey || settings.apiKey || "").trim();
+  const url = voiceTranscriptionUrl(base);
+  if (!url) throw new Error("请先在「语音与媒体 → 语音输入」填写 STT 接口地址");
+  if (!key) throw new Error("请先填写 STT API Key，或让它复用当前聊天 Key");
+  const form = new FormData();
+  const type = blob.type || "audio/webm";
+  form.append("file", blob, "voice." + voiceAudioExtension(type));
+  form.append("model", settings.sttModel || "whisper-1");
+  const language = String(settings.sttLanguage || "").trim().split(/[-_]/)[0];
+  if (language) form.append("language", language);
+  form.append("response_format", "json");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "authorization": "Bearer " + key },
+    body: form,
+  });
+  const raw = await response.text();
+  if (!response.ok) throw new Error("HTTP " + response.status + (raw ? " — " + raw.slice(0, 260) : ""));
+  let data;
+  try { data = JSON.parse(raw); } catch (_) { data = { text: raw }; }
+  const text = String((data && (data.text || data.transcript)) || "").trim();
+  if (!text) throw new Error("转写接口没有返回文字");
+  return text;
+}
+
+async function startApiVoiceInput() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+    throw new Error("这个浏览器不能录音，请用最新版 Safari 并允许麦克风权限");
+  }
+  const input = $("input");
+  voiceInputBaseText = input.value;
+  voiceChunks = [];
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+  } catch (error) {
+    throw new Error(voiceErrorMessage(error));
+  }
+  voiceMediaStream = stream;
+  const mimeType = preferredVoiceMimeType();
+  let recorder;
+  try {
+    recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+  } catch (error) {
+    releaseVoiceStream();
+    throw error;
+  }
+  voiceRecorder = recorder;
+  recorder.ondataavailable = (event) => {
+    if (event.data && event.data.size) voiceChunks.push(event.data);
+  };
+  recorder.onerror = (event) => {
+    showToast("录音失败：" + voiceErrorMessage(event.error || event), 4200);
+  };
+  recorder.onstop = async () => {
+    const chunks = voiceChunks;
+    voiceChunks = [];
+    if (voiceRecorder === recorder) voiceRecorder = null;
+    releaseVoiceStream();
+    const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" });
+    if (blob.size < 100) {
+      setVoiceInputState("idle");
+      showToast("没有录到声音，再试一次");
+      return;
+    }
+    setVoiceInputState("transcribing");
+    try {
+      const text = await transcribeVoiceBlob(blob);
+      input.value = joinVoiceText(voiceInputBaseText, text);
+      autoResize();
+      input.focus();
+      showToast("已转成文字，确认后再发送");
+    } catch (error) {
+      showToast("转写失败：" + voiceErrorMessage(error), 5200);
+    } finally {
+      setVoiceInputState("idle");
+    }
+  };
+  recorder.start(250);
+  setVoiceInputState("listening");
+  showToast("正在录音…再点麦克风停止");
+}
+
+function stopVoiceInput() {
+  if (voiceRecognition) {
+    try { voiceRecognition.stop(); } catch (_) {}
+    return;
+  }
+  if (voiceRecorder && voiceRecorder.state !== "inactive") {
+    try { voiceRecorder.stop(); } catch (_) {}
+  }
+}
+
+async function toggleVoiceInput() {
+  if (voiceInputState === "transcribing") return;
+  if (voiceInputState === "listening") {
+    stopVoiceInput();
+    return;
+  }
+  if (settings.sttEnabled === false) {
+    showToast("请先在「语音与媒体」开启语音输入");
+    return;
+  }
+  const engine = settings.sttEngine || "auto";
+  try {
+    if (engine === "browser" || (engine === "auto" && speechRecognitionClass())) {
+      startBrowserVoiceInput();
+    } else {
+      await startApiVoiceInput();
+    }
+  } catch (error) {
+    releaseVoiceStream();
+    voiceRecorder = null;
+    voiceRecognition = null;
+    setVoiceInputState("idle");
+    showToast("语音输入失败：" + voiceErrorMessage(error), 5200);
+  }
+}
 
 async function speakText(text, btn) {
   const wasActive = ttsBtnActive === btn;
@@ -7127,6 +7459,13 @@ function syncSettingsToUI() {
   $("bubbleOpVal").textContent = settings.bubbleOpacity;
   $("showTime").checked = settings.showTime;
   $("timeAware").checked = settings.timeAware;
+  $("sttEnabled").checked = settings.sttEnabled !== false;
+  $("sttEngine").value = settings.sttEngine || "auto";
+  $("sttBaseUrl").value = settings.sttBaseUrl || "";
+  $("sttApiKey").value = settings.sttApiKey || "";
+  $("sttModel").value = settings.sttModel || "whisper-1";
+  $("sttLanguage").value = settings.sttLanguage || "zh-CN";
+  updateVoiceInputButton();
   $("ttsEnabled").checked = !!settings.ttsEnabled;
   $("ttsProvider").value = settings.ttsProvider || "openai";
   $("ttsBaseUrl").value = settings.ttsBaseUrl || "";
@@ -7276,6 +7615,12 @@ function readSettingsFromUI() {
   // text box doesn't wipe an uploaded image) — not read here.
   settings.lockEnabled = $("lockEnabled").checked;
   settings.lockPin = $("lockPin").value.trim();
+  settings.sttEnabled = $("sttEnabled").checked;
+  settings.sttEngine = $("sttEngine").value;
+  settings.sttBaseUrl = $("sttBaseUrl").value.trim();
+  settings.sttApiKey = $("sttApiKey").value.trim();
+  settings.sttModel = $("sttModel").value.trim() || "whisper-1";
+  settings.sttLanguage = $("sttLanguage").value.trim() || "zh-CN";
   settings.ttsEnabled = $("ttsEnabled").checked;
   settings.ttsProvider = $("ttsProvider").value;
   settings.ttsBaseUrl = $("ttsBaseUrl").value.trim();
@@ -7290,6 +7635,7 @@ function readSettingsFromUI() {
   saveSettings();
   updateStatusLine();
   renderModelQuick();
+  updateVoiceInputButton();
 }
 // Show the GroupId field + clone box + voice library only for MiniMax-native TTS.
 function updateTtsProviderUI() {
@@ -7652,6 +7998,7 @@ async function init() {
     showToast("系统文字已全部恢复为跟随主题");
   };
   $("send-btn").onclick = () => { if (abortController) abortController.abort(); else send(); };
+  $("voice-input-btn").onclick = toggleVoiceInput;
 
   $("signin-btn").onclick = () => doAuth("signin");
   $("signup-btn").onclick = () => doAuth("signup");
