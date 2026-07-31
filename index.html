@@ -932,6 +932,7 @@
     width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
     display: grid; place-items: center; cursor: pointer; transition: .16s;
     border: none; background: var(--bg-panel); color: var(--text-dim);
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   }
   .voice-input-btn:hover { color: var(--text); background: var(--item-active); }
   .voice-input-btn.listening {
@@ -1933,8 +1934,9 @@ let voiceRecognition = null;
 let voiceRecorder = null;
 let voiceMediaStream = null;
 let voiceChunks = [];
-let voiceInputState = "idle"; // idle | listening | transcribing
+let voiceInputState = "idle"; // idle | listening | stopping | transcribing
 let voiceInputBaseText = "";
+let voicePointerStopHandled = false;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","autoMemory","crossChat","crossSearch","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
@@ -3735,12 +3737,16 @@ function updateVoiceInputButton() {
   if (!btn) return;
   btn.hidden = settings.sttEnabled === false;
   btn.classList.toggle("listening", voiceInputState === "listening");
-  btn.classList.toggle("transcribing", voiceInputState === "transcribing");
-  btn.disabled = voiceInputState === "transcribing";
+  btn.classList.toggle("transcribing", voiceInputState === "stopping" || voiceInputState === "transcribing");
+  btn.disabled = voiceInputState === "stopping" || voiceInputState === "transcribing";
   if (voiceInputState === "listening") {
     btn.innerHTML = VOICE_STOP_ICON;
     btn.title = "停止录音";
     btn.setAttribute("aria-label", "停止录音");
+  } else if (voiceInputState === "stopping") {
+    btn.innerHTML = `<span class="voice-spinner" aria-hidden="true"></span>`;
+    btn.title = "正在停止录音";
+    btn.setAttribute("aria-label", "正在停止录音");
   } else if (voiceInputState === "transcribing") {
     btn.innerHTML = `<span class="voice-spinner" aria-hidden="true"></span>`;
     btn.title = "正在转成文字";
@@ -3766,6 +3772,45 @@ function voiceErrorMessage(error) {
   return (error && error.message) || code || "语音输入失败";
 }
 
+function finishBrowserVoiceInput(recognition) {
+  if (!recognition || recognition._voiceFinished) return;
+  recognition._voiceFinished = true;
+  clearTimeout(recognition._voiceMaxTimer);
+  clearTimeout(recognition._voiceStopFallback);
+  const input = recognition._voiceInput || $("input");
+  const baseText = recognition._voiceBaseText ?? voiceInputBaseText;
+  const changed = input.value !== baseText;
+  // Only the currently-owned recognizer may change the shared button state.
+  if (voiceRecognition === recognition) {
+    voiceRecognition = null;
+    setVoiceInputState("idle");
+  }
+  if (changed && !recognition._voiceFailed) {
+    input.focus();
+    showToast("已转成文字，确认后再发送");
+  }
+}
+
+function stopBrowserVoiceInput(recognition, automatic) {
+  if (!recognition || recognition._voiceFinished || recognition._voiceStopping) return;
+  recognition._voiceStopping = true;
+  clearTimeout(recognition._voiceMaxTimer);
+  if (voiceRecognition === recognition) setVoiceInputState("stopping");
+  showToast(automatic ? "录音已到 60 秒，正在结束听写…" : "正在结束听写…");
+  try {
+    recognition.stop();
+  } catch (_) {
+    try { recognition.abort(); } catch (_) {}
+  }
+  // iOS Safari/PWA occasionally never dispatches `end` after stop(). Force the
+  // recognizer closed so the red stop button and microphone cannot stay wedged.
+  recognition._voiceStopFallback = setTimeout(() => {
+    if (recognition._voiceFinished) return;
+    try { recognition.abort(); } catch (_) {}
+    finishBrowserVoiceInput(recognition);
+  }, 900);
+}
+
 function startBrowserVoiceInput() {
   const Recognition = speechRecognitionClass();
   if (!Recognition) throw new Error("这台设备不支持系统听写，请在设置里改成「接口转写」");
@@ -3773,6 +3818,10 @@ function startBrowserVoiceInput() {
   voiceInputBaseText = input.value;
   const recognition = new Recognition();
   voiceRecognition = recognition;
+  recognition._voiceInput = input;
+  recognition._voiceBaseText = voiceInputBaseText;
+  recognition._voiceFinished = false;
+  recognition._voiceStopping = false;
   recognition.lang = settings.sttLanguage || "zh-CN";
   recognition.interimResults = true;
   recognition.continuous = false;
@@ -3781,8 +3830,10 @@ function startBrowserVoiceInput() {
   recognition.onstart = () => {
     setVoiceInputState("listening");
     showToast("正在听…再点麦克风停止");
+    recognition._voiceMaxTimer = setTimeout(() => stopBrowserVoiceInput(recognition, true), 60000);
   };
   recognition.onresult = (event) => {
+    if (recognition._voiceFinished) return;
     let spoken = "";
     for (let i = 0; i < event.results.length; i++) {
       spoken += (event.results[i][0] && event.results[i][0].transcript) || "";
@@ -3791,19 +3842,13 @@ function startBrowserVoiceInput() {
     autoResize();
   };
   recognition.onerror = (event) => {
-    if (event.error === "aborted") return;
-    recognition._voiceFailed = true;
-    showToast("语音输入失败：" + voiceErrorMessage(event), 4200);
-  };
-  recognition.onend = () => {
-    const changed = input.value !== voiceInputBaseText;
-    if (voiceRecognition === recognition) voiceRecognition = null;
-    setVoiceInputState("idle");
-    if (changed && !recognition._voiceFailed) {
-      input.focus();
-      showToast("已转成文字，确认后再发送");
+    if (event.error !== "aborted") {
+      recognition._voiceFailed = true;
+      showToast("语音输入失败：" + voiceErrorMessage(event), 4200);
     }
+    finishBrowserVoiceInput(recognition);
   };
+  recognition.onend = () => finishBrowserVoiceInput(recognition);
   setVoiceInputState("listening");
   try {
     recognition.start();
@@ -3889,6 +3934,9 @@ async function startApiVoiceInput() {
     showToast("录音失败：" + voiceErrorMessage(event.error || event), 4200);
   };
   recorder.onstop = async () => {
+    clearTimeout(recorder._voiceMaxTimer);
+    clearTimeout(recorder._voiceStopFallback);
+    if (recorder._voiceCancelled) return;
     const chunks = voiceChunks;
     voiceChunks = [];
     if (voiceRecorder === recorder) voiceRecorder = null;
@@ -3913,22 +3961,49 @@ async function startApiVoiceInput() {
     }
   };
   recorder.start(250);
+  recorder._voiceMaxTimer = setTimeout(() => {
+    if (voiceRecorder === recorder && recorder.state !== "inactive") stopVoiceInput(true);
+  }, 60000);
   setVoiceInputState("listening");
   showToast("正在录音…再点麦克风停止");
 }
 
-function stopVoiceInput() {
+function stopVoiceInput(automatic) {
   if (voiceRecognition) {
-    try { voiceRecognition.stop(); } catch (_) {}
+    stopBrowserVoiceInput(voiceRecognition, automatic);
     return;
   }
   if (voiceRecorder && voiceRecorder.state !== "inactive") {
-    try { voiceRecorder.stop(); } catch (_) {}
+    const recorder = voiceRecorder;
+    clearTimeout(recorder._voiceMaxTimer);
+    setVoiceInputState("stopping");
+    showToast(automatic ? "录音已到 60 秒，正在停止…" : "正在停止录音…");
+    try {
+      recorder.stop();
+    } catch (_) {
+      recorder._voiceCancelled = true;
+      voiceRecorder = null;
+      voiceChunks = [];
+      releaseVoiceStream();
+      setVoiceInputState("idle");
+      return;
+    }
+    // MediaRecorder normally stops immediately. This is a last-resort release
+    // for WebKit builds that fail to fire onstop after the app is interrupted.
+    recorder._voiceStopFallback = setTimeout(() => {
+      if (voiceRecorder !== recorder) return;
+      recorder._voiceCancelled = true;
+      voiceRecorder = null;
+      voiceChunks = [];
+      releaseVoiceStream();
+      setVoiceInputState("idle");
+      showToast("录音已经强制停止，请再试一次");
+    }, 2500);
   }
 }
 
 async function toggleVoiceInput() {
-  if (voiceInputState === "transcribing") return;
+  if (voiceInputState === "stopping" || voiceInputState === "transcribing") return;
   if (voiceInputState === "listening") {
     stopVoiceInput();
     return;
@@ -7998,7 +8073,22 @@ async function init() {
     showToast("系统文字已全部恢复为跟随主题");
   };
   $("send-btn").onclick = () => { if (abortController) abortController.abort(); else send(); };
-  $("voice-input-btn").onclick = toggleVoiceInput;
+  // On iPhone PWA, handling the second tap at pointer-down avoids WebKit
+  // swallowing the delayed click while its speech recognizer owns the mic.
+  $("voice-input-btn").addEventListener("pointerdown", (event) => {
+    if (voiceInputState !== "listening") return;
+    event.preventDefault();
+    voicePointerStopHandled = true;
+    stopVoiceInput(false);
+    setTimeout(() => { voicePointerStopHandled = false; }, 500);
+  });
+  $("voice-input-btn").onclick = () => {
+    if (voicePointerStopHandled) {
+      voicePointerStopHandled = false;
+      return;
+    }
+    toggleVoiceInput();
+  };
 
   $("signin-btn").onclick = () => doAuth("signin");
   $("signup-btn").onclick = () => doAuth("signup");

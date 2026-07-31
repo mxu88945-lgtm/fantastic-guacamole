@@ -46,7 +46,46 @@ const voiceEnd = html.indexOf('async function speakText(', voiceStart)
 if (voiceStart < 0 || voiceEnd < 0) throw new Error('voice toggle section not found')
 const toggleSource = html.slice(voiceStart, voiceEnd)
 if (/\bsend\s*\(/.test(toggleSource)) throw new Error('voice input must not auto-send')
-if (!html.includes('$("voice-input-btn").onclick = toggleVoiceInput;')) throw new Error('voice button is not wired')
-if (!sw.includes('const CACHE = "role-chat-cache-v109";')) throw new Error('service worker cache was not bumped')
+if (!html.includes('$("voice-input-btn").onclick = () => {')) throw new Error('voice button is not wired')
+if (!html.includes('addEventListener("pointerdown"')) throw new Error('iPhone stop tap is not handled eagerly')
+if (!html.includes('recognition.abort()')) throw new Error('stuck Safari recognition has no abort fallback')
+if (!html.includes('recognition._voiceStopFallback = setTimeout')) throw new Error('recognition stop has no watchdog')
+if (!html.includes('voiceInputState === "stopping"')) throw new Error('stop action has no immediate UI state')
+if (!html.includes('60000')) throw new Error('voice capture has no maximum duration')
+if (!sw.includes('const CACHE = "role-chat-cache-v110";')) throw new Error('service worker cache was not bumped')
 
-console.log('voice input regression: 13 checks passed')
+const lifecycleStart = html.indexOf('function finishBrowserVoiceInput(')
+const lifecycleEnd = html.indexOf('function startBrowserVoiceInput(', lifecycleStart)
+if (lifecycleStart < 0 || lifecycleEnd < 0) throw new Error('browser recognition lifecycle section not found')
+let fallback
+const fakeInput = { value: '', focus() {} }
+const lifecycleContext = {
+  voiceRecognition: null,
+  voiceInputBaseText: '',
+  clearTimeout() {},
+  setTimeout(fn) { fallback = fn; return 1 },
+  setVoiceInputState(state) { lifecycleContext.state = state },
+  showToast() {},
+  $() { return fakeInput },
+}
+vm.runInNewContext(
+  `${html.slice(lifecycleStart, lifecycleEnd)}
+   globalThis.lifecycle = { finishBrowserVoiceInput, stopBrowserVoiceInput };`,
+  lifecycleContext,
+)
+const recognition = {
+  _voiceInput: fakeInput,
+  _voiceBaseText: '',
+  stop() { this.stopCalls = (this.stopCalls || 0) + 1 },
+  abort() { this.abortCalls = (this.abortCalls || 0) + 1 },
+}
+lifecycleContext.voiceRecognition = recognition
+lifecycleContext.lifecycle.stopBrowserVoiceInput(recognition, false)
+equal(lifecycleContext.state, 'stopping', 'stop tap immediate state')
+equal(recognition.stopCalls, 1, 'graceful recognition stop')
+fallback()
+equal(recognition.abortCalls, 1, 'Safari forced abort fallback')
+equal(lifecycleContext.state, 'idle', 'fallback restores idle state')
+if (lifecycleContext.voiceRecognition !== null) throw new Error('fallback did not release recognizer ownership')
+
+console.log('voice input regression: 23 checks passed')
