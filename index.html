@@ -722,7 +722,7 @@
   }
   .msg-media .msg-img,
   .bubble .msg-img {
-    max-width: min(280px, 78vw); max-height: 320px; border-radius: 12px; display: block;
+    max-width: min(210px, 60vw); max-height: 240px; border-radius: 12px; display: block;
     margin: 0; cursor: pointer; object-fit: contain;
     box-shadow: 0 2px 8px rgba(0,0,0,.08);
   }
@@ -5891,6 +5891,16 @@ function renderAttachPreview() {
     box.appendChild(d);
   });
 }
+// iOS can drop the first file-picker request when its source menu is hidden
+// before input.click() runs. Open the native picker synchronously while the
+// tapped menu item is still visible, then close the menu on the next frame.
+function openComposerFilePicker(inputId) {
+  const picker = $(inputId);
+  if (!picker) return;
+  picker.value = "";
+  picker.click();
+  requestAnimationFrame(() => $("plus-menu").classList.remove("show"));
+}
 
 // ---------- Stickers / 表情包 ----------
 function addStickerFile(file) {
@@ -8192,12 +8202,12 @@ async function init() {
     btn.onclick = (e) => {
       e.stopPropagation();
       const act = btn.dataset.act;
-      $("plus-menu").classList.remove("show");
-      if (act === "image") $("attach-file").click();
-      else if (act === "file") $("file-input").click();
+      if (act === "image") openComposerFilePicker("attach-file");
+      else if (act === "file") openComposerFilePicker("file-input");
       else if (act === "compact") compactConversation();
       else if (act === "export") openExportDialog();
       else if (act === "draw") drawImage();
+      if (act !== "image" && act !== "file") $("plus-menu").classList.remove("show");
     };
   });
   document.addEventListener("click", (e) => {
