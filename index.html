@@ -1937,12 +1937,15 @@ let stickBottom = true;   // whether streaming should keep auto-scrolling to bot
 let bottomPinUntil = 0;   // keep iOS viewport/composer reflows pinned briefly after send
 let scrollControlsAwake = false, scrollControlsHideTimer = null;
 const CHAT_HISTORY_TOKEN_BUDGET = 5800; // local history stays intact; only API context is windowed
-const CHAT_HISTORY_MESSAGE_CAP = 48;    // safety cap for many short multi-bubbles
-const CHAT_HISTORY_MIN_ROLE_RUNS = 4;   // preserve at least two recent user/assistant exchanges
-const COMPACTED_HISTORY_TOKEN_BUDGET = 4600; // a rolling summary lets recent raw context be smaller
+const CHAT_HISTORY_MESSAGE_CAP = 56;    // safety cap for many short multi-bubbles
+const CHAT_HISTORY_MIN_ROLE_RUNS = 6;   // preserve at least three recent user/assistant exchanges
+const COMPACTED_HISTORY_TOKEN_BUDGET = 5600; // summary is injected separately; keep enough raw voice nearby
 const AUTO_COMPACT_THRESHOLD = 100;     // summarize when this many raw chat bubbles accumulate
-const AUTO_COMPACT_KEEP = 20;           // keep the newest raw bubbles visible and verbatim
+const AUTO_COMPACT_KEEP = 36;           // recent verbatim turns preserve cadence, chemistry and subtext
 const COMPACT_TRANSCRIPT_CHAR_BUDGET = 16000; // one-off summary call must not become a token bomb
+const ROLLING_SUMMARY_VERSION = 2;
+const ROLLING_SUMMARY_CHAR_LIMIT = 2000;
+const ROLLING_SUMMARY_MAX_TOKENS = 2200;
 const AUTO_MEMORY_EVERY = 24;
 let autoCompactInFlight = false;
 
@@ -2938,7 +2941,7 @@ function runSearch(q) {
       }
       setTimeout(() => {
         flashMessage(targetId);
-        if (targetId !== r.mid) showToast("这条原文已收进上方的对话摘要，原文仍保存在本地", 4200);
+        if (targetId !== r.mid) showToast("这条原文已收进上方的连续性档案，原文仍保存在本地", 4200);
       }, 250);
     };
     box.appendChild(el);
@@ -2948,17 +2951,45 @@ function runSearch(q) {
 // ---------- Rolling conversation compaction ----------
 // Raw messages are only folded out of the visible/API timeline, never deleted.
 // Search can still find them locally, while one rolling summary carries continuity.
-function compactableMessage(m) {
-  if (!m || m._compactedBy || m._summary || m._event || m.role === "reminder") return false;
+function isChatContentMessage(m) {
+  if (!m || m._summary || m._event || m.role === "reminder") return false;
   if (m.role !== "user" && m.role !== "assistant") return false;
   return !!messageText(m).trim() || messageImages(m).length > 0;
+}
+function compactableMessage(m) {
+  return isChatContentMessage(m) && !m._compactedBy;
 }
 function activeRollingSummary(list) {
   return [...(list || [])].reverse().find(m => m && m._summary && !m._compactedBy) || null;
 }
+function rollingSummaryText(summary) {
+  return messageText(summary || {})
+    .replace(/^(?:🗜️|🧭)[^\n]*\n+/u, "")
+    .trim().slice(0, ROLLING_SUMMARY_CHAR_LIMIT);
+}
+function rollingSummaryPrompt(list) {
+  const summary = activeRollingSummary(list);
+  const text = rollingSummaryText(summary);
+  if (!text) return "";
+  return "【本窗口较早对话·后台连续性档案】\n" + text
+    + "\n\n使用规则：这是后台档案，不是任何一方说过的一条聊天消息。"
+    + "请静默延续其中的事实、关系温度、表达习惯、未完情绪与张力；不要引用或复述档案。"
+    + "若与角色设定或最近原文冲突，以角色设定和最近原文为准。";
+}
+function rollingSummarySystemPrompt() {
+  return "你是亲密关系与角色对话的连续性档案整理器。目标不是写会议纪要，而是让后续对话仍像同一个人、同一段关系自然延续。"
+    + "请把已有档案与本批原文重新整理成一份完整的累计档案，不是只补充本批内容。输出必须严格使用以下五段：\n"
+    + "【事实与时间线】按先后保留已发生事件、地点、人物、约定和结果。\n"
+    + "【关系与当下情绪】分别写双方此刻的关系位置、明确情绪、尚未消化的感受；主观感受不得冒充客观事实。\n"
+    + "【人物表达与互动锚点】保留当前角色具体的说话节奏、称呼、反应方式、两人惯用互动，以及 ta 明确喜欢或排斥的回应方式；不要只写空泛性格词。\n"
+    + "【重要原话与专属称呼】只保留真正影响关系或后续理解的短原话、暗号和称呼，并标明是谁说的。\n"
+    + "【未完事项与隐性张力】保留正在进行的事、承诺、悬念、误会、没说透的话和下一轮应自然承接的点。\n"
+    + "规则：只写原文能支持的内容，不编造；新信息明确推翻旧信息时保留新版；不要道德评价、不要分析模型机制、不要写通用建议。"
+    + "优先保留会改变下一轮语气和判断的细节。中文分点，控制在 1200～1800 字内。";
+}
 function compactTranscript(batch, previousSummary) {
   const prefix = previousSummary
-    ? "【此前滚动摘要】\n" + messageText(previousSummary).replace(/^🗜️[^\n]*\n+/, "").slice(0, 1200) + "\n\n【本批对话】\n"
+    ? "【此前连续性档案】\n" + rollingSummaryText(previousSummary) + "\n\n【本批对话原文】\n"
     : "";
   const available = Math.max(4000, COMPACT_TRANSCRIPT_CHAR_BUDGET - prefix.length);
   const perMessage = Math.max(40, Math.floor(available / Math.max(1, batch.length)) - 12);
@@ -2968,30 +2999,97 @@ function compactTranscript(batch, previousSummary) {
     return nameFor(m.role) + "：" + body.slice(0, perMessage);
   }).join("\n");
 }
+function archivedMessagesForSummary(conv, summary) {
+  if (!conv || !summary || !summary.id) return [];
+  const byId = new Map(conv.messages.filter(m => m && m.id).map(m => [m.id, m]));
+  return conv.messages.filter(m => {
+    if (!isChatContentMessage(m) || !m._compactedBy) return false;
+    let nextId = m._compactedBy;
+    const visited = new Set();
+    while (nextId && !visited.has(nextId)) {
+      if (nextId === summary.id) return true;
+      visited.add(nextId);
+      nextId = byId.get(nextId)?._compactedBy || "";
+    }
+    return false;
+  });
+}
+function legacySummaryRebuildTranscript(summary, archived) {
+  const old = rollingSummaryText(summary);
+  const prefix = "【旧版摘要·可能过度压缩，仅作查漏】\n" + old
+    + "\n\n【当时被折叠的对话原文·以原文为准】\n";
+  const available = Math.max(5000, COMPACT_TRANSCRIPT_CHAR_BUDGET - prefix.length);
+  const perMessage = Math.max(50, Math.floor(available / Math.max(1, archived.length)) - 12);
+  return prefix + archived.map(m => {
+    const text = messageText(m).replace(/\s+/g, " ").trim();
+    const body = text || (messageImages(m).length ? "[图片]" : "");
+    return nameFor(m.role) + "：" + body.slice(0, perMessage);
+  }).join("\n");
+}
+// Existing v1 summaries were short assistant-shaped meeting notes. Upgrade each
+// affected conversation once from its still-preserved local raw turns before the
+// next reply, so old windows benefit from the new continuity model immediately.
+async function maybeUpgradeRollingSummary(conv) {
+  if (autoCompactInFlight || abortController || !memoryRuntimeConfig().apiKey) return false;
+  conv = conv || currentConv();
+  const summary = conv && activeRollingSummary(conv.messages);
+  if (!summary || (summary._summaryVersion || 1) >= ROLLING_SUMMARY_VERSION) return false;
+  const archived = archivedMessagesForSummary(conv, summary);
+  if (!archived.length) return false;
+  autoCompactInFlight = true;
+  showToast("🧭 正在用旧原文重建连续性档案…", 4200);
+  try {
+    const rebuilt = await completeOnce(
+      rollingSummarySystemPrompt(),
+      legacySummaryRebuildTranscript(summary, archived),
+      ROLLING_SUMMARY_MAX_TOKENS,
+      true,
+    );
+    if (!rebuilt || !conversations.includes(conv)) return false;
+    summary.content = "🧭 **较早对话·连续性档案**\n\n"
+      + rebuilt.trim().slice(0, ROLLING_SUMMARY_CHAR_LIMIT);
+    summary._summaryVersion = ROLLING_SUMMARY_VERSION;
+    summary._summaryUpgradedAt = Date.now();
+    saveConversations();
+    if (currentId === conv.id) {
+      messages = conv.messages;
+      renderMessages();
+      if (stickBottom) scrollToBottom();
+    }
+    showToast("✨ 旧窗口的连续性档案已从原文重建", 4200);
+    return true;
+  } catch (e) {
+    console.warn("rolling summary upgrade failed", e);
+    showToast("连续性档案暂时没重建成功，旧原文仍安全保留", 3600);
+    return false;
+  } finally {
+    autoCompactInFlight = false;
+  }
+}
 async function compactMessageBatch(conv, batch, automatic) {
   if (!conv || !batch.length || !memoryRuntimeConfig().apiKey) return false;
   batch.forEach(m => { if (!m.id) m.id = uid(); });
   const previousSummary = activeRollingSummary(conv.messages);
   if (previousSummary && !previousSummary.id) previousSummary.id = uid();
   const transcript = compactTranscript(batch, previousSummary);
-  showToast(automatic ? "🗜️ 对话满 100 条，正在自动整理摘要…" : "正在压缩对话…", 3600);
+  showToast(automatic ? "🧭 对话满 100 条，正在整理连续性档案…" : "正在整理连续性档案…", 3600);
   let summary;
   try {
     summary = await completeOnce(
-      "你是滚动对话摘要助手。根据已有摘要与本批对话，输出一份新的累计摘要。保留人物、事实、事件顺序、重要原话、约定、称呼、情绪变化和未完成事项；不要编造，不要写分析过程。中文分点，尽量控制在 600 字内。",
-      transcript, 700, true);
+      rollingSummarySystemPrompt(), transcript, ROLLING_SUMMARY_MAX_TOKENS, true);
   } catch (e) {
-    showToast((automatic ? "自动压缩稍后重试：" : "压缩失败：") + (e.message || e), 4200);
+    showToast((automatic ? "连续性档案稍后重试：" : "整理失败：") + (e.message || e), 4200);
     return false;
   }
   if (!summary || !conversations.includes(conv)) {
-    if (!summary) showToast(automatic ? "自动压缩没拿到摘要，稍后重试" : "压缩失败：没拿到摘要");
+    if (!summary) showToast(automatic ? "连续性档案暂未生成，稍后重试" : "整理失败：没有生成档案");
     return false;
   }
   const summaryMsg = {
     id: uid(), role: "assistant",
-    content: "🗜️ **之前对话的累计摘要**\n\n" + summary.trim().slice(0, 1200),
+    content: "🧭 **较早对话·连续性档案**\n\n" + summary.trim().slice(0, ROLLING_SUMMARY_CHAR_LIMIT),
     ts: batch[batch.length - 1]?.ts || Date.now(), _summary: true, _autoSummary: true,
+    _summaryVersion: ROLLING_SUMMARY_VERSION,
     _summaryCount: (previousSummary?._summaryCount || 0) + batch.length,
   };
   const batchIds = new Set(batch.map(m => m.id));
@@ -3011,8 +3109,8 @@ async function compactMessageBatch(conv, batch, automatic) {
     if (stickBottom) scrollToBottom();
   }
   showToast(automatic
-    ? "✅ 已自动压缩：旧原文仍在本地，最近 20 条保持原样"
-    : "✅ 已压缩：旧原文仍在本地，可通过搜索找到", 4200);
+    ? "✅ 已整理连续性档案：旧原文仍在本地，最近 36 条保持原样"
+    : "✅ 已整理连续性档案：旧原文仍在本地，可通过搜索找到", 4200);
   return true;
 }
 async function maybeAutoCompactConversation() {
@@ -3031,10 +3129,10 @@ async function maybeAutoCompactConversation() {
 async function compactConversation() {
   if (abortController || autoCompactInFlight) { showToast("等当前回复或摘要完成再压缩哦"); return; }
   if (!memoryRuntimeConfig().apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
-  const keep = 6;
+  const keep = AUTO_COMPACT_KEEP;
   const raw = messages.filter(compactableMessage);
   if (raw.length <= keep + 2) { showToast("对话还不长，先不用压缩～"); return; }
-  if (!confirm(`把较早的 ${raw.length - keep} 条消息收进一段累计摘要？\n（保留最近 ${keep} 条原文；旧原文仍保存在本地，可通过搜索找到）`)) return;
+  if (!confirm(`把较早的 ${raw.length - keep} 条消息整理进连续性档案？\n（保留最近 ${keep} 条原文；旧原文仍保存在本地，可通过搜索找到）`)) return;
   autoCompactInFlight = true;
   try {
     await compactMessageBatch(currentConv(), raw.slice(0, raw.length - keep), false);
@@ -4337,12 +4435,13 @@ function roleRunCount(list) {
 // window to the model. A prior manual summary is retained, and relevant omitted
 // snippets are retrieved separately so long chats do not become amnesiac.
 function buildApiHistoryWindow() {
+  const rollingSummary = activeRollingSummary(messages);
   const usable = messages.filter(m => {
-    if (!m || m.role === "reminder" || m._compactedBy) return false;
+    if (!m || m.role === "reminder" || m._compactedBy || m._summary) return false;
     const c = sendContent(m);
     return (typeof c === "string" && c.trim()) || Array.isArray(c);
   });
-  const historyBudget = usable.some(m => m._summary)
+  const historyBudget = rollingSummary
     ? COMPACTED_HISTORY_TOKEN_BUDGET : CHAT_HISTORY_TOKEN_BUDGET;
   let totalTokens = 0;
   const chosen = [];
@@ -4356,26 +4455,13 @@ function buildApiHistoryWindow() {
   }
   const first = chosen.length ? usable.indexOf(chosen[0]) : usable.length;
   const omitted = first > 0 ? usable.slice(0, first) : [];
-  const priorSummary = [...omitted].reverse().find(m => m && m._summary && messageText(m).trim());
-  if (priorSummary) {
-    const compact = { ...priorSummary, content: messageText(priorSummary).slice(0, 2200) };
-    chosen.unshift(compact);
-    totalTokens += messagePromptTokens(compact);
-    // Make room for the summary by dropping the oldest tail turns first, but
-    // always retain the minimum recent role runs.
-    while (totalTokens > historyBudget + 700 && chosen.length > 2
-        && roleRunCount(chosen.slice(2)) >= CHAT_HISTORY_MIN_ROLE_RUNS) {
-      const removed = chosen.splice(1, 1)[0];
-      totalTokens -= messagePromptTokens(removed);
-      omitted.push(removed);
-    }
-  }
   const sentIds = new Set(chosen.map(m => m && m.id).filter(Boolean));
   const storedChatMessages = messages.filter(m => m
     && (m.role === "user" || m.role === "assistant") && !m._event);
   return {
     messages: chosen,
-    omitted: priorSummary ? omitted.filter(m => m !== priorSummary) : omitted,
+    omitted,
+    rollingSummary,
     totalMessages: usable.length,
     storedMessages: storedChatMessages.length,
     archivedMessages: storedChatMessages.filter(m => m._compactedBy).length,
@@ -4386,20 +4472,29 @@ function buildApiHistoryWindow() {
   };
 }
 function retrieveOmittedCurrentChat(windowInfo) {
-  const omitted = windowInfo && windowInfo.omitted;
-  if (!omitted || !omitted.length) return "";
-  const q = memTokens(messages.slice(-4).map(m => messageText(m)).join("  "));
+  const omitted = windowInfo && windowInfo.omitted || [];
+  const archived = messages.filter(m => isChatContentMessage(m) && m._compactedBy);
+  const byId = new Map();
+  omitted.concat(archived).forEach(m => {
+    const key = m.id || (m.role + ":" + (m.ts || "") + ":" + messageText(m).slice(0, 80));
+    if (!byId.has(key)) byId.set(key, m);
+  });
+  const candidates = [...byId.values()];
+  if (!candidates.length) return "";
+  const recentRaw = messages.filter(isChatContentMessage).slice(-4);
+  const q = memTokens(recentRaw.map(m => messageText(m)).join("  "));
   if (!q.size) return "";
-  const seen = new Set(messages.slice(-8).map(m => messageText(m).replace(/\s+/g, " ").trim().toLowerCase()));
-  const hits = omitted.map(m => {
+  const seen = new Set(messages.filter(isChatContentMessage).slice(-8)
+    .map(m => messageText(m).replace(/\s+/g, " ").trim().toLowerCase()));
+  const hits = candidates.map(m => {
     const txt = messageText(m).replace(/\s+/g, " ").trim();
     return { m, txt, s: memScore(q, txt) };
   }).filter(x => x.txt.length >= 8 && x.s >= 2 && !seen.has(x.txt.toLowerCase()))
-    .sort((a, b) => b.s - a.s).slice(0, 3);
+    .sort((a, b) => b.s - a.s || (b.m.ts || 0) - (a.m.ts || 0)).slice(0, 4);
   if (!hits.length) return "";
-  return "【本窗口较早、与当前话题相关的片段】\n" + hits.map(x =>
+  return "【本窗口旧原文中、与当前话题相关的准确片段】\n" + hits.map(x =>
     (x.m.role === "user" ? userRef() : (settings.aiName || "当前角色")) + "：" + x.txt.slice(0, 160)
-  ).join("\n");
+  ).join("\n") + "\n只把这些当作回忆证据，自然承接，不要机械复述。";
 }
 // Build the wire-format message list, coalescing consecutive same-role turns.
 // (Multi-bubble replies store several assistant messages; APIs — esp. Anthropic —
@@ -4407,7 +4502,7 @@ function retrieveOmittedCurrentChat(windowInfo) {
 function apiMessagesFor(isAnthropic, sourceMessages) {
   const out = [];
   for (const m of (sourceMessages || messages)) {
-    if (m.role === "reminder" || m._compactedBy) continue;   // archived raw messages stay local
+    if (m.role === "reminder" || m._compactedBy || m._summary) continue;
     const content = toApiContent(sendContent(m), isAnthropic);
     if (!apiContentHasValue(content)) continue;
     const last = out[out.length - 1];
@@ -4599,13 +4694,18 @@ async function streamChat(onDelta, onReasoning) {
   if (styleNote) systemText = systemText ? systemText + "\n\n" + styleNote : styleNote;
   const cycleNote = cycleSystemNote();
   if (cycleNote) systemText = systemText ? systemText + "\n\n" + cycleNote : cycleNote;
+  const continuityNote = rollingSummaryPrompt(messages);
+  if (continuityNote) {
+    systemText = systemText ? systemText + "\n\n" + continuityNote : continuityNote;
+  }
   if (settings.memSummary && settings.memSummary.trim()) {
-    const sum = "【关于 ta 的整体印象（人物速写）】\n" + settings.memSummary.trim();
+    const sum = "【跨窗口稳定人物速写】\n" + settings.memSummary.trim()
+      + "\n只用于理解 ta 的长期特征；若与最近原文冲突，以最近原文为准。";
     systemText = systemText ? systemText + "\n\n" + sum : sum;
   }
   const memText = buildMemoryForPrompt();
   if (memText && memText.trim()) {
-    const mem = "以下是需要长期记住的、关于「" + userRef() + "」的信息：\n" + memText.trim();
+    const mem = "【跨窗口稳定长期事实·关于「" + userRef() + "」】\n" + memText.trim();
     systemText = systemText ? systemText + "\n\n" + mem : mem;
   }
   const diaryNote = privateDiaryPrompt(activeRole(), true);
@@ -6239,7 +6339,7 @@ function quoteMessage(idx) {
 function editMessage(idx) {
   const m = messages[idx];
   if (!m) return;
-  if (m._summary) { showToast("滚动摘要不能用“编辑并重发”，可以用“改文字”校正内容"); return; }
+  if (m._summary) { showToast("连续性档案不能用“编辑并重发”，可以用“改文字”校正内容"); return; }
   if (idx !== messages.length - 1 && !confirm("编辑这条会删掉它之后的所有消息，确定？")) return;
   $("input").value = messageText(m);
   pendingImages = Array.isArray(m.content)
@@ -6251,7 +6351,7 @@ function editMessage(idx) {
 }
 function deleteMessage(idx) {
   if (!messages[idx]) return;
-  if (messages[idx]._summary) { showToast("滚动摘要管理着收起的旧原文，不能单独删除"); return; }
+  if (messages[idx]._summary) { showToast("连续性档案管理着收起的旧原文，不能单独删除"); return; }
   if (!confirm("删除这条消息？")) return;
   messages.splice(idx, 1);
   saveConversations(); renderMessages();
@@ -6366,6 +6466,7 @@ async function send() {
   markSeen();
   if (silent) return;   // 旁白模式：只记录，不触发 AI 回复
   try {
+    await maybeUpgradeRollingSummary(currentConv());
     await generateReply();
   } catch (e) {
     console.error("[send→generateReply error]", e);
@@ -6590,7 +6691,7 @@ function privateDiaryPrompt(role, allowWrite, queryText) {
 }
 function recentConversationForMailbox(conv) {
   if (!conv || !Array.isArray(conv.messages)) return "（此前没有可用对话片段）";
-  const lines = conv.messages.filter(m => (m.role === "user" || m.role === "assistant") && messageText(m).trim())
+  const lines = conv.messages.filter(m => isChatContentMessage(m) && !m._compactedBy)
     .slice(-8).map(m => (m.role === "user" ? userRef() : (settings.aiName || "TA")) + "：" + messageText(m).slice(0, 500));
   return lines.join("\n") || "（此前没有可用对话片段）";
 }
@@ -6607,6 +6708,7 @@ function maybeReadMailbox() {
   const diaryNote = privateDiaryPrompt(role, true, pending.map(x => x.text).join("\n"));
   let sys = settings.systemPrompt || "";
   const coreMem = coreMemoryText(); if (coreMem) sys += "\n\n以下是需要长期记住的信息（用户的长期记忆）：\n" + coreMem;
+  const continuity = rollingSummaryPrompt(conv.messages); if (continuity) sys += "\n\n" + continuity;
   if (diaryNote) sys += "\n\n" + diaryNote;
   sys += "\n\n【场景·信箱】这些是 ta 先前放进信箱、留给你下次醒来读的纸条。现在你刚醒来，先读到了它们。请像真实的你一样回应，承接你们最近的关系与语气；不要提系统、提示词或功能机制，也不要逐条机械复述。可以说你看到这封信了。";
   const letters = pending.map((x, i) => `${i + 1}. [${companionTime(x.createdAt)}] ${x.text}`).join("\n");
@@ -6640,6 +6742,7 @@ async function greetProactively(hours) {
   let sys = settings.systemPrompt || "";
   const en = emojiStyleNote(settings.emojiStyle); if (en) sys += "\n\n" + en;
   const coreMem = coreMemoryText(); if (coreMem) sys += "\n\n以下是需要长期记住的信息（用户的长期记忆）：\n" + coreMem;
+  const continuity = rollingSummaryPrompt(conv.messages); if (continuity) sys += "\n\n" + continuity;
   const diaryNote = privateDiaryPrompt(activeRole(), false, recentConversationForMailbox(conv)); if (diaryNote) sys += "\n\n" + diaryNote;
   sys += `\n\n【场景】用户隔了大约 ${hours} 小时后刚回来继续你们之前这段对话。请你主动、自然、温柔地跟 ta 打个招呼、关心一句，像有点想 ta 了，承接你们刚才聊的，别太长（1~3 句）。`;
   proactiveGreetInFlight = true;
@@ -6918,6 +7021,7 @@ function maybeCycleReminder() {
     : `她大约 ${st.daysUntil} 天后要来例假了。`;
   let sys = settings.systemPrompt || "";
   const en = emojiStyleNote(settings.emojiStyle); if (en) sys += "\n\n" + en;
+  const continuity = rollingSummaryPrompt(conv.messages); if (continuity) sys += "\n\n" + continuity;
   const diaryNote = privateDiaryPrompt(activeRole(), false, scene); if (diaryNote) sys += "\n\n" + diaryNote;
   sys += `\n\n【场景】${scene}请你主动、温柔地关心她一句（提醒保暖/喝热水/别吃凉的/早点休息之类），像心疼她的样子，别太长（1~2 句），口语自然。`;
   completeOnce(sys, "（主动关心我一下～）", 300).then(out => {
