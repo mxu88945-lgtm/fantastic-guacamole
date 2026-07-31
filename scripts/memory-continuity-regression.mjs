@@ -18,6 +18,9 @@ requireText('m._compactedBy || m._summary', 'summary cards are still eligible fo
 requireText('const boundedMemory = buildBoundedMemoryContext(historyWindow);', 'bounded layered memory context is not injected')
 requireText('await maybeUpgradeRollingSummary(currentConv());', 'legacy compressed windows are not upgraded before reply')
 requireText('const archived = messages.filter(m => isChatContentMessage(m) && m._compactedBy);', 'archived raw turns are absent from topical recall')
+requireText('const COMPACT_TRANSCRIPT_BYTE_BUDGET = 24000;', 'UTF-8 compaction budget is missing')
+requireText('const COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET = 12000;', 'safe retry budget is missing')
+requireText('useMemoryApi && resp.status === 400 && memoryRequestParseError(detail)', 'strict JSON relay retry is missing')
 
 const helperStart = html.indexOf('function isChatContentMessage(')
 const helperEnd = html.indexOf('async function compactMessageBatch(', helperStart)
@@ -27,7 +30,8 @@ const context = {
   ROLLING_SUMMARY_VERSION: 2,
   ROLLING_SUMMARY_CHAR_LIMIT: 2000,
   ROLLING_SUMMARY_MAX_TOKENS: 2200,
-  COMPACT_TRANSCRIPT_CHAR_BUDGET: 16000,
+  COMPACT_TRANSCRIPT_BYTE_BUDGET: 24000,
+  COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET: 12000,
   autoCompactInFlight: false,
   abortController: null,
   messageText: m => typeof m?.content === 'string' ? m.content : '',
@@ -54,6 +58,7 @@ vm.runInNewContext(
    globalThis.memoryHelpers = {
      activeRollingSummary, rollingSummaryText, rollingSummaryPrompt,
      archivedMessagesForSummary, maybeUpgradeRollingSummary,
+     normalizeMemoryTransportText, utf8ByteLength, clipUtf8, compactTranscript,
    };`,
   context,
 )
@@ -103,8 +108,38 @@ if (!currentSummary.content.includes('【人物表达与互动锚点】')) {
   throw new Error('upgraded summary lost the structured continuity schema')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v115";')) {
+const hasLoneSurrogate = text => {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i)
+    if (code >= 0xD800 && code <= 0xDBFF) {
+      const next = text.charCodeAt(i + 1)
+      if (next < 0xDC00 || next > 0xDFFF) return true
+      i++
+    } else if (code >= 0xDC00 && code <= 0xDFFF) return true
+  }
+  return false
+}
+const malformed = `开头\uD83D中间\uDC00结尾`
+const repaired = helpers.normalizeMemoryTransportText(malformed)
+if (hasLoneSurrogate(repaired) || repaired !== '开头�中间�结尾') {
+  throw new Error('lone UTF-16 surrogates were not repaired')
+}
+const clipped = helpers.clipUtf8('惟惟😀'.repeat(100), 101)
+if (hasLoneSurrogate(clipped) || helpers.utf8ByteLength(clipped) > 101) {
+  throw new Error('UTF-8 clipping split an emoji or exceeded its byte budget')
+}
+const unicodeBatch = Array.from({ length: 64 }, (_, i) => ({
+  role: i % 2 ? 'assistant' : 'user',
+  content: `${'汉字'.repeat(150)}😀第${i}条`,
+}))
+const transcript = helpers.compactTranscript(unicodeBatch, currentSummary)
+if (hasLoneSurrogate(transcript) || helpers.utf8ByteLength(transcript) > 24000) {
+  throw new Error('compaction transcript is not transport-safe or bounded')
+}
+JSON.stringify({ messages: [{ role: 'user', content: transcript }] })
+
+if (!sw.includes('const CACHE = "role-chat-cache-v116";')) {
   throw new Error('service worker cache was not bumped for memory continuity v2')
 }
 
-console.log('memory continuity regression: 17 checks passed')
+console.log('memory continuity regression: 24 checks passed')
