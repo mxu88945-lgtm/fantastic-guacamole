@@ -295,8 +295,10 @@
   /* 记忆库条目 */
   .mem-row { display:flex; align-items:center; gap:6px; padding:6px 8px; border:1px solid var(--border); border-radius:9px; background:var(--bg-panel); }
   .mem-row.core { border-color:var(--accent); }
+  .mem-row.inactive { opacity:.56; background:var(--bg-soft); }
   .mem-star { background:none; border:none; cursor:pointer; font-size:15px; line-height:1; padding:2px; flex-shrink:0; }
   .mem-text { flex:1; min-width:0; font-size:13px; line-height:1.4; cursor:text; word-break:break-word; }
+  .mem-status { font-size:10px; color:var(--text-dim); white-space:nowrap; }
   .mem-del { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:13px; padding:2px 4px; flex-shrink:0; }
   .mem-del:hover { color:var(--err-text); }
   .memory-api-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; margin-top:10px; }
@@ -1947,6 +1949,9 @@ const ROLLING_SUMMARY_VERSION = 2;
 const ROLLING_SUMMARY_CHAR_LIMIT = 2000;
 const ROLLING_SUMMARY_MAX_TOKENS = 2200;
 const AUTO_MEMORY_EVERY = 24;
+const MEMORY_CONTEXT_CHAR_BUDGET = 6400; // all derived memory layers share one ceiling
+const MEMORY_RECALL_COOLDOWN_TURNS = 4;  // avoid echoing the same old excerpt every reply
+const MEMORY_RECALL_LEDGER_LIMIT = 120;  // bounded, metadata-only per-conversation audit
 let autoCompactInFlight = false;
 
 // ---------- Cloud (Supabase) runtime state ----------
@@ -2176,6 +2181,9 @@ function ensureRoleCompanionData(role) {
 }
 function roleMailbox(role) { return ensureRoleCompanionData(role || activeRole())?.mailbox || []; }
 function rolePrivateDiary(role) { return ensureRoleCompanionData(role || activeRole())?.privateDiary || []; }
+function activeRolePrivateDiary(role) {
+  return rolePrivateDiary(role).filter(entry => !entry.status || entry.status === "active");
+}
 // Keep the active role in sync with the live persona fields (so edits aren't lost).
 function mirrorActiveRole() {
   const r = activeRole();
@@ -3745,6 +3753,10 @@ function makeMsgEl(role, content, opts) {
           + "，当前上下文 " + (opts.promptAudit.totalMessages || 0) + " 条，实际发送 "
           + (opts.promptAudit.historyMessages || 0) + " 条"
           + (opts.promptAudit.omittedMessages ? "，省略旧消息 " + opts.promptAudit.omittedMessages + " 条" : "")
+          + (opts.promptAudit.memory ? "；记忆上下文 " + opts.promptAudit.memory.used + "/"
+            + opts.promptAudit.memory.budget + " 字"
+            + (opts.promptAudit.memory.duplicateLines ? "，去重 " + opts.promptAudit.memory.duplicateLines + " 行" : "")
+            + (opts.promptAudit.memory.cooldownSuppressed ? "，冷却拦截 " + opts.promptAudit.memory.cooldownSuppressed + " 条" : "") : "")
           + (opts.promptAudit.currentTime ? "；注入时间 " + opts.promptAudit.currentTime
             + (opts.promptAudit.timeZone ? "（" + opts.promptAudit.timeZone + "）" : "") : "");
         tk.onclick = () => showToast(tk.title, 6500);
@@ -4471,6 +4483,53 @@ function buildApiHistoryWindow() {
     historyBudget,
   };
 }
+
+function currentMemoryRecallQuery() {
+  const latest = [...messages].reverse().find(m =>
+    m && m.role === "user" && !m._event && !m._summary && messageText(m).trim());
+  return latest ? messageText(latest).slice(0, 1600) : "";
+}
+function explicitMemoryRecallIntent(text) {
+  return /(?:还记得|记得吗|记不记得|想起来|回忆|翻翻|查查|找找|旧聊天|旧文|以前|之前|上次|那次|当时|后来呢|继续说)/i
+    .test(String(text || ""));
+}
+function memoryRecallTurn(conv) {
+  return (conv?.messages || []).filter(m => isChatContentMessage(m) && m.role === "user").length;
+}
+function ensureMemoryRecallLedger(conv) {
+  if (!conv) return { hits: {} };
+  if (!conv._memoryRecallV1 || typeof conv._memoryRecallV1 !== "object")
+    conv._memoryRecallV1 = { hits: {} };
+  if (!conv._memoryRecallV1.hits || typeof conv._memoryRecallV1.hits !== "object")
+    conv._memoryRecallV1.hits = {};
+  return conv._memoryRecallV1;
+}
+function filterRecallCooldown(candidates, queryText) {
+  const conv = currentConv();
+  const ledger = ensureMemoryRecallLedger(conv);
+  const turn = memoryRecallTurn(conv);
+  const explicit = explicitMemoryRecallIntent(queryText);
+  const allowed = [], suppressed = [];
+  for (const candidate of candidates || []) {
+    const last = Number(ledger.hits[candidate.key]);
+    if (!explicit && Number.isFinite(last) && turn - last < MEMORY_RECALL_COOLDOWN_TURNS)
+      suppressed.push(candidate);
+    else allowed.push(candidate);
+  }
+  return { allowed, suppressed, explicit, turn };
+}
+function commitRecallKeys(keys, turn) {
+  if (!keys?.length) return;
+  const ledger = ensureMemoryRecallLedger(currentConv());
+  keys.forEach(key => { ledger.hits[key] = turn; });
+  const rows = Object.entries(ledger.hits).sort((a, b) => Number(b[1]) - Number(a[1]));
+  if (rows.length > MEMORY_RECALL_LEDGER_LIMIT)
+    ledger.hits = Object.fromEntries(rows.slice(0, MEMORY_RECALL_LEDGER_LIMIT));
+}
+function emptyRecallResult(scope) {
+  return { scope, text: "", keys: [], turn: memoryRecallTurn(currentConv()),
+    candidateCount: 0, selectedCount: 0, suppressedCount: 0 };
+}
 function retrieveOmittedCurrentChat(windowInfo) {
   const omitted = windowInfo && windowInfo.omitted || [];
   const archived = messages.filter(m => isChatContentMessage(m) && m._compactedBy);
@@ -4480,21 +4539,33 @@ function retrieveOmittedCurrentChat(windowInfo) {
     if (!byId.has(key)) byId.set(key, m);
   });
   const candidates = [...byId.values()];
-  if (!candidates.length) return "";
-  const recentRaw = messages.filter(isChatContentMessage).slice(-4);
-  const q = memTokens(recentRaw.map(m => messageText(m)).join("  "));
-  if (!q.size) return "";
-  const seen = new Set(messages.filter(isChatContentMessage).slice(-8)
+  if (!candidates.length) return emptyRecallResult("current");
+  const queryText = currentMemoryRecallQuery();
+  const q = memTokens(queryText);
+  if (!q.size) return emptyRecallResult("current");
+  const seen = new Set(messages.filter(m => isChatContentMessage(m) && !m._compactedBy).slice(-8)
     .map(m => messageText(m).replace(/\s+/g, " ").trim().toLowerCase()));
   const hits = candidates.map(m => {
     const txt = messageText(m).replace(/\s+/g, " ").trim();
-    return { m, txt, s: memScore(q, txt) };
+    return { key: "current:" + (m.id || normalizedPromptFact(txt).slice(0, 80)), m, txt, s: memScore(q, txt) };
   }).filter(x => x.txt.length >= 8 && x.s >= 2 && !seen.has(x.txt.toLowerCase()))
-    .sort((a, b) => b.s - a.s || (b.m.ts || 0) - (a.m.ts || 0)).slice(0, 4);
-  if (!hits.length) return "";
-  return "【本窗口旧原文中、与当前话题相关的准确片段】\n" + hits.map(x =>
+    .sort((a, b) => b.s - a.s || (b.m.ts || 0) - (a.m.ts || 0));
+  if (!hits.length) return emptyRecallResult("current");
+  const cooldown = filterRecallCooldown(hits, queryText);
+  const selected = cooldown.allowed.slice(0, 4);
+  if (!selected.length) return { ...emptyRecallResult("current"),
+    turn: cooldown.turn, candidateCount: hits.length, suppressedCount: cooldown.suppressed.length };
+  return {
+    scope: "current",
+    text: "【本窗口旧原文中、与当前话题相关的准确片段】\n" + selected.map(x =>
     (x.m.role === "user" ? userRef() : (settings.aiName || "当前角色")) + "：" + x.txt.slice(0, 160)
-  ).join("\n") + "\n只把这些当作回忆证据，自然承接，不要机械复述。";
+    ).join("\n") + "\n只把这些当作回忆证据，自然承接，不要机械复述。",
+    keys: selected.map(x => x.key),
+    turn: cooldown.turn,
+    candidateCount: hits.length,
+    selectedCount: selected.length,
+    suppressedCount: cooldown.suppressed.length,
+  };
 }
 // Build the wire-format message list, coalescing consecutive same-role turns.
 // (Multi-bubble replies store several assistant messages; APIs — esp. Anthropic —
@@ -4694,26 +4765,9 @@ async function streamChat(onDelta, onReasoning) {
   if (styleNote) systemText = systemText ? systemText + "\n\n" + styleNote : styleNote;
   const cycleNote = cycleSystemNote();
   if (cycleNote) systemText = systemText ? systemText + "\n\n" + cycleNote : cycleNote;
-  const continuityNote = rollingSummaryPrompt(messages);
-  if (continuityNote) {
-    systemText = systemText ? systemText + "\n\n" + continuityNote : continuityNote;
-  }
-  if (settings.memSummary && settings.memSummary.trim()) {
-    const sum = "【跨窗口稳定人物速写】\n" + settings.memSummary.trim()
-      + "\n只用于理解 ta 的长期特征；若与最近原文冲突，以最近原文为准。";
-    systemText = systemText ? systemText + "\n\n" + sum : sum;
-  }
-  const memText = buildMemoryForPrompt();
-  if (memText && memText.trim()) {
-    const mem = "【跨窗口稳定长期事实·关于「" + userRef() + "」】\n" + memText.trim();
-    systemText = systemText ? systemText + "\n\n" + mem : mem;
-  }
-  const diaryNote = privateDiaryPrompt(activeRole(), true);
-  if (diaryNote) systemText = systemText ? systemText + "\n\n" + diaryNote : diaryNote;
-  const crossText = retrieveCrossChat();
-  if (crossText) systemText = systemText ? systemText + "\n\n" + crossText : crossText;
-  const olderCurrentText = retrieveOmittedCurrentChat(historyWindow);
-  if (olderCurrentText) systemText = systemText ? systemText + "\n\n" + olderCurrentText : olderCurrentText;
+  const boundedMemory = buildBoundedMemoryContext(historyWindow);
+  if (boundedMemory.text)
+    systemText = systemText ? systemText + "\n\n" + boundedMemory.text : boundedMemory.text;
   const memSaveNote = "【记忆】仅当 ta 明确要求，或你判断一月后仍重要时写 `[记忆:一句话]`；闲聊、临时情绪/安排不记，标记隐藏。";
   systemText = systemText ? systemText + "\n\n" + memSaveNote : memSaveNote;
   if (settings.crossSearch) {
@@ -4726,11 +4780,6 @@ async function streamChat(onDelta, onReasoning) {
   }
   if (pendingSearchContext) {
     systemText = systemText ? systemText + "\n\n" + pendingSearchContext : pendingSearchContext;
-  }
-  const notionPromptText = settings.notionEnabled ? buildNotionForPrompt(memText) : "";
-  if (notionPromptText) {
-    const nm = "以下是来自 Notion 云端角色档案的相关长期信息，请当作你对 ta 的长期记忆来用：\n" + notionPromptText;
-    systemText = systemText ? systemText + "\n\n" + nm : nm;
   }
   if (settings.notionEnabled && settings.notionToken && settings.notionPageId) {
     const pages = (settings.notionPages || []).map(p => p.title).filter(Boolean);
@@ -4825,6 +4874,7 @@ async function streamChat(onDelta, onReasoning) {
     storedMessages: historyWindow.storedMessages,
     archivedMessages: historyWindow.archivedMessages,
     omittedMessages: historyWindow.omittedMessages,
+    memory: boundedMemory.audit,
     currentTime: injectedLocalTime,
     timeZone: injectedTimeZone,
   };
@@ -5080,9 +5130,21 @@ function memList() {
   if (!Array.isArray(settings.memEntries)) {
     settings.memEntries = [];
     (settings.memory || "").split(/\n+/).map(s => s.replace(/^[-*]\s*/, "").trim()).filter(Boolean)
-      .forEach(t => settings.memEntries.push({ id: uid(), text: t, core: true })); // keep old memory always-on
+      .forEach(t => settings.memEntries.push({ id: uid(), text: t, core: true,
+        source: "legacy", status: "active", recordedAt: Date.now(), updatedAt: Date.now() })); // keep old memory always-on
   }
+  settings.memEntries.forEach(entry => {
+    if (!entry.id) entry.id = uid();
+    if (!entry.status) entry.status = "active";
+    if (!entry.recordedAt) entry.recordedAt = entry.updatedAt || Date.now();
+  });
   return settings.memEntries;
+}
+function memoryEntryIsActive(entry) {
+  return !!entry && (!entry.status || entry.status === "active");
+}
+function activeMemoryEntries() {
+  return memList().filter(memoryEntryIsActive);
 }
 // Common Chinese function words — skipped as single-char tokens to cut keyword noise.
 const MEM_STOP = new Set("的了我你他她它们是在有和就不都也很会要吗呢吧啊呀过着把被给让对从向跟与之啦哦嗯这那个么没还能想说去来上下又一".split(""));
@@ -5152,14 +5214,14 @@ function takePromptItems(items, maxItems, maxChars, alreadySeen) {
 }
 // Core entries only (for greetings / when there's no query context).
 function coreMemoryText() {
-  const picked = takePromptItems(memList().filter(e => e.core).map(e => e.text), 14, 3600);
+  const picked = takePromptItems(activeMemoryEntries().filter(e => e.core).map(e => e.text), 14, 3600);
   return picked.items.map(t => "- " + t).join("\n");
 }
 // Build the memory block for the prompt: all core entries + the top non-core entries
 // whose keywords match the recent conversation. Falls back to legacy text if no entries.
 function buildMemoryForPrompt() {
-  const entries = memList();
-  if (!entries.length) return (settings.memory || "").trim().slice(0, 4800);
+  const entries = activeMemoryEntries();
+  if (!entries.length) return memList().length ? "" : (settings.memory || "").trim().slice(0, 4800);
   const core = entries.filter(e => e.core);
   const rest = entries.filter(e => !e.core);
   let chosen = core.slice();
@@ -5200,29 +5262,149 @@ function buildNotionForPrompt(localMemoryText) {
 }
 // 跨窗口回忆：在「其他聊天窗口」里按关键词捞与当前话题相关的片段，注入 prompt（按需、限量、省 token）。
 function retrieveCrossChat() {
-  if (!settings.crossChat) return "";
+  if (!settings.crossChat) return emptyRecallResult("cross");
   const convs = (typeof roleConvs === "function" ? roleConvs() : conversations) || [];
   const cur = currentConv() || {};
-  const recent = messages.slice(-4).map(m => messageText(m)).join("  ");
-  const q = memTokens(recent);
-  if (!q.size) return "";
+  const queryText = currentMemoryRecallQuery();
+  const q = memTokens(queryText);
+  if (!q.size) return emptyRecallResult("cross");
   const hits = [];
   for (const c of convs) {
     if (!c || c.id === cur.id || !Array.isArray(c.messages)) continue;
     for (const m of c.messages) {
+      if (!isChatContentMessage(m)) continue;
       const txt = messageText(m);
       if (!txt || txt.length < 4) continue;
       const s = memScore(q, txt);
-      if (s >= 2) hits.push({ s, who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "当前角色"), title: c.title || "对话", txt });
+      if (s >= 2) hits.push({
+        key: "cross:" + c.id + ":" + (m.id || normalizedPromptFact(txt).slice(0, 80)),
+        s, ts: m.ts || c.updatedAt || 0,
+        who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "当前角色"),
+        title: c.title || "对话", txt,
+      });
     }
   }
-  if (!hits.length) return "";
-  hits.sort((a, b) => b.s - a.s);
+  if (!hits.length) return emptyRecallResult("cross");
+  hits.sort((a, b) => b.s - a.s || b.ts - a.ts);
   const recentSeen = new Set(messages.slice(-8).map(m => normalizedPromptFact(messageText(m))));
-  const lines = hits.filter(h => !recentSeen.has(normalizedPromptFact(h.txt))).slice(0, 4)
-    .map(h => `（在「${h.title}」里）${h.who}：${h.txt.slice(0, 150)}`);
-  if (!lines.length) return "";
-  return "【以下是你和 ta 在其他聊天窗口里、和当前话题相关的片段，供你回忆参考，别生硬复述】\n" + lines.join("\n");
+  const eligible = hits.filter(h => !recentSeen.has(normalizedPromptFact(h.txt)));
+  const cooldown = filterRecallCooldown(eligible, queryText);
+  const selected = cooldown.allowed.slice(0, 4);
+  if (!selected.length) return { ...emptyRecallResult("cross"),
+    turn: cooldown.turn, candidateCount: eligible.length, suppressedCount: cooldown.suppressed.length };
+  const lines = selected.map(h => `（在「${h.title}」里）${h.who}：${h.txt.slice(0, 150)}`);
+  return {
+    scope: "cross",
+    text: "【以下是你和 ta 在其他聊天窗口里、和当前话题相关的片段，供你回忆参考，别生硬复述】\n" + lines.join("\n"),
+    keys: selected.map(h => h.key),
+    turn: cooldown.turn,
+    candidateCount: eligible.length,
+    selectedCount: selected.length,
+    suppressedCount: cooldown.suppressed.length,
+  };
+}
+function memoryContextInstructionLine(line) {
+  return /^(?:【|使用规则|只把|只用于|只自然|最近写下|从旧日记|以下是|可写|这些是|若与)/.test(line);
+}
+function memoryContextFactText(line) {
+  return String(line || "")
+    .replace(/^[-*•]\s*/, "")
+    .replace(/^（在「[^」]+」[^）]*）[^：:]{0,24}[：:]\s*/, "")
+    .replace(/^[^：:]{1,20}[：:]\s*/, "")
+    .trim();
+}
+function dedupeMemoryContextBlock(text, seenFacts) {
+  let dropped = 0;
+  const lines = String(text || "").split(/\n+/).map(line => line.trim()).filter(Boolean);
+  const kept = [];
+  for (const line of lines) {
+    if (memoryContextInstructionLine(line)) { kept.push(line); continue; }
+    const fact = memoryContextFactText(line);
+    if (fact.length >= 8 && memoryFactNearDuplicate(fact, seenFacts)) {
+      dropped++;
+      continue;
+    }
+    kept.push(line);
+    if (fact.length >= 8) seenFacts.push({ text: fact });
+  }
+  return { text: kept.join("\n"), dropped };
+}
+function clipMemoryContextBlock(text, maxChars) {
+  text = String(text || "").trim();
+  if (!text || maxChars <= 0) return "";
+  if (text.length <= maxChars) return text;
+  const lines = text.split("\n");
+  const out = [];
+  let used = 0;
+  for (const line of lines) {
+    const need = line.length + (out.length ? 1 : 0);
+    if (used + need > maxChars) {
+      if (!out.length) out.push(line.slice(0, Math.max(0, maxChars - 1)) + "…");
+      break;
+    }
+    out.push(line); used += need;
+  }
+  return out.join("\n").trim();
+}
+function buildBoundedMemoryContext(historyWindow) {
+  const currentRecall = retrieveOmittedCurrentChat(historyWindow);
+  const crossRecall = retrieveCrossChat();
+  const continuity = rollingSummaryPrompt(messages);
+  const profile = settings.memSummary?.trim()
+    ? "【跨窗口稳定人物速写】\n" + settings.memSummary.trim()
+      + "\n只用于理解 ta 的长期特征；若与最近原文冲突，以最近原文为准。"
+    : "";
+  const memoryFacts = buildMemoryForPrompt();
+  const facts = memoryFacts?.trim()
+    ? "【跨窗口稳定长期事实·关于「" + userRef() + "」】\n" + memoryFacts.trim() : "";
+  const diary = privateDiaryPrompt(activeRole(), true);
+  const notionText = settings.notionEnabled ? buildNotionForPrompt(memoryFacts) : "";
+  const notion = notionText
+    ? "【Notion 云端角色档案·相关长期信息】\n" + notionText : "";
+  // Priority controls what survives the shared budget. Order keeps stable blocks
+  // before dynamic exact recall so provider prompt caching remains effective.
+  const blocks = [
+    { key: "currentExact", label: "本窗旧文", priority: 1, order: 90, cap: 800, recall: currentRecall, text: currentRecall.text },
+    { key: "crossExact", label: "跨窗旧文", priority: 2, order: 91, cap: 800, recall: crossRecall, text: crossRecall.text },
+    { key: "continuity", label: "连续性档案", priority: 3, order: 10, cap: 2100, text: continuity },
+    { key: "profile", label: "人物速写", priority: 4, order: 20, cap: 600, text: profile },
+    { key: "facts", label: "长期事实", priority: 5, order: 30, cap: 1700, text: facts },
+    { key: "diary", label: "私人日记", priority: 6, order: 40, cap: 850, text: diary },
+    { key: "notion", label: "Notion档案", priority: 7, order: 50, cap: 650, text: notion },
+  ];
+  const seenFacts = [], selected = [], auditBlocks = [];
+  let used = 0, duplicateLines = 0;
+  for (const block of blocks.sort((a, b) => a.priority - b.priority)) {
+    const capped = clipMemoryContextBlock(block.text, block.cap);
+    const deduped = dedupeMemoryContextBlock(capped, seenFacts);
+    duplicateLines += deduped.dropped;
+    const remaining = MEMORY_CONTEXT_CHAR_BUDGET - used - (selected.length ? 2 : 0);
+    const included = remaining >= 80 ? clipMemoryContextBlock(deduped.text, remaining) : "";
+    const chars = included.length;
+    if (included) {
+      selected.push({ ...block, text: included });
+      used += chars + (selected.length > 1 ? 2 : 0);
+      if (block.recall?.keys?.length) commitRecallKeys(block.recall.keys, block.recall.turn);
+    }
+    auditBlocks.push({
+      key: block.key, label: block.label, chars,
+      included: !!included, duplicateLines: deduped.dropped,
+      recallCandidates: block.recall?.candidateCount || 0,
+      recallSelected: included ? (block.recall?.selectedCount || 0) : 0,
+      cooldownSuppressed: block.recall?.suppressedCount || 0,
+    });
+  }
+  selected.sort((a, b) => a.order - b.order);
+  return {
+    text: selected.map(block => block.text).join("\n\n"),
+    audit: {
+      budget: MEMORY_CONTEXT_CHAR_BUDGET,
+      used: Math.min(used, MEMORY_CONTEXT_CHAR_BUDGET),
+      duplicateLines,
+      cooldownSuppressed: auditBlocks.reduce((n, b) => n + b.cooldownSuppressed, 0),
+      blocks: auditBlocks,
+    },
+  };
 }
 // Active history search: when the model writes [搜索:关键词], we search ALL of this role's
 // conversations (incl. the current one) by keyword score and feed the hits back so it can answer.
@@ -5357,12 +5539,14 @@ async function webSearch(query) {
   return usedFallback ? "【无 Key 后备搜索结果】\n" + digest : digest;
 }
 // Pull [记忆:…] tokens out of an assistant reply, save them to the library, return cleaned text.
-function extractMemorySaves(text) {
+function extractMemorySaves(text, sourceMessageId) {
   if (typeof text !== "string") return text;
   let saved = 0, last = "";
   const cleaned = text.replace(/\[\s*(?:记忆|记住|存记忆|memory)\s*[:：]\s*([^\]\n]+)\]/gi, (m, c) => {
     const t = (c || "").trim();
-    if (t && addMemEntry(t, false, "event")) { saved++; last = t; }
+    if (t && addMemEntry(t, false, "event", {
+      sourceConvId: currentId || "", sourceMessageId: sourceMessageId || "",
+    })) { saved++; last = t; }
     return "";
   }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (saved) showToast("🧠 记住了" + (saved > 1 ? ("（" + saved + "条）") : "：" + last.slice(0, 18) + (last.length > 18 ? "…" : "")));
@@ -5602,29 +5786,87 @@ function reminderStatusNote() {
   return "【你给 " + userRef() + " 下的任务卡片·当前状态】\n" + lines.join("\n")
     + "\n（这些是你之前用提醒卡片给 ta 安排的小任务。ta 完成时你会收到系统事件、可以即时回应；平时也可以自然地关心一下进度。）";
 }
-function addMemEntry(text, core, source) {
+function addMemEntry(text, core, source, provenance) {
   text = (text || "").trim(); if (!text) return false;
   const duplicate = source === "event"
-    ? memoryFactNearDuplicate(text, memList())
-    : memList().some(e => e.text.toLowerCase() === text.toLowerCase());
+    ? memoryFactNearDuplicate(text, activeMemoryEntries())
+    : activeMemoryEntries().some(e => e.text.toLowerCase() === text.toLowerCase());
   if (duplicate) { if (source !== "event") showToast("已经有这条啦"); return false; }
-  memList().push({ id: uid(), text, core: !!core, source: source || "manual", updatedAt: Date.now() });
+  const now = Date.now();
+  memList().push({
+    id: uid(), text, core: !!core, source: source || "manual",
+    status: "active", recordedAt: now, updatedAt: now,
+    sourceConvId: provenance?.sourceConvId || "",
+    sourceMessageId: provenance?.sourceMessageId || "",
+    sourceMessageIds: Array.isArray(provenance?.sourceMessageIds)
+      ? [...new Set(provenance.sourceMessageIds.filter(Boolean))] : undefined,
+  });
   saveSettings(); renderMemList();
   return true;
 }
 function delMemEntry(id) { settings.memEntries = memList().filter(e => e.id !== id); saveSettings(); renderMemList(); }
-function toggleMemCore(id) { const e = memList().find(x => x.id === id); if (e) { e.core = !e.core; saveSettings(); renderMemList(); } }
+function toggleMemCore(id) {
+  const e = memList().find(x => x.id === id);
+  if (e && memoryEntryIsActive(e)) { e.core = !e.core; saveSettings(); renderMemList(); }
+}
 function editMemEntry(id) {
   const e = memList().find(x => x.id === id); if (!e) return;
   const v = prompt("编辑这条记忆：", e.text);
   if (v != null && v.trim()) { e.text = v.trim(); saveSettings(); renderMemList(); }
+}
+function supersedeMemoryEntries(ids, replacementId) {
+  const targets = new Set(ids || []);
+  const now = Date.now();
+  let changed = 0;
+  memList().forEach(entry => {
+    if (!targets.has(entry.id) || !memoryEntryIsActive(entry)) return;
+    entry.status = "superseded";
+    entry.supersededBy = replacementId || "";
+    entry.supersededAt = now;
+    changed++;
+  });
+  return changed;
+}
+function invalidateDerivedForRemovedMessages(removedMessages, reason) {
+  const removed = removedMessages || [];
+  const sourceIds = new Set();
+  removed.forEach(message => {
+    if (message?.id) sourceIds.add(message.id);
+    if (message?._originReplyId) sourceIds.add(message._originReplyId);
+  });
+  if (!sourceIds.size) return { memories: 0, diary: 0 };
+  const conv = currentConv();
+  const role = (settings.roles || []).find(item => item.id === conv?.roleId) || activeRole();
+  const entries = Array.isArray(role?.memEntries) ? role.memEntries : memList();
+  const now = Date.now();
+  let memories = 0, diary = 0;
+  entries.forEach(entry => {
+    if (!memoryEntryIsActive(entry) || (entry.sourceConvId && entry.sourceConvId !== currentId)) return;
+    const ids = [entry.sourceMessageId].concat(entry.sourceMessageIds || []).filter(Boolean);
+    if (!ids.some(id => sourceIds.has(id))) return;
+    entry.status = "invalidated";
+    entry.invalidatedAt = now;
+    entry.invalidatedReason = reason || "branch-rewrite";
+    memories++;
+  });
+  rolePrivateDiary(role).forEach(entry => {
+    if (entry.status && entry.status !== "active") return;
+    if (entry.sourceConvId && entry.sourceConvId !== currentId) return;
+    if (!sourceIds.has(entry.sourceMessageId)) return;
+    entry.status = "invalidated";
+    entry.invalidatedAt = now;
+    entry.invalidatedReason = reason || "branch-rewrite";
+    diary++;
+  });
+  if (memories || diary) saveSettings();
+  return { memories, diary };
 }
 // Ask the model to synthesize a concise "person sketch" from the memory库 + recent chat.
 async function generateMemSummary() {
   if (!memoryRuntimeConfig().apiKey) { showToast("请先给记忆模型选择一个已填写 Key 的接口"); return; }
   const btn = $("mem-sum-gen"); if (btn) { btn.disabled = true; btn.textContent = "总结中…"; }
   try {
-    const mem = memList().map(e => "- " + e.text).join("\n") || "（暂无）";
+    const mem = activeMemoryEntries().map(e => "- " + e.text).join("\n") || "（暂无）";
     const recent = messages.slice(-12).map(m => (m.role === "user" ? "用户" : "TA") + "：" + messageText(m)).join("\n");
     const sys = "你在为一段亲密的陪伴关系整理一份『关于 ta 的人物速写』。基于记忆库和最近对话，用简洁、温暖的中文写一段总结（200~350字，可用短句分点），涵盖："
       + "你和 ta 的关系、ta 的性格、爱好、习惯、ta 喜欢的相处/聊天风格、需要留意的点。只写确定且稳定的，不确定就略过。直接给出速写本身，别加多余开场白。";
@@ -5663,19 +5905,26 @@ function renderMemList() {
   const q = ($("mem-search") && $("mem-search").value || "").trim().toLowerCase();
   let list = memList().slice();
   if (q) list = list.filter(e => e.text.toLowerCase().includes(q));
-  // core first
-  list.sort((a, b) => (b.core ? 1 : 0) - (a.core ? 1 : 0));
-  const cnt = memList().length, coreN = memList().filter(e => e.core).length;
-  if ($("mem-count")) $("mem-count").textContent = cnt + " 条（⭐核心 " + coreN + "）";
+  // Active/core first; superseded and branch-invalidated rows remain visible as
+  // provenance history but are never injected into the model.
+  list.sort((a, b) => (memoryEntryIsActive(b) ? 1 : 0) - (memoryEntryIsActive(a) ? 1 : 0)
+    || (b.core ? 1 : 0) - (a.core ? 1 : 0)
+    || (b.updatedAt || b.recordedAt || 0) - (a.updatedAt || a.recordedAt || 0));
+  const active = activeMemoryEntries();
+  const coreN = active.filter(e => e.core).length;
+  const historyN = memList().length - active.length;
+  if ($("mem-count")) $("mem-count").textContent = active.length + " 条（⭐核心 " + coreN
+    + (historyN ? " · 历史 " + historyN : "") + "）";
   box.innerHTML = list.map(e => `
-    <div class="mem-row${e.core ? " core" : ""}">
-      <button class="mem-star" title="${e.core ? "核心记忆（每次都带）" : "设为核心（每次都带）"}" onclick="toggleMemCore('${e.id}')">${e.core ? "⭐" : "☆"}</button>
+    <div class="mem-row${e.core && memoryEntryIsActive(e) ? " core" : ""}${memoryEntryIsActive(e) ? "" : " inactive"}">
+      <button class="mem-star" title="${memoryEntryIsActive(e) ? (e.core ? "核心记忆（每次都带）" : "设为核心（每次都带）") : "历史版本，不再注入"}" onclick="toggleMemCore('${e.id}')">${e.core && memoryEntryIsActive(e) ? "⭐" : "☆"}</button>
       <span class="mem-text" onclick="editMemEntry('${e.id}')">${escapeHtml(e.text)}</span>
+      ${memoryEntryIsActive(e) ? "" : `<span class="mem-status">${e.status === "superseded" ? "旧版" : "已失效"}</span>`}
       <button class="mem-del" title="删除" onclick="delMemEntry('${e.id}')">✕</button>
     </div>`).join("") || `<div class="hint">${q ? "没搜到～" : "还没有记忆，下面加一条，或开启「自动记忆」。"}</div>`;
 }
 async function organizeMemories(btn) {
-  const list = memList();
+  const list = activeMemoryEntries();
   if (list.length < 2) { showToast("记忆太少，暂时不用整理"); return; }
   if (!memoryRuntimeConfig().apiKey) { showToast("先给记忆模型选择一个已填写 Key 的接口"); return; }
   const old = btn?.textContent || "";
@@ -5696,16 +5945,47 @@ async function organizeMemories(btn) {
     if (!remove.length && !updates.length) { showToast("✨ 没发现需要整理的重复或冲突"); return; }
     const preview = remove.map(id => "删除：" + (list.find(e => e.id === id)?.text || id)).concat(updates.map(x => "合并：" + x.text.trim())).slice(0, 8);
     if (!confirm("记忆模型发现 " + (remove.length + updates.length) + " 处可整理：\n\n" + preview.join("\n") + "\n\n确认应用吗？")) return;
-    settings.memEntries = list.filter(e => !remove.includes(e.id));
-    updates.forEach(x => { const e = settings.memEntries.find(v => v.id === x.id); if (e) { e.text = x.text.trim(); e.updatedAt = Date.now(); } });
+    const now = Date.now();
+    remove.forEach(id => {
+      const entry = memList().find(e => e.id === id);
+      if (entry && memoryEntryIsActive(entry)) {
+        entry.status = "merged"; entry.invalidatedAt = now;
+        entry.invalidatedReason = "memory-organize";
+      }
+    });
+    updates.forEach(update => {
+      const oldEntry = memList().find(entry => entry.id === update.id);
+      if (!oldEntry || !memoryEntryIsActive(oldEntry)) return;
+      const replacement = {
+        ...oldEntry, id: uid(), text: update.text.trim(), status: "active",
+        supersedes: [oldEntry.id], recordedAt: now, updatedAt: now,
+      };
+      delete replacement.supersededBy;
+      delete replacement.supersededAt;
+      oldEntry.status = "superseded";
+      oldEntry.supersededBy = replacement.id;
+      oldEntry.supersededAt = now;
+      memList().push(replacement);
+    });
     saveSettings(); renderMemList(); showToast("✨ 记忆已整理");
   } catch (e) { showToast("检查失败：" + (e.message || e)); }
   finally { if (btn) { btn.disabled = false; btn.textContent = old; } }
 }
+function explicitMemoryChangeInTranscript(text) {
+  return /(?:现在|如今|目前|以后|从今|改成|改为|换成|更新为|不再|已经不|不喜欢了|取消了|停止了|变成了)/.test(String(text || ""));
+}
+function validatedMemoryReplacementIds(item, activeEntries, recentTranscript) {
+  if (!explicitMemoryChangeInTranscript(recentTranscript)) return [];
+  const requested = new Set(Array.isArray(item?.replaces) ? item.replaces : []);
+  const query = memTokens(item?.text || "");
+  return activeEntries.filter(entry => requested.has(entry.id) && memScore(query, entry.text) >= 2)
+    .map(entry => entry.id);
+}
 async function autoUpdateMemory() {
   if (!settings.autoMemory || !memoryRuntimeConfig().apiKey) return;
   const uname = userRef();
-  const recent = messages.slice(-8)
+  const recentMessages = messages.filter(isChatContentMessage).slice(-8);
+  const recent = recentMessages
     .map(m => (m.role === "user" ? uname : (settings.aiName || "当前角色")) + ": " + messageText(m)).join("\n");
   if (!recent.trim()) return;
   const sys = "你是一个极其克制的「值得珍藏的记忆」守门人。这只是低频漏检，不要求本次产生内容。只记录真正值得长期珍藏、定义 ta 这个人或你俩关系的事，比如："
@@ -5713,39 +5993,68 @@ async function autoUpdateMemory() {
     + "⑤你和 ta 之间特别值得记的：约定、承诺、纪念日、有意义的瞬间、心愿。"
     + "【绝对不要记】日常琐事（今天吃了啥、做了啥）、一时的情绪心情、闲聊、天气、临时安排、对方随口一提的小事、不确定或模糊的事。"
     + "宁可几十轮都输出 NONE，也绝不为了本次检查凑内容。除非这条事『一个月后回看依然重要』，否则不记。"
-    + "已有记忆中的同一事实即使换了说法，也不要新增。若确无被遗漏的重要事实，只输出一个词：NONE。"
-    + "若确有，每条一行以「- 」开头，最多2条，简洁中文、不超过30字。"
+    + "已有记忆中的同一事实即使换了说法，也不要新增。只有最近原文明确说“现在/以后/不再/改为”等变化时，才把被取代旧记忆的 id 写进 replaces。"
+    + "若确无遗漏，只输出 NONE；若确有，只输出严格 JSON："
+    + '{"items":[{"text":"简洁中文，不超过30字","replaces":["被明确取代的旧记忆id"]}]}。最多2条，不加解释。'
     + "称呼 ta 一律用「" + uname + "」，绝对不要写「用户」二字。";
-  const orderedMemory = memList().filter(e => e.core).concat(
-    memList().filter(e => !e.core).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+  const activeEntries = activeMemoryEntries();
+  const orderedMemory = activeEntries.filter(e => e.core).concat(
+    activeEntries.filter(e => !e.core).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
   );
-  const maintenanceMemory = takePromptItems(orderedMemory.map(e => e.text), 32, 6500);
+  const maintenanceMemory = takePromptItems(orderedMemory.map(e => e.id + " | " + e.text), 32, 6500);
   const existingText = maintenanceMemory.items.join("\n") || "（空）";
   const usr = "【已有长期记忆】\n" + existingText
-    + "\n\n【最近对话】\n" + recent + "\n\n请输出需要新增的记忆条目：";
+    + "\n\n【最近对话】\n" + recent + "\n\n请输出 NONE 或 JSON：";
   let out;
-  try { out = await completeOnce(sys, usr, 300, true); } catch (e) { return; }
+  try { out = await completeOnce(sys, usr, 500, true); } catch (e) { return; }
   if (!out || /^NONE\b/i.test(out)) return;
-  const candidates = out.split("\n").map(s => s.trim())
-    .filter(s => /^[-*]\s+/.test(s))
-    .map(s => s.replace(/^[-*]\s+/, "").trim())
-    .filter(Boolean);
+  const raw = out.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  let proposed = [];
+  try {
+    const parsed = JSON.parse(raw);
+    proposed = Array.isArray(parsed?.items) ? parsed.items : [];
+  } catch (_) {
+    // Older or less strict compatible models may still answer with bullet lines.
+    proposed = out.split("\n").map(s => s.trim())
+      .filter(s => /^[-*]\s+/.test(s))
+      .map(s => ({ text: s.replace(/^[-*]\s+/, "").trim(), replaces: [] }));
+  }
   const additions = [];
-  for (const candidate of candidates) {
-    const known = memList().concat(additions.map(text => ({ text })));
-    if (memoryFactNearDuplicate(candidate, known)) continue;
-    additions.push(candidate);
+  for (const item of proposed) {
+    const text = String(item?.text || "").trim().slice(0, 80);
+    if (!text) continue;
+    const replaces = validatedMemoryReplacementIds(item, activeEntries, recent);
+    const known = activeEntries.filter(entry => !replaces.includes(entry.id))
+      .concat(additions.map(addition => ({ text: addition.text })));
+    if (memoryFactNearDuplicate(text, known)) continue;
+    additions.push({ text, replaces });
     if (additions.length >= 2) break;
   }
   if (additions.length === 0) return;
-  // new auto-extracted facts go in as normal (searchable) entries — keeps the prompt lean
-  additions.forEach(a => memList().push({ id: uid(), text: a, core: false, source: "auto", updatedAt: Date.now() }));
+  const now = Date.now();
+  const sourceMessageIds = recentMessages.map(message => message.id).filter(Boolean);
+  additions.forEach(addition => {
+    const replaced = activeEntries.filter(entry => addition.replaces.includes(entry.id));
+    const entry = {
+      id: uid(), text: addition.text, core: replaced.some(old => old.core),
+      source: "auto", status: "active", recordedAt: now, updatedAt: now,
+      sourceConvId: currentId || "", sourceMessageIds,
+      supersedes: addition.replaces,
+    };
+    memList().push(entry);
+    supersedeMemoryEntries(addition.replaces, entry.id);
+  });
   saveSettings();
   renderMemList();
-  showToast("🧠 记忆已更新：新增 " + additions.length + " 条");
+  const replacedCount = additions.reduce((n, addition) => n + addition.replaces.length, 0);
+  showToast("🧠 记忆已更新：新增 " + additions.length + " 条"
+    + (replacedCount ? "，旧版 " + replacedCount + " 条已归档" : ""));
   // also write the new facts up to Notion if the cloud memory库 is connected
   if (settings.notionEnabled && settings.notionToken && settings.notionPageId) {
-    for (const a of additions) { try { await appendNotionMemory(a); } catch (e) { console.warn("notion append failed", e); } }
+    for (const addition of additions) {
+      try { await appendNotionMemory(addition.text); }
+      catch (e) { console.warn("notion append failed", e); }
+    }
   }
 }
 
@@ -6153,9 +6462,11 @@ async function revealSegments(segments, baseMsg) {
     if (abortController && abortController.signal.aborted) break;
     let msg;
     if (seg.kind === "sticker") {
-      msg = { id: uid(), role: "assistant", content: [resolveSticker(seg.name)], ts: Date.now() };
+      msg = { id: uid(), role: "assistant", content: [resolveSticker(seg.name)], ts: Date.now(),
+        _originReplyId: baseMsg.id || "" };
     } else {
-      msg = { id: uid(), role: "assistant", content: seg.text, ts: Date.now() };
+      msg = { id: uid(), role: "assistant", content: seg.text, ts: Date.now(),
+        _originReplyId: baseMsg.id || "" };
       if (i === 0 && baseMsg.reasoning) msg.reasoning = baseMsg.reasoning;
     }
     messages.push(msg);
@@ -6345,6 +6656,7 @@ function editMessage(idx) {
   pendingImages = Array.isArray(m.content)
     ? m.content.filter(p => p.type === "image" || p.type === "sticker").map(p => ({ ...p })) : [];
   renderAttachPreview();
+  invalidateDerivedForRemovedMessages(messages.slice(idx), "edit-resend");
   messages.splice(idx);   // remove this message and everything after it
   saveConversations(); renderMessages();
   autoResize(); $("input").focus();
@@ -6353,6 +6665,7 @@ function deleteMessage(idx) {
   if (!messages[idx]) return;
   if (messages[idx]._summary) { showToast("连续性档案管理着收起的旧原文，不能单独删除"); return; }
   if (!confirm("删除这条消息？")) return;
+  invalidateDerivedForRemovedMessages([messages[idx]], "delete-message");
   messages.splice(idx, 1);
   saveConversations(); renderMessages();
 }
@@ -6558,7 +6871,7 @@ function renderCompanionPanel() {
     btn.onclick = () => deleteMailboxNote(btn.dataset.mailDelete);
   });
 
-  const diary = rolePrivateDiary(role).slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const diary = activeRolePrivateDiary(role).slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   const diaryBox = $("private-diary-list");
   diaryBox.innerHTML = diary.length ? diary.map(x => `
     <article class="companion-entry">
@@ -6625,10 +6938,10 @@ function diaryIsDuplicate(text, entries) {
 function savePrivateDiaryEntry(text, sourceMessageId, role) {
   role = ensureRoleCompanionData(role || activeRole());
   text = (text || "").replace(/\s+/g, " ").trim().slice(0, 400);
-  if (!role || text.length < 12 || diaryIsDuplicate(text, role.privateDiary)) return false;
+  if (!role || text.length < 12 || diaryIsDuplicate(text, activeRolePrivateDiary(role))) return false;
   role.privateDiary.push({
     id: uid(), text, createdAt: Date.now(),
-    sourceConvId: currentId || "", sourceMessageId: sourceMessageId || "",
+    status: "active", sourceConvId: currentId || "", sourceMessageId: sourceMessageId || "",
   });
   saveSettings();
   if ($("companion-panel")?.classList.contains("open") && role.id === settings.activeRoleId) renderCompanionPanel();
@@ -6655,7 +6968,7 @@ function recallPrivateDiary(role, queryText, excludedIds) {
   const queryTokens = memTokens(privateDiaryRecallQuery(queryText));
   if (!queryTokens.size) return [];
   const excluded = new Set(excludedIds || []);
-  return rolePrivateDiary(role)
+  return activeRolePrivateDiary(role)
     .map((entry, order) => ({ entry, order, score: memScore(queryTokens, entry.text || "") }))
     .filter(x => !excluded.has(x.entry.id) && x.score >= 2)
     .sort((a, b) => b.score - a.score
@@ -6667,7 +6980,7 @@ function recallPrivateDiary(role, queryText, excludedIds) {
 function privateDiaryPrompt(role, allowWrite, queryText) {
   role = ensureRoleCompanionData(role || activeRole());
   if (!role) return "";
-  const recent = role.privateDiary.slice(-2);
+  const recent = activeRolePrivateDiary(role).slice(-2);
   const recalled = recallPrivateDiary(role, queryText, recent.map(e => e.id));
   let out = "";
   if (recent.length || recalled.length) {
@@ -7141,7 +7454,7 @@ async function generateReply() {
         assistantMsg.promptAudit = lastCallUsage.promptAudit || null;
       }
       // pull out & save any [记忆:…] the model wrote on request (and strip from the shown text)
-      assistantMsg.content = extractMemorySaves(assistantMsg.content);
+      assistantMsg.content = extractMemorySaves(assistantMsg.content, assistantMsg.id);
       // write any [存档:…] entries up to the Notion archive (琛琛印记), then strip them
       assistantMsg.content = await extractNotionSaves(assistantMsg.content);
       // pull out any [提醒:…|分钟] → reminder cards get appended (as messages) after the reply renders
@@ -7213,7 +7526,9 @@ async function generateReply() {
 // Re-answer the last user turn (drop the previous assistant reply and stream a new one).
 async function regenerate() {
   if (abortController) return;
-  while (messages.length && messages[messages.length - 1].role === "assistant") messages.pop();
+  const removed = [];
+  while (messages.length && messages[messages.length - 1].role === "assistant") removed.unshift(messages.pop());
+  invalidateDerivedForRemovedMessages(removed, "regenerate");
   if (!messages.length) { showToast("没有可重新生成的内容"); return; }
   if (!settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
   renderMessages();
@@ -8052,7 +8367,11 @@ function openBigEditor(targetId, title) {
 }
 function closeBigEditor() {
   if (editorMsgIdx != null && messages[editorMsgIdx]) {
-    setMessageText(messages[editorMsgIdx], $("editor-textarea").value);
+    const target = messages[editorMsgIdx];
+    const nextText = $("editor-textarea").value;
+    if (nextText !== messageText(target))
+      invalidateDerivedForRemovedMessages([target], "edit-message-text");
+    setMessageText(target, nextText);
     saveConversations(); renderMessages();
   } else if (editorTargetId) {
     const t = $(editorTargetId);
@@ -8372,7 +8691,15 @@ async function init() {
       else if (a === "edit") editMessage(idx);
       else if (a === "edittext") editMessageText(idx);
       else if (a === "quote") quoteMessage(idx);
-      else if (a === "mem") { const t = messageText(messages[idx]).trim(); if (t) { addMemEntry(t.slice(0, 200), false); showToast("🧠 已存进记忆库"); } }
+      else if (a === "mem") {
+        const source = messages[idx], t = messageText(source).trim();
+        if (t) {
+          addMemEntry(t.slice(0, 200), false, "manual-message", {
+            sourceConvId: currentId || "", sourceMessageId: source.id || "",
+          });
+          showToast("🧠 已存进记忆库");
+        }
+      }
       else if (a === "del") deleteMessage(idx);
     };
   });

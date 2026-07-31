@@ -15,7 +15,7 @@ requireText('【人物表达与互动锚点】', 'voice/interaction anchors are 
 requireText('【重要原话与专属称呼】', 'important quotes and names are missing from the summary schema')
 requireText('【未完事项与隐性张力】', 'unfinished tension layer is missing from the summary schema')
 requireText('m._compactedBy || m._summary', 'summary cards are still eligible for wire history')
-requireText('const continuityNote = rollingSummaryPrompt(messages);', 'continuity archive is not injected as system context')
+requireText('const boundedMemory = buildBoundedMemoryContext(historyWindow);', 'bounded layered memory context is not injected')
 requireText('await maybeUpgradeRollingSummary(currentConv());', 'legacy compressed windows are not upgraded before reply')
 requireText('const archived = messages.filter(m => isChatContentMessage(m) && m._compactedBy);', 'archived raw turns are absent from topical recall')
 
@@ -103,7 +103,7 @@ if (!currentSummary.content.includes('【人物表达与互动锚点】')) {
   throw new Error('upgraded summary lost the structured continuity schema')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v114";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v115";')) {
   throw new Error('service worker cache was not bumped for memory continuity v2')
 }
 
