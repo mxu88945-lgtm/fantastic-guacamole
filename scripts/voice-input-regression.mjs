@@ -52,7 +52,8 @@ if (!html.includes('recognition.abort()')) throw new Error('stuck Safari recogni
 if (!html.includes('recognition._voiceStopFallback = setTimeout')) throw new Error('recognition stop has no watchdog')
 if (!html.includes('voiceInputState === "stopping"')) throw new Error('stop action has no immediate UI state')
 if (!html.includes('60000')) throw new Error('voice capture has no maximum duration')
-if (!sw.includes('const CACHE = "role-chat-cache-v110";')) throw new Error('service worker cache was not bumped')
+const cacheVersion = Number(sw.match(/role-chat-cache-v(\d+)/)?.[1] || 0)
+if (cacheVersion < 110) throw new Error('service worker cache predates the voice stop fix')
 
 const lifecycleStart = html.indexOf('function finishBrowserVoiceInput(')
 const lifecycleEnd = html.indexOf('function startBrowserVoiceInput(', lifecycleStart)
