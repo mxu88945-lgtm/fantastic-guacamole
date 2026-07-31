@@ -330,8 +330,8 @@
   header {
     position: relative; z-index: 5;
     display: flex; align-items: center; gap: 10px;
-    padding: 12px 18px 0; background: transparent;
-    padding-top: calc(12px + env(safe-area-inset-top));
+    padding: 4px 18px 0; background: transparent;
+    padding-top: calc(4px + env(safe-area-inset-top));
     flex-shrink: 0;
   }
   header h1 { font-size: 15px; margin: 0; font-weight: 600;
@@ -1934,6 +1934,7 @@ let lastCallUsage = null; // usage of the most recent streamChat call (for token
 let lastCallTiming = null;// timing of the most recent streamChat call (channel diagnostics)
 let lastPromptAudit = null;// estimated prompt composition of the latest request
 let stickBottom = true;   // whether streaming should keep auto-scrolling to bottom
+let bottomPinUntil = 0;   // keep iOS viewport/composer reflows pinned briefly after send
 let scrollControlsAwake = false, scrollControlsHideTimer = null;
 const CHAT_HISTORY_TOKEN_BUDGET = 5800; // local history stays intact; only API context is windowed
 const CHAT_HISTORY_MESSAGE_CAP = 48;    // safety cap for many short multi-bubbles
@@ -3702,6 +3703,20 @@ function scrollToBottom() {
   requestAnimationFrame(() => {
     c.scrollTop = c.scrollHeight; // again after layout settles
     updateScrollControls();
+  });
+}
+// Sending changes several heights in quick succession on iOS: the textarea
+// collapses, the visual viewport follows the keyboard, and the typing bubble is
+// inserted. Keep following those reflows briefly, but release immediately when
+// the user touches the chat to read older messages.
+function pinToBottom(duration = 800) {
+  bottomPinUntil = Math.max(bottomPinUntil, Date.now() + duration);
+  stickBottom = true;
+  scrollToBottom();
+  [60, 180, 360, 700].forEach(delay => {
+    setTimeout(() => {
+      if (Date.now() <= bottomPinUntil + 40) scrollToBottom();
+    }, delay);
   });
 }
 // Robust jump-to-bottom for opening a conversation: content height keeps changing
@@ -6337,7 +6352,7 @@ async function send() {
   input.value = ""; autoResize();
   renderMessages();
   touchConversation();
-  scrollToBottom();
+  pinToBottom();
   markSeen();
   if (silent) return;   // 旁白模式：只记录，不触发 AI 回复
   try {
@@ -6922,8 +6937,7 @@ async function generateReply() {
   $("messages").appendChild(el);
   const bubble = el.querySelector(".bubble");
   bubble.innerHTML = TYPING_HTML;
-  stickBottom = true;          // a fresh reply starts pinned to the bottom
-  scrollToBottom();
+  pinToBottom();               // follow iOS keyboard/composer reflow as the reply starts
   setSending(true);
   const paint = () => {
     const empty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim();
@@ -8200,14 +8214,17 @@ async function init() {
     wakeScrollControls();
   };
   const wakeNav = () => wakeScrollControls();
-  $("chat").addEventListener("pointerdown", wakeNav, { passive: true });
+  $("chat").addEventListener("pointerdown", () => {
+    bottomPinUntil = 0;        // an intentional touch always wins over auto-follow
+    wakeNav();
+  }, { passive: true });
   $("chat").addEventListener("wheel", wakeNav, { passive: true });
   $("scroll-nav").addEventListener("pointerenter", () => clearTimeout(scrollControlsHideTimer));
   $("scroll-nav").addEventListener("pointerleave", wakeNav);
   $("chat").addEventListener("scroll", () => {
     const c = $("chat");
     const fromBottom = c.scrollHeight - c.scrollTop - c.clientHeight;
-    stickBottom = fromBottom < 140;   // scrolled up to read history → stop auto-following
+    stickBottom = Date.now() < bottomPinUntil || fromBottom < 140;
     updateScrollControls();
   }, { passive: true });
 
