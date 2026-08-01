@@ -752,6 +752,8 @@
   html[data-liquid="1"] .msg.user .bubble {
     background: linear-gradient(145deg, rgba(255,255,255,.64), rgba(247,219,230,.34));
   }
+  /* Keep the role's liquid reply card visually steady; user bubbles still hug their text. */
+  html[data-liquid="1"] .msg.flat.assistant .bubble { width: 100%; }
   html[data-glass="1"][data-liquid="1"] .model-quick,
   html[data-glass="1"][data-liquid="1"] .attach-btn,
   html[data-glass="1"][data-liquid="1"] .voice-input-btn {

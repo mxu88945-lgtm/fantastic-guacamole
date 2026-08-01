@@ -18,7 +18,7 @@ requireText('id="header-search-btn"', 'search action was lost')
 requireText('id="header-new-btn"', 'new conversation action was lost')
 requireText('id="header-more-btn"', 'more action was lost')
 requireText('top: calc(100% + 8px); right: 0;', 'more menu is not anchored to the capsule')
-if (!sw.includes('const CACHE = "role-chat-cache-v121";')) throw new Error('service worker cache was not bumped')
+if (!sw.includes('const CACHE = "role-chat-cache-v122";')) throw new Error('service worker cache was not bumped')
 
 const headerStart = html.indexOf('<header>')
 const headerEnd = html.indexOf('</header>', headerStart)
