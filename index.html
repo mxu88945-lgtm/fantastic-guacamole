@@ -397,6 +397,11 @@
     text-align: center;
   }
   .model-quick:focus { outline: none; border-color: var(--accent); }
+  /* Pure-white panels need a quiet surface boundary or the model pill disappears into the composer. */
+  html[data-theme-key="white"] .model-quick {
+    background: var(--item-active); border-color: var(--border);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.82);
+  }
   /* glass themes: a soft frosted bubble (not transparent), so the picker reads as a pill like Claude's */
   html[data-glass="1"] .model-quick { background: rgba(255,255,255,.42); border-color: rgba(255,255,255,.5); }
 
@@ -792,6 +797,8 @@
     margin-top: 8px; color: var(--text-dim); white-space: pre-wrap;
     line-height: 1.55; font-size: 12.5px; padding-left: 11px;
     border-left: 2px solid var(--border);
+    -webkit-user-select: text; user-select: text;
+    -webkit-touch-callout: default;
   }
   .msg-actions { display: flex; gap: 1px; margin-top: 6px; opacity: .6; transition: .15s; }
   @media (hover: hover) {
@@ -7714,6 +7721,7 @@ function applyTheme() {
   const t = currentTheme();
   document.documentElement.setAttribute("data-theme", t.dark ? "dark" : "light");
   const root = document.documentElement;
+  root.setAttribute("data-theme-key", t.key);
   for (const k in t.vars) root.style.setProperty("--" + k, t.vars[k]);
   // Keep readable copy neutral: black/grey on light themes, white/grey on true dark themes.
   root.style.setProperty("--text", t.dark ? "#f2f2f2" : "#111111");
@@ -8791,7 +8799,7 @@ async function init() {
   }, { passive: true });
 
   // Message actions are explicit icon buttons. Suppress the old long-press menu,
-  // while still allowing native selection inside code blocks.
+  // while still allowing native selection inside code blocks and the reasoning panel.
   const messagesEl = $("messages");
   messagesEl.addEventListener("click", (e) => {
     const starter = e.target.closest && e.target.closest("[data-starter]");
@@ -8807,7 +8815,7 @@ async function init() {
   messagesEl.addEventListener("contextmenu", (e) => {
     const idx = findIdx(e.target);
     if (idx == null) return;
-    if (e.target.closest && e.target.closest("pre, code")) return;
+    if (e.target.closest && e.target.closest("pre, code, .think-body")) return;
     e.preventDefault();
   });
   $("msg-menu").querySelectorAll("button").forEach(btn => {

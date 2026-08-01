@@ -21,6 +21,11 @@ ok(white.includes('border:"#eaeaea"'), 'minimal white surfaces lack the intended
 ok(white.includes('"assistant-bubble":"#ffffff"'), 'assistant surface is not pure white')
 ok(white.includes('"code-bg":"#f7f7f7"'), 'code blocks do not retain a readable neutral contrast')
 ok(white.includes('"item-active":"#f5f5f5"'), 'pressed controls do not retain visible feedback')
+ok(html.includes('root.setAttribute("data-theme-key", t.key);'),
+  'active theme key is not exposed for isolated theme surfaces')
+ok(html.includes('html[data-theme-key="white"] .model-quick {')
+  && html.includes('background: var(--item-active); border-color: var(--border);'),
+  'minimal white model picker has no visible pill surface')
 
 const claudeStart = html.indexOf('{ key: "claude", name: "暖杏 Claude"')
 const claudeEnd = html.indexOf('{ key: "white"', claudeStart)
@@ -64,6 +69,6 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v120";'), 'service worker cache was not bumped to v120')
+ok(sw.includes('const CACHE = "role-chat-cache-v121";'), 'service worker cache was not bumped to v121')
 
 console.log(`theme regression: ${checks} checks passed`)
