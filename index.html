@@ -711,6 +711,55 @@
   html[data-glass="1"] .sidebar { background: rgba(255,255,255,.45);
     -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3); }
 
+  /* 樱雪专属液态玻璃：乳白透光面、亮边、内高光与柔软投影。
+     独立于 data-glass，避免改变黛绿等既有主题。 */
+  html[data-liquid="1"] header > #toggle-sidebar,
+  html[data-liquid="1"] .header-actions,
+  html[data-liquid="1"] .composer,
+  html[data-liquid="1"] .starter-card,
+  html[data-liquid="1"] .header-menu,
+  html[data-liquid="1"] #plus-menu,
+  html[data-liquid="1"] #msg-menu,
+  html[data-glass="1"][data-liquid="1"] .remind-card,
+  html[data-glass="1"][data-liquid="1"] .pin-card {
+    background: linear-gradient(145deg, rgba(255,255,255,.62), rgba(255,248,251,.36));
+    border-color: rgba(255,255,255,.82);
+    -webkit-backdrop-filter: blur(18px) saturate(1.38);
+    backdrop-filter: blur(18px) saturate(1.38);
+    box-shadow:
+      0 12px 30px rgba(91,63,77,.12),
+      inset 0 1px 0 rgba(255,255,255,.92),
+      inset 1px 0 0 rgba(255,255,255,.48),
+      inset 0 -1px 0 rgba(196,155,173,.12);
+  }
+  html[data-liquid="1"] .msg.assistant .bubble,
+  html[data-liquid="1"] .msg.user .bubble {
+    background: linear-gradient(145deg, rgba(255,255,255,.58), rgba(255,248,251,.30));
+    border-color: rgba(255,255,255,.82);
+    -webkit-backdrop-filter: blur(18px) saturate(1.42);
+    backdrop-filter: blur(18px) saturate(1.42);
+    box-shadow:
+      0 9px 24px rgba(91,63,77,.12),
+      inset 0 1px 0 rgba(255,255,255,.94),
+      inset 1px 0 0 rgba(255,255,255,.45),
+      inset 0 -1px 0 rgba(196,155,173,.14);
+  }
+  html[data-liquid="1"] .msg.user .bubble {
+    background: linear-gradient(145deg, rgba(255,255,255,.64), rgba(247,219,230,.34));
+  }
+  html[data-glass="1"][data-liquid="1"] .model-quick,
+  html[data-glass="1"][data-liquid="1"] .attach-btn,
+  html[data-glass="1"][data-liquid="1"] .voice-input-btn {
+    background: rgba(255,255,255,.46);
+    border: 1px solid rgba(255,255,255,.66);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.82);
+  }
+  html[data-liquid="1"] .sidebar {
+    background: rgba(255,250,252,.52);
+    -webkit-backdrop-filter: blur(22px) saturate(1.34);
+    backdrop-filter: blur(22px) saturate(1.34);
+  }
+
   /* Flat / Tavo-style layout: avatar + name on top, bubble fits its content */
   .msg.flat { flex-direction: column; gap: 6px; align-items: flex-start; }
   .msg.flat .msg-head { display: flex; align-items: center; gap: 8px; }
@@ -7641,7 +7690,7 @@ const THEMES = [
     "text-dim":"#666666", accent:"#5d63e6", "accent-soft":"#f3f3f3", "assistant-bubble":"#ffffff",
     "code-bg":"#f7f7f7", "err-bg":"#fdecec", "err-text":"#b3343a", "item-active":"#f5f5f5" } },
   // 樱雪 — 雪白画布沉入一层很淡的樱雾，配合现有玻璃表面。
-  { key: "snowblush", name: "樱雪", dark: false, glass: true,
+  { key: "snowblush", name: "樱雪", dark: false, glass: true, liquid: true,
     gradient: "linear-gradient(180deg,#fffafa 0%,#fff8fa 28%,#fdf2f6 58%,#f8e8ef 100%)",
     vars: {
     bg:"#fffafa", "bg-soft":"#fffafb", "bg-panel":"#fbeff4", border:"#edd8e1", text:"#111111",
@@ -7673,6 +7722,7 @@ function applyTheme() {
   if (t.gradient) root.style.setProperty("--app-gradient", t.gradient);
   else root.style.removeProperty("--app-gradient");
   root.setAttribute("data-glass", t.glass ? "1" : "");
+  root.setAttribute("data-liquid", t.liquid ? "1" : "");
   // bottom-most color of the gradient (or solid bg) — used to paint the iOS home-indicator safe-area strip
   let gradBottom = t.vars.bg;
   if (t.gradient) { const hx = t.gradient.match(/#[0-9a-fA-F]{3,8}/g); if (hx && hx.length) gradBottom = hx[hx.length - 1]; }
