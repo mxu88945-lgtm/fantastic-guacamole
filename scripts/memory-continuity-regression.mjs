@@ -8,7 +8,10 @@ const requireText = (text, message) => {
   if (!html.includes(text)) throw new Error(message)
 }
 
-requireText('const AUTO_COMPACT_KEEP = 36;', 'recent verbatim retention was not expanded')
+requireText('const AUTO_COMPACT_THRESHOLD = 180;', 'automatic compaction still triggers too early')
+requireText('const AUTO_COMPACT_KEEP = 72;', 'recent verbatim retention was not doubled')
+requireText('AUTO_COMPACT_THRESHOLD - AUTO_COMPACT_KEEP', 'automatic compaction batch is not derived from both limits')
+requireText('最近 " + AUTO_COMPACT_KEEP + " 条保持原样', 'success notice can drift from the retention setting')
 requireText('const ROLLING_SUMMARY_VERSION = 2;', 'continuity summary version is missing')
 requireText('【关系与当下情绪】', 'relationship/emotion layer is missing from the summary schema')
 requireText('【人物表达与互动锚点】', 'voice/interaction anchors are missing from the summary schema')
@@ -128,7 +131,7 @@ const clipped = helpers.clipUtf8('惟惟😀'.repeat(100), 101)
 if (hasLoneSurrogate(clipped) || helpers.utf8ByteLength(clipped) > 101) {
   throw new Error('UTF-8 clipping split an emoji or exceeded its byte budget')
 }
-const unicodeBatch = Array.from({ length: 64 }, (_, i) => ({
+const unicodeBatch = Array.from({ length: 108 }, (_, i) => ({
   role: i % 2 ? 'assistant' : 'user',
   content: `${'汉字'.repeat(150)}😀第${i}条`,
 }))
@@ -138,8 +141,8 @@ if (hasLoneSurrogate(transcript) || helpers.utf8ByteLength(transcript) > 24000) 
 }
 JSON.stringify({ messages: [{ role: 'user', content: transcript }] })
 
-if (!sw.includes('const CACHE = "role-chat-cache-v116";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v117";')) {
   throw new Error('service worker cache was not bumped for memory continuity v2')
 }
 
-console.log('memory continuity regression: 24 checks passed')
+console.log('memory continuity regression: 28 checks passed')
