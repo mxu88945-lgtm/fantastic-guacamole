@@ -25,6 +25,34 @@ ok(white.includes('"item-active":"#f5f5f5"'), 'pressed controls do not retain vi
 const claudeStart = html.indexOf('{ key: "claude", name: "暖杏 Claude"')
 const claudeEnd = html.indexOf('{ key: "white"', claudeStart)
 ok(html.slice(claudeStart, claudeEnd).includes('bg:"#f5f4ef"'), 'warm Claude theme was changed accidentally')
-ok(sw.includes('const CACHE = "role-chat-cache-v118";'), 'service worker cache was not bumped to v118')
+
+const snowStart = html.indexOf('{ key: "snowblush", name: "樱雪"')
+const snowEnd = html.indexOf('// 墨黑金', snowStart)
+ok(snowStart >= 0 && snowEnd > snowStart, 'snow blush theme block was not found')
+const snow = html.slice(snowStart, snowEnd)
+ok(snow.includes('dark: false, glass: true'), 'snow blush theme is not using the intended light glass treatment')
+ok(snow.includes('linear-gradient(180deg,#fffafa 0%,#fff8fa 28%,#fdf2f6 58%,#f8e8ef 100%)'),
+  'snow blush gradient changed unexpectedly')
+ok(snow.includes('bg:"#fffafa"'), 'snow blush notch fallback does not match the gradient top')
+ok(snow.includes('"bg-panel":"#fbeff4"'), 'snow blush panels lost their soft rose surface')
+ok(snow.includes('accent:"#d66f96"'), 'snow blush accent changed unexpectedly')
+
+// CC's iOS standalone status-bar chain is protected: default status-bar mode,
+// pre-paint local restoration, root background fallback and runtime meta refresh.
+ok(html.includes('<meta name="apple-mobile-web-app-status-bar-style" content="default" />'),
+  'iOS opaque status-bar mode was changed')
+ok(html.includes('var bg = localStorage.getItem("jyc_themebg");')
+  && html.includes('var dark = localStorage.getItem("jyc_themedark");'),
+  'pre-paint notch colors are no longer restored')
+ok(html.includes('html { height: 100%; background: var(--app-gradient, var(--bg)); }'),
+  'root notch background fallback was changed')
+ok(html.includes('document.querySelectorAll(\'meta[name="theme-color"]\').forEach((el) => el.remove());')
+  && html.includes('tc.setAttribute("content", t.vars.bg);'),
+  'runtime theme-color refresh was changed')
+ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
+  && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
+  'runtime notch color persistence was changed')
+
+ok(sw.includes('const CACHE = "role-chat-cache-v119";'), 'service worker cache was not bumped to v119')
 
 console.log(`theme regression: ${checks} checks passed`)
