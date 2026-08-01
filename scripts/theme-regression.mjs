@@ -30,12 +30,23 @@ const snowStart = html.indexOf('{ key: "snowblush", name: "樱雪"')
 const snowEnd = html.indexOf('// 墨黑金', snowStart)
 ok(snowStart >= 0 && snowEnd > snowStart, 'snow blush theme block was not found')
 const snow = html.slice(snowStart, snowEnd)
-ok(snow.includes('dark: false, glass: true'), 'snow blush theme is not using the intended light glass treatment')
+ok(snow.includes('dark: false, glass: true, liquid: true'), 'snow blush theme is not using the intended liquid glass treatment')
 ok(snow.includes('linear-gradient(180deg,#fffafa 0%,#fff8fa 28%,#fdf2f6 58%,#f8e8ef 100%)'),
   'snow blush gradient changed unexpectedly')
 ok(snow.includes('bg:"#fffafa"'), 'snow blush notch fallback does not match the gradient top')
 ok(snow.includes('"bg-panel":"#fbeff4"'), 'snow blush panels lost their soft rose surface')
 ok(snow.includes('accent:"#d66f96"'), 'snow blush accent changed unexpectedly')
+ok(html.includes('root.setAttribute("data-liquid", t.liquid ? "1" : "");'),
+  'liquid theme marker is not applied or cleared on theme changes')
+ok(html.includes('html[data-liquid="1"] .msg.assistant .bubble,'),
+  'liquid message surface is missing')
+ok(html.includes('backdrop-filter: blur(18px) saturate(1.42);'),
+  'liquid message surface lost its optical blur')
+ok(html.includes('inset 0 1px 0 rgba(255,255,255,.94)'),
+  'liquid message surface lost its inner highlight')
+const mistStart = html.indexOf('{ key: "mistgreen", name: "黛绿"')
+const mistEnd = html.indexOf('];', mistStart)
+ok(!html.slice(mistStart, mistEnd).includes('liquid: true'), 'liquid styling leaked into the existing mist green theme')
 
 // CC's iOS standalone status-bar chain is protected: default status-bar mode,
 // pre-paint local restoration, root background fallback and runtime meta refresh.
@@ -53,6 +64,6 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v119";'), 'service worker cache was not bumped to v119')
+ok(sw.includes('const CACHE = "role-chat-cache-v120";'), 'service worker cache was not bumped to v120')
 
 console.log(`theme regression: ${checks} checks passed`)
