@@ -49,10 +49,12 @@ ok(html.includes('backdrop-filter: blur(18px) saturate(1.42);'),
   'liquid message surface lost its optical blur')
 ok(html.includes('inset 0 1px 0 rgba(255,255,255,.94)'),
   'liquid message surface lost its inner highlight')
-ok(html.includes('html[data-liquid="1"] .msg.flat.assistant .bubble { width: 100%; }'),
-  'liquid assistant cards still shrink with short replies')
-ok(!html.includes('html[data-liquid="1"] .msg.flat.user .bubble { width: 100%; }'),
-  'liquid user bubbles no longer hug their text')
+ok(html.includes('html[data-glass="1"] .msg.flat.assistant .bubble { width: 100%; }'),
+  'glass assistant cards still shrink with short replies')
+ok(!html.includes('html[data-glass="1"] .msg.flat.user .bubble { width: 100%; }'),
+  'glass user bubbles no longer hug their text')
+ok(html.includes('.backdrop.show { display: block; left: min(78vw, 300px); }'),
+  'mobile dim layer still darkens the translucent theme drawer')
 const mistStart = html.indexOf('{ key: "mistgreen", name: "黛绿"')
 const mistEnd = html.indexOf('];', mistStart)
 ok(!html.slice(mistStart, mistEnd).includes('liquid: true'), 'liquid styling leaked into the existing mist green theme')
@@ -73,6 +75,6 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v122";'), 'service worker cache was not bumped to v122')
+ok(sw.includes('const CACHE = "role-chat-cache-v123";'), 'service worker cache was not bumped to v123')
 
 console.log(`theme regression: ${checks} checks passed`)
