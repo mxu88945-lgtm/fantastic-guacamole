@@ -1942,8 +1942,8 @@ const CHAT_HISTORY_TOKEN_BUDGET = 5800; // local history stays intact; only API 
 const CHAT_HISTORY_MESSAGE_CAP = 56;    // safety cap for many short multi-bubbles
 const CHAT_HISTORY_MIN_ROLE_RUNS = 6;   // preserve at least three recent user/assistant exchanges
 const COMPACTED_HISTORY_TOKEN_BUDGET = 5600; // summary is injected separately; keep enough raw voice nearby
-const AUTO_COMPACT_THRESHOLD = 100;     // summarize when this many raw chat bubbles accumulate
-const AUTO_COMPACT_KEEP = 36;           // recent verbatim turns preserve cadence, chemistry and subtext
+const AUTO_COMPACT_THRESHOLD = 180;     // compact less often; API history still has its own strict token ceiling
+const AUTO_COMPACT_KEEP = 72;           // keep twice as much recent verbatim voice before folding older turns
 const COMPACT_TRANSCRIPT_BYTE_BUDGET = 24000; // UTF-8 ceiling: enough continuity without a costly CJK transcript dump
 const COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET = 12000; // one shorter retry for strict JSON relays
 const ROLLING_SUMMARY_VERSION = 2;
@@ -3176,7 +3176,7 @@ async function compactMessageBatch(conv, batch, automatic) {
     if (stickBottom) scrollToBottom();
   }
   showToast(automatic
-    ? "✅ 已整理连续性档案：旧原文仍在本地，最近 36 条保持原样"
+    ? "✅ 已整理连续性档案：旧原文仍在本地，最近 " + AUTO_COMPACT_KEEP + " 条保持原样"
     : "✅ 已整理连续性档案：旧原文仍在本地，可通过搜索找到", 4200);
   return true;
 }
