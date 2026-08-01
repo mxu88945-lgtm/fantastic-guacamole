@@ -2,6 +2,14 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')
+const selectionChecks = [
+  ['-webkit-user-select: text; user-select: text;', 'reasoning text is not selectable'],
+  ['-webkit-touch-callout: default;', 'iOS native copy/translate callout is disabled'],
+  ['e.target.closest("pre, code, .think-body")', 'reasoning long-press is still intercepted by the message menu'],
+]
+for (const [needle, message] of selectionChecks) {
+  if (!html.includes(needle)) throw new Error(message)
+}
 const start = html.indexOf('function splitThink(')
 const end = html.indexOf('function thinkBlockHtml(', start)
 if (start < 0 || end < 0) throw new Error('reasoning parser section not found')
@@ -79,4 +87,4 @@ if (!visible.trim().startsWith('你刚才点了') || !hidden.includes('我需要
   throw new Error('stream gate did not separate planning and final reply')
 }
 
-console.log(`reasoning regression: ${cases.length + 1} cases passed`)
+console.log(`reasoning regression: ${cases.length + 1 + selectionChecks.length} checks passed`)
