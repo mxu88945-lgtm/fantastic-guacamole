@@ -1047,6 +1047,24 @@
   .attach-thumb { position: relative; }
   .attach-thumb img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px;
     border: 1px solid var(--border); }
+  .file-card {
+    width: min(290px, 72vw); min-height: 58px; padding: 9px 38px 9px 10px;
+    display: flex; align-items: center; gap: 10px; border: 1px solid var(--border);
+    border-radius: 12px; background: color-mix(in srgb, var(--bg-panel) 92%, transparent);
+    box-shadow: 0 2px 8px rgba(0,0,0,.05); text-align: left;
+  }
+  .file-card-icon {
+    width: 36px; height: 40px; flex: 0 0 auto; display: grid; place-items: center;
+    border-radius: 8px; background: var(--item-active); color: var(--accent);
+    font-size: 10px; font-weight: 800; letter-spacing: .03em;
+  }
+  .file-card-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .file-card-name {
+    max-width: 100%; color: var(--text); font-size: 13px; font-weight: 650;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .file-card-meta { color: var(--text-dim); font-size: 11px; }
+  .msg-media .file-card { padding-right: 10px; }
   .attach-thumb .rm {
     position: absolute; top: -6px; right: -6px; width: 18px; height: 18px;
     border-radius: 50%; background: var(--danger); color: #fff; border: none;
@@ -1277,7 +1295,7 @@
 <input type="file" id="aiAvatarFile" accept="image/*" style="display:none;" />
 <input type="file" id="importFile" accept=".json,application/json" style="display:none;" />
 <input type="file" id="chatBgFile" accept="image/*" style="display:none;" />
-<input type="file" id="file-input" accept=".txt,.md,.markdown,.json,.csv,.log,.js,.ts,.py,.html,.css,.xml,.yml,.yaml,text/*" style="display:none;" />
+<input type="file" id="file-input" accept=".txt,.md,.markdown,.json,.csv,.log,.js,.ts,.py,.html,.css,.xml,.yml,.yaml,text/*" multiple style="display:none;" />
 <div class="app">
   <div class="backdrop" id="backdrop"></div>
   <!-- Sidebar -->
@@ -2078,8 +2096,9 @@ let settings = {
   companionFeaturesV1: false, // 一次性恢复曾被设置页重构误停用的主动招呼与任务卡
 };
 let turnsSinceMemory = 0; // throttle auto-memory extraction
-let pendingImages = [];   // [{dataUrl, mediaType}] staged for the next message
-let imageStaging = [];    // in-flight stageImageFile() promises (iOS PWA race fix)
+let pendingAttachments = []; // image / sticker / text-file parts staged for the next message
+let attachmentStaging = [];  // in-flight image/file reads (iOS PWA race fix)
+const TEXT_FILE_MAX_BYTES = 1024 * 1024; // 1MB; larger prompt payloads are unreliable across providers
 let lastCallUsage = null; // usage of the most recent streamChat call (for token label)
 let lastCallTiming = null;// timing of the most recent streamChat call (channel diagnostics)
 let lastPromptAudit = null;// estimated prompt composition of the latest request
@@ -2731,12 +2750,18 @@ function newConversation() {
 function currentConv() { return conversations.find(c => c.id === currentId); }
 // Conversations belonging to the currently active role.
 function roleConvs() { return conversations.filter(c => c.roleId === settings.activeRoleId); }
-// A message's content may be a string, or an array of parts (text + images).
+// A message's content may be a string, or an array of parts (text + attachments).
 function messageText(m) {
   if (typeof m.content === "string") return m.content;
   if (Array.isArray(m.content))
     return m.content.map(p => p.type === "text" ? p.text
-      : (p.type === "sticker" ? "[表情:" + p.name + "]" : "")).join(" ").trim();
+      : (p.type === "sticker" ? "[表情:" + p.name + "]"
+        : (p.type === "file" ? "[文件:" + (p.name || "未命名文件") + "]" : ""))).join(" ").trim();
+  return "";
+}
+function messageEditableText(m) {
+  if (typeof m.content === "string") return m.content;
+  if (Array.isArray(m.content)) return m.content.filter(p => p.type === "text").map(p => p.text).join("\n");
   return "";
 }
 function messageImages(m) {
@@ -2752,7 +2777,9 @@ function exportMsgPics(m) {
 function exportPlainBody(m) {
   let t;
   if (typeof m.content === "string") t = m.content;
-  else if (Array.isArray(m.content)) t = m.content.filter(p => p.type === "text").map(p => p.text).join("\n");
+  else if (Array.isArray(m.content)) t = m.content.map(p => p.type === "text" ? p.text
+    : (p.type === "file" ? "[文件：" + (p.name || "未命名文件") + " · " + formatFileSize(p.size) + "]" : ""))
+    .filter(Boolean).join("\n");
   else t = "";
   return (t || "").replace(/```[\w]*\n?/g, "").replace(/`/g, "").replace(/\*\*/g, "").replace(/^#+\s/gm, "").trim();
 }
@@ -3783,6 +3810,11 @@ function imagePartsHtml(content) {
   return content.filter(p => p.type === "image" && p.dataUrl)
     .map(p => `<img class="msg-img" src="${escapeHtml(p.dataUrl)}" onclick="openImageLightbox(this.src)" alt="">`).join("");
 }
+function filePartsHtml(content) {
+  if (!Array.isArray(content)) return "";
+  return content.filter(p => p.type === "file")
+    .map(p => fileCardHtml(p)).join("");
+}
 function bubbleHtml(role, content, reasoning, streaming) {
   let text = content, stickerParts = "";
   if (Array.isArray(content)) {
@@ -3818,9 +3850,9 @@ function bubbleHtml(role, content, reasoning, streaming) {
   return stickerParts + thinkHtml + textHtml;
 }
 function messageContentHtml(role, content, reasoning) {
-  const media = imagePartsHtml(content);
+  const media = imagePartsHtml(content) + filePartsHtml(content);
   if (!media) return `<div class="bubble">${bubbleHtml(role, content, reasoning)}</div>`;
-  const rest = content.filter(p => p.type !== "image");
+  const rest = content.filter(p => p.type !== "image" && p.type !== "file");
   const hasTextOrSticker = rest.some(p => p.type === "sticker" || (p.type === "text" && (p.text || "").trim()));
   const hasReasoning = role === "assistant" && !!(reasoning || "").trim();
   return `<div class="msg-media">${media}</div>` +
@@ -4572,6 +4604,9 @@ async function cloneMinimaxVoice(file) {
 }
 
 // ---------- API calls ----------
+function filePromptText(part) {
+  return `【附件文件：${part.name || "未命名文件"}（${formatFileSize(part.size)}）】\n${part.text || ""}`;
+}
 // Convert our stored content (string | parts[]) into the provider's wire format.
 function toApiContent(content, isAnthropic) {
   if (typeof content === "string") return content;
@@ -4585,6 +4620,7 @@ function toApiContent(content, isAnthropic) {
     return content.map(p => {
       if (p.type === "text") return p.text;
       if (p.type === "sticker") return `（发了一个表情：${p.name}）`;
+      if (p.type === "file") return filePromptText(p);
       if (p.type === "image") return p.desc ? `【图片内容】${p.desc}` : "";
       return "";
     }).join(" ").trim();
@@ -4593,6 +4629,9 @@ function toApiContent(content, isAnthropic) {
     if (p.type === "text") return { type: "text", text: p.text };
     // a sticker is sent to the model as a short text note (so non-vision models understand it)
     if (p.type === "sticker") return { type: "text", text: `（发了一个表情：${p.name}）` };
+    // Text files remain attachment cards in the UI, but all compatible chat APIs
+    // receive their contents as an ordinary text part (no provider-specific Files API).
+    if (p.type === "file") return { type: "text", text: filePromptText(p) };
     // image part — if it was pre-described, send the description text instead of the image
     if (p.type === "image" && p.desc) return { type: "text", text: `【图片内容】${p.desc}` };
     if (isAnthropic) {
@@ -4637,6 +4676,7 @@ function estimateContentTokens(content) {
   return content.reduce((n, p) => {
     if (!p) return n;
     if (p.type === "text") return n + estimateTextTokens(p.text);
+    if (p.type === "file") return n + estimateTextTokens(filePromptText(p));
     if (p.type === "image" || p.type === "image_url") return n + 1200;
     return n + 10;
   }, 0);
@@ -6470,8 +6510,8 @@ function handleAvatarFile(file, which) {
 // Stage an image to send: downscale to <=1024px, keep as JPEG data URL.
 // Returns a Promise that resolves once the image is staged (or has failed).
 // The whole chain (FileReader → Image decode → canvas) is async; on iOS PWA it
-// can be slow, so send() awaits these via `imageStaging` to avoid the race where
-// the user taps 发送 before pendingImages is populated and we silently return.
+// can be slow, so send() awaits these via `attachmentStaging` to avoid the race where
+// the user taps 发送 before pendingAttachments is populated and we silently return.
 function stageImageFile(file) {
   if (!file || !file.type.startsWith("image/")) return Promise.resolve();
   const p = new Promise((resolve) => {
@@ -6489,7 +6529,7 @@ function stageImageFile(file) {
           const canvas = document.createElement("canvas");
           canvas.width = w; canvas.height = h;
           canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-          pendingImages.push({ type: "image", dataUrl: canvas.toDataURL("image/jpeg", 0.85), mediaType: "image/jpeg" });
+          pendingAttachments.push({ type: "image", dataUrl: canvas.toDataURL("image/jpeg", 0.85), mediaType: "image/jpeg" });
           renderAttachPreview();
         } catch (e) {
           showToast("❌ 图片处理失败: " + (e.message || String(e)).slice(0, 40));
@@ -6500,33 +6540,66 @@ function stageImageFile(file) {
     };
     reader.readAsDataURL(file);
   });
-  imageStaging.push(p);
-  p.then(() => { imageStaging = imageStaging.filter((x) => x !== p); });
+  attachmentStaging.push(p);
+  p.then(() => { attachmentStaging = attachmentStaging.filter((x) => x !== p); });
   return p;
 }
-// Read a text-ish file and insert its content into the input box.
-function handleTextFile(file) {
-  if (!file) return;
-  if (file.size > 200000) { showToast("文件太大了（>200KB）"); return; }
-  const reader = new FileReader();
-  reader.onload = () => {
-    const inp = $("input");
-    inp.value += (inp.value ? "\n\n" : "") + "【文件：" + file.name + "】\n" + reader.result;
-    autoResize(); inp.focus();
-    showToast("📄 已插入文件内容");
-  };
-  reader.onerror = () => showToast("读取失败，仅支持文本类文件");
-  reader.readAsText(file);
+function formatFileSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return n + " B";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(n < 10 * 1024 ? 1 : 0) + " KB";
+  return (n / (1024 * 1024)).toFixed(1) + " MB";
+}
+function fileKindLabel(name) {
+  const match = String(name || "").match(/\.([^.]+)$/);
+  return (match ? match[1] : "TXT").slice(0, 5).toUpperCase();
+}
+function fileCardHtml(filePart) {
+  return `<div class="file-card"><span class="file-card-icon">${escapeHtml(fileKindLabel(filePart.name))}</span>`
+    + `<span class="file-card-copy"><span class="file-card-name">${escapeHtml(filePart.name || "未命名文件")}</span>`
+    + `<span class="file-card-meta">${escapeHtml(formatFileSize(filePart.size))} · 文本附件</span></span></div>`;
+}
+// Keep text-ish files as real attachment cards in the composer/chat. The content
+// is stored privately in the part and only expanded when building the model request.
+function stageTextFile(file) {
+  if (!file) return Promise.resolve();
+  if (file.size > TEXT_FILE_MAX_BYTES) {
+    showToast("文件太大了（文本附件上限 1MB，请分段上传）", 4200);
+    return Promise.resolve();
+  }
+  const p = new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      pendingAttachments.push({
+        type: "file",
+        name: file.name || "未命名文件.txt",
+        size: file.size || 0,
+        mediaType: file.type || "text/plain",
+        text: String(reader.result || ""),
+      });
+      renderAttachPreview();
+      showToast("📎 文件已作为附件加入");
+      resolve();
+    };
+    reader.onerror = () => { showToast("读取失败，仅支持文本类文件"); resolve(); };
+    reader.readAsText(file);
+  });
+  attachmentStaging.push(p);
+  p.then(() => { attachmentStaging = attachmentStaging.filter((x) => x !== p); });
+  return p;
 }
 function renderAttachPreview() {
   const box = $("attach-preview");
   box.innerHTML = "";
-  box.style.display = pendingImages.length ? "flex" : "none";
-  pendingImages.forEach((im, i) => {
+  box.style.display = pendingAttachments.length ? "flex" : "none";
+  pendingAttachments.forEach((part, i) => {
     const d = document.createElement("div");
     d.className = "attach-thumb";
-    d.innerHTML = `<img src="${im.dataUrl}" alt=""><button class="rm" title="移除">✕</button>`;
-    d.querySelector(".rm").onclick = () => { pendingImages.splice(i, 1); renderAttachPreview(); };
+    d.innerHTML = (part.type === "file"
+      ? fileCardHtml(part)
+      : `<img src="${part.dataUrl}" alt="">`)
+      + `<button class="rm" title="移除">✕</button>`;
+    d.querySelector(".rm").onclick = () => { pendingAttachments.splice(i, 1); renderAttachPreview(); };
     box.appendChild(d);
   });
 }
@@ -6729,7 +6802,7 @@ async function generateStickerImage(msg) {
 }
 // stage a sticker so it can be sent together with text (press send to actually send)
 function stageSticker(s) {
-  pendingImages.push({ type: "sticker", name: s.name, dataUrl: s.dataUrl });
+  pendingAttachments.push({ type: "sticker", name: s.name, dataUrl: s.dataUrl });
   renderAttachPreview();
 }
 
@@ -6882,9 +6955,9 @@ function editMessage(idx) {
   if (!m) return;
   if (m._summary) { showToast("连续性档案不能用“编辑并重发”，可以用“改文字”校正内容"); return; }
   if (idx !== messages.length - 1 && !confirm("编辑这条会删掉它之后的所有消息，确定？")) return;
-  $("input").value = messageText(m);
-  pendingImages = Array.isArray(m.content)
-    ? m.content.filter(p => p.type === "image" || p.type === "sticker").map(p => ({ ...p })) : [];
+  $("input").value = messageEditableText(m);
+  pendingAttachments = Array.isArray(m.content)
+    ? m.content.filter(p => p.type === "image" || p.type === "sticker" || p.type === "file").map(p => ({ ...p })) : [];
   renderAttachPreview();
   invalidateDerivedForRemovedMessages(messages.slice(idx), "edit-resend");
   messages.splice(idx);   // remove this message and everything after it
@@ -6916,7 +6989,7 @@ function editMessageText(idx) {
   editorMsgIdx = idx;
   editorTargetId = null;
   $("editor-title").textContent = "✏️ 改文字";
-  $("editor-textarea").value = messageText(m);
+  $("editor-textarea").value = messageEditableText(m);
   $("editor-modal").classList.add("show");
   setTimeout(() => $("editor-textarea").focus(), 80);
 }
@@ -6961,15 +7034,15 @@ async function send() {
   const input = $("input");
   const text = input.value.trim();
   // iOS PWA fix: image staging (FileReader → decode → canvas) is async. If the
-  // user taps 发送 before it finishes, pendingImages is still empty and we'd
+  // user taps 发送 before it finishes, pendingAttachments is still empty and we'd
   // silently bail. Wait for any in-flight image processing to settle first.
-  if (imageStaging.length) {
+  if (attachmentStaging.length) {
     const btn = $("send-btn");
     btn.disabled = true; btn.classList.add("staging");
-    try { await Promise.all(imageStaging); } catch (_) {}
+    try { await Promise.all(attachmentStaging); } catch (_) {}
     btn.disabled = false; btn.classList.remove("staging");
   }
-  if (!text && pendingImages.length === 0) return;
+  if (!text && pendingAttachments.length === 0) return;
   const silent = !!settings.silentMode;
   if (!silent && !settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
   clearError();
@@ -6977,10 +7050,10 @@ async function send() {
   // Build user message: plain string when no attachments, else a parts array
   // (attachments may be images or stickers, and can ride along with text).
   let userContent;
-  if (pendingImages.length) {
+  if (pendingAttachments.length) {
     userContent = [];
     if (text) userContent.push({ type: "text", text });
-    for (const a of pendingImages) userContent.push({ ...a });
+    for (const a of pendingAttachments) userContent.push({ ...a });
   } else {
     userContent = text;
   }
@@ -7001,7 +7074,7 @@ async function send() {
     messages.push({ id: uid(), role: "assistant", content: "（无回复）", ts: Date.now() });
   }
   messages.push({ id: uid(), role: "user", content: userContent, ts: Date.now() });
-  pendingImages = []; renderAttachPreview();
+  pendingAttachments = []; renderAttachPreview();
   input.value = ""; autoResize();
   renderMessages();
   touchConversation();
@@ -9052,7 +9125,10 @@ async function init() {
     e.target.value = "";
   };
   setupEmoji();
-  $("file-input").onchange = (e) => { handleTextFile(e.target.files[0]); e.target.value = ""; };
+  $("file-input").onchange = (e) => {
+    for (const f of e.target.files) stageTextFile(f);
+    e.target.value = "";
+  };
 
   // "+" menu in the composer
   const closePopups = () => {
