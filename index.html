@@ -855,6 +855,11 @@
     -webkit-user-select: text; user-select: text;
     -webkit-touch-callout: default;
   }
+  .summary-source-toggle {
+    width: 100%; margin-top: 12px; padding: 8px 10px; border: 1px solid var(--border);
+    border-radius: 10px; color: var(--accent); background: var(--bg-panel);
+    font: inherit; font-size: 12px; font-weight: 650; cursor: pointer;
+  }
   .msg-actions { display: flex; gap: 1px; margin-top: 6px; opacity: .6; transition: .15s; }
   @media (hover: hover) {
     .msg-actions { opacity: 0; }
@@ -2148,6 +2153,7 @@ const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
+const expandedSummaryIds = new Set(); // runtime-only: user may temporarily reveal archived raw turns
 // Async cloud restore must never steal a conversation the user selected while
 // the restore request was in flight.
 let chatNavigationRevision = 0;
@@ -3115,18 +3121,21 @@ function runSearch(q) {
     el.innerHTML = `<div class="sr-title">💬 ${escapeHtml(r.title)}</div><div class="sr-snip">${safe}</div>`;
     el.onclick = () => {
       switchConversation(r.convId);
-      let targetId = r.mid;
+      const targetId = r.mid;
       const conv = currentConv();
       let target = conv && conv.messages.find(m => m.id === targetId);
       const visited = new Set();
       while (target && target._compactedBy && !visited.has(target.id)) {
         visited.add(target.id);
-        targetId = target._compactedBy;
-        target = conv.messages.find(m => m.id === targetId);
+        target = conv.messages.find(m => m.id === target._compactedBy);
+      }
+      if (target && target._summary && target.id) {
+        expandedSummaryIds.add(target.id);
+        renderMessages();
       }
       setTimeout(() => {
         flashMessage(targetId);
-        if (targetId !== r.mid) showToast("这条原文已收进上方的连续性档案，原文仍保存在本地", 4200);
+        if (visited.size) showToast("已从连续性档案里展开这条旧原文", 3600);
       }, 250);
     };
     box.appendChild(el);
@@ -3566,9 +3575,16 @@ function renderMessages() {
     return;
   }
   box.innerHTML = "";
+  const revealedArchivedIds = new Set();
+  const conv = currentConv();
+  for (const summaryId of expandedSummaryIds) {
+    const summary = messages.find(m => m && m.id === summaryId && m._summary && !m._compactedBy);
+    if (!summary) { expandedSummaryIds.delete(summaryId); continue; }
+    archivedMessagesForSummary(conv, summary).forEach(m => { if (m.id) revealedArchivedIds.add(m.id); });
+  }
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
-    if (m._event || m._compactedBy) continue;     // hidden event or locally archived raw turn
+    if (m._event || (m._compactedBy && !revealedArchivedIds.has(m.id))) continue;
     if (m.role === "reminder") { box.appendChild(reminderCardEl(m)); continue; }   // countdown / done card
     const isLast = i === messages.length - 1;
     const el = makeMsgEl(m.role, m.content, {
@@ -3577,7 +3593,25 @@ function renderMessages() {
     });
     el.dataset.idx = i;
     if (m.id) el.dataset.mid = m.id;
-    if (m._summary && el.querySelector(".bubble")) el.querySelector(".bubble").classList.add("summary");
+    if (m._summary && el.querySelector(".bubble")) {
+      const bubble = el.querySelector(".bubble");
+      bubble.classList.add("summary");
+      const archived = archivedMessagesForSummary(conv, m);
+      if (archived.length) {
+        const expanded = expandedSummaryIds.has(m.id);
+        const toggle = document.createElement("button");
+        toggle.type = "button"; toggle.className = "summary-source-toggle";
+        toggle.textContent = expanded ? "收起旧原文" : "展开 " + archived.length + " 条旧原文";
+        toggle.onclick = (e) => {
+          e.stopPropagation();
+          if (expanded) expandedSummaryIds.delete(m.id); else expandedSummaryIds.add(m.id);
+          renderMessages();
+          const focusId = expanded ? m.id : (archived[0]?.id || m.id);
+          setTimeout(() => flashMessage(focusId), 80);
+        };
+        bubble.appendChild(toggle);
+      }
+    }
     box.appendChild(el);
   }
   renderReminderPin();
@@ -4738,8 +4772,49 @@ function currentMemoryRecallQuery() {
   return latest ? messageText(latest).slice(0, 1600) : "";
 }
 function explicitMemoryRecallIntent(text) {
-  return /(?:还记得|记得吗|记不记得|想起来|回忆|翻翻|查查|找找|旧聊天|旧文|以前|之前|上次|那次|当时|后来呢|继续说)/i
-    .test(String(text || ""));
+  const value = String(text || "");
+  return /(?:还记得|记得吗|记不记得|想起来|回忆|翻翻|查查|找找|旧聊天|旧文|以前|之前|上次|那次|当时|后来呢|继续说)/i.test(value)
+    || /(?:今天|今早|早上|上午|中午|午饭|下午|傍晚|晚上|今晚|昨晚).{0,30}(?:说|告诉|报备|提过|聊|吃|喝|做|买|去|什么)/i.test(value)
+    || /(?:我|咱们).{0,24}(?:吃了什么|喝了什么|说过什么|报备.{0,8}什么)/i.test(value);
+}
+function recallTimeWindow(queryText) {
+  const value = String(queryText || "");
+  let hours = null, label = "";
+  if (/(?:今早|早上|上午|早餐)/.test(value)) { hours = [5, 11]; label = "早上"; }
+  else if (/(?:中午|午饭|午餐)/.test(value)) { hours = [11, 14]; label = "中午"; }
+  else if (/(?:下午|傍晚)/.test(value)) { hours = [13, 19]; label = "下午"; }
+  else if (/(?:晚上|今晚|晚饭|晚餐|昨晚)/.test(value)) { hours = [18, 24]; label = "晚上"; }
+  else if (/(?:今天|昨日|昨天)/.test(value)) { hours = [0, 24]; label = "当天"; }
+  if (!hours) return null;
+  return { hours, label, dayOffset: /(?:昨日|昨天|昨晚)/.test(value) ? -1 : 0 };
+}
+function recallTimeScore(queryText, timestamp) {
+  const hint = recallTimeWindow(queryText);
+  if (!hint || !timestamp) return 0;
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() + hint.dayOffset);
+  const d = new Date(timestamp);
+  const sameDay = d.getFullYear() === target.getFullYear()
+    && d.getMonth() === target.getMonth() && d.getDate() === target.getDate();
+  if (!sameDay) return 0;
+  return d.getHours() >= hint.hours[0] && d.getHours() < hint.hours[1] ? 3 : 1;
+}
+function recallIntentAffinity(queryText, candidateText) {
+  const q = String(queryText || ""), text = String(candidateText || "");
+  let score = 0;
+  if (/(?:吃|喝|早餐|午餐|晚餐|饭|食物|报备)/.test(q)
+      && /(?:吃|喝|饭|餐|粥|面|粉|蛋|奶|茶|咖啡|水|肉|鱼|菜|汤|水果|豆浆|燕麦|饼|包|米|阿华田)/.test(text)) score += 3;
+  return score;
+}
+function formatRecallTime(timestamp) {
+  if (!timestamp) return "";
+  const d = new Date(timestamp), now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const msgStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dayDiff = Math.round((start - msgStart) / 86400000);
+  const day = dayDiff === 0 ? "今天" : dayDiff === 1 ? "昨天" : ((d.getMonth() + 1) + "/" + d.getDate());
+  const hm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  return day + " " + hm;
 }
 function memoryRecallTurn(conv) {
   return (conv?.messages || []).filter(m => isChatContentMessage(m) && m.role === "user").length;
@@ -4791,12 +4866,19 @@ function retrieveOmittedCurrentChat(windowInfo) {
   const queryText = currentMemoryRecallQuery();
   const q = memTokens(queryText);
   if (!q.size) return emptyRecallResult("current");
+  const explicit = explicitMemoryRecallIntent(queryText);
   const seen = new Set(messages.filter(m => isChatContentMessage(m) && !m._compactedBy).slice(-8)
     .map(m => messageText(m).replace(/\s+/g, " ").trim().toLowerCase()));
   const hits = candidates.map(m => {
     const txt = messageText(m).replace(/\s+/g, " ").trim();
-    return { key: "current:" + (m.id || normalizedPromptFact(txt).slice(0, 80)), m, txt, s: memScore(q, txt) };
-  }).filter(x => x.txt.length >= 8 && x.s >= 2 && !seen.has(x.txt.toLowerCase()))
+    const lexical = memScore(q, txt);
+    const temporal = recallTimeScore(queryText, m.ts);
+    const affinity = recallIntentAffinity(queryText, txt);
+    return { key: "current:" + (m.id || normalizedPromptFact(txt).slice(0, 80)),
+      m, txt, s: lexical + temporal + affinity, lexical, temporal, affinity };
+  }).filter(x => x.txt.length >= 4
+    && (x.lexical >= 2 || (explicit && (x.lexical + x.temporal + x.affinity >= 1)))
+    && !seen.has(x.txt.toLowerCase()))
     .sort((a, b) => b.s - a.s || (b.m.ts || 0) - (a.m.ts || 0));
   if (!hits.length) return emptyRecallResult("current");
   const cooldown = filterRecallCooldown(hits, queryText);
@@ -4806,7 +4888,8 @@ function retrieveOmittedCurrentChat(windowInfo) {
   return {
     scope: "current",
     text: "【本窗口旧原文中、与当前话题相关的准确片段】\n" + selected.map(x =>
-    (x.m.role === "user" ? userRef() : (settings.aiName || "当前角色")) + "：" + x.txt.slice(0, 160)
+    (formatRecallTime(x.m.ts) ? "[" + formatRecallTime(x.m.ts) + "] " : "")
+      + (x.m.role === "user" ? userRef() : (settings.aiName || "当前角色")) + "：" + x.txt.slice(0, 160)
     ).join("\n") + "\n只把这些当作回忆证据，自然承接，不要机械复述。",
     keys: selected.map(x => x.key),
     turn: cooldown.turn,
@@ -5027,7 +5110,8 @@ async function streamChat(onDelta, onReasoning) {
   const memSaveNote = "【记忆】仅当 ta 明确要求，或你判断一月后仍重要时写 `[记忆:一句话]`；闲聊、临时情绪/安排不记，标记隐藏。";
   systemText = systemText ? systemText + "\n\n" + memSaveNote : memSaveNote;
   if (settings.crossSearch) {
-    const searchNote = "【旧聊天】确需查证且上下文没有时写 `[搜索:关键词]`，收到旧片段后再答；勿滥用或假装记得。";
+    const searchNote = "【旧聊天】确需查证且上下文没有时写 `[搜索:关键词]`，收到旧片段后再答；勿滥用或假装记得。"
+      + "当 ta 追问今天早上/中午/晚上说过什么、吃喝记录或其他具体报备，而眼前没有证据时，必须先搜索，不能直接说记录不存在。";
     systemText = systemText ? systemText + "\n\n" + searchNote : searchNote;
   }
   if (settings.webSearch) {
@@ -5538,6 +5622,7 @@ function retrieveCrossChat() {
   const queryText = currentMemoryRecallQuery();
   const q = memTokens(queryText);
   if (!q.size) return emptyRecallResult("cross");
+  const explicit = explicitMemoryRecallIntent(queryText);
   const hits = [];
   for (const c of convs) {
     if (!c || c.id === cur.id || !Array.isArray(c.messages)) continue;
@@ -5545,8 +5630,11 @@ function retrieveCrossChat() {
       if (!isChatContentMessage(m)) continue;
       const txt = messageText(m);
       if (!txt || txt.length < 4) continue;
-      const s = memScore(q, txt);
-      if (s >= 2) hits.push({
+      const lexical = memScore(q, txt);
+      const temporal = recallTimeScore(queryText, m.ts);
+      const affinity = recallIntentAffinity(queryText, txt);
+      const s = lexical + temporal + affinity;
+      if (lexical >= 2 || (explicit && (lexical + affinity >= 1))) hits.push({
         key: "cross:" + c.id + ":" + (m.id || normalizedPromptFact(txt).slice(0, 80)),
         s, ts: m.ts || c.updatedAt || 0,
         who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "当前角色"),
@@ -5562,7 +5650,7 @@ function retrieveCrossChat() {
   const selected = cooldown.allowed.slice(0, 4);
   if (!selected.length) return { ...emptyRecallResult("cross"),
     turn: cooldown.turn, candidateCount: eligible.length, suppressedCount: cooldown.suppressed.length };
-  const lines = selected.map(h => `（在「${h.title}」里）${h.who}：${h.txt.slice(0, 150)}`);
+  const lines = selected.map(h => `（在「${h.title}」里${h.ts ? " · " + formatRecallTime(h.ts) : ""}）${h.who}：${h.txt.slice(0, 150)}`);
   return {
     scope: "cross",
     text: "【以下是你和 ta 在其他聊天窗口里、和当前话题相关的片段，供你回忆参考，别生硬复述】\n" + lines.join("\n"),
@@ -5683,19 +5771,25 @@ function searchHistory(query) {
   const cur = currentConv() || {};
   const q = memTokens(query || "");
   if (!q.size) return "（没给出有效的搜索关键词）";
+  const explicit = explicitMemoryRecallIntent(query);
   const hits = [];
   for (const c of convs) {
     if (!c || !Array.isArray(c.messages)) continue;
     for (const m of c.messages) {
       const txt = messageText(m);
       if (!txt || txt.length < 4) continue;
-      const s = memScore(q, txt);
-      if (s >= 1) hits.push({ s, who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "当前角色"), title: c.title || "对话", txt, isCur: c.id === cur.id });
+      const lexical = memScore(q, txt);
+      const temporal = recallTimeScore(query, m.ts);
+      const affinity = recallIntentAffinity(query, txt);
+      const s = lexical + temporal + affinity;
+      if (lexical >= 1 || (explicit && affinity >= 1)) hits.push({ s, ts: m.ts || c.updatedAt || 0,
+        who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "当前角色"),
+        title: c.title || "对话", txt, isCur: c.id === cur.id });
     }
   }
   if (!hits.length) return "（翻遍了所有聊天窗口，没找到和「" + query + "」相关的内容。如实告诉 ta 没找到，别编。）";
-  hits.sort((a, b) => b.s - a.s);
-  return hits.slice(0, 10).map(h => `（在「${h.title}」${h.isCur ? "·就是现在这个窗口" : ""}）${h.who}：${h.txt.slice(0, 160)}`).join("\n");
+  hits.sort((a, b) => b.s - a.s || b.ts - a.ts);
+  return hits.slice(0, 10).map(h => `（在「${h.title}」${h.isCur ? "·就是现在这个窗口" : ""}${h.ts ? " · " + formatRecallTime(h.ts) : ""}）${h.who}：${h.txt.slice(0, 160)}`).join("\n");
 }
 // Web search via a browser-CORS-friendly endpoint. Jina Search now requires an API key;
 // older saved configs may still point at s.jina.ai with no key, so those requests

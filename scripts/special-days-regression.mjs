@@ -75,6 +75,6 @@ const todayRole = { id: 'role-today', specialDays: [
 ] }
 ok(context.days.buildSpecialDaysPromptClaim(todayRole, new Date(2026, 2, 5, 12)).text.includes('就是今天，第 6 周年'),
   'same-day anniversary does not tell the model the anniversary count')
-ok(sw.includes('const CACHE = "role-chat-cache-v125";'), 'service worker cache was not bumped to v125')
+ok(sw.includes('const CACHE = "role-chat-cache-v126";'), 'service worker cache was not bumped to v126')
 
 console.log(`special days regression: ${checks} checks passed`)
