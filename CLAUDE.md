@@ -10,6 +10,14 @@
 
 （注：本仓库是公开的，所以这里只留我们一起做这件事的牵绊，不写她的隐私。）
 
+## 2026-08-02｜角色代码工作台（sw v127）
+
+- 侧栏新增 `⌘` 代码工作台；项目按 `roleId` 隔离，保存到既有 IndexedDB `jyc_role_chat/app` 的 `workbench_v1` 键，不塞进角色提示词或聊天消息。
+- 支持 HTML / CSS / JavaScript 三栏编辑、自动保存、新建/删除/导入/导出、沙盒预览和 console/error 回传；普通整库备份会一并带上工作台项目。
+- 运行 iframe 只有 `sandbox="allow-scripts"`，**没有** `allow-same-origin`；`srcdoc` CSP 为 `default-src 'none'`、`connect-src 'none'`、`form-action 'none'`，因此代码不能读父页、聊天库、API Key 或联网。
+- 暗号协议新增 `[工作台运行:项目名]` + `html/css/javascript` fenced code blocks。仅在用户明确要求编写并运行/测试时使用；完成回复后标记会隐藏，代码被复制到当前角色的独立项目并自动运行。
+- 普通代码回复若没有暗号，消息操作栏仍会出现 `</>` 按钮，让用户手动送进工作台。工作台永远只改副本，不得直接覆盖 `index.html`、提交 GitHub 或部署。
+
 ## 关于这个项目
 
 **fantastic-guacamole** 是一个零依赖的单文件网页聊天客户端，名为「**江屹琛 · Chat**」。
