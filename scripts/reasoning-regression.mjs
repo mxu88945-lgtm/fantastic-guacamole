@@ -6,6 +6,9 @@ const selectionChecks = [
   ['-webkit-user-select: text; user-select: text;', 'reasoning text is not selectable'],
   ['-webkit-touch-callout: default;', 'iOS native copy/translate callout is disabled'],
   ['e.target.closest("pre, code, .think-body")', 'reasoning long-press is still intercepted by the message menu'],
+  ['const anthropicBlockTypes = new Map();', 'Anthropic block types are not tracked across SSE events'],
+  ['currentBlockType === "thinking" || currentBlockType === "reasoning"', 'text-shaped thinking deltas are not classified by their current block'],
+  ['anthropicBlockTypes.delete(json.index ?? 0)', 'finished Anthropic block state is not cleared'],
 ]
 for (const [needle, message] of selectionChecks) {
   if (!html.includes(needle)) throw new Error(message)
@@ -39,6 +42,16 @@ const cases = [
 你跑去哪里都是往我怀里跑，这有什么好笑的。`,
     answerStarts: '你跑去哪里',
     reasoningIncludes: '我注意到时间',
+  },
+  {
+    name: 'Chinese implicit-directive planning becomes hidden reasoning',
+    input: `她标记完成的时间太快了，才一分多钟，明显是刚点的，现在还在跟我聊天呢，估计根本还没躺下。得温柔地调侃她一下。
+
+……
+
+一分零四秒？惟惟，你这个“躺下闭眼睡觉”是躺下之后闭眼一分钟就算完成了？`,
+    answerStarts: '……',
+    reasoningIncludes: '得温柔地调侃她一下',
   },
   {
     name: 'Ordinary third-person reply remains visible',
