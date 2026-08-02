@@ -4377,10 +4377,14 @@ function looksLikeChineseMetaReasoning(text) {
     .replace(/^[“”‘’"'`*_#>\-\s]+/, "");
   const cjk = (sample.match(/[\u3400-\u9fff]/g) || []).length;
   if (cjk < 28) return false;
-  const observer = /^(?:她|他|用户|对方)(?:[，。！？、\s]|没有|已经|刚|在|说|问|想|把|回|又|今天|现在)/.test(sample);
+  // Private plans often open with an observation such as “她标记完成得太快”;
+  // do not require a fixed verb after the third-person subject. The directive
+  // and response-crafting checks below keep ordinary third-person prose visible.
+  const observer = /^(?:她|他|用户|对方)/.test(sample);
   const selfDirective = /我(?:需要|应该|得|要|可以|想|必须|会|不该|不能|无需|不需要|打算)/.test(sample);
-  const responseCraft = /(?:回应|回复|回答|作答|语气|口吻|措辞|任务卡|消息|指示|提醒|指出|强调|承认|提到|追问|记录|记下|日记|记忆|保持|避免|简洁|明了)/.test(sample);
-  return observer && selfDirective && responseCraft;
+  const implicitDirective = /(?:^|[。！？]\s*)(?:接下来)?(?:得|需要|应该|可以|不妨)(?:先|再|温柔|轻松|直接|简短|自然|认真|克制|稍微|好好|用|调侃|逗|提醒|回应|回复|回答|问|说)/.test(sample);
+  const responseCraft = /(?:回应|回复|回答|作答|调侃|逗(?:她|他|一下)|语气|口吻|措辞|任务卡|消息|指示|提醒|指出|强调|承认|提到|追问|记录|记下|日记|记忆|保持|避免|简洁|明了)/.test(sample);
+  return observer && (selfDirective || implicitDirective) && responseCraft;
 }
 function looksLikeChinesePlanningContinuation(text) {
   const sample = String(text || "").trimStart()
@@ -4391,7 +4395,7 @@ function looksLikeChinesePlanningContinuation(text) {
 }
 function looksLikeDirectChineseReply(text) {
   const sample = String(text || "").trimStart()
-    .replace(/^[“”‘’"'`*_#>\-\s]+/, "");
+    .replace(/^[“”‘’"'`*_#>\-—…\s]+/, "");
   return /^(?:你|惟惟|宝宝|宝贝|老婆|姐姐|笨蛋|傻瓜|行[，。！]|好[，。！]|嗯|哼|先|去|来|过来|听我|不过|所以|但是|我(?:刚才|知道|在这|没忘|会|不要|要说|先说))/.test(sample);
 }
 function looksLikeChineseReasoningLead(text) {
@@ -4432,6 +4436,7 @@ function splitBareReasoning(text, streaming) {
   for (const gap of gaps) {
     const prefix = text.slice(0, gap.index).trim();
     const answer = text.slice(gap.index + gap[0].length).trimStart();
+    const answerProbe = answer.replace(/^[“”‘’"'`*_#>\-—…\s]+/, "");
     const answerCjk = (answer.match(/[\u3400-\u9fff]/g) || []).length;
     const prefixLetters = (prefix.match(/[A-Za-z]/g) || []).length;
     const suspiciousPrefix = looksLikeBareReasoning(prefix)
@@ -4440,7 +4445,7 @@ function splitBareReasoning(text, streaming) {
     // for Chinese chains where every paragraph starts with Chinese characters.
     const chinesePlanToReply = looksLikeChineseMetaReasoning(prefix)
       && looksLikeDirectChineseReply(answer);
-    if (/^[\u3400-\u9fff]/.test(answer) && answerCjk >= 2 && suspiciousPrefix
+    if (/^[\u3400-\u9fff]/.test(answerProbe) && answerCjk >= 2 && suspiciousPrefix
         && !looksLikeChinesePlanningContinuation(answer)
         && (chinesePlanToReply || !looksLikeReasoningStart(answer))) {
       return { think: prefix, answer };
@@ -5990,6 +5995,11 @@ async function streamChat(onDelta, onReasoning) {
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  // Anthropic assigns every content block an index. Some compatible relays
+  // omit delta.type on later events and send only delta.text, so remember the
+  // type announced by content_block_start instead of trusting each delta in
+  // isolation. Without this, text-shaped thinking deltas can leak into output.
+  const anthropicBlockTypes = new Map();
   let usageRaw = null;   // collected token/cost usage for this call
   lastCallUsage = null;  // reset; recordUsage() will set it if the API reports usage
   while (true) {
@@ -6011,6 +6021,7 @@ async function streamChat(onDelta, onReasoning) {
         if (json.type === "message_delta" && json.usage) usageRaw = { ...(usageRaw || {}), ...json.usage };
         if (json.type === "content_block_start") {
           const block = json.content_block || {};
+          anthropicBlockTypes.set(json.index ?? 0, block.type || "");
           if (block.type === "thinking" || block.type === "reasoning") {
             const thought = block.thinking || block.reasoning || block.text || "";
             if (thought) { markToken(thought); onReasoning(thought); }
@@ -6020,11 +6031,14 @@ async function streamChat(onDelta, onReasoning) {
         }
         if (json.type === "content_block_delta") {
           const delta = json.delta || {};
-          const isThought = delta.type === "thinking_delta" || delta.type === "reasoning_delta";
+          const currentBlockType = anthropicBlockTypes.get(json.index ?? 0) || "";
+          const isThought = delta.type === "thinking_delta" || delta.type === "reasoning_delta"
+            || currentBlockType === "thinking" || currentBlockType === "reasoning";
           const thought = delta.thinking || delta.reasoning || (isThought ? delta.text : "");
           if (thought) { markToken(thought); onReasoning(thought); }
           if (!isThought && delta.text) { markToken(delta.text); onDelta(delta.text); }
         }
+        if (json.type === "content_block_stop") anthropicBlockTypes.delete(json.index ?? 0);
         if (json.type === "error") throw new Error(json.error?.message || "stream error");
       } else {
         if (json.usage) usageRaw = json.usage;
