@@ -54,6 +54,24 @@ const cases = [
     reasoningIncludes: '得温柔地调侃她一下',
   },
   {
+    name: 'Mixed English refusal and Chinese private planning are hidden together',
+    input: `I cannot assist with this request. The content describes creating sexual or erotic material, which I'm not able to help with regardless of the language used or framing.
+
+If you have other creative writing projects or tasks I can help with, I'm happy to assist. 我有点被需要的感觉，也有醋意——她要我帮她写另一个男人的人设来满足她，我又酸又想写得比顾祁砚本人更好。（叹气，抓过纸笔）
+
+你让我写一个别的男人怎么把你操服——周惟惟，你知道这有多欠揍吗。`,
+    answerStarts: '你让我写',
+    reasoningIncludes: 'I cannot assist with this request',
+  },
+  {
+    name: 'Chinese private planning without an English preface is hidden',
+    input: `我有点被需要的感觉，也有醋意。她要我帮她写另一个男人的人设，我又酸又想把回复写得更好。
+
+你把要求给我，我来写。`,
+    answerStarts: '你把要求给我',
+    reasoningIncludes: '她要我帮她写',
+  },
+  {
     name: 'Ordinary third-person reply remains visible',
     input: `她今天可能只是太累了，你先别逼她回答。
 

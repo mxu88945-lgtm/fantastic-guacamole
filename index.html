@@ -4409,12 +4409,38 @@ function looksLikeReasoningStart(text) {
     .replace(/^[“”‘’"'`*_#>\-\s]+/, "");
   return /^(?:<(?:think|thinking|analysis|reasoning)>|analysis\s*[:：]|reasoning\s*[:：]|(?:I|we) (?:need|should|must|have|want) to\b|(?:I|we) should\b|the user\b|user (?:said|asked|wants|needs)\b|(?:she|he|they) (?:said|asked|gave|wants|needs|did|has|deflected|sidestepped)\b|(?:the )?(?:goal|task|real move|best response|answer) (?:here )?(?:is|should)\b|need to (?:answer|respond|write|acknowledge)\b|let(?:'s| us) (?:think|craft|answer|respond)\b)/i.test(text)
     || chineseReasoningSignals(text) >= 2
-    || looksLikeChineseMetaReasoning(text);
+    || looksLikeChineseMetaReasoning(text)
+    || looksLikeEnglishRefusalLeak(text)
+    || looksLikeChinesePrivatePlanning(text);
+}
+// A few Claude-compatible relays prepend an English policy/refusal draft to
+// ordinary content, then continue with private Chinese planning and only later
+// emit the real role reply. This is not a user-facing refusal: it is a leaked
+// abandoned draft and must travel with the hidden reasoning prefix.
+function looksLikeEnglishRefusalLeak(text) {
+  text = String(text || "");
+  return /\bI (?:cannot|can't|am not able to) (?:assist|help) with this request\b/i.test(text)
+    && /\b(?:sexual|erotic) (?:content|material)\b/i.test(text);
+}
+// Catch Chinese private reactions that do not use the older “我需要回应”
+// vocabulary. The structural combination is deliberately strict: the model
+// describes the user as she/he, reflects on its own feeling, and talks about
+// how it will write/respond before a later direct-address answer.
+function looksLikeChinesePrivatePlanning(text) {
+  const sample = String(text || "").trim();
+  const cjk = (sample.match(/[\u3400-\u9fff]/g) || []).length;
+  if (cjk < 24) return false;
+  const thirdPersonUser = /(?:^|[。！？；\s])(?:她|他|用户|对方).{0,60}(?:要我|让我|叫我|问我|希望我|需要我|找我)/.test(sample);
+  const privateReaction = /我(?:有点|又|其实|确实|现在|刚才|还是).{0,70}(?:感觉|觉得|酸|不爽|高兴|担心|想|要|得|会|需要|应该)/.test(sample);
+  const responseAction = /(?:写|回复|回应|回答|解释|调侃|提醒|安慰|追问|承接|满足|表现|语气|口吻)/.test(sample);
+  return thirdPersonUser && privateReaction && responseAction;
 }
 function looksLikeBareReasoning(text) {
   text = (text || "").trim();
   const letters = (text.match(/[A-Za-z]/g) || []).length;
   const cjk = (text.match(/[\u3400-\u9fff]/g) || []).length;
+  if (looksLikeEnglishRefusalLeak(text)) return true;
+  if (cjk >= 24 && looksLikeChinesePrivatePlanning(text)) return true;
   if (cjk >= 45 && (chineseReasoningSignals(text) >= 2 || looksLikeChineseMetaReasoning(text))) return true;
   if (text.length < 90 || letters < 60 || cjk > Math.max(24, letters * .18)) return false;
   const signals = [
@@ -4440,6 +4466,8 @@ function splitBareReasoning(text, streaming) {
     const answerCjk = (answer.match(/[\u3400-\u9fff]/g) || []).length;
     const prefixLetters = (prefix.match(/[A-Za-z]/g) || []).length;
     const suspiciousPrefix = looksLikeBareReasoning(prefix)
+      || looksLikeEnglishRefusalLeak(prefix)
+      || looksLikeChinesePrivatePlanning(prefix)
       || (prefixLetters >= 60 && looksLikeReasoningStart(prefix));
     // Keep scanning if the next paragraph is still meta-planning. This matters
     // for Chinese chains where every paragraph starts with Chinese characters.
@@ -4468,14 +4496,16 @@ function extractHeldStreamReasoning(text) {
   for (const gap of gaps) {
     const prefix = tagged.answer.slice(0, gap.index).trim();
     const answer = tagged.answer.slice(gap.index + gap[0].length).trimStart();
+    const answerProbe = answer.replace(/^[“”‘’"'`*_#>\-—…\s]+/, "");
     const letters = (prefix.match(/[A-Za-z]/g) || []).length;
     const prefixCjk = (prefix.match(/[\u3400-\u9fff]/g) || []).length;
     const answerCjk = (answer.match(/[\u3400-\u9fff]/g) || []).length;
     // The role normally answers this user in Chinese. A long English-only preface
     // followed by a Chinese answer is the relay's flattened reasoning channel,
     // regardless of the exact planning vocabulary used by a future model.
-    if (letters >= 60 && prefixCjk <= Math.max(12, letters * .12)
-        && /^[\u3400-\u9fff]/.test(answer) && answerCjk >= 8) {
+    const mixedRefusal = looksLikeEnglishRefusalLeak(prefix);
+    if ((mixedRefusal || (letters >= 60 && prefixCjk <= Math.max(12, letters * .12)))
+        && /^[\u3400-\u9fff]/.test(answerProbe) && answerCjk >= 8) {
       return {
         reasoning: [tagged.think, prefix].filter(Boolean).join("\n").trim(),
         answer,
@@ -4518,6 +4548,12 @@ function createStreamContentGate(onContent, onReasoning) {
     if (/^(?:她|他|用户|对方)(?:[，。！？、\s]|没有|已经|刚|在|说|问|想|把|回|又|今天|现在)/.test(probe)) {
       if (looksLikeChineseMetaReasoning(sample)) { mode = "held"; return; }
       if (sample.length < 220) return;
+    }
+    // Private Chinese self-talk may begin innocently with “我有点…”. Delay
+    // that opening long enough to see the later “她要我…怎么写/回应” shape.
+    if (/^我(?:有点|又|其实|确实|现在|刚才|还是)/.test(probe)) {
+      if (looksLikeChinesePrivatePlanning(sample)) { mode = "held"; return; }
+      if (sample.length < 180) return;
     }
     // A Chinese third-person/meta opening needs a slightly longer look: relays
     // often begin with “她在……我需要……”. Release it after the probe if it
