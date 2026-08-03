@@ -176,6 +176,6 @@ ok(versionContext.versionHelpers.validatedMemoryReplacementIds(
 ok(versionContext.versionHelpers.validatedMemoryReplacementIds(
   { text: '惟惟不喝咖啡', replaces: ['coffee'] }, oldFacts, '今天聊到咖啡',
 ).length === 0, 'implicit text incorrectly superseded a durable fact')
-ok(sw.includes('const CACHE = "role-chat-cache-v129";'), 'service worker cache was not bumped to v129')
+ok(sw.includes('const CACHE = "role-chat-cache-v130";'), 'service worker cache was not bumped to v130')
 
 console.log(`memory accuracy regression: ${checks} checks passed`)
