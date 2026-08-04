@@ -324,6 +324,12 @@ if (!bridge) {
     if (changed) await persist();
   }
 
+  function summary(targetRoleId) {
+    const list = state.entries.filter((entry) => entry.roleId === String(targetRoleId || roleId()))
+      .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+    return { count: list.length, latest: list[0] || null };
+  }
+
   document.querySelectorAll(".album-tab").forEach((button) => button.addEventListener("click", () => {
     state.category = button.dataset.albumCategory;
     render();
@@ -349,7 +355,7 @@ if (!bridge) {
     if (event.key === "ArrowLeft") stepViewer(-1);
     if (event.key === "ArrowRight") stepViewer(1);
   });
-  $("sidebar-album").addEventListener("click", openPanel);
+  $("sidebar-album")?.addEventListener("click", openPanel);
   window.addEventListener("jyc:role-changed", render);
 
   const ready = (async () => {
@@ -363,5 +369,5 @@ if (!bridge) {
     render();
   })();
 
-  window.JYCAlbum = { open: openPanel, addFromDataUrl, exportSnapshot, restoreSnapshot, reassignRole, ready };
+  window.JYCAlbum = { open: openPanel, addFromDataUrl, exportSnapshot, restoreSnapshot, reassignRole, summary, ready };
 }
