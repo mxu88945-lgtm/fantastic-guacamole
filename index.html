@@ -1644,10 +1644,12 @@
               <div class="reading-companion-head"><span class="reading-role-avatar" id="reading-role-avatar">R</span><div><small>READING WITH</small><strong id="reading-role-name">TA 正陪你读</strong></div><button type="button" id="reading-open-chat">回主聊天</button></div>
               <div class="reading-companion-reply" id="reading-companion-reply"><p>翻到想聊的地方，就把这一页递给他。</p></div>
               <textarea id="reading-question" rows="2" maxlength="500" placeholder="想和 TA 聊这一页的什么？不写也可以。"></textarea>
-              <div class="reading-companion-actions"><button type="button" id="reading-recap">剧情回顾</button><button type="button" id="reading-follow">让 TA 先说</button><button type="button" class="primary" id="reading-talk">聊这一页</button></div>
+              <div class="reading-companion-actions"><button type="button" id="reading-recap">剧情回顾</button><button type="button" id="reading-extract-memory">提炼记忆</button><button type="button" id="reading-follow">让 TA 先说</button><button type="button" class="primary" id="reading-talk">聊这一页</button></div>
             </section>
 
-            <details class="reading-memory" id="reading-memory"><summary><span>读书记忆</span><em id="reading-memory-count">0 条</em></summary><div class="reading-recap" id="reading-recap-view"></div><div class="reading-memory-list" id="reading-memory-list"></div></details>
+            <details class="reading-memory" id="reading-recap-panel"><summary><span>剧情回顾</span><em id="reading-recap-status">尚未生成</em></summary><div class="reading-recap" id="reading-recap-view"></div></details>
+            <details class="reading-memory" id="reading-memory"><summary><span>读书记忆</span><em id="reading-memory-count">0 条</em></summary><div class="reading-memory-list" id="reading-memory-list"></div></details>
+            <details class="reading-memory" id="reading-chat-history"><summary><span>页面聊天／陪读记录</span><em id="reading-chat-count">0 条</em></summary><div class="reading-memory-list" id="reading-chat-list"></div></details>
           </section>
         </main>
       </div>
@@ -10488,7 +10490,8 @@ window.JYCReadingBridge = {
       `当前进度：第 ${pageNumber}/${pageCount} 页${payload.author ? `；作者：${String(payload.author)}` : ""}。`,
       "只依据下面真正提供的页文和已有上下文回应，不要假装读过未提供的后文。可以有角色自己的偏好、联想、情绪和提问，像坐在旁边说话；不要写成机械摘要。",
       payload.recap ? `此前剧情回顾：\n${String(payload.recap).slice(0, 8000)}` : "",
-      payload.recent ? `最近的陪读交流：\n${String(payload.recent).slice(0, 3000)}` : "",
+      payload.memory ? `你们已经提炼过的共同读书记忆：\n${String(payload.memory).slice(0, 1800)}` : "",
+      payload.recent ? `最近的页面聊天（仅用于承接眼前交流）：\n${String(payload.recent).slice(0, 2600)}` : "",
       `眼前页文：\n${String(payload.pageText || "").slice(0, 7000)}`,
       `用户此刻说：${visibleQuestion}`,
     ].filter(Boolean).join("\n\n");
@@ -10512,8 +10515,7 @@ window.JYCReadingBridge = {
       openSettings(true);
       throw new Error("先在设置里填好 API Key");
     }
-    let systemText = settings.systemPrompt || "";
-    systemText += "\n\n【陪读书房·剧情回顾】请以当前角色的理解，整理用户目前真正读到的内容。只依据提供的页文与旧回顾，不剧透、不编造后文；保留人物关系、关键变化、伏笔和你们共同注意过的点。中文简洁自然，控制在 500 字内。";
+    const systemText = "【陪读书房·客观剧情回顾】你是严格的阅读进度记录员。只整理书中已经客观发生或明确揭示的内容：剧情事件、人物关系变化、已揭示信息、重要伏笔，以及当前阅读阶段。只依据提供的原文与旧回顾，不剧透、不补写、不推测，不加入角色与用户的私人互动、口吻、感想或共同梗。中文简洁清晰，控制在 500 字内。";
     const userText = [
       `书名：《${String(payload.title || "未命名书籍")}》`,
       `当前读到第 ${Math.max(1, Number(payload.page || 0) + 1)}/${Math.max(1, Number(payload.pageCount || 1))} 页`,
@@ -10521,6 +10523,24 @@ window.JYCReadingBridge = {
       `最近读到的原文：\n${String(payload.excerpt || "").slice(0, 11000)}`,
     ].filter(Boolean).join("\n\n");
     return visibleAssistantText(await completeOnce(systemText, userText, 900)).trim();
+  },
+  async memory(payload) {
+    if (!settings.apiKey) {
+      openSettings(true);
+      throw new Error("先在设置里填好 API Key");
+    }
+    const systemText = [
+      "【陪读书房·共同读书记忆提炼】你是长期记忆整理器，不进行角色扮演。",
+      "只提炼真正值得跨页保留的共同阅读上下文：用户对人物或情节的明确判断、猜测与偏好；角色提出的重要分析；双方反复讨论的观点；共同形成的梗、情绪或约定。",
+      "不要保存整段原回复，不要复述页文或客观剧情摘要，不要记录普通寒暄、临时感叹或没有后续价值的内容，不要编造未说过的信息。",
+      "有内容时输出 1 至 3 条精炼中文要点，总计不超过 220 字；没有值得长期保存的内容时，只输出 NO_MEMORY。",
+    ].join("\n");
+    const userText = [
+      `书名：《${String(payload.title || "未命名书籍")}》`,
+      payload.existing ? `已有读书记忆（仅用于查重）：\n${String(payload.existing).slice(0, 1400)}` : "",
+      `尚未提炼的页面互动：\n${String(payload.interactions || "").slice(0, 6500)}`,
+    ].filter(Boolean).join("\n\n");
+    return visibleAssistantText(await completeOnce(systemText, userText, 500)).trim();
   },
   openChat() {
     const target = latestRoleConversation() || currentConv();

@@ -20,22 +20,34 @@ ok(html.includes('id="reading-page-left"') && html.includes('id="reading-page-ri
 ok(html.includes('id="reading-page-jump"'), "page-number jump is missing");
 ok(html.includes('id="reading-auto"'), "proactive follow-reading toggle is missing");
 ok(html.includes('id="reading-question"') && html.includes('id="reading-talk"'), "current-page conversation is missing");
-ok(html.includes('id="reading-recap"') && html.includes('id="reading-memory"'), "recap or reading memory is missing");
+ok(html.includes('id="reading-recap"') && html.includes('id="reading-recap-panel"'), "objective recap section is missing");
+ok(html.includes('id="reading-extract-memory"') && html.includes('id="reading-memory"'), "reading-memory extraction is missing");
+ok(html.includes('id="reading-chat-history"') && html.includes('id="reading-chat-list"'), "page-chat history is missing");
 ok(html.includes('href="./src/reading-room.css"'), "reading-room stylesheet is not loaded");
 ok(html.includes('src="./src/reading-room.js"'), "reading-room module is not loaded");
 
 ok(js.includes('const DB_KEY = "readingRoomV1"'), "reading-room data is not persisted independently");
+ok(js.includes("const STATE_VERSION = 2"), "reading-room schema was not upgraded");
 ok(js.includes("book.roleId === id"), "books are not isolated by active role");
 ok(js.includes("async function importFiles(files)"), "multi-book import flow is missing");
 ok(js.includes("function paginate(text)"), "reader pagination is missing");
 ok(js.includes("scheduleAutoFollow(book)"), "proactive follow-reading is missing");
 ok(js.includes("await bridge.ask"), "page discussion is not connected to the main character");
 ok(js.includes("await bridge.recap"), "plot recap is not connected to the model");
+ok(js.includes("await bridge.memory"), "reading memories are not model-refined");
+ok(js.includes("pageChats: pageChatSource") && js.includes("book.discussions"), "legacy discussions are not migrated to page chat");
+ok(js.includes("book.pageChats.push") && !js.includes("book.discussions.push"), "full replies are still being written as reading memory");
+ok(js.includes("book.memories.push") && js.includes("sourceChatIds"), "refined memories do not have independent storage and provenance");
+ok(js.includes("pageChats: []") && js.includes("memories: []"), "new books do not initialize all reading layers");
+ok(js.includes("lastReadAt") && js.includes("recapPage"), "reading progress and recap position are not stored independently");
 ok(js.includes("exportSnapshot") && js.includes("restoreSnapshot") && js.includes("reassignRole"), "reading-room lifecycle APIs are incomplete");
 
 ok(html.includes("window.JYCReadingBridge"), "main-chat reading bridge is missing");
 ok(html.includes("pendingReadingContext"), "current-page context is not injected into main chat");
 ok(html.includes("await generateReply()"), "reading discussion does not use the main chat reply pipeline");
+ok(html.includes("async memory(payload)"), "reading-memory bridge is missing");
+ok(html.includes("客观剧情回顾") && html.includes("不加入角色与用户的私人互动"), "plot recap prompt is not objectively isolated");
+ok(html.includes("共同读书记忆提炼") && html.includes("只输出 NO_MEMORY"), "reading-memory prompt does not filter transient chat");
 ok(html.includes("readingRoom: { bookId: payload.bookId"), "reading turns are not retained in main chat history");
 ok(html.includes("readingRoom = window.JYCReadingRoom"), "reading-room data is missing from backup export");
 ok(html.includes("restoreSnapshot(data.readingRoom)"), "reading-room data is missing from backup restore");
@@ -45,7 +57,7 @@ ok(dashboard.includes("JYCReadingRoom?.summary?.(data.roleId)"), "dashboard read
 ok(css.includes("grid-template-columns: 270px minmax(0, 1fr)"), "desktop bookshelf-reader layout is missing");
 ok(css.includes("@media (max-width: 780px)"), "mobile reading-room layout is missing");
 ok(css.includes(".reading-spread") && css.includes(".reading-page"), "page-spread styling is missing");
-ok(sw.includes('const CACHE = "role-chat-cache-v134";'), "service worker cache was not bumped to v134");
+ok(sw.includes('const CACHE = "role-chat-cache-v135";'), "service worker cache was not bumped to v135");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "reading-room change introduced duplicate DOM ids");

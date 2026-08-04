@@ -40,7 +40,7 @@
 .reading-library-empty strong { margin-top: 10px; color: var(--text); font-size: 14px; }
 .reading-library-empty p { margin: 8px 0 0; font-size: 10px; line-height: 1.6; }
 
-.reading-reader { min-width: 0; min-height: 0; overflow-y: auto; padding: 22px clamp(16px, 3vw, 38px) calc(34px + env(safe-area-inset-bottom)); }
+.reading-reader { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 22px clamp(16px, 3vw, 38px) calc(34px + env(safe-area-inset-bottom)); }
 .reading-empty-stage { min-height: 100%; display: grid; place-content: center; justify-items: center; text-align: center; }
 .reading-empty-stage small { margin-top: 18px; color: var(--text-dim); font-size: 9px; font-weight: 800; letter-spacing: 1.8px; }
 .reading-empty-stage h2 { margin: 12px 0; font: 400 clamp(28px, 4vw, 45px)/1.08 Georgia, "Songti SC", serif; }
@@ -117,6 +117,9 @@
 .reading-memory-entry { padding: 11px 15px; background: color-mix(in srgb, var(--bg) 48%, transparent); }
 .reading-memory-entry small { color: var(--text-dim); font-size: 8px; }
 .reading-memory-entry p { margin: 5px 0 0; font-size: 10px; line-height: 1.55; white-space: pre-wrap; }
+.reading-chat-entry p + p { margin-top: 8px; }
+.reading-chat-entry .reading-chat-question { color: var(--text-dim); }
+.reading-record-empty { margin: 0; padding: 13px 15px; color: var(--text-dim); font-size: 10px; line-height: 1.55; }
 
 html[data-theme="dark"] .reading-page { color: #302d2a; }
 
@@ -139,7 +142,7 @@ html[data-theme="dark"] .reading-page { color: #302d2a; }
   .reading-navigation > button { width: 40px; height: 40px; }
   .reading-navigation > div { gap: 7px; }
   .reading-companion { padding: 14px; border-radius: 20px; }
-  .reading-companion-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+  .reading-companion-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .reading-companion-actions button { padding: 9px 5px; }
 }
 
