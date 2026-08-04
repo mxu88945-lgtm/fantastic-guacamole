@@ -197,7 +197,7 @@
   }
   .sidebar .brand #sidebar-settings-btn { display: none; }
   .sidebar-footer-actions {
-    display: flex; align-items: center; justify-content: space-between; gap: 4px; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center; gap: 12px; flex: 0 0 auto;
     padding: 8px 10px 10px;
   }
   .sidebar-action-bubble {
@@ -216,6 +216,7 @@
   }
   .mailbox-badge.show { display: grid; }
   html[data-glass="1"] .sidebar-action-bubble { background: rgba(255,255,255,.5); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+  .sidebar-dashboard-secondary { display: none; }
   .side-entry {
     margin: 8px 12px 0; padding: 9px 12px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--bg-panel);
@@ -1427,6 +1428,7 @@
 
 </style>
 <link rel="stylesheet" href="./src/album.css" />
+<link rel="stylesheet" href="./src/dashboard.css" />
 </head>
 <body>
 <!-- status-bar-style is "default": iOS draws an opaque status bar tinted by the theme-color meta
@@ -1481,20 +1483,23 @@
     </div>
     <div class="conv-list" id="conv-list"></div>
     <div class="sidebar-footer-actions">
+      <button class="sidebar-action-bubble" id="sidebar-home" aria-label="回到主页" title="主页">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9"/><path d="M9 20v-6h6v6"/></svg>
+      </button>
       <button class="sidebar-action-bubble" id="sidebar-new-chat" aria-label="新对话" title="新对话">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h6"/><path d="M17 3v8M13 7h8"/></svg>
       </button>
-      <button class="sidebar-action-bubble" id="sidebar-mailbox" aria-label="信箱与私人日记" title="信箱与私人日记">
+      <button class="sidebar-action-bubble sidebar-dashboard-secondary" id="sidebar-mailbox" aria-label="信箱与私人日记" title="信箱与私人日记">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg>
         <span class="mailbox-badge" id="mailbox-badge"></span>
       </button>
-      <button class="sidebar-action-bubble" id="sidebar-album" aria-label="打开相册" title="相册">
+      <button class="sidebar-action-bubble sidebar-dashboard-secondary" id="sidebar-album" aria-label="打开相册" title="相册">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m4 17 4.5-4 3.5 3 3-2.5 5 4.5"/><path d="M8 5l1.2-2h5.6L16 5"/></svg>
       </button>
-      <button class="sidebar-action-bubble" id="sidebar-special-days" aria-label="重要日子" title="生日与纪念日">
+      <button class="sidebar-action-bubble sidebar-dashboard-secondary" id="sidebar-special-days" aria-label="重要日子" title="生日与纪念日">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4M17 3v4M3 10h18"/><path d="M12 18s-3-1.7-3-3.6a1.7 1.7 0 0 1 3-1.1 1.7 1.7 0 0 1 3 1.1C15 16.3 12 18 12 18Z"/></svg>
       </button>
-      <button class="sidebar-action-bubble" id="sidebar-workbench" aria-label="代码工作台" title="代码工作台">
+      <button class="sidebar-action-bubble sidebar-dashboard-secondary" id="sidebar-workbench" aria-label="代码工作台" title="代码工作台">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 9-4 3 4 3M16 9l4 3-4 3M14 5l-4 14"/></svg>
       </button>
       <button class="sidebar-action-bubble" id="sidebar-settings-footer" aria-label="打开设置" title="设置">
@@ -1525,6 +1530,70 @@
         </div>
       </div>
     </header>
+
+    <section class="home-dashboard" id="home-dashboard" aria-label="主页总览">
+      <div class="dashboard-scroll">
+        <div class="dashboard-shell">
+          <div class="dashboard-heading">
+            <div>
+              <span class="dashboard-eyebrow">HOME · <span id="dashboard-time-label">TODAY</span></span>
+              <h1 id="dashboard-greeting">今天想从哪里开始？</h1>
+              <p id="dashboard-subtitle">所有属于你们的空间，都在这里。</p>
+            </div>
+            <button type="button" class="dashboard-profile" id="dashboard-profile" aria-label="打开设置">
+              <span class="dashboard-profile-avatar" id="dashboard-profile-avatar">R</span>
+              <span><strong id="dashboard-role-name">当前角色</strong><small>角色空间</small></span>
+            </button>
+          </div>
+
+          <nav class="dashboard-chips" aria-label="主页分区">
+            <span class="active">全部</span><span>陪伴</span><span>珍藏</span><span>创作</span>
+          </nav>
+
+          <div class="dashboard-grid">
+            <button type="button" class="dashboard-card dashboard-chat-card" data-dashboard-action="chat">
+              <span class="dashboard-card-kicker">CONTINUE</span>
+              <span class="dashboard-chat-avatar" id="dashboard-chat-avatar">R</span>
+              <span class="dashboard-card-copy">
+                <strong id="dashboard-chat-title">继续聊天</strong>
+                <em id="dashboard-chat-snippet">回到刚才没有说完的话。</em>
+              </span>
+              <span class="dashboard-arrow" aria-hidden="true">↗</span>
+            </button>
+
+            <button type="button" class="dashboard-card dashboard-album-card" data-dashboard-action="album">
+              <span class="dashboard-card-kicker">ALBUM</span>
+              <span class="dashboard-card-copy"><strong>我们的相册</strong><em id="dashboard-album-meta">还没有照片</em></span>
+              <span class="dashboard-arrow" aria-hidden="true">↗</span>
+            </button>
+
+            <article class="dashboard-card dashboard-welcome-card">
+              <span class="dashboard-orb" aria-hidden="true"></span>
+              <p><span id="dashboard-welcome-line">Good morning</span><br><strong id="dashboard-welcome-name">惟惟</strong>，今天想先去哪里？</p>
+            </article>
+
+            <button type="button" class="dashboard-card dashboard-mail-card" data-dashboard-action="mail">
+              <span class="dashboard-card-icon" aria-hidden="true">✉</span>
+              <span class="dashboard-card-copy"><strong>信箱与日记</strong><em id="dashboard-mail-meta">没有未读信</em></span>
+              <span class="dashboard-count" id="dashboard-mail-count">0</span>
+            </button>
+
+            <button type="button" class="dashboard-card dashboard-day-card" data-dashboard-action="days">
+              <span class="dashboard-card-kicker">MOMENTS</span>
+              <span class="dashboard-card-copy"><strong>重要日子</strong><em id="dashboard-day-meta">把值得记住的日期放在这里</em></span>
+              <span class="dashboard-arrow" aria-hidden="true">↗</span>
+            </button>
+
+            <div class="dashboard-card dashboard-tools-card">
+              <span class="dashboard-card-kicker">MORE SPACES</span>
+              <button type="button" data-dashboard-action="workbench"><span>⌘</span><strong>代码工作台</strong><em id="dashboard-workbench-meta">独立创作空间</em></button>
+              <button type="button" data-dashboard-action="settings"><span>⌁</span><strong>设置与备份</strong><em>模型、角色与数据</em></button>
+              <button type="button" data-dashboard-action="new"><span>＋</span><strong>开启新对话</strong><em>从一张空白页开始</em></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <div class="settings" id="cycle-panel" style="z-index:61;">
       <div class="settings-header">
@@ -2706,6 +2775,7 @@ function openWorkbenchPanel() {
 
 function closeWorkbenchPanel() {
   $("workbench-panel").classList.remove("open");
+  window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
 }
 
 function workbenchBackupSnapshot() {
@@ -3823,7 +3893,7 @@ function deriveTitle(msgs) {
 }
 
 // ---------- Conversation management ----------
-function switchConversation(id) {
+function switchConversation(id, openChatView) {
   if (abortController) abortController.abort();
   const target = conversations.find(c => c.id === id);
   // A sidebar item can become stale if cloud data is replaced between rendering
@@ -3841,6 +3911,7 @@ function switchConversation(id) {
   renderMessages();
   updateConvTitle();
   jumpToBottom();
+  if (openChatView) window.dispatchEvent(new CustomEvent("jyc:chat-opened", { detail: { conversationId: target.id } }));
   if (isMobile()) closeSidebar();
   return true;
 }
@@ -3848,7 +3919,7 @@ function createConversation() {
   if (abortController) abortController.abort();
   const conv = newConversation();
   conversations.unshift(conv);
-  switchConversation(conv.id);
+  switchConversation(conv.id, true);
 }
 // Land on the greeting home page. Keep exactly one empty conversation; purge any extras.
 function goHome() {
@@ -3859,6 +3930,7 @@ function goHome() {
   conversations = conversations.filter(c => c.messages.length > 0 || c.id === empty.id || c.roleId !== settings.activeRoleId);
   saveConversations();
   switchConversation(empty.id);
+  window.dispatchEvent(new CustomEvent("jyc:dashboard-open"));
 }
 function deleteConversation(id, ev) {
   if (ev) ev.stopPropagation();
@@ -3906,7 +3978,7 @@ function runSearch(q) {
     const safe = escapeHtml(snip).replace(new RegExp("(" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig"), "<mark>$1</mark>");
     el.innerHTML = `<div class="sr-title">💬 ${escapeHtml(r.title)}</div><div class="sr-snip">${safe}</div>`;
     el.onclick = () => {
-      switchConversation(r.convId);
+      switchConversation(r.convId, true);
       const targetId = r.mid;
       const conv = currentConv();
       let target = conv && conv.messages.find(m => m.id === targetId);
@@ -4215,7 +4287,7 @@ function renderConvList() {
       <button class="act del" title="删除">✕</button>`;
     el.querySelector(".name").textContent = c.title || "新对话";
     el.querySelector(".snippet").textContent = snippet;
-    el.onclick = () => switchConversation(c.id);
+    el.onclick = () => switchConversation(c.id, true);
     el.querySelector(".ren").onclick = (e) => renameConversation(c.id, e);
     el.querySelector(".del").onclick = (e) => deleteConversation(c.id, e);
     box.appendChild(el);
@@ -8094,7 +8166,10 @@ function openCompanionPanel(tab) {
   showCompanionTab(tab || "mail");
   $("companion-panel").classList.add("open");
 }
-function closeCompanionPanel() { $("companion-panel").classList.remove("open"); }
+function closeCompanionPanel() {
+  $("companion-panel").classList.remove("open");
+  window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
+}
 function renderCompanionPanel() {
   const role = ensureRoleCompanionData(activeRole());
   if (!role) return;
@@ -8309,7 +8384,10 @@ function openSpecialDaysPanel() {
   renderSpecialDays();
   $("special-days-panel").classList.add("open");
 }
-function closeSpecialDaysPanel() { $("special-days-panel").classList.remove("open"); }
+function closeSpecialDaysPanel() {
+  $("special-days-panel").classList.remove("open");
+  window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
+}
 function saveSpecialDay() {
   const role = ensureRoleCompanionData(activeRole());
   const title = ($("special-day-title").value || "").trim();
@@ -10267,6 +10345,45 @@ window.JYCAlbumBridge = {
   closeSidebar,
   toast: showToast,
 };
+window.JYCDashboardBridge = {
+  summary: () => {
+    const role = ensureRoleCompanionData(activeRole());
+    const roleId = role?.id || settings.activeRoleId || "default";
+    const latest = roleConvs().filter(c => Array.isArray(c.messages) && c.messages.length)
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
+    const last = latest && [...latest.messages].reverse().find(m => m && !m._event && m.role !== "reminder");
+    const days = roleSpecialDays(role).slice().sort((a, b) => specialDaySortValue(a) - specialDaySortValue(b));
+    const next = days.find(item => {
+      const distance = specialDayDistance(item);
+      return distance != null && distance >= 0;
+    });
+    const projects = workbenchState?.roles?.[roleId]?.projects;
+    return {
+      roleId,
+      roleName: role?.name || settings.aiName || "当前角色",
+      roleAvatar: role?.aiAvatar || settings.aiAvatar || "角",
+      userName: settings.userName || "你",
+      conversationTitle: latest?.title || "",
+      conversationSnippet: last ? messageText(last).replace(/\s+/g, " ").trim().slice(0, 96) : "",
+      unreadMail: roleMailbox(role).filter(item => !item.readAt).length,
+      diaryCount: activeRolePrivateDiary(role).length,
+      nextSpecialDay: next ? { title: next.title || specialDayKindMeta(next.kind).label, status: specialDayStatus(next) } : null,
+      workbenchCount: Array.isArray(projects) ? projects.length : 0,
+    };
+  },
+  newChat: createConversation,
+  focusChat: () => {
+    const target = latestRoleConversation() || currentConv();
+    if (target && target.id !== currentId) switchConversation(target.id);
+    requestAnimationFrame(() => $("input")?.focus());
+  },
+  openMailbox: () => openCompanionPanel("mail"),
+  openSpecialDays: openSpecialDaysPanel,
+  openWorkbench: openWorkbenchPanel,
+  openSettings: () => openSettings(true),
+  isMobile,
+  closeSidebar,
+};
 init().catch(e => {
   console.error("App init failed", e);
   try { showToast("启动失败，请刷新重试"); } catch (_) {}
@@ -10279,5 +10396,6 @@ if ("serviceWorker" in navigator) {
 }
 </script>
 <script type="module" src="./src/album.js"></script>
+<script type="module" src="./src/dashboard.js"></script>
 </body>
 </html>
