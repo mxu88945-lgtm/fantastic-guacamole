@@ -1,11 +1,7 @@
 name: Deploy to GitHub Pages
 
 on:
-  # This repository still has GitHub's legacy branch-based Pages job enabled.
-  # Run after that job so the tested Vite artifact is always the final deployment.
-  workflow_run:
-    workflows: ["pages build and deployment"]
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -20,9 +16,11 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Let legacy Pages finish first
+        if: ${{ github.event_name == 'push' }}
+        run: sleep 45
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Node
