@@ -5,9 +5,12 @@ if (!bridge) {
 } else {
   const $ = (id) => document.getElementById(id);
   const DB_KEY = "readingRoomV1";
+  const STATE_VERSION = 2;
   const MAX_BOOK_BYTES = 12 * 1024 * 1024;
   const PAGE_CHARS = 1250;
-  let state = { version: 1, books: [], activeByRole: {} };
+  const MAX_PAGE_CHATS = 160;
+  const MAX_MEMORIES = 80;
+  let state = { version: STATE_VERSION, books: [], activeByRole: {} };
   let busy = false;
   let autoTimer = 0;
 
@@ -18,30 +21,67 @@ if (!bridge) {
   const isMobileSpread = () => matchMedia("(max-width: 780px)").matches;
   const pageStep = () => isMobileSpread() ? 1 : 2;
 
+  function normalizePageChat(item) {
+    return {
+      id: String(item?.id || makeId()),
+      page: Math.max(0, Number(item?.page) || 0),
+      question: String(item?.question || "").slice(0, 1200),
+      answer: String(item?.answer || "").slice(0, 12000),
+      createdAt: Number(item?.createdAt) || Date.now(),
+      type: item?.type === "auto" ? "auto" : "talk",
+      memoryReviewedAt: Number(item?.memoryReviewedAt) || 0,
+    };
+  }
+
+  function normalizeMemory(item) {
+    return {
+      id: String(item?.id || makeId()),
+      page: Math.max(0, Number(item?.page) || 0),
+      text: String(item?.text || item?.answer || "").slice(0, 1200),
+      createdAt: Number(item?.createdAt) || Date.now(),
+      sourceChatIds: Array.isArray(item?.sourceChatIds)
+        ? item.sourceChatIds.map(String).slice(-12) : [],
+    };
+  }
+
   function normalize(raw) {
     const value = raw && typeof raw === "object" ? raw : {};
     const books = Array.isArray(value.books) ? value.books : [];
     return {
-      version: 1,
+      version: STATE_VERSION,
       activeByRole: value.activeByRole && typeof value.activeByRole === "object" ? value.activeByRole : {},
-      books: books.filter((book) => book && typeof book.text === "string").map((book) => ({
-        id: String(book.id || makeId()),
-        roleId: String(book.roleId || "default"),
-        title: String(book.title || "未命名书籍").slice(0, 100),
-        author: String(book.author || "").slice(0, 80),
-        text: book.text,
-        page: Math.max(0, Number(book.page) || 0),
-        autoFollow: !!book.autoFollow,
-        lastAutoPage: Number.isFinite(Number(book.lastAutoPage)) ? Number(book.lastAutoPage) : -1,
-        recap: String(book.recap || "").slice(0, 8000),
-        discussions: Array.isArray(book.discussions) ? book.discussions.slice(-120).map((item) => ({
-          id: String(item.id || makeId()), page: Math.max(0, Number(item.page) || 0),
-          question: String(item.question || "").slice(0, 500), answer: String(item.answer || "").slice(0, 5000),
-          createdAt: Number(item.createdAt) || Date.now(), type: item.type === "auto" ? "auto" : "talk",
-        })) : [],
-        createdAt: Number(book.createdAt) || Date.now(), updatedAt: Number(book.updatedAt) || Date.now(),
-      })),
+      books: books.filter((book) => book && typeof book.text === "string").map((book) => {
+        // v1 called every full reply a "discussion" and displayed it as long-term
+        // memory. Preserve those records verbatim, but classify them as page chat.
+        const pageChatSource = Array.isArray(book.pageChats)
+          ? book.pageChats : (Array.isArray(book.discussions) ? book.discussions : []);
+        return {
+          id: String(book.id || makeId()),
+          roleId: String(book.roleId || "default"),
+          title: String(book.title || "未命名书籍").slice(0, 100),
+          author: String(book.author || "").slice(0, 80),
+          text: book.text,
+          page: Math.max(0, Number(book.page) || 0),
+          autoFollow: !!book.autoFollow,
+          lastAutoPage: Number.isFinite(Number(book.lastAutoPage)) ? Number(book.lastAutoPage) : -1,
+          recap: String(book.recap || "").slice(0, 8000),
+          recapPage: Number.isFinite(Number(book.recapPage))
+            ? Math.max(-1, Number(book.recapPage)) : (book.recap ? Math.max(0, Number(book.page) || 0) : -1),
+          pageChats: pageChatSource.slice(-MAX_PAGE_CHATS).map(normalizePageChat),
+          memories: Array.isArray(book.memories)
+            ? book.memories.slice(-MAX_MEMORIES).map(normalizeMemory).filter((item) => item.text) : [],
+          lastReadAt: Number(book.lastReadAt) || Number(book.updatedAt) || Number(book.createdAt) || Date.now(),
+          createdAt: Number(book.createdAt) || Date.now(),
+          updatedAt: Number(book.updatedAt) || Date.now(),
+        };
+      }),
     };
+  }
+
+  function needsMigration(raw) {
+    if (!raw || Number(raw.version) < STATE_VERSION || !Array.isArray(raw.books)) return true;
+    return raw.books.some((book) => Array.isArray(book?.discussions)
+      || !Array.isArray(book?.pageChats) || !Array.isArray(book?.memories));
   }
 
   async function persist() {
@@ -118,10 +158,10 @@ if (!bridge) {
       const cover = document.createElement("span"); cover.className = "reading-book-cover"; cover.textContent = [...book.title][0] || "书";
       const title = document.createElement("strong"); title.textContent = book.title;
       const meta = document.createElement("small"); meta.textContent = `${book.author || "未署名"} · ${pages.length} 页`;
-      const status = document.createElement("em"); status.textContent = `${progress}% · ${book.discussions.length} 条读书记忆`;
+      const status = document.createElement("em"); status.textContent = `${progress}% · ${book.memories.length} 条读书记忆`;
       button.append(cover, title, meta, status);
       button.addEventListener("click", () => {
-        state.activeByRole[roleId()] = book.id; book.updatedAt = Date.now(); persist(); render();
+        state.activeByRole[roleId()] = book.id; book.lastReadAt = Date.now(); book.updatedAt = book.lastReadAt; persist(); render();
         $("reading-room-panel").querySelector(".reading-room-shell").classList.remove("library-open");
       });
       list.appendChild(button);
@@ -129,19 +169,40 @@ if (!bridge) {
   }
 
   function renderMemory(book) {
-    $("reading-memory-count").textContent = `${book.discussions.length} 条`;
-    $("reading-recap-view").textContent = book.recap ? `【剧情回顾】\n${book.recap}` : "";
+    $("reading-recap-status").textContent = book.recap ? `更新至第 ${book.recapPage + 1} 页` : "尚未生成";
+    $("reading-recap-view").textContent = book.recap || "还没有剧情回顾。生成后这里只保留书中的客观剧情、人物关系与伏笔。";
+    $("reading-memory-count").textContent = `${book.memories.length} 条`;
     const list = $("reading-memory-list"); list.replaceChildren();
-    for (const item of [...book.discussions].reverse().slice(0, 30)) {
+    if (!book.memories.length) {
+      const empty = document.createElement("p"); empty.className = "reading-record-empty";
+      empty.textContent = "还没有值得长期保留的共同读书记忆。"; list.appendChild(empty);
+    }
+    for (const item of [...book.memories].reverse().slice(0, 30)) {
       const row = document.createElement("article"); row.className = "reading-memory-entry";
-      const meta = document.createElement("small"); meta.textContent = `第 ${item.page + 1} 页 · ${item.type === "auto" ? "TA 主动跟读" : "当前页讨论"}`;
-      const copy = document.createElement("p"); copy.textContent = item.answer;
+      const meta = document.createElement("small"); meta.textContent = `第 ${item.page + 1} 页 · 精炼记忆`;
+      const copy = document.createElement("p"); copy.textContent = item.text;
       row.append(meta, copy); list.appendChild(row);
+    }
+
+    $("reading-chat-count").textContent = `${book.pageChats.length} 条`;
+    const chats = $("reading-chat-list"); chats.replaceChildren();
+    if (!book.pageChats.length) {
+      const empty = document.createElement("p"); empty.className = "reading-record-empty";
+      empty.textContent = "还没有页面聊天或主动跟读记录。"; chats.appendChild(empty);
+    }
+    for (const item of [...book.pageChats].reverse().slice(0, 40)) {
+      const row = document.createElement("article"); row.className = "reading-memory-entry reading-chat-entry";
+      const meta = document.createElement("small");
+      meta.textContent = `第 ${item.page + 1} 页 · ${item.type === "auto" ? "TA 主动跟读" : "当前页讨论"}`;
+      const question = document.createElement("p"); question.className = "reading-chat-question";
+      question.textContent = `你：${item.question}`;
+      const answer = document.createElement("p"); answer.textContent = `${roleName()}：${item.answer}`;
+      row.append(meta, question, answer); chats.appendChild(row);
     }
   }
 
   function renderReply(book) {
-    const latest = book.discussions[book.discussions.length - 1];
+    const latest = book.pageChats[book.pageChats.length - 1];
     const box = $("reading-companion-reply"); box.classList.remove("loading");
     const p = document.createElement("p");
     p.textContent = latest?.answer || "翻到想聊的地方，就把这一页递给他。";
@@ -201,8 +262,10 @@ if (!bridge) {
         const filename = file.name.replace(/\.(?:txt|md|markdown)$/i, "") || "未命名书籍";
         const first = text.split(/\n/).map((line) => line.replace(/^#+\s*/, "").trim()).find((line) => line && line.length <= 60);
         const title = first && first !== filename && /^#{1,3}\s/.test(text.trim()) ? first : filename;
+        const now = Date.now();
         const book = { id: makeId(), roleId: roleId(), title, author: "", text, page: 0, autoFollow: false,
-          lastAutoPage: -1, recap: "", discussions: [], createdAt: Date.now(), updatedAt: Date.now() };
+          lastAutoPage: -1, recap: "", recapPage: -1, pageChats: [], memories: [],
+          lastReadAt: now, createdAt: now, updatedAt: now };
         state.books.push(book); state.activeByRole[roleId()] = book.id; added++;
       } catch (error) { bridge.toast(error.message || "书籍导入失败"); }
     }
@@ -213,7 +276,7 @@ if (!bridge) {
     const book = activeBook(); if (!book || busy) return;
     const pages = bookPages(book);
     book.page = clampPage(book, book.page + direction * pageStep());
-    book.updatedAt = Date.now(); persist(); render();
+    book.lastReadAt = Date.now(); book.updatedAt = book.lastReadAt; persist(); render();
     if (book.autoFollow && book.lastAutoPage !== book.page) scheduleAutoFollow(book);
   }
 
@@ -230,7 +293,10 @@ if (!bridge) {
     return {
       bookId: book.id, title: book.title, author: book.author, page: book.page,
       pageCount: pages.length, pageText: visible.slice(0, 7000), recap: book.recap,
-      recent: book.discussions.slice(-4).map((item) => `第${item.page + 1}页：${item.answer}`).join("\n").slice(0, 3000),
+      memory: book.memories.slice(-6).map((item) => `第${item.page + 1}页：${item.text}`).join("\n").slice(0, 1800),
+      recent: book.pageChats.slice(-3).map((item) =>
+        `第${item.page + 1}页｜你：${item.question}\n${roleName()}：${item.answer}`
+      ).join("\n\n").slice(0, 2600),
     };
   }
 
@@ -245,9 +311,10 @@ if (!bridge) {
     try {
       const answer = await bridge.ask({ ...currentPagePayload(book), question: prompt, type });
       if (!answer) throw new Error("这次没有收到回复");
-      book.discussions.push({ id: makeId(), page: book.page, question: prompt, answer, createdAt: Date.now(), type: type === "auto" ? "auto" : "talk" });
-      book.discussions = book.discussions.slice(-120);
-      book.lastAutoPage = book.page; book.updatedAt = Date.now();
+      book.pageChats.push({ id: makeId(), page: book.page, question: prompt, answer,
+        createdAt: Date.now(), type: type === "auto" ? "auto" : "talk", memoryReviewedAt: 0 });
+      book.pageChats = book.pageChats.slice(-MAX_PAGE_CHATS);
+      book.lastAutoPage = book.page; book.lastReadAt = Date.now(); book.updatedAt = book.lastReadAt;
       $("reading-question").value = "";
       await persist(); render();
     } catch (error) {
@@ -260,6 +327,39 @@ if (!bridge) {
     }
   }
 
+  async function extractMemory() {
+    const book = activeBook(); if (!book || busy) return;
+    const pending = book.pageChats.filter((item) => !item.memoryReviewedAt).slice(0, 6);
+    if (!pending.length) { bridge.toast("没有尚待提炼的陪读互动"); return; }
+    busy = true; $("reading-extract-memory").disabled = true;
+    try {
+      const text = await bridge.memory({
+        title: book.title,
+        page: pending[pending.length - 1].page,
+        existing: book.memories.slice(-5).map((item) => item.text).join("\n").slice(0, 1400),
+        interactions: pending.map((item) => [
+          `【第 ${item.page + 1} 页｜${item.type === "auto" ? "TA 主动跟读" : "页面讨论"}】`,
+          `用户：${item.question}`,
+          `${roleName()}：${item.answer}`,
+        ].join("\n")).join("\n\n").slice(0, 6500),
+      });
+      const reviewedAt = Date.now();
+      pending.forEach((item) => { item.memoryReviewedAt = reviewedAt; });
+      const memoryText = String(text || "").trim()
+        .replace(/^```(?:text|markdown)?\s*/i, "").replace(/\s*```$/, "").trim();
+      if (memoryText && !/^(?:NO_MEMORY|无需保存|无长期记忆)$/i.test(memoryText)) {
+        book.memories.push({ id: makeId(), page: pending[pending.length - 1].page,
+          text: memoryText.slice(0, 1200), createdAt: reviewedAt, sourceChatIds: pending.map((item) => item.id) });
+        book.memories = book.memories.slice(-MAX_MEMORIES);
+        bridge.toast("读书记忆已经提炼");
+      } else {
+        bridge.toast("这几段互动没有需要长期保存的内容");
+      }
+      book.updatedAt = reviewedAt; await persist(); render(); $("reading-memory").open = true;
+    } catch (error) { bridge.toast(error.message || "读书记忆提炼失败"); }
+    finally { busy = false; $("reading-extract-memory").disabled = false; }
+  }
+
   async function updateRecap() {
     const book = activeBook(); if (!book || busy) return;
     busy = true; $("reading-recap").disabled = true;
@@ -270,7 +370,7 @@ if (!bridge) {
         .map((text, index) => `【第 ${start + index + 1} 页】\n${text}`).join("\n\n").slice(0, 11000);
       const recap = await bridge.recap({ title: book.title, page: book.page, pageCount: pages.length, excerpt, previous: book.recap });
       if (!recap) throw new Error("这次没有生成回顾");
-      book.recap = recap; book.updatedAt = Date.now(); await persist(); render(); $("reading-memory").open = true;
+      book.recap = recap; book.recapPage = book.page; book.updatedAt = Date.now(); await persist(); render(); $("reading-recap-panel").open = true;
       bridge.toast("剧情回顾已经更新");
     } catch (error) { bridge.toast(error.message || "剧情回顾失败"); }
     finally { busy = false; $("reading-recap").disabled = false; }
@@ -312,7 +412,7 @@ if (!bridge) {
   $("reading-prev").addEventListener("click", () => movePage(-1));
   $("reading-next").addEventListener("click", () => movePage(1));
   $("reading-page-jump").addEventListener("change", (event) => {
-    const book = activeBook(); if (!book) return; book.page = clampPage(book, Number(event.target.value) - 1); book.updatedAt = Date.now(); persist(); render();
+    const book = activeBook(); if (!book) return; book.page = clampPage(book, Number(event.target.value) - 1); book.lastReadAt = Date.now(); book.updatedAt = book.lastReadAt; persist(); render();
     if (book.autoFollow && book.lastAutoPage !== book.page) scheduleAutoFollow(book);
   });
   $("reading-auto").addEventListener("change", (event) => {
@@ -322,16 +422,21 @@ if (!bridge) {
   $("reading-talk").addEventListener("click", () => talk($("reading-question").value, "talk"));
   $("reading-follow").addEventListener("click", () => talk("", "auto"));
   $("reading-recap").addEventListener("click", updateRecap);
+  $("reading-extract-memory").addEventListener("click", extractMemory);
   $("reading-open-chat").addEventListener("click", () => { closePanel(); bridge.openChat(); });
   $("reading-delete").addEventListener("click", async () => {
-    const book = activeBook(); if (!book || !confirm(`从书架删除《${book.title}》？读书进度和讨论也会一起删除。`)) return;
+    const book = activeBook(); if (!book || !confirm(`从书架删除《${book.title}》？阅读进度、页面聊天、读书记忆和剧情回顾也会一起删除。`)) return;
     state.books = state.books.filter((item) => item.id !== book.id); delete state.activeByRole[roleId()]; await persist(); render();
   });
   window.addEventListener("resize", () => { if ($("reading-room-panel").classList.contains("open")) render(); });
   window.addEventListener("jyc:role-changed", () => { if ($("reading-room-panel").classList.contains("open")) render(); });
 
   const ready = (async () => {
-    try { state = normalize(await bridge.dbGet(DB_KEY)); }
+    try {
+      const raw = await bridge.dbGet(DB_KEY);
+      state = normalize(raw);
+      if (needsMigration(raw)) await bridge.dbPut(DB_KEY, state);
+    }
     catch (error) { console.warn("Reading room load failed", error); state = normalize(null); }
     render();
   })();
