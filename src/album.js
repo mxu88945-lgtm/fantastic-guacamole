@@ -330,6 +330,37 @@ if (!bridge) {
     return { count: list.length, latest: list[0] || null };
   }
 
+  // Model access stays behind this role-scoped query instead of exposing the
+  // complete album database. The caller receives only the best few matches and
+  // decides whether one image needs a vision pass for the current chat turn.
+  function findForModel(query, limit = 3) {
+    if (!state.ready) return [];
+    const raw = String(query || "").trim();
+    const needle = raw.toLocaleLowerCase();
+    const generic = !needle || /^(?:最新|最近|第一张|相册|照片|看看|随便看看|全部)$/.test(needle);
+    const terms = needle.split(/[\s,，、/]+/).filter(Boolean);
+    const ranked = roleEntries().map((entry) => {
+      const title = entry.title.toLocaleLowerCase();
+      const note = entry.note.toLocaleLowerCase();
+      const date = entry.date.toLocaleLowerCase();
+      const category = categoryName(entry.category).toLocaleLowerCase();
+      let score = generic ? 1 : 0;
+      if (needle && title === needle) score += 100;
+      if (needle && title.includes(needle)) score += 45;
+      if (needle && note.includes(needle)) score += 24;
+      if (needle && (date.includes(needle) || category.includes(needle))) score += 18;
+      for (const term of terms) {
+        if (title.includes(term)) score += 12;
+        if (note.includes(term)) score += 7;
+        if (date.includes(term) || category.includes(term)) score += 5;
+      }
+      return { entry, score };
+    }).filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || b.entry.date.localeCompare(a.entry.date) || b.entry.createdAt - a.entry.createdAt)
+      .slice(0, Math.max(1, Math.min(5, Number(limit) || 3)));
+    return ranked.map(({ entry }) => ({ ...entry }));
+  }
+
   document.querySelectorAll(".album-tab").forEach((button) => button.addEventListener("click", () => {
     state.category = button.dataset.albumCategory;
     render();
@@ -369,5 +400,5 @@ if (!bridge) {
     render();
   })();
 
-  window.JYCAlbum = { open: openPanel, addFromDataUrl, exportSnapshot, restoreSnapshot, reassignRole, summary, ready };
+  window.JYCAlbum = { open: openPanel, addFromDataUrl, exportSnapshot, restoreSnapshot, reassignRole, summary, findForModel, ready };
 }
