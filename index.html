@@ -10454,6 +10454,69 @@ window.JYCAlbumBridge = {
   closeSidebar,
   toast: showToast,
 };
+
+function resolveReadingChat(ref) {
+  const source = ref && typeof ref === "object" ? ref : {};
+  const requestedAssistantIds = Array.isArray(source.assistantMessageIds)
+    ? source.assistantMessageIds.map(String) : [];
+  const preferred = conversations.find(conv => conv.id === source.conversationId);
+  const candidates = preferred ? [preferred, ...conversations.filter(conv => conv !== preferred)] : conversations;
+  let conversation = null;
+  let userIndex = -1;
+
+  for (const conv of candidates) {
+    if (!Array.isArray(conv?.messages)) continue;
+    const index = conv.messages.findIndex(message => message?.id && message.id === source.userMessageId);
+    if (index >= 0) { conversation = conv; userIndex = index; break; }
+  }
+
+  // v2 records predate message references. Match only a user turn explicitly
+  // marked with the same book/page, then use time and question text to choose
+  // between repeated discussions on one page.
+  if (!conversation && source.bookId) {
+    let best = null;
+    const expectedQuestion = String(source.question || "").trim();
+    for (const conv of conversations) {
+      if (!Array.isArray(conv?.messages)) continue;
+      conv.messages.forEach((message, index) => {
+        if (message?.role !== "user" || message.readingRoom?.bookId !== source.bookId
+          || Number(message.readingRoom?.page) !== Number(source.page || 0)) return;
+        const body = messageText(message);
+        const questionPenalty = expectedQuestion && !body.includes(expectedQuestion) ? 86400000 : 0;
+        const score = Math.abs((Number(message.ts) || 0) - (Number(source.createdAt) || 0)) + questionPenalty;
+        if (!best || score < best.score) best = { conv, index, score };
+      });
+    }
+    if (best) { conversation = best.conv; userIndex = best.index; }
+  }
+
+  if (!conversation) {
+    return { linked: false, question: String(source.question || ""),
+      answer: String(source.answer || source.answerPreview || "") };
+  }
+
+  const userMessage = conversation.messages[userIndex];
+  let assistantMessages = requestedAssistantIds.length
+    ? conversation.messages.filter(message => requestedAssistantIds.includes(String(message?.id || ""))) : [];
+  if (!assistantMessages.length) {
+    for (let index = userIndex + 1; index < conversation.messages.length; index++) {
+      const message = conversation.messages[index];
+      if (message?.role === "user") break;
+      if (message?.role === "assistant" && !message._event) assistantMessages.push(message);
+    }
+  }
+  const answer = assistantMessages.map(message => messageText(message).trim())
+    .filter(text => text && text !== "（无回复）").join("\n").trim();
+  return {
+    linked: !!userMessage?.id && assistantMessages.some(message => message?.id),
+    conversationId: String(conversation.id || ""),
+    userMessageId: String(userMessage?.id || ""),
+    assistantMessageIds: assistantMessages.map(message => String(message.id || "")).filter(Boolean),
+    question: String(source.question || ""),
+    answer: answer || String(source.answer || source.answerPreview || ""),
+  };
+}
+
 window.JYCReadingBridge = {
   dbGet,
   dbPut,
@@ -10477,11 +10540,12 @@ window.JYCReadingBridge = {
     const pageNumber = Math.max(1, Number(payload.page || 0) + 1);
     const pageCount = Math.max(pageNumber, Number(payload.pageCount || pageNumber));
     const visibleQuestion = String(payload.question || "陪我聊聊这一页。").trim();
-    messages.push({
+    const readingUserMessage = {
       id: uid(), role: "user",
       content: `📖《${String(payload.title || "未命名书籍")}》第 ${pageNumber}/${pageCount} 页\n${visibleQuestion}`,
       ts: Date.now(), readingRoom: { bookId: payload.bookId, page: pageNumber - 1 },
-    });
+    };
+    messages.push(readingUserMessage);
     const assistantStart = messages.length;
     pendingReadingContext = [
       "【陪读书房·当前阅读现场（高优先级）】",
@@ -10500,11 +10564,17 @@ window.JYCReadingBridge = {
     try {
       await maybeUpgradeRollingSummary(currentConv());
       await generateReply();
-      const answers = messages.slice(assistantStart)
-        .filter(message => message && message.role === "assistant" && !message._event)
+      const answerMessages = messages.slice(assistantStart)
+        .filter(message => message && message.role === "assistant" && !message._event);
+      const answers = answerMessages
         .map(message => messageText(message).trim())
         .filter(text => text && text !== "（无回复）");
-      return answers.join("\n").trim();
+      return {
+        answer: answers.join("\n").trim(),
+        conversationId: String(currentId || ""),
+        userMessageId: String(readingUserMessage.id || ""),
+        assistantMessageIds: answerMessages.map(message => String(message.id || "")).filter(Boolean),
+      };
     } finally {
       pendingReadingContext = "";
     }
@@ -10541,6 +10611,7 @@ window.JYCReadingBridge = {
     ].filter(Boolean).join("\n\n");
     return visibleAssistantText(await completeOnce(systemText, userText, 500)).trim();
   },
+  resolveChat: resolveReadingChat,
   openChat() {
     const target = latestRoleConversation() || currentConv();
     if (target && target.id !== currentId) switchConversation(target.id);
