@@ -1,0 +1,16 @@
+{
+  "name": "fantastic-guacamole",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "test": "node scripts/run-regressions.mjs",
+    "build": "vite build && node scripts/copy-static.mjs",
+    "check": "npm test && npm run build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.8"
+  }
+}
