@@ -1428,6 +1428,7 @@
 
 </style>
 <link rel="stylesheet" href="./src/album.css" />
+<link rel="stylesheet" href="./src/reading-room.css" />
 <link rel="stylesheet" href="./src/dashboard.css" />
 </head>
 <body>
@@ -1578,6 +1579,13 @@
               <span class="dashboard-count" id="dashboard-mail-count">0</span>
             </button>
 
+            <button type="button" class="dashboard-card dashboard-reading-card" data-dashboard-action="reading">
+              <span class="dashboard-card-kicker">READING ROOM</span>
+              <span class="dashboard-book-mark" aria-hidden="true">⌇</span>
+              <span class="dashboard-card-copy"><strong>陪读书房</strong><em id="dashboard-reading-meta">和 TA 打开一本书</em></span>
+              <span class="dashboard-arrow" aria-hidden="true">↗</span>
+            </button>
+
             <button type="button" class="dashboard-card dashboard-day-card" data-dashboard-action="days">
               <span class="dashboard-card-kicker">MOMENTS</span>
               <span class="dashboard-card-copy"><strong>重要日子</strong><em id="dashboard-day-meta">把值得记住的日期放在这里</em></span>
@@ -1594,6 +1602,56 @@
         </div>
       </div>
     </section>
+
+    <div class="settings" id="reading-room-panel" style="z-index:66;">
+      <div class="settings-header reading-room-header">
+        <span id="reading-room-title">⌇ 陪读书房</span>
+        <button class="settings-close-btn" id="reading-room-close" aria-label="关闭陪读书房"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="reading-room-shell">
+        <aside class="reading-library" id="reading-library">
+          <div class="reading-library-head"><div><small>PRIVATE LIBRARY</small><strong id="reading-library-role">TA 的书架</strong></div><button type="button" id="reading-import">＋ 导入书籍</button></div>
+          <input id="reading-file" type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" multiple hidden />
+          <div class="reading-book-list" id="reading-book-list"></div>
+          <div class="reading-library-empty" id="reading-library-empty" hidden><span>⌇</span><strong>书架还是空的</strong><p>可以一次导入多本 TXT 或 Markdown；原文只保存在本机与备份里。</p></div>
+        </aside>
+
+        <main class="reading-reader" id="reading-reader">
+          <section class="reading-empty-stage" id="reading-empty-stage">
+            <span class="reading-empty-orb">⌇</span><small>READ TOGETHER</small><h2>和 <b id="reading-empty-role">TA</b><br>打开一本书</h2><p>他会读你正在看的这一页，也会把你们聊过的内容接回主聊天。</p><button type="button" id="reading-empty-import">放入第一本书</button>
+          </section>
+
+          <section class="reading-stage" id="reading-stage" hidden>
+            <div class="reading-toolbar">
+              <button type="button" id="reading-library-toggle" aria-label="打开书架">☰</button>
+              <div class="reading-book-heading"><small id="reading-book-author">未署名</small><strong id="reading-book-title">未命名书籍</strong></div>
+              <label class="reading-auto"><input id="reading-auto" type="checkbox"><span>TA 主动跟读</span></label>
+              <button type="button" id="reading-delete" class="reading-danger" aria-label="删除本书">删除</button>
+            </div>
+
+            <div class="reading-spread" id="reading-spread">
+              <article class="reading-page"><div id="reading-page-left"></div><footer id="reading-page-left-number">1</footer></article>
+              <article class="reading-page reading-page-right"><div id="reading-page-right"></div><footer id="reading-page-right-number">2</footer></article>
+            </div>
+
+            <div class="reading-navigation">
+              <button type="button" id="reading-prev" aria-label="上一页">←</button>
+              <div><span id="reading-progress-label">第 1 / 1 页</span><label>跳到 <input id="reading-page-jump" type="number" min="1" value="1"> 页</label></div>
+              <button type="button" id="reading-next" aria-label="下一页">→</button>
+            </div>
+
+            <section class="reading-companion">
+              <div class="reading-companion-head"><span class="reading-role-avatar" id="reading-role-avatar">R</span><div><small>READING WITH</small><strong id="reading-role-name">TA 正陪你读</strong></div><button type="button" id="reading-open-chat">回主聊天</button></div>
+              <div class="reading-companion-reply" id="reading-companion-reply"><p>翻到想聊的地方，就把这一页递给他。</p></div>
+              <textarea id="reading-question" rows="2" maxlength="500" placeholder="想和 TA 聊这一页的什么？不写也可以。"></textarea>
+              <div class="reading-companion-actions"><button type="button" id="reading-recap">剧情回顾</button><button type="button" id="reading-follow">让 TA 先说</button><button type="button" class="primary" id="reading-talk">聊这一页</button></div>
+            </section>
+
+            <details class="reading-memory" id="reading-memory"><summary><span>读书记忆</span><em id="reading-memory-count">0 条</em></summary><div class="reading-recap" id="reading-recap-view"></div><div class="reading-memory-list" id="reading-memory-list"></div></details>
+          </section>
+        </main>
+      </div>
+    </div>
 
     <div class="settings" id="cycle-panel" style="z-index:61;">
       <div class="settings-header">
@@ -2995,6 +3053,7 @@ const expandedSummaryIds = new Set(); // runtime-only: user may temporarily reve
 let chatNavigationRevision = 0;
 let abortController = null;
 let pendingSearchContext = "";   // [搜索:…] results to inject into the next streamChat round
+let pendingReadingContext = "";  // ephemeral current-page context for the shared reading room
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
@@ -3274,8 +3333,9 @@ function renderRoles() {
       const fallback = settings.roles.find(x => x.id !== r.id);
       const boundCount = conversations.filter(c => c.roleId === r.id).length;
       const moveNote = boundCount ? ("\n它原有的 " + boundCount + " 个对话会移到「" + fallback.name + "」，不会丢失。") : "";
-      if (!confirm("删除角色「" + r.name + "」？\n它的人设、记忆、信箱、私人日记和音色绑定会一起删除。" + moveNote)) return;
+      if (!confirm("删除角色「" + r.name + "」？\n它的人设、记忆、信箱、私人日记和音色绑定会一起删除；相册与书房会移交给保留的角色。" + moveNote)) return;
       if (window.JYCAlbum) void window.JYCAlbum.reassignRole(r.id, fallback.id);
+      if (window.JYCReadingRoom) void window.JYCReadingRoom.reassignRole(r.id, fallback.id);
       settings.roles = settings.roles.filter(x => x.id !== r.id);
       // A conversation whose role no longer exists disappears from every role-filtered
       // sidebar. Reassign it instead of leaving recoverable data stranded as an orphan.
@@ -6030,6 +6090,9 @@ async function streamChat(onDelta, onReasoning) {
   if (pendingSearchContext) {
     systemText = systemText ? systemText + "\n\n" + pendingSearchContext : pendingSearchContext;
   }
+  if (pendingReadingContext) {
+    systemText = systemText ? systemText + "\n\n" + pendingReadingContext : pendingReadingContext;
+  }
   if (settings.notionEnabled && settings.notionToken && settings.notionPageId) {
     const pages = (settings.notionPages || []).map(p => p.title).filter(Boolean);
     const pagesLine = pages.length
@@ -7875,8 +7938,9 @@ function mergeBackupSettings(incoming, current) {
 // Export all data (conversations + settings) as a downloadable JSON file.
 async function exportBackup() {
   const album = window.JYCAlbum ? await window.JYCAlbum.exportSnapshot() : [];
+  const readingRoom = window.JYCReadingRoom ? await window.JYCReadingRoom.exportSnapshot() : null;
   const out = { app: "jyc-chat", version: 1, exportedAt: new Date().toISOString(),
-    conversations, settings: { ...settings }, workbench: workbenchBackupSnapshot(), album };
+    conversations, settings: { ...settings }, workbench: workbenchBackupSnapshot(), album, readingRoom };
   if (!$("exportWithKey").checked) out.settings = settingsWithoutSecrets(out.settings);
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -7915,6 +7979,7 @@ function importBackup(file) {
     saveConversations();
     if (data.workbench) await restoreWorkbenchBackup(data.workbench);
     if (data.album && window.JYCAlbum) await window.JYCAlbum.restoreSnapshot(data.album);
+    if (data.readingRoom && window.JYCReadingRoom) await window.JYCReadingRoom.restoreSnapshot(data.readingRoom);
     applyTheme(); syncSettingsToUI(); updateAvatarPreviews();
     renderConvList(); renderMessages(); updateConvTitle();
     showToast("📥 备份已恢复");
@@ -10345,6 +10410,82 @@ window.JYCAlbumBridge = {
   closeSidebar,
   toast: showToast,
 };
+window.JYCReadingBridge = {
+  dbGet,
+  dbPut,
+  activeRole,
+  toast: showToast,
+  async ask(payload) {
+    if (abortController) throw new Error("他还在回复上一条消息，等他说完再递书给他");
+    if (!settings.apiKey) {
+      openSettings(true);
+      throw new Error("先在设置里填好 API Key");
+    }
+    let conv = latestRoleConversation() || roleConvs()[0];
+    if (!conv) {
+      conv = newConversation();
+      conversations.unshift(conv);
+    }
+    if (currentId !== conv.id && !switchConversation(conv.id)) throw new Error("没有找到当前角色的主对话");
+    if (messages.length && messages[messages.length - 1].role === "user") {
+      messages.push({ id: uid(), role: "assistant", content: "（无回复）", ts: Date.now() });
+    }
+    const pageNumber = Math.max(1, Number(payload.page || 0) + 1);
+    const pageCount = Math.max(pageNumber, Number(payload.pageCount || pageNumber));
+    const visibleQuestion = String(payload.question || "陪我聊聊这一页。").trim();
+    messages.push({
+      id: uid(), role: "user",
+      content: `📖《${String(payload.title || "未命名书籍")}》第 ${pageNumber}/${pageCount} 页\n${visibleQuestion}`,
+      ts: Date.now(), readingRoom: { bookId: payload.bookId, page: pageNumber - 1 },
+    });
+    const assistantStart = messages.length;
+    pendingReadingContext = [
+      "【陪读书房·当前阅读现场（高优先级）】",
+      `你正以当前角色身份坐在用户身边，和她共同阅读《${String(payload.title || "未命名书籍")}》。这不是独立分身，也不是书评任务；延续主聊天中的人格、关系、口吻和记忆，自然地陪她读。`,
+      `当前进度：第 ${pageNumber}/${pageCount} 页${payload.author ? `；作者：${String(payload.author)}` : ""}。`,
+      "只依据下面真正提供的页文和已有上下文回应，不要假装读过未提供的后文。可以有角色自己的偏好、联想、情绪和提问，像坐在旁边说话；不要写成机械摘要。",
+      payload.recap ? `此前剧情回顾：\n${String(payload.recap).slice(0, 8000)}` : "",
+      payload.recent ? `最近的陪读交流：\n${String(payload.recent).slice(0, 3000)}` : "",
+      `眼前页文：\n${String(payload.pageText || "").slice(0, 7000)}`,
+      `用户此刻说：${visibleQuestion}`,
+    ].filter(Boolean).join("\n\n");
+    renderMessages();
+    touchConversation();
+    markSeen();
+    try {
+      await maybeUpgradeRollingSummary(currentConv());
+      await generateReply();
+      const answers = messages.slice(assistantStart)
+        .filter(message => message && message.role === "assistant" && !message._event)
+        .map(message => messageText(message).trim())
+        .filter(text => text && text !== "（无回复）");
+      return answers.join("\n").trim();
+    } finally {
+      pendingReadingContext = "";
+    }
+  },
+  async recap(payload) {
+    if (!settings.apiKey) {
+      openSettings(true);
+      throw new Error("先在设置里填好 API Key");
+    }
+    let systemText = settings.systemPrompt || "";
+    systemText += "\n\n【陪读书房·剧情回顾】请以当前角色的理解，整理用户目前真正读到的内容。只依据提供的页文与旧回顾，不剧透、不编造后文；保留人物关系、关键变化、伏笔和你们共同注意过的点。中文简洁自然，控制在 500 字内。";
+    const userText = [
+      `书名：《${String(payload.title || "未命名书籍")}》`,
+      `当前读到第 ${Math.max(1, Number(payload.page || 0) + 1)}/${Math.max(1, Number(payload.pageCount || 1))} 页`,
+      payload.previous ? `旧回顾：\n${String(payload.previous).slice(0, 7000)}` : "",
+      `最近读到的原文：\n${String(payload.excerpt || "").slice(0, 11000)}`,
+    ].filter(Boolean).join("\n\n");
+    return visibleAssistantText(await completeOnce(systemText, userText, 900)).trim();
+  },
+  openChat() {
+    const target = latestRoleConversation() || currentConv();
+    if (target && target.id !== currentId) switchConversation(target.id);
+    window.dispatchEvent(new CustomEvent("jyc:chat-opened", { detail: { conversationId: target?.id || currentId } }));
+    requestAnimationFrame(() => $("input")?.focus());
+  },
+};
 window.JYCDashboardBridge = {
   summary: () => {
     const role = ensureRoleCompanionData(activeRole());
@@ -10396,6 +10537,7 @@ if ("serviceWorker" in navigator) {
 }
 </script>
 <script type="module" src="./src/album.js"></script>
+<script type="module" src="./src/reading-room.js"></script>
 <script type="module" src="./src/dashboard.js"></script>
 </body>
 </html>

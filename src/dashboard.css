@@ -132,6 +132,24 @@ button.dashboard-card:active { transform: scale(.985); }
 }
 .dashboard-day-card .dashboard-card-kicker { position: absolute; top: 23px; left: 24px; }
 
+.dashboard-reading-card {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  background:
+    linear-gradient(135deg, rgba(249,232,196,.62), transparent 56%),
+    color-mix(in srgb, var(--bg-panel) 72%, rgba(185,151,111,.2));
+}
+.dashboard-reading-card::before {
+  content: ""; position: absolute; top: -42px; right: -28px; width: 132px; height: 170px;
+  border: 1px solid color-mix(in srgb, var(--text-dim) 12%, transparent); border-radius: 10px 24px 24px 10px;
+  transform: rotate(13deg); box-shadow: inset 12px 0 24px rgba(93,65,43,.045);
+}
+.dashboard-reading-card .dashboard-card-kicker { position: absolute; top: 23px; left: 24px; }
+.dashboard-book-mark {
+  position: absolute; right: 31px; top: 24px; color: color-mix(in srgb, var(--accent) 64%, #70533f);
+  font: 42px/1 Georgia, serif; transform: rotate(10deg);
+}
+.dashboard-reading-card .dashboard-card-copy { position: relative; z-index: 1; max-width: 76%; }
+
 .dashboard-tools-card { padding: 15px; display: flex; flex-direction: column; gap: 5px; }
 .dashboard-tools-card > .dashboard-card-kicker { padding: 6px 8px 8px; }
 .dashboard-tools-card button {
@@ -177,7 +195,7 @@ html[data-theme="dark"] .dashboard-card { box-shadow: inset 0 1px rgba(255,255,2
   .dashboard-chat-card .dashboard-card-copy strong { font-size: 26px; }
   .dashboard-chat-card .dashboard-card-copy em { font-size: 11px; }
   .dashboard-arrow { right: 15px; bottom: 15px; width: 34px; height: 34px; }
-  .dashboard-album-card, .dashboard-welcome-card, .dashboard-day-card, .dashboard-tools-card { min-height: 175px; }
+  .dashboard-album-card, .dashboard-welcome-card, .dashboard-reading-card, .dashboard-day-card, .dashboard-tools-card { min-height: 175px; }
   .dashboard-album-card .dashboard-card-copy strong, .dashboard-day-card .dashboard-card-copy strong { font-size: 17px; }
   .dashboard-welcome-card p { margin-top: 42px; font-size: 20px; }
   .dashboard-orb { top: 24px; width: 42px; height: 42px; }
