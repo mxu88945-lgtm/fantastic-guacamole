@@ -15,6 +15,8 @@ const ok = (condition, message) => {
 ok(html.includes('id="home-dashboard"'), "homepage dashboard is missing");
 ok(html.includes('id="sidebar-home"'), "sidebar home entry is missing");
 ok(html.includes('data-dashboard-action="chat"'), "chat is not represented as a dashboard card");
+ok(html.includes('id="dashboard-chat-title"'), "continue-chat title is missing");
+ok(!html.includes('id="dashboard-chat-snippet"') && !js.includes("conversationSnippet"), "private chat content is still previewed on the dashboard");
 ok(html.includes('data-dashboard-action="album"'), "album dashboard card is missing");
 ok(html.includes('data-dashboard-action="mail"'), "mail dashboard card is missing");
 ok(html.includes('data-dashboard-action="days"'), "special-days dashboard card is missing");
@@ -32,7 +34,7 @@ ok(css.includes("@media (max-width: 600px)"), "mobile dashboard layout is missin
 ok(js.includes('window.addEventListener("jyc:role-changed"'), "dashboard does not react to role changes");
 ok(js.includes('window.JYCAlbum?.summary?.(data.roleId)'), "dashboard album summary is not role-isolated");
 ok(album.includes("function summary(targetRoleId)"), "album summary API is missing");
-ok(sw.includes('const CACHE = "role-chat-cache-v135";'), "service worker cache was not bumped to v135");
+ok(sw.includes('const CACHE = "role-chat-cache-v136";'), "service worker cache was not bumped to v136");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "dashboard change introduced duplicate DOM ids");
