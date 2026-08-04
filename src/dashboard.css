@@ -164,6 +164,7 @@ body.dashboard-open .main > .chat,
 body.dashboard-open .main > .composer-wrap,
 body.dashboard-open .main > #reminder-pin,
 body.dashboard-open .main > .scroll-nav { display: none !important; }
+body.dashboard-open .main > header > #toggle-sidebar { display: none !important; }
 body.dashboard-open .main > header .header-actions { display: none; }
 
 html[data-theme="dark"] .home-dashboard { background: radial-gradient(circle at 88% 88%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 34%), linear-gradient(145deg, var(--bg), color-mix(in srgb, var(--bg-soft) 88%, #211925)); }
