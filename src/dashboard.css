@@ -96,7 +96,6 @@ button.dashboard-card:active { transform: scale(.985); }
 }
 .dashboard-chat-card .dashboard-card-copy { position: relative; z-index: 1; max-width: 84%; }
 .dashboard-chat-card .dashboard-card-copy strong { font-size: clamp(25px, 3vw, 38px); font-weight: 550; font-family: Georgia, "Songti SC", serif; }
-.dashboard-chat-card .dashboard-card-copy em { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 .dashboard-album-card {
   display: flex; flex-direction: column; justify-content: flex-end; background-size: cover; background-position: center;

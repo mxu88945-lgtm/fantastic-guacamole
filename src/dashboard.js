@@ -48,8 +48,6 @@ if (!bridge) {
 
     $("dashboard-chat-title").textContent = data.conversationTitle
       ? `继续和 ${roleName} 聊天` : `和 ${roleName} 开始聊天`;
-    $("dashboard-chat-snippet").textContent = data.conversationSnippet
-      || "这里保留着你们刚才没有说完的话。";
 
     const unread = Number(data.unreadMail || 0);
     $("dashboard-mail-count").textContent = unread > 99 ? "99+" : String(unread);

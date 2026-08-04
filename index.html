@@ -1557,7 +1557,6 @@
               <span class="dashboard-chat-avatar" id="dashboard-chat-avatar">R</span>
               <span class="dashboard-card-copy">
                 <strong id="dashboard-chat-title">继续聊天</strong>
-                <em id="dashboard-chat-snippet">回到刚才没有说完的话。</em>
               </span>
               <span class="dashboard-arrow" aria-hidden="true">↗</span>
             </button>
@@ -10555,7 +10554,6 @@ window.JYCDashboardBridge = {
     const roleId = role?.id || settings.activeRoleId || "default";
     const latest = roleConvs().filter(c => Array.isArray(c.messages) && c.messages.length)
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
-    const last = latest && [...latest.messages].reverse().find(m => m && !m._event && m.role !== "reminder");
     const days = roleSpecialDays(role).slice().sort((a, b) => specialDaySortValue(a) - specialDaySortValue(b));
     const next = days.find(item => {
       const distance = specialDayDistance(item);
@@ -10568,7 +10566,6 @@ window.JYCDashboardBridge = {
       roleAvatar: role?.aiAvatar || settings.aiAvatar || "角",
       userName: settings.userName || "你",
       conversationTitle: latest?.title || "",
-      conversationSnippet: last ? messageText(last).replace(/\s+/g, " ").trim().slice(0, 96) : "",
       unreadMail: roleMailbox(role).filter(item => !item.readAt).length,
       diaryCount: activeRolePrivateDiary(role).length,
       nextSpecialDay: next ? { title: next.title || specialDayKindMeta(next.kind).label, status: specialDayStatus(next) } : null,
