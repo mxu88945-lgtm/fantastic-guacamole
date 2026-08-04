@@ -29,12 +29,14 @@ ok(html.includes("const target = latestRoleConversation() || currentConv()"), "c
 ok(html.includes('new CustomEvent("jyc:dashboard-open")'), "home navigation event is missing");
 ok(html.includes('switchConversation(c.id, true)'), "conversation list does not enter chat mode");
 ok(css.includes("body.dashboard-open .main > .composer-wrap"), "composer is not hidden on the dashboard");
+ok(css.includes("body.dashboard-open .main > header > #toggle-sidebar"), "sidebar button is still visible on the dashboard");
+ok(html.includes('id="toggle-sidebar"') && html.includes('$("toggle-sidebar").onclick = toggleSidebar'), "main chat lost its sidebar button");
 ok(css.includes("grid-template-columns: 1.12fr .88fr 1fr"), "desktop dashboard grid is missing");
 ok(css.includes("@media (max-width: 600px)"), "mobile dashboard layout is missing");
 ok(js.includes('window.addEventListener("jyc:role-changed"'), "dashboard does not react to role changes");
 ok(js.includes('window.JYCAlbum?.summary?.(data.roleId)'), "dashboard album summary is not role-isolated");
 ok(album.includes("function summary(targetRoleId)"), "album summary API is missing");
-ok(sw.includes('const CACHE = "role-chat-cache-v136";'), "service worker cache was not bumped to v136");
+ok(sw.includes('const CACHE = "role-chat-cache-v137";'), "service worker cache was not bumped to v137");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "dashboard change introduced duplicate DOM ids");

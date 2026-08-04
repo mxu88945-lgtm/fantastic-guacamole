@@ -22,7 +22,7 @@ requireText('p.type === "image" || p.type === "sticker" || p.type === "file"',
   'edit-and-resend does not preserve file attachments')
 rejectText('已插入文件内容', 'legacy behavior still inserts an entire file into the composer')
 
-if (!sw.includes('const CACHE = "role-chat-cache-v136";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v137";')) {
   throw new Error('service worker cache was not bumped for file attachments')
 }
 
