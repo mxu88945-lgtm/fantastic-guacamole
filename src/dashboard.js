@@ -74,6 +74,17 @@ if (!bridge) {
     $("dashboard-album-meta").textContent = album.count ? `${album.count} 张照片` : "还没有照片";
     albumCard.classList.toggle("has-photo", !!album.latest?.dataUrl);
     albumCard.style.backgroundImage = album.latest?.dataUrl ? `url(${JSON.stringify(album.latest.dataUrl).slice(1, -1)})` : "";
+
+    let reading = { count: 0, active: null };
+    try {
+      if (window.JYCReadingRoom?.ready) await window.JYCReadingRoom.ready;
+      reading = window.JYCReadingRoom?.summary?.(data.roleId) || reading;
+    } catch (error) {
+      console.warn("Dashboard reading summary failed", error);
+    }
+    $("dashboard-reading-meta").textContent = reading.active
+      ? `《${reading.active.title}》· ${reading.active.progress}%`
+      : reading.count ? `${reading.count} 本书，选一本继续` : "和 TA 打开一本书";
   }
 
   function show() {
@@ -96,6 +107,7 @@ if (!bridge) {
     if (action === "new") { hide(); bridge.newChat(); return; }
     if (action === "mail") { bridge.openMailbox(); return; }
     if (action === "album") { await window.JYCAlbum?.ready; window.JYCAlbum?.open(); return; }
+    if (action === "reading") { await window.JYCReadingRoom?.ready; window.JYCReadingRoom?.open(); return; }
     if (action === "days") { bridge.openSpecialDays(); return; }
     if (action === "workbench") { bridge.openWorkbench(); return; }
     if (action === "settings") bridge.openSettings();
@@ -111,6 +123,7 @@ if (!bridge) {
   window.addEventListener("jyc:chat-opened", hide);
   window.addEventListener("jyc:role-changed", () => { if (open) render(); });
   window.addEventListener("jyc:album-updated", () => { if (open) render(); });
+  window.addEventListener("jyc:reading-updated", () => { if (open) render(); });
   window.addEventListener("jyc:dashboard-data-changed", () => { if (open) render(); });
   window.addEventListener("jyc:app-ready", () => { show(); });
 
