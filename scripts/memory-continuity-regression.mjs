@@ -141,7 +141,7 @@ if (hasLoneSurrogate(transcript) || helpers.utf8ByteLength(transcript) > 24000) 
 }
 JSON.stringify({ messages: [{ role: 'user', content: transcript }] })
 
-if (!sw.includes('const CACHE = "role-chat-cache-v133";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v134";')) {
   throw new Error('service worker cache was not bumped for memory continuity v2')
 }
 
