@@ -55,9 +55,19 @@ ok(!html.includes('html[data-glass="1"] .msg.flat.user .bubble { width: 100%; }'
   'glass user bubbles no longer hug their text')
 ok(html.includes('.backdrop.show { display: block; left: min(78vw, 300px); }'),
   'mobile dim layer still darkens the translucent theme drawer')
+ok(html.includes('html[data-theme-key="snowblush"] .sidebar {')
+  && html.includes('background: linear-gradient(180deg, #fffafb 0%, #fbeff4 100%);'),
+  'snow blush drawer still lets chat content show through')
 const mistStart = html.indexOf('{ key: "mistgreen", name: "黛绿"')
 const mistEnd = html.indexOf('];', mistStart)
 ok(!html.slice(mistStart, mistEnd).includes('liquid: true'), 'liquid styling leaked into the existing mist green theme')
+ok(html.includes('html[data-theme-key="mistgreen"] .sidebar {')
+  && html.includes('background: linear-gradient(180deg, #edf2ed 0%, #dbe4dc 100%);'),
+  'mist green drawer still lets chat content show through')
+ok(html.includes('.msg.assistant .bubble .chat-narration { font-style: normal; }'),
+  'parenthesized narration is still forced into italics')
+ok(html.includes('.msg.assistant .bubble em {\n    font-style: italic;'),
+  'explicit Markdown emphasis no longer keeps its italic style')
 
 // CC's iOS standalone status-bar chain is protected: default status-bar mode,
 // pre-paint local restoration, root background fallback and runtime meta refresh.
@@ -75,6 +85,6 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v139";'), 'service worker cache was not bumped to v139')
+ok(sw.includes('const CACHE = "role-chat-cache-v140";'), 'service worker cache was not bumped to v140')
 
 console.log(`theme regression: ${checks} checks passed`)
