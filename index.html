@@ -3100,6 +3100,7 @@ const AUTO_COMPACT_THRESHOLD = 180;     // compact less often; API history still
 const AUTO_COMPACT_KEEP = 72;           // keep twice as much recent verbatim voice before folding older turns
 const COMPACT_TRANSCRIPT_BYTE_BUDGET = 24000; // UTF-8 ceiling: enough continuity without a costly CJK transcript dump
 const COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET = 12000; // one shorter retry for strict JSON relays
+const AUTO_COMPACT_RETRY_COOLDOWN_MS = 5 * 60 * 1000; // failed maintenance must not bill again after every reply
 const ROLLING_SUMMARY_VERSION = 2;
 const ROLLING_SUMMARY_CHAR_LIMIT = 2000;
 const ROLLING_SUMMARY_MAX_TOKENS = 2200;
@@ -3108,6 +3109,7 @@ const MEMORY_CONTEXT_CHAR_BUDGET = 6400; // all derived memory layers share one 
 const MEMORY_RECALL_COOLDOWN_TURNS = 4;  // avoid echoing the same old excerpt every reply
 const MEMORY_RECALL_LEDGER_LIMIT = 120;  // bounded, metadata-only per-conversation audit
 let autoCompactInFlight = false;
+const autoCompactRetryAfter = new Map(); // runtime-only; never changes or migrates stored conversations
 
 // ---------- Cloud (Supabase) runtime state ----------
 let sb = null;          // supabase client
@@ -4305,7 +4307,7 @@ async function maybeUpgradeRollingSummary(conv) {
     );
     if (!rebuilt || !conversations.includes(conv)) return false;
     summary.content = "🧭 **较早对话·连续性档案**\n\n"
-      + rebuilt.trim().slice(0, ROLLING_SUMMARY_CHAR_LIMIT);
+      + clipUnicodeChars(rebuilt.trim(), ROLLING_SUMMARY_CHAR_LIMIT);
     summary._summaryVersion = ROLLING_SUMMARY_VERSION;
     summary._summaryUpgradedAt = Date.now();
     saveConversations();
@@ -4330,7 +4332,9 @@ async function compactMessageBatch(conv, batch, automatic) {
   const previousSummary = activeRollingSummary(conv.messages);
   if (previousSummary && !previousSummary.id) previousSummary.id = uid();
   const transcript = compactTranscript(batch, previousSummary);
-  showToast(automatic ? "🧭 对话满 100 条，正在整理连续性档案…" : "正在整理连续性档案…", 3600);
+  showToast(automatic
+    ? "🧭 对话满 " + AUTO_COMPACT_THRESHOLD + " 条，正在整理连续性档案…"
+    : "正在整理连续性档案…", 3600);
   let summary;
   try {
     summary = await completeOnce(
@@ -4345,7 +4349,8 @@ async function compactMessageBatch(conv, batch, automatic) {
   }
   const summaryMsg = {
     id: uid(), role: "assistant",
-    content: "🧭 **较早对话·连续性档案**\n\n" + summary.trim().slice(0, ROLLING_SUMMARY_CHAR_LIMIT),
+    content: "🧭 **较早对话·连续性档案**\n\n"
+      + clipUnicodeChars(summary.trim(), ROLLING_SUMMARY_CHAR_LIMIT),
     ts: batch[batch.length - 1]?.ts || Date.now(), _summary: true, _autoSummary: true,
     _summaryVersion: ROLLING_SUMMARY_VERSION,
     _summaryCount: (previousSummary?._summaryCount || 0) + batch.length,
@@ -4376,10 +4381,14 @@ async function maybeAutoCompactConversation() {
   const conv = currentConv();
   const raw = conv ? conv.messages.filter(compactableMessage) : [];
   if (raw.length < AUTO_COMPACT_THRESHOLD || !memoryRuntimeConfig().apiKey) return false;
+  if ((autoCompactRetryAfter.get(conv.id) || 0) > Date.now()) return false;
   autoCompactInFlight = true;
   try {
     const batchSize = AUTO_COMPACT_THRESHOLD - AUTO_COMPACT_KEEP;
-    return await compactMessageBatch(conv, raw.slice(0, batchSize), true);
+    const compacted = await compactMessageBatch(conv, raw.slice(0, batchSize), true);
+    if (compacted) autoCompactRetryAfter.delete(conv.id);
+    else autoCompactRetryAfter.set(conv.id, Date.now() + AUTO_COMPACT_RETRY_COOLDOWN_MS);
+    return compacted;
   } finally {
     autoCompactInFlight = false;
   }
@@ -6147,9 +6156,55 @@ function rememberTemperatureUnsupported(provider, base, model) {
     localStorage.setItem("jyc_no_temperature", JSON.stringify(keys));
   } catch (_) {}
 }
+function maxCompletionTokensRequired(detail) {
+  return /max_tokens[\s\S]{0,180}(?:max_completion_tokens|deprecated|not supported|unsupported|not allowed|invalid)/i
+    .test(String(detail || ""));
+}
+function completionTokenCapabilityKey(provider, base, model) {
+  return [provider || "", String(base || "").replace(/\/+$/, "").toLowerCase(), model || ""].join("|");
+}
+function usesMaxCompletionTokens(provider, base, model) {
+  try {
+    const keys = JSON.parse(localStorage.getItem("jyc_max_completion_tokens") || "[]");
+    return Array.isArray(keys) && keys.includes(completionTokenCapabilityKey(provider, base, model));
+  } catch (_) { return false; }
+}
+function rememberMaxCompletionTokens(provider, base, model) {
+  try {
+    let keys = JSON.parse(localStorage.getItem("jyc_max_completion_tokens") || "[]");
+    if (!Array.isArray(keys)) keys = [];
+    const key = completionTokenCapabilityKey(provider, base, model);
+    if (!keys.includes(key)) keys.push(key);
+    if (keys.length > 40) keys = keys.slice(-40);
+    localStorage.setItem("jyc_max_completion_tokens", JSON.stringify(keys));
+  } catch (_) {}
+}
 async function responseErrorDetail(resp) {
   try { return await resp.text(); }
   catch (e) { return ""; }
+}
+
+function completionContentText(value) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(part => {
+    if (typeof part === "string") return part;
+    if (!part || /reasoning|thinking|analysis/i.test(part.type || "")) return "";
+    if (typeof part.text === "string") return part.text;
+    if (typeof part.text?.value === "string") return part.text.value;
+    if (typeof part.content === "string") return part.content;
+    return "";
+  }).join("");
+  if (value && typeof value.text === "string") return value.text;
+  return "";
+}
+function oneShotCompletionText(data, isAnthropic) {
+  if (isAnthropic) return completionContentText(data?.content).trim();
+  const choice = data?.choices?.[0];
+  let text = completionContentText(choice?.message?.content || choice?.text || data?.output_text);
+  if (!text && Array.isArray(data?.output)) {
+    text = data.output.map(item => completionContentText(item?.content)).join("");
+  }
+  return text.trim();
 }
 async function streamChat(onDelta, onReasoning) {
   onReasoning = onReasoning || (() => {});
@@ -6551,30 +6606,63 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
     headers = { "content-type": "application/json", "authorization": "Bearer " + apiKey };
     body = { model, temperature: compatibleTemperature(model, 0), max_tokens: maxTokens, messages: [
       { role: "system", content: systemText }, { role: "user", content: userText } ] };
+    if (usesMaxCompletionTokens(provider, base, model)) {
+      body.max_completion_tokens = body.max_tokens;
+      delete body.max_tokens;
+    }
   }
   if (temperatureUnsupportedFor(provider, base, model)) delete body.temperature;
-  let resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
-  if (!resp.ok) {
-    let detail = await responseErrorDetail(resp);
-    if (resp.status === 400 && Object.prototype.hasOwnProperty.call(body, "temperature")
+  const transientStatuses = new Set([429, 500, 502, 503, 504]);
+  let resp, detail = "", transientRetries = 0;
+  let retriedTemperature = false, retriedTokenParam = false, retriedShortTranscript = false;
+  // Compatibility retries do not consume the two transient-error retries. The
+  // hard request ceiling prevents a malformed relay from looping forever.
+  for (let requestCount = 1; requestCount <= 6; requestCount++) {
+    try {
+      resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+    } catch (error) {
+      if (transientRetries >= 2) throw error;
+      transientRetries++;
+      await new Promise(resolve => setTimeout(resolve, transientRetries * 700));
+      continue;
+    }
+    if (resp.ok) break;
+    detail = await responseErrorDetail(resp);
+    if (resp.status === 400 && !retriedTemperature
+        && Object.prototype.hasOwnProperty.call(body, "temperature")
         && temperatureIsDeprecated(detail)) {
+      retriedTemperature = true;
       rememberTemperatureUnsupported(provider, base, model);
       delete body.temperature;
-      resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
-      if (!resp.ok) detail = await responseErrorDetail(resp);
+      continue;
     }
-    if (useMemoryApi && resp.status === 400 && memoryRequestParseError(detail)) {
+    if (!isAnthropic && resp.status === 400 && !retriedTokenParam
+        && Object.prototype.hasOwnProperty.call(body, "max_tokens")
+        && maxCompletionTokensRequired(detail)) {
+      retriedTokenParam = true;
+      rememberMaxCompletionTokens(provider, base, model);
+      body.max_completion_tokens = body.max_tokens;
+      delete body.max_tokens;
+      continue;
+    }
+    if (useMemoryApi && resp.status === 400 && !retriedShortTranscript
+        && memoryRequestParseError(detail)) {
+      retriedShortTranscript = true;
       const retryText = clipUtf8(userText, COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET);
       if (isAnthropic) body.messages[0].content = retryText;
       else body.messages[1].content = retryText;
-      resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
-      if (!resp.ok) detail = await responseErrorDetail(resp);
+      continue;
     }
-    if (!resp.ok) throw new Error("memory HTTP " + resp.status + (detail ? " — " + detail.slice(0, 240) : ""));
+    if (transientStatuses.has(resp.status) && transientRetries < 2) {
+      transientRetries++;
+      await new Promise(resolve => setTimeout(resolve, transientRetries * 700));
+      continue;
+    }
+    throw new Error("memory HTTP " + resp.status + (detail ? " — " + detail.slice(0, 240) : ""));
   }
+  if (!resp?.ok) throw new Error("memory HTTP retry exhausted" + (detail ? " — " + detail.slice(0, 240) : ""));
   const data = await resp.json();
-  if (isAnthropic) return (data.content || []).map(c => c.text || "").join("").trim();
-  return (data.choices?.[0]?.message?.content || "").trim();
+  return oneShotCompletionText(data, isAnthropic);
 }
 function memoryRequestParseError(detail) {
   return /failed to parse the request body as json|unexpected end of hex escape|invalid (?:unicode|surrogate|escape)/i

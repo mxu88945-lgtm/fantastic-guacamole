@@ -23,7 +23,12 @@ requireText('await maybeUpgradeRollingSummary(currentConv());', 'legacy compress
 requireText('const archived = messages.filter(m => isChatContentMessage(m) && m._compactedBy);', 'archived raw turns are absent from topical recall')
 requireText('const COMPACT_TRANSCRIPT_BYTE_BUDGET = 24000;', 'UTF-8 compaction budget is missing')
 requireText('const COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET = 12000;', 'safe retry budget is missing')
-requireText('useMemoryApi && resp.status === 400 && memoryRequestParseError(detail)', 'strict JSON relay retry is missing')
+requireText('useMemoryApi && resp.status === 400 && !retriedShortTranscript', 'strict JSON relay retry is missing')
+requireText('const transientStatuses = new Set([429, 500, 502, 503, 504]);', 'one-shot maintenance requests do not retry transient failures')
+requireText('maxCompletionTokensRequired(detail)', 'new-model completion token compatibility is missing')
+requireText('const AUTO_COMPACT_RETRY_COOLDOWN_MS = 5 * 60 * 1000;', 'failed automatic compaction has no retry cooldown')
+requireText('autoCompactRetryAfter.set(conv.id, Date.now() + AUTO_COMPACT_RETRY_COOLDOWN_MS)', 'failed automatic compaction can retry after every reply')
+requireText('"🧭 对话满 " + AUTO_COMPACT_THRESHOLD + " 条', 'automatic compaction notice can drift from its threshold')
 
 const helperStart = html.indexOf('function isChatContentMessage(')
 const helperEnd = html.indexOf('async function compactMessageBatch(', helperStart)
@@ -141,8 +146,95 @@ if (hasLoneSurrogate(transcript) || helpers.utf8ByteLength(transcript) > 24000) 
 }
 JSON.stringify({ messages: [{ role: 'user', content: transcript }] })
 
-if (!sw.includes('const CACHE = "role-chat-cache-v140";')) {
+// The normal chat stream already tolerated relay failures, but maintenance calls
+// historically did not. Exercise the actual one-shot implementation with a fake
+// OpenAI-compatible endpoint: parameter correction, cached capability, transient
+// retry, and array-shaped content must all work without touching conversation data.
+const completionHelperStart = html.indexOf('function compatibleTemperature(')
+const completionHelperEnd = html.indexOf('async function streamChat(', completionHelperStart)
+const completeOnceStart = html.indexOf('async function completeOnce(')
+const completeOnceEnd = html.indexOf('// Ask the model to extract durable facts', completeOnceStart)
+if (completionHelperStart < 0 || completionHelperEnd < 0 || completeOnceStart < 0 || completeOnceEnd < 0) {
+  throw new Error('one-shot completion helper section not found')
+}
+const storage = new Map()
+Object.assign(context, {
+  settings: { provider: 'openai', apiKey: 'chat-key' },
+  DEFAULTS: { openai: { baseUrl: 'https://relay.test/v1', model: 'gpt-5-test' } },
+  memoryRuntimeConfig: () => ({
+    provider: 'openai', baseUrl: 'https://relay.test/v1', apiKey: 'memory-key', model: 'gpt-5-test',
+  }),
+  localStorage: {
+    getItem: key => storage.get(key) || null,
+    setItem: (key, value) => storage.set(key, String(value)),
+  },
+  setTimeout: fn => { fn(); return 1 },
+})
+vm.runInNewContext(
+  html.slice(completionHelperStart, completionHelperEnd)
+    + '\n' + html.slice(completeOnceStart, completeOnceEnd),
+  context,
+)
+const badResponse = (status, detail) => ({ ok: false, status, text: async () => detail })
+const goodResponse = data => ({ ok: true, status: 200, json: async () => data })
+let queued = [
+  badResponse(400, "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead."),
+  goodResponse({ choices: [{ message: { content: [
+    { type: 'reasoning', text: 'private analysis' },
+    { type: 'text', text: '压缩完成' },
+  ] } }] }),
+]
+const requestBodies = []
+context.fetch = async (_url, init) => {
+  requestBodies.push(JSON.parse(init.body))
+  return queued.shift()
+}
+const compatibleResult = await context.completeOnce('system', 'transcript', 2200, true)
+if (compatibleResult !== '压缩完成') throw new Error('array-shaped completion content was not normalized')
+if (!Object.hasOwn(requestBodies[0], 'max_tokens')
+    || !Object.hasOwn(requestBodies[1], 'max_completion_tokens')
+    || Object.hasOwn(requestBodies[1], 'max_tokens')) {
+  throw new Error('max_completion_tokens compatibility retry did not rewrite the request')
+}
+requestBodies.length = 0
+queued = [badResponse(503, 'relay overloaded'), goodResponse({ choices: [{ message: { content: '重试成功' } }] })]
+const retryResult = await context.completeOnce('system', 'transcript', 2200, true)
+if (retryResult !== '重试成功' || requestBodies.length !== 2) {
+  throw new Error('transient one-shot completion retry failed')
+}
+if (!Object.hasOwn(requestBodies[0], 'max_completion_tokens')) {
+  throw new Error('learned max_completion_tokens capability was not reused')
+}
+
+const compactBatchStart = html.indexOf('async function compactMessageBatch(')
+const compactBatchEnd = html.indexOf('async function maybeAutoCompactConversation(', compactBatchStart)
+if (compactBatchStart < 0 || compactBatchEnd < 0) throw new Error('compaction mutation section not found')
+let savedAfterFailure = false
+const failureTurns = [
+  { id: 'turn-1', role: 'user', content: '第一句' },
+  { id: 'turn-2', role: 'assistant', content: '第二句' },
+]
+const failureConversation = { id: 'failure-conv', messages: failureTurns }
+Object.assign(context, {
+  AUTO_COMPACT_THRESHOLD: 180,
+  AUTO_COMPACT_KEEP: 72,
+  conversations: [failureConversation],
+  currentId: 'failure-conv',
+  messages: failureTurns,
+  stickBottom: false,
+  uid: () => 'unexpected-summary-id',
+  saveConversations: () => { savedAfterFailure = true },
+  completeOnce: async () => { throw new Error('relay unavailable') },
+})
+vm.runInNewContext(html.slice(compactBatchStart, compactBatchEnd), context)
+const failedCompaction = await context.compactMessageBatch(failureConversation, failureTurns.slice(), true)
+if (failedCompaction || savedAfterFailure || failureConversation.messages.length !== 2
+    || failureTurns.some(message => message._compactedBy)) {
+  throw new Error('failed compaction mutated or saved preserved raw messages')
+}
+
+if (!sw.includes('const CACHE = "role-chat-cache-v141";')) {
   throw new Error('service worker cache was not bumped for memory continuity v2')
 }
 
-console.log('memory continuity regression: 28 checks passed')
+console.log('memory continuity regression: 43 checks passed')
