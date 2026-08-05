@@ -464,6 +464,12 @@
     position: fixed; inset: 0; z-index: 60; background: var(--bg);
     display: none; flex-direction: column;
   }
+  .settings.settings-home {
+    background:
+      radial-gradient(circle at 50% 12%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 28%),
+      radial-gradient(circle at 8% 62%, rgba(249, 214, 197, .18), transparent 34%),
+      linear-gradient(155deg, color-mix(in srgb, var(--bg) 96%, #fff), color-mix(in srgb, var(--bg-soft) 88%, #f4e6e9));
+  }
   .settings.open { display: flex; }
   .settings-header {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -484,6 +490,12 @@
   }
   .settings-close-btn svg { width: 23px; height: 23px; }
   .settings-close-btn:active { transform: scale(.96); }
+  .settings.settings-home .settings-header {
+    position: absolute; inset: 0 0 auto; z-index: 2; pointer-events: none;
+    border: 0; background: transparent; padding-top: calc(14px + env(safe-area-inset-top));
+  }
+  .settings.settings-home .settings-header-left { visibility: hidden; }
+  .settings.settings-home .settings-close-btn { pointer-events: auto; }
   .model-current-head {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
   }
@@ -503,19 +515,54 @@
     height: 100%; padding: 24px clamp(16px, 5vw, 38px) calc(28px + env(safe-area-inset-bottom));
     display: flex; flex-direction: column; gap: 0; overflow-y: auto;
   }
-  .settings-nav-title { padding: 4px 4px 14px; font-size: 13px; font-weight: 650; color: var(--text-dim); }
+  .settings.settings-home .settings-nav {
+    padding-top: calc(70px + env(safe-area-inset-top)); gap: 18px;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  }
+  .settings-profile-hero { padding: 8px 8px 3px; text-align: center; }
+  .settings-profile-avatar {
+    width: 104px; height: 104px; margin: 0 auto 18px; border-radius: 50%; overflow: hidden;
+    display: grid; place-items: center; color: #fff; font: 650 34px/1 Georgia, "Songti SC", serif;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 72%, #f3c8b6), color-mix(in srgb, var(--accent) 45%, #8d769e));
+    border: 10px solid color-mix(in srgb, var(--bg-panel) 84%, transparent);
+    box-shadow: 0 18px 44px color-mix(in srgb, var(--accent) 18%, transparent), inset 0 1px rgba(255,255,255,.65);
+  }
+  .settings-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .settings-profile-hero h2 {
+    margin: 0; color: var(--text); font: 500 clamp(28px, 5vw, 38px)/1.05 Georgia, "Songti SC", "Times New Roman", serif;
+    letter-spacing: -.35px;
+  }
+  .settings-profile-meta { margin: 9px 0 0; color: var(--text-dim); font: italic 12px/1.5 Georgia, "Songti SC", serif; }
+  .settings-profile-note { display: block; margin-top: 10px; color: color-mix(in srgb, var(--text-dim) 78%, transparent); font-size: 10px; letter-spacing: .5px; }
+  .settings-nav-title { padding: 0 7px 9px; font-size: 10px; font-weight: 750; letter-spacing: 1.55px; color: var(--text-dim); }
+  .settings-nav-section { display: flex; flex-direction: column; gap: 0; }
+  .settings-nav-card {
+    overflow: hidden; border: 1px solid color-mix(in srgb, var(--border) 72%, transparent); border-radius: 26px;
+    background: color-mix(in srgb, var(--bg-panel) 76%, transparent);
+    box-shadow: inset 0 1px rgba(255,255,255,.72), 0 18px 52px rgba(55,45,70,.065);
+    backdrop-filter: blur(22px) saturate(1.08); -webkit-backdrop-filter: blur(22px) saturate(1.08);
+  }
   .settings-nav button {
-    width: 100%; min-height: 58px; border: 1px solid var(--border); border-bottom: none; border-radius: 0; padding: 0 16px;
-    background: var(--bg-soft); color: var(--text); cursor: pointer;
-    font-family: inherit; font-size: 15px; font-weight: 500; line-height: 1;
+    width: 100%; min-height: 78px; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent); border-radius: 0; padding: 12px 18px;
+    background: transparent; color: var(--text); cursor: pointer;
+    font-family: inherit; font-size: 15px; font-weight: 500; line-height: 1.25;
     display: flex; align-items: center; gap: 10px; text-align: left;
   }
-  .settings-nav button:first-of-type { border-radius: 16px 16px 0 0; }
-  .settings-nav button:last-of-type { border-bottom: 1px solid var(--border); border-radius: 0 0 16px 16px; }
-  .settings-nav button:hover, .settings-nav button:active { background: var(--item-active); }
-  .settings-nav button.active { background: var(--bg-soft); }
-  .settings-nav button span:first-child { width: 24px; text-align: center; font-size: 18px; }
+  .settings-nav-card button:last-child { border-bottom: 0; }
+  .settings-nav button:hover, .settings-nav button:active { background: color-mix(in srgb, var(--item-active) 72%, transparent); }
+  .settings-nav button.active { background: transparent; }
+  .settings-item-icon {
+    width: 39px !important; height: 39px; flex: 0 0 39px; border-radius: 13px; display: grid; place-items: center;
+    text-align: center; font-size: 17px; background: color-mix(in srgb, var(--accent) 12%, var(--bg-panel));
+    border: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
+  }
+  .settings-item-copy { flex: 1; min-width: 0; }
+  .settings-item-copy strong, .settings-item-copy em { display: block; font-style: normal; }
+  .settings-item-copy strong { font-size: 15px; font-weight: 620; }
+  .settings-item-copy em { margin-top: 5px; color: var(--text-dim); font-size: 10.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .settings-item-status { max-width: 106px; color: var(--text-dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .settings-chevron { margin-left: auto; width: auto !important; color: var(--text-dim); font-size: 22px !important; font-weight: 300; }
+  .settings-home-foot { padding: 20px 12px 7px; color: color-mix(in srgb, var(--text-dim) 62%, transparent); text-align: center; font: italic 11px/1.55 Georgia, "Songti SC", serif; }
   .settings-inner {
     min-width: 0; height: 100%; overflow-y: auto; padding: 24px clamp(16px, 4vw, 42px);
     padding-bottom: calc(24px + env(safe-area-inset-bottom));
@@ -602,6 +649,14 @@
   .text-opacity-control input[type="range"] { min-width: 0; width: 100%; padding: 0; }
   .text-opacity-control span { width: 37px; color: var(--text-dim); font-size: 11px; text-align: right; }
   @media (max-width: 520px) {
+    .settings.settings-home .settings-nav { padding-inline: 16px; padding-top: calc(62px + env(safe-area-inset-top)); gap: 15px; }
+    .settings-profile-avatar { width: 92px; height: 92px; border-width: 8px; margin-bottom: 15px; }
+    .settings-profile-hero h2 { font-size: 29px; }
+    .settings-profile-meta { margin-top: 7px; font-size: 11px; }
+    .settings-nav-card { border-radius: 22px; }
+    .settings-nav button { min-height: 72px; padding: 10px 15px; }
+    .settings-item-icon { width: 36px !important; height: 36px; flex-basis: 36px; }
+    .settings-item-status { max-width: 72px; }
     .text-color-row { grid-template-columns: 52px 36px minmax(0, 1fr); }
     .text-opacity-control { grid-column: 1 / -1; }
   }
@@ -1833,15 +1888,31 @@
       </div>
       <div class="settings-shell" id="settings-shell">
         <nav class="settings-nav" id="settings-nav" aria-label="设置分类">
-          <div class="settings-nav-title">应用设置</div>
-          <button data-settings-tab="account"><span>☁</span>账号与同步<span class="settings-chevron">›</span></button>
-          <button data-settings-tab="role"><span>◎</span>角色与关系<span class="settings-chevron">›</span></button>
-          <button data-settings-tab="services"><span>⌘</span>模型与服务<span class="settings-chevron">›</span></button>
-          <button data-settings-tab="billing"><span>＄</span>用量与账单<span class="settings-chevron">›</span></button>
-          <button data-settings-tab="memory"><span>◇</span>记忆<span class="settings-chevron">›</span></button>
-          <button data-settings-tab="media"><span>◖</span>语音与媒体<span class="settings-chevron">›</span></button>
-          <button data-settings-tab="appearance"><span>✦</span>外观与聊天<span class="settings-chevron">›</span></button>
-          <button data-settings-tab="data"><span>▣</span>数据与隐私<span class="settings-chevron">›</span></button>
+          <section class="settings-profile-hero" aria-labelledby="settings-home-role-name">
+            <div class="settings-profile-avatar" id="settings-home-avatar">角</div>
+            <h2 id="settings-home-role-name">当前角色</h2>
+            <p class="settings-profile-meta" id="settings-home-meta">属于你们的设置空间</p>
+            <small class="settings-profile-note">把你们的家，调成最舒服的样子。</small>
+          </section>
+          <section class="settings-nav-section" aria-labelledby="settings-space-title">
+            <div class="settings-nav-title" id="settings-space-title">你们的空间</div>
+            <div class="settings-nav-card">
+              <button data-settings-tab="role"><span class="settings-item-icon">◎</span><span class="settings-item-copy"><strong>角色与关系</strong><em>称呼、头像与陪伴方式</em></span><span class="settings-item-status" id="settings-status-role"></span><span class="settings-chevron">›</span></button>
+              <button data-settings-tab="appearance"><span class="settings-item-icon">✦</span><span class="settings-item-copy"><strong>外观与聊天</strong><em>主题、背景、字体与消息布局</em></span><span class="settings-item-status" id="settings-status-appearance"></span><span class="settings-chevron">›</span></button>
+              <button data-settings-tab="media"><span class="settings-item-icon">◖</span><span class="settings-item-copy"><strong>语音与媒体</strong><em>朗读、音色与媒体能力</em></span><span class="settings-item-status" id="settings-status-media"></span><span class="settings-chevron">›</span></button>
+              <button data-settings-tab="memory"><span class="settings-item-icon">◇</span><span class="settings-item-copy"><strong>记忆</strong><em>长期记忆与跨窗口回忆</em></span><span class="settings-item-status" id="settings-status-memory"></span><span class="settings-chevron">›</span></button>
+            </div>
+          </section>
+          <section class="settings-nav-section" aria-labelledby="settings-app-title">
+            <div class="settings-nav-title" id="settings-app-title">应用与数据</div>
+            <div class="settings-nav-card">
+              <button data-settings-tab="services"><span class="settings-item-icon">⌘</span><span class="settings-item-copy"><strong>模型与服务</strong><em>聊天渠道、联网与画图能力</em></span><span class="settings-item-status" id="settings-status-services"></span><span class="settings-chevron">›</span></button>
+              <button data-settings-tab="account"><span class="settings-item-icon">☁</span><span class="settings-item-copy"><strong>账号与同步</strong><em>登录、多设备同步与本地状态</em></span><span class="settings-item-status" id="settings-status-account"></span><span class="settings-chevron">›</span></button>
+              <button data-settings-tab="billing"><span class="settings-item-icon">＄</span><span class="settings-item-copy"><strong>用量与账单</strong><em>token、调用次数与花费记录</em></span><span class="settings-item-status" id="settings-status-billing"></span><span class="settings-chevron">›</span></button>
+              <button data-settings-tab="data"><span class="settings-item-icon">▣</span><span class="settings-item-copy"><strong>数据与隐私</strong><em>备份、恢复、更新与隐私锁</em></span><span class="settings-item-status" id="settings-status-data"></span><span class="settings-chevron">›</span></button>
+            </div>
+          </section>
+          <div class="settings-home-foot">这个家，是你们一条消息一条消息搭起来的。</div>
         </nav>
         <div class="settings-inner">
           <div class="settings-page-intro" id="settings-page-intro"></div>
@@ -9917,6 +9988,44 @@ const SETTINGS_PAGES = {
   data: { title: "数据与隐私", desc: "备份、恢复、更新以及隐私锁。" },
 };
 
+function settingsCompanionSince() {
+  const times = [];
+  (conversations || []).forEach(conv => {
+    if (Number(conv?.createdAt)) times.push(Number(conv.createdAt));
+    (conv?.messages || []).forEach(message => {
+      const value = Number(message?.createdAt || message?.ts || 0);
+      if (value) times.push(value);
+    });
+  });
+  const started = times.length ? Math.min(...times) : 0;
+  if (!started) return "属于你们的设置空间";
+  const date = new Date(started);
+  return `since ${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`;
+}
+
+function renderSettingsHome() {
+  const role = activeRole();
+  const roleName = role?.name || settings.aiName || "当前角色";
+  const avatar = role?.aiAvatar || settings.aiAvatar || [...roleName][0] || "角";
+  setPreview("settings-home-avatar", avatar, [...roleName][0] || "角");
+  $("settings-home-role-name").textContent = roleName;
+  $("settings-home-meta").textContent = `和 ${settings.userName || "你"} · ${settingsCompanionSince()}`;
+
+  const provider = activeProvider();
+  const memoryCount = Array.isArray(role?.memEntries) ? role.memEntries.length : 0;
+  let usageCount = 0;
+  try { usageCount = JSON.parse(localStorage.getItem("jyc_usage") || "[]").length; } catch (_) {}
+  const set = (id, value) => { const el = $(id); if (el) el.textContent = value || ""; };
+  set("settings-status-role", `${(settings.roles || []).length} 个角色`);
+  set("settings-status-appearance", currentTheme()?.name || "跟随主题");
+  set("settings-status-media", settings.ttsEnabled ? "朗读已开启" : "按需开启");
+  set("settings-status-memory", memoryCount ? `${memoryCount} 条` : "等待积累");
+  set("settings-status-services", provider?.model || settings.model || "待配置");
+  set("settings-status-account", $("auth-status")?.textContent?.includes("已登录") ? "已同步" : "本地保存");
+  set("settings-status-billing", usageCount ? `${usageCount} 次` : "本地统计");
+  set("settings-status-data", settings.lockEnabled ? "隐私锁已开" : "可备份");
+}
+
 function settingsGroupFor(title) {
   if (title.includes("账号")) return "account";
   if (title.includes("角色档案")) return "role";
@@ -9931,6 +10040,7 @@ function settingsGroupFor(title) {
 function showSettingsTab(tab, remember = true) {
   const page = SETTINGS_PAGES[tab] || SETTINGS_PAGES.role;
   const inner = document.querySelector("#settings-panel .settings-inner");
+  $("settings-panel").classList.remove("settings-home");
   $("settings-shell").classList.add("subpage");
   $("settings-title").textContent = page.title;
   $("settings-back").style.display = "grid";
@@ -9949,10 +10059,12 @@ function showSettingsTab(tab, remember = true) {
 function showSettingsHome() {
   const shell = $("settings-shell");
   if (!shell) return;
+  $("settings-panel").classList.add("settings-home");
   shell.classList.remove("subpage");
   $("settings-title").textContent = "设置";
   $("settings-back").style.display = "none";
   document.querySelectorAll("#settings-nav [data-settings-tab]").forEach(btn => btn.classList.remove("active"));
+  renderSettingsHome();
 }
 
 function setupSettingsNavigation() {
