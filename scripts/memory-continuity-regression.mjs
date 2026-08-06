@@ -23,7 +23,11 @@ requireText('m._compactedBy || m._summary', 'summary cards are still eligible fo
 requireText('const boundedMemory = buildBoundedMemoryContext(historyWindow);', 'bounded layered memory context is not injected')
 requireText('const recentState = buildRecentStateContext(historyWindow);', 'recent daily state is not injected into bounded memory')
 requireText('【角色身份连续性】你始终是当前系统设定中的「', 'role identity continuity guard is missing')
-requireText('await maybeUpgradeRollingSummary(currentConv());', 'legacy compressed windows are not upgraded before reply')
+if (html.includes('await maybeUpgradeRollingSummary(currentConv());')) {
+  throw new Error('legacy summary rebuild still spends a separate model call during send')
+}
+requireText('naturally become v3 the next time normal rolling compaction is actually due',
+  'lazy legacy-summary upgrade policy is undocumented')
 requireText('const archived = messages.filter(m => isChatContentMessage(m) && m._compactedBy);', 'archived raw turns are absent from topical recall')
 requireText('const COMPACT_TRANSCRIPT_BYTE_BUDGET = 24000;', 'UTF-8 compaction budget is missing')
 requireText('const COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET = 12000;', 'safe retry budget is missing')
@@ -238,8 +242,8 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v145";')) {
-  throw new Error('service worker cache was not bumped for memory continuity v3')
+if (!sw.includes('const CACHE = "role-chat-cache-v146";')) {
+  throw new Error('service worker cache was not bumped for lazy summary upgrade')
 }
 
-console.log('memory continuity regression: 46 checks passed')
+console.log('memory continuity regression: 47 checks passed')
