@@ -29,7 +29,7 @@ ok(html.includes("workbenchRunSession.logs.push"), "console output is not collec
 ok(html.includes("attempt < 3"), "automatic repair is not capped at three rounds");
 ok(html.includes("不要否认这项能力"), "the role is not told that its workbench exists");
 ok(html.includes("workbenchPromptSource(session.project)"), "the role cannot inspect the current project source");
-ok(sw.includes('const CACHE = "role-chat-cache-v142";'), "service worker cache was not bumped to v142");
+ok(sw.includes('const CACHE = "role-chat-cache-v143";'), "service worker cache was not bumped to v143");
 
 const mainScript = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
   .map(match => match[1]).find(code => code.includes("WORKBENCH_DB_KEY"));
