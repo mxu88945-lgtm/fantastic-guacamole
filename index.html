@@ -4346,9 +4346,10 @@ function legacySummaryRebuildTranscript(summary, archived, byteBudget = COMPACT_
     + "\n\n【当时被折叠的对话原文·以原文为准】\n";
   return buildCompactionTranscript(prefix, archived, byteBudget);
 }
-// Existing v1 summaries were short assistant-shaped meeting notes. Upgrade each
-// affected conversation once from its still-preserved local raw turns before the
-// next reply, so old windows benefit from the new continuity model immediately.
+// Existing v1/v2 summaries can still be rebuilt from preserved raw turns, but
+// this helper must never run automatically on send: it is a separate model call
+// that competes with the user's reply quota. Old summaries remain compatible and
+// naturally become v3 the next time normal rolling compaction is actually due.
 async function maybeUpgradeRollingSummary(conv) {
   if (autoCompactInFlight || abortController || !memoryRuntimeConfig().apiKey) return false;
   conv = conv || currentConv();
@@ -8496,7 +8497,6 @@ async function send() {
   markSeen();
   if (silent) return;   // 旁白模式：只记录，不触发 AI 回复
   try {
-    await maybeUpgradeRollingSummary(currentConv());
     await generateReply();
   } catch (e) {
     console.error("[send→generateReply error]", e);
@@ -10908,7 +10908,6 @@ window.JYCReadingBridge = {
     touchConversation();
     markSeen();
     try {
-      await maybeUpgradeRollingSummary(currentConv());
       await generateReply();
       const answerMessages = messages.slice(assistantStart)
         .filter(message => message && message.role === "assistant" && !message._event);
