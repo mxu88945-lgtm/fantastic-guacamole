@@ -28,7 +28,7 @@ for (const tab of ["account", "role", "services", "billing", "memory", "media", 
   ok(html.includes(`${tab}: { title:`), `settings subpage ${tab} was removed`);
 }
 
-ok(sw.includes('const CACHE = "role-chat-cache-v144";'), "service worker cache was not bumped to v144");
+ok(sw.includes('const CACHE = "role-chat-cache-v145";'), "service worker cache was not bumped to v145");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "settings redesign introduced duplicate DOM ids");

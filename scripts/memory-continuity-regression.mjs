@@ -12,13 +12,17 @@ requireText('const AUTO_COMPACT_THRESHOLD = 180;', 'automatic compaction still t
 requireText('const AUTO_COMPACT_KEEP = 72;', 'recent verbatim retention was not doubled')
 requireText('AUTO_COMPACT_THRESHOLD - AUTO_COMPACT_KEEP', 'automatic compaction batch is not derived from both limits')
 requireText('最近 " + AUTO_COMPACT_KEEP + " 条保持原样', 'success notice can drift from the retention setting')
-requireText('const ROLLING_SUMMARY_VERSION = 2;', 'continuity summary version is missing')
+requireText('const ROLLING_SUMMARY_VERSION = 3;', 'continuity summary version is missing')
+requireText('const RECENT_STATE_LOOKBACK_MS = 36 * 60 * 60 * 1000;', 'recent working-memory window is missing')
+requireText('【近期生活状态与报备】', 'short-lived daily state is missing from the summary schema')
 requireText('【关系与当下情绪】', 'relationship/emotion layer is missing from the summary schema')
 requireText('【人物表达与互动锚点】', 'voice/interaction anchors are missing from the summary schema')
 requireText('【重要原话与专属称呼】', 'important quotes and names are missing from the summary schema')
 requireText('【未完事项与隐性张力】', 'unfinished tension layer is missing from the summary schema')
 requireText('m._compactedBy || m._summary', 'summary cards are still eligible for wire history')
 requireText('const boundedMemory = buildBoundedMemoryContext(historyWindow);', 'bounded layered memory context is not injected')
+requireText('const recentState = buildRecentStateContext(historyWindow);', 'recent daily state is not injected into bounded memory')
+requireText('【角色身份连续性】你始终是当前系统设定中的「', 'role identity continuity guard is missing')
 requireText('await maybeUpgradeRollingSummary(currentConv());', 'legacy compressed windows are not upgraded before reply')
 requireText('const archived = messages.filter(m => isChatContentMessage(m) && m._compactedBy);', 'archived raw turns are absent from topical recall')
 requireText('const COMPACT_TRANSCRIPT_BYTE_BUDGET = 24000;', 'UTF-8 compaction budget is missing')
@@ -35,8 +39,8 @@ const helperEnd = html.indexOf('async function compactMessageBatch(', helperStar
 if (helperStart < 0 || helperEnd < 0) throw new Error('rolling summary helper section not found')
 
 const context = {
-  ROLLING_SUMMARY_VERSION: 2,
-  ROLLING_SUMMARY_CHAR_LIMIT: 2000,
+  ROLLING_SUMMARY_VERSION: 3,
+  ROLLING_SUMMARY_CHAR_LIMIT: 2400,
   ROLLING_SUMMARY_MAX_TOKENS: 2200,
   COMPACT_TRANSCRIPT_BYTE_BUDGET: 24000,
   COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET: 12000,
@@ -48,6 +52,7 @@ const context = {
   memoryRuntimeConfig: () => ({ apiKey: 'test' }),
   completeOnce: async () => [
     '【事实与时间线】', '- 已从旧原文重建',
+    '【近期生活状态与报备】', '- 午餐已经吃过',
     '【关系与当下情绪】', '- 关系仍连续',
     '【人物表达与互动锚点】', '- 保留原有语气',
     '【重要原话与专属称呼】', '- 有',
@@ -109,7 +114,7 @@ if (archived.length !== 1 || archived[0].id !== 'raw-1') {
 }
 currentSummary._summaryVersion = 1
 const upgraded = await helpers.maybeUpgradeRollingSummary(conv)
-if (!upgraded || currentSummary._summaryVersion !== 2) {
+if (!upgraded || currentSummary._summaryVersion !== 3) {
   throw new Error('legacy summary was not upgraded from preserved raw turns')
 }
 if (!currentSummary.content.includes('【人物表达与互动锚点】')) {
@@ -233,8 +238,8 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v144";')) {
-  throw new Error('service worker cache was not bumped for memory continuity v2')
+if (!sw.includes('const CACHE = "role-chat-cache-v145";')) {
+  throw new Error('service worker cache was not bumped for memory continuity v3')
 }
 
-console.log('memory continuity regression: 43 checks passed')
+console.log('memory continuity regression: 46 checks passed')

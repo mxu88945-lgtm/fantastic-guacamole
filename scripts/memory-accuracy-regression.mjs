@@ -14,6 +14,8 @@ const has = (text, message) => ok(html.includes(text), message)
 has('const MEMORY_CONTEXT_CHAR_BUDGET = 6400;', 'shared memory budget is missing')
 has('const MEMORY_RECALL_COOLDOWN_TURNS = 4;', 'recall cooldown is missing')
 has('const MEMORY_RECALL_LEDGER_LIMIT = 120;', 'recall ledger is not bounded')
+has('const RECENT_STATE_LOOKBACK_MS = 36 * 60 * 60 * 1000;', 'recent state lookback is missing')
+has('const RECENT_STATE_CHAR_BUDGET = 1100;', 'recent state prompt budget is missing')
 has('const queryText = currentMemoryRecallQuery();', 'recall still uses assistant echo text')
 has('memory: boundedMemory.audit,', 'memory audit is absent from prompt diagnostics')
 has('sourceMessageIds: Array.isArray(provenance?.sourceMessageIds)', 'memory provenance is not stored')
@@ -45,22 +47,40 @@ const recallContext = {
   memTokens: text => new Set([...String(text || '').replace(/\s/g, '')]),
   memScore: (query, text) => [...query].filter(token => String(text).includes(token)).length,
   normalizedPromptFact: text => String(text || '').trim().toLowerCase(),
+  clipUnicodeChars: (text, max) => [...String(text || '')].slice(0, max).join(''),
   userRef: () => '惟惟',
 }
 vm.createContext(recallContext)
 vm.runInContext(
   `const MEMORY_RECALL_COOLDOWN_TURNS = 4;
    const MEMORY_RECALL_LEDGER_LIMIT = 120;
+   const RECENT_STATE_LOOKBACK_MS = 36 * 60 * 60 * 1000;
+   const RECENT_STATE_MAX_ITEMS = 8;
+   const RECENT_STATE_CHAR_BUDGET = 1100;
    ${html.slice(recallStart, recallEnd)}
    globalThis.recallHelpers = {
      currentMemoryRecallQuery, explicitMemoryRecallIntent,
      filterRecallCooldown, commitRecallKeys, retrieveOmittedCurrentChat,
+     recentStateCandidateText, buildRecentStateContext,
    };`,
   recallContext,
 )
 const recall = recallContext.recallHelpers
 ok(recall.currentMemoryRecallQuery() === '好呀', 'latest user message is not the sole recall query')
 ok(!recall.retrieveOmittedCurrentChat({ omitted: [] }).text, 'assistant self-echo triggered old recall')
+
+const lunch = { id: 'lunch', role: 'user', content: '中午吃了白饭、鱼肉、卤蛋、青菜和菇汤', ts: Date.now() - 3600000 }
+conv.messages.push(lunch)
+conv.messages.push({ id: 'lunch-follow-up', role: 'user', content: '那中午呢', ts: Date.now() })
+ok(recall.currentMemoryRecallQuery().includes('中午吃了白饭')
+  && recall.currentMemoryRecallQuery().includes('当前追问：那中午呢'),
+  'vague temporal follow-up did not inherit its previous subject')
+const recentState = recall.buildRecentStateContext({ messages: [{ id: 'lunch-follow-up' }] })
+ok(recentState.includes('白饭、鱼肉、卤蛋、青菜和菇汤'),
+  'omitted same-day meal was not bridged by recent working memory')
+ok(!recall.buildRecentStateContext({ messages: [lunch, { id: 'lunch-follow-up' }] }).includes('白饭'),
+  'recent working memory duplicated a meal already present in wire history')
+conv.messages.splice(-2)
 
 conv.messages.push({ id: 'u2', role: 'user', content: '你还记得茉莉花茶吗', ts: 4 })
 let result = recall.retrieveOmittedCurrentChat({ omitted: [] })
@@ -90,6 +110,7 @@ const budgetContext = {
     text: '【跨窗旧文】\n惟惟喜欢散步', keys: ['cross:1'], turn: 8,
     candidateCount: 1, selectedCount: 1, suppressedCount: 1,
   }),
+  buildRecentStateContext: () => '',
   rollingSummaryPrompt: () => '【连续性档案】\n惟惟喜欢茉莉花茶\n关系轻松亲密',
   buildMemoryForPrompt: () => '- 惟惟喜欢茉莉花茶\n- 惟惟长期养鹦鹉',
   privateDiaryPrompt: () => '【私人日记】\n我很在意她',
@@ -102,6 +123,7 @@ const budgetContext = {
 vm.createContext(budgetContext)
 vm.runInContext(
   `const MEMORY_CONTEXT_CHAR_BUDGET = 6400;
+   const RECENT_STATE_CHAR_BUDGET = 1100;
    ${html.slice(budgetStart, budgetEnd)}
    globalThis.budgetHelpers = { buildBoundedMemoryContext, clipMemoryContextBlock };`,
   budgetContext,
@@ -176,6 +198,6 @@ ok(versionContext.versionHelpers.validatedMemoryReplacementIds(
 ok(versionContext.versionHelpers.validatedMemoryReplacementIds(
   { text: '惟惟不喝咖啡', replaces: ['coffee'] }, oldFacts, '今天聊到咖啡',
 ).length === 0, 'implicit text incorrectly superseded a durable fact')
-ok(sw.includes('const CACHE = "role-chat-cache-v144";'), 'service worker cache was not bumped to v144')
+ok(sw.includes('const CACHE = "role-chat-cache-v145";'), 'service worker cache was not bumped to v145')
 
 console.log(`memory accuracy regression: ${checks} checks passed`)
