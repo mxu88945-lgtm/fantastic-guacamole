@@ -874,6 +874,53 @@
     border: 1px solid rgba(255,255,255,.66);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.82);
   }
+
+  /* 弥散柔光：奶油底上的粉、蓝、淡黄光晕，聊天表面是完整圆角的柔焦玻璃。
+     只按主题 key 生效，不借用樱雪的 liquid 标记，避免改动任何现有主题。 */
+  html[data-theme-key="diffuse"] header > #toggle-sidebar,
+  html[data-theme-key="diffuse"] .header-actions,
+  html[data-theme-key="diffuse"] .composer,
+  html[data-theme-key="diffuse"] .starter-card,
+  html[data-theme-key="diffuse"] .header-menu,
+  html[data-theme-key="diffuse"] #plus-menu,
+  html[data-theme-key="diffuse"] #msg-menu {
+    background: linear-gradient(145deg, rgba(255,255,255,.68), rgba(250,242,239,.48) 52%, rgba(231,237,248,.54));
+    border-color: rgba(255,255,255,.84);
+    -webkit-backdrop-filter: blur(22px) saturate(1.22);
+    backdrop-filter: blur(22px) saturate(1.22);
+    box-shadow:
+      0 14px 34px rgba(68,74,92,.12),
+      inset 0 1px 0 rgba(255,255,255,.96),
+      inset 1px 0 0 rgba(255,255,255,.48),
+      inset 0 -1px 0 rgba(142,151,176,.12);
+  }
+  html[data-theme-key="diffuse"] .msg.assistant .bubble,
+  html[data-theme-key="diffuse"] .msg.user .bubble {
+    border-radius: 23px;
+    padding: 12px 16px;
+    border: 1px solid rgba(255,255,255,.86);
+    -webkit-backdrop-filter: blur(22px) saturate(1.2);
+    backdrop-filter: blur(22px) saturate(1.2);
+    box-shadow:
+      0 13px 32px rgba(67,73,91,.12),
+      inset 0 1px 0 rgba(255,255,255,.97),
+      inset 1px 0 0 rgba(255,255,255,.5),
+      inset 0 -1px 0 rgba(136,146,171,.12);
+  }
+  html[data-theme-key="diffuse"] .msg.assistant .bubble {
+    background: linear-gradient(135deg, rgba(255,255,255,.72), rgba(247,241,238,.48) 52%, rgba(226,234,248,.58));
+  }
+  html[data-theme-key="diffuse"] .msg.user .bubble {
+    border-top-right-radius: 23px;
+    background: linear-gradient(135deg, rgba(255,251,247,.78), rgba(247,228,234,.58) 50%, rgba(224,233,249,.64));
+  }
+  html[data-theme-key="diffuse"] .model-quick,
+  html[data-theme-key="diffuse"] .attach-btn,
+  html[data-theme-key="diffuse"] .voice-input-btn {
+    background: rgba(255,255,255,.56);
+    border-color: rgba(255,255,255,.8);
+    box-shadow: 0 5px 14px rgba(68,74,92,.08), inset 0 1px 0 rgba(255,255,255,.92);
+  }
   html[data-liquid="1"] .sidebar {
     background: rgba(255,250,252,.52);
     -webkit-backdrop-filter: blur(22px) saturate(1.34);
@@ -888,6 +935,14 @@
   }
   html[data-theme-key="mistgreen"] .sidebar {
     background: linear-gradient(180deg, #edf2ed 0%, #dbe4dc 100%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  html[data-theme-key="diffuse"] .sidebar {
+    background:
+      radial-gradient(circle at 18% 12%, rgba(221,231,237,.82) 0%, transparent 38%),
+      radial-gradient(circle at 86% 28%, rgba(250,224,227,.78) 0%, transparent 40%),
+      linear-gradient(165deg, #f4f5ef 0%, #f7efed 54%, #e6ebf4 100%);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -9387,6 +9442,13 @@ const THEMES = [
     bg:"#fffafa", "bg-soft":"#fffafb", "bg-panel":"#fbeff4", border:"#edd8e1", text:"#111111",
     "text-dim":"#6f6268", accent:"#d66f96", "accent-soft":"#f6dce6", "assistant-bubble":"#fffafa",
     "code-bg":"#f9edf2", "err-bg":"#fdebed", "err-text":"#b33d58", "item-active":"#f7e5ec" } },
+  // 弥散柔光 — 多层粉、蓝与淡黄光斑在奶油底上自然交叠。
+  { key: "diffuse", name: "弥散柔光", dark: false, glass: true,
+    gradient: "radial-gradient(circle at 14% 14%,rgba(211,225,235,.94) 0%,rgba(211,225,235,0) 36%),radial-gradient(circle at 86% 18%,rgba(251,222,226,.92) 0%,rgba(251,222,226,0) 35%),radial-gradient(circle at 82% 82%,rgba(207,219,244,.92) 0%,rgba(207,219,244,0) 38%),radial-gradient(circle at 12% 88%,rgba(255,239,190,.82) 0%,rgba(255,239,190,0) 34%),linear-gradient(155deg,#f2f4ee 0%,#f8eeee 48%,#dce4f2 100%)",
+    vars: {
+    bg:"#f2f4ee", "bg-soft":"#f7f3ef", "bg-panel":"#ece9e4", border:"#dedbd7", text:"#111111",
+    "text-dim":"#69686b", accent:"#565b68", "accent-soft":"#eee4c4", "assistant-bubble":"#fbfaf7",
+    "code-bg":"#edf0f4", "err-bg":"#fbe9e9", "err-text":"#ad4250", "item-active":"#eee9df" } },
   // 墨黑金 — 真正的深黑画布，金色只保留为细节点缀。
   { key: "gold", name: "墨黑金", dark: true, vars: {
     bg:"#0e0e0f", "bg-soft":"#161617", "bg-panel":"#1d1d1f", border:"#343438", text:"#f2f2f2",

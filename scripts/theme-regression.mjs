@@ -64,6 +64,29 @@ ok(!html.slice(mistStart, mistEnd).includes('liquid: true'), 'liquid styling lea
 ok(html.includes('html[data-theme-key="mistgreen"] .sidebar {')
   && html.includes('background: linear-gradient(180deg, #edf2ed 0%, #dbe4dc 100%);'),
   'mist green drawer still lets chat content show through')
+
+const diffuseStart = html.indexOf('{ key: "diffuse", name: "弥散柔光"')
+const diffuseEnd = html.indexOf('// 墨黑金', diffuseStart)
+ok(diffuseStart >= 0 && diffuseEnd > diffuseStart, 'diffuse glow theme block was not found')
+const diffuse = html.slice(diffuseStart, diffuseEnd)
+ok(diffuse.includes('dark: false, glass: true'), 'diffuse glow theme lost its glass treatment')
+ok(diffuse.includes('radial-gradient(circle at 14% 14%')
+  && diffuse.includes('radial-gradient(circle at 86% 18%')
+  && diffuse.includes('radial-gradient(circle at 82% 82%')
+  && diffuse.includes('radial-gradient(circle at 12% 88%'),
+  'diffuse glow theme lost one or more corner light fields')
+ok(diffuse.includes('linear-gradient(155deg,#f2f4ee 0%,#f8eeee 48%,#dce4f2 100%)'),
+  'diffuse glow base gradient changed unexpectedly')
+ok(diffuse.includes('bg:"#f2f4ee"'), 'diffuse glow notch fallback no longer matches the gradient top')
+ok(html.includes('html[data-theme-key="diffuse"] .msg.assistant .bubble,')
+  && html.includes('backdrop-filter: blur(22px) saturate(1.2);'),
+  'diffuse glow chat bubbles lost their soft optical blur')
+ok(html.includes('html[data-theme-key="diffuse"] .msg.user .bubble {')
+  && html.includes('border-top-right-radius: 23px;'),
+  'diffuse glow user bubble regained a pointed chat tail')
+ok(html.includes('html[data-theme-key="diffuse"] .sidebar {')
+  && html.includes('linear-gradient(165deg, #f4f5ef 0%, #f7efed 54%, #e6ebf4 100%);'),
+  'diffuse glow drawer is no longer an opaque readable surface')
 ok(html.includes('.msg.assistant .bubble .chat-narration { font-style: normal; }'),
   'parenthesized narration is still forced into italics')
 ok(html.includes('.msg.assistant .bubble em {\n    font-style: italic;'),
@@ -85,6 +108,6 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v141";'), 'service worker cache was not bumped to v141')
+ok(sw.includes('const CACHE = "role-chat-cache-v142";'), 'service worker cache was not bumped to v142')
 
 console.log(`theme regression: ${checks} checks passed`)
