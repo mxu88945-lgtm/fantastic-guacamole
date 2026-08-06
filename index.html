@@ -3156,13 +3156,16 @@ const AUTO_COMPACT_KEEP = 72;           // keep twice as much recent verbatim vo
 const COMPACT_TRANSCRIPT_BYTE_BUDGET = 24000; // UTF-8 ceiling: enough continuity without a costly CJK transcript dump
 const COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET = 12000; // one shorter retry for strict JSON relays
 const AUTO_COMPACT_RETRY_COOLDOWN_MS = 5 * 60 * 1000; // failed maintenance must not bill again after every reply
-const ROLLING_SUMMARY_VERSION = 2;
-const ROLLING_SUMMARY_CHAR_LIMIT = 2000;
+const ROLLING_SUMMARY_VERSION = 3;
+const ROLLING_SUMMARY_CHAR_LIMIT = 2400;
 const ROLLING_SUMMARY_MAX_TOKENS = 2200;
 const AUTO_MEMORY_EVERY = 24;
 const MEMORY_CONTEXT_CHAR_BUDGET = 6400; // all derived memory layers share one ceiling
 const MEMORY_RECALL_COOLDOWN_TURNS = 4;  // avoid echoing the same old excerpt every reply
 const MEMORY_RECALL_LEDGER_LIMIT = 120;  // bounded, metadata-only per-conversation audit
+const RECENT_STATE_LOOKBACK_MS = 36 * 60 * 60 * 1000; // bridge daily facts that are too short-lived for durable memory
+const RECENT_STATE_MAX_ITEMS = 8;
+const RECENT_STATE_CHAR_BUDGET = 1100;
 let autoCompactInFlight = false;
 const autoCompactRetryAfter = new Map(); // runtime-only; never changes or migrates stored conversations
 
@@ -4236,14 +4239,16 @@ function rollingSummaryPrompt(list) {
 }
 function rollingSummarySystemPrompt() {
   return "你是亲密关系与角色对话的连续性档案整理器。目标不是写会议纪要，而是让后续对话仍像同一个人、同一段关系自然延续。"
-    + "请把已有档案与本批原文重新整理成一份完整的累计档案，不是只补充本批内容。输出必须严格使用以下五段：\n"
+    + "请把已有档案与本批原文重新整理成一份完整的累计档案，不是只补充本批内容。输出必须严格使用以下六段：\n"
     + "【事实与时间线】按先后保留已发生事件、地点、人物、约定和结果。\n"
+    + "【近期生活状态与报备】按原文时间保留临近档案边界的吃喝、身体状态、正在做的事和短期安排；区分『已经发生』与『准备去做』，不要把生活细节擅自升级为长期偏好。\n"
     + "【关系与当下情绪】分别写双方此刻的关系位置、明确情绪、尚未消化的感受；主观感受不得冒充客观事实。\n"
-    + "【人物表达与互动锚点】保留当前角色具体的说话节奏、称呼、反应方式、两人惯用互动，以及 ta 明确喜欢或排斥的回应方式；不要只写空泛性格词。\n"
+    + "【人物表达与互动锚点】保留当前角色已经表现出的说话节奏、称呼、立场、反应方式、两人惯用互动，以及 ta 明确喜欢或排斥的回应方式；角色系统设定始终优先，档案不得把角色改写成客服、旁观者或另一个人格。\n"
     + "【重要原话与专属称呼】只保留真正影响关系或后续理解的短原话、暗号和称呼，并标明是谁说的。\n"
     + "【未完事项与隐性张力】保留正在进行的事、承诺、悬念、误会、没说透的话和下一轮应自然承接的点。\n"
     + "规则：只写原文能支持的内容，不编造；新信息明确推翻旧信息时保留新版；不要道德评价、不要分析模型机制、不要写通用建议。"
-    + "优先保留会改变下一轮语气和判断的细节。中文分点，控制在 1200～1800 字内。";
+    + "近期生活报备即使不值得长期收藏，只要后续一两天仍可能被追问，也要留在对应段落。"
+    + "优先保留会改变下一轮语气和判断的细节。中文分点，控制在 1400～2100 字内。";
 }
 // JS string slicing can leave half of an emoji (a lone UTF-16 surrogate).
 // JSON.stringify then emits an escape some strict OpenAI-compatible relays reject.
@@ -5886,9 +5891,23 @@ function buildApiHistoryWindow() {
 }
 
 function currentMemoryRecallQuery() {
-  const latest = [...messages].reverse().find(m =>
+  const userTurns = messages.filter(m =>
     m && m.role === "user" && !m._event && !m._summary && messageText(m).trim());
-  return latest ? messageText(latest).slice(0, 1600) : "";
+  const latest = userTurns[userTurns.length - 1];
+  if (!latest) return "";
+  const latestText = messageText(latest).trim();
+  // A natural follow-up such as “那中午呢” carries its subject in the previous
+  // user turn. Preserve that tiny bit of discourse context for exact recall,
+  // while keeping ordinary short acknowledgements (for example “好呀”) alone.
+  const vagueFollowUp = latestText.length <= 28
+    && (/(?:^那|^那么|^然后|^还有|^所以|这个|那个|它)/.test(latestText)
+      || /^(?:今天|今早|早上|上午|中午|午饭|午餐|下午|晚上|今晚|晚饭|晚餐|昨天|昨晚|后来)(?:呢|吗|呀|啊|怎么|什么)$/.test(latestText))
+    && /(?:呢|吗|呀|啊|怎么|什么|多少|记得|后来|然后)/.test(latestText);
+  const previous = vagueFollowUp ? userTurns[userTurns.length - 2] : null;
+  const combined = previous
+    ? messageText(previous).trim().slice(-700) + "\n当前追问：" + latestText
+    : latestText;
+  return combined.slice(0, 1600);
 }
 function explicitMemoryRecallIntent(text) {
   const value = String(text || "");
@@ -6016,6 +6035,48 @@ function retrieveOmittedCurrentChat(windowInfo) {
     selectedCount: selected.length,
     suppressedCount: cooldown.suppressed.length,
   };
+}
+
+// Short-lived working memory for ordinary life reports. These facts are often
+// omitted by the bounded wire history but are deliberately excluded from the
+// durable memory library ("what I ate today" should not live there forever).
+// Derive the layer from preserved raw user turns, so it adds no duplicate data,
+// needs no migration, and remains isolated to the active conversation/role.
+function recentStateCandidateText(message) {
+  if (!message || message.role !== "user" || message._event || message._summary) return "";
+  const text = messageText(message).replace(/\s+/g, " ").trim();
+  if (!text || text === "（无回复）") return "";
+  if (/^[（(]/.test(text)
+      && /(?:亲|吻|抱|跨坐|咬|腰|胯|小穴|肉棒|柱身|高潮)/.test(text)) return "";
+  const meal = /(?:早餐|早饭|午餐|午饭|晚餐|晚饭|宵夜|吃(?:了|完|过|的是)|喝(?:了|完|过|的是)|刚(?:刚|才)?吃|刚(?:刚|才)?喝|豆浆|鸡蛋|米饭|白饭|鱼肉|卤蛋|青菜|菇汤|水果|铁片)/;
+  const activity = /(?:刚刚?|刚才|今天|今早|上午|中午|下午|傍晚|今晚|昨晚|等会|待会|一会儿?|准备|正在|明天).{0,28}(?:洗澡|洗漱|睡觉|午休|拖地|做饭|煮水|换尿垫|喂|出门|回家|工作|运动|吃|喝|买|去)/;
+  const health = /(?:头疼|偏头痛|肚子疼|经期|痛经|腰酸|不舒服|一身汗|出汗|热死|发烧|吃药|困了|很困|累了|很累)/;
+  if (!meal.test(text) && !activity.test(text) && !health.test(text)) return "";
+  return clipUnicodeChars(text, 220);
+}
+function buildRecentStateContext(windowInfo) {
+  const sentIds = new Set((windowInfo?.messages || []).map(message => message?.id).filter(Boolean));
+  const now = Date.now();
+  const seen = new Set(), rows = [];
+  let usedChars = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (!message || sentIds.has(message.id)) continue;
+    if (message.ts && now - message.ts > RECENT_STATE_LOOKBACK_MS) continue;
+    const text = recentStateCandidateText(message);
+    const key = normalizedPromptFact(text);
+    if (!text || seen.has(key)) continue;
+    const row = (message.ts ? "[" + formatRecallTime(message.ts) + "] " : "")
+      + userRef() + "：" + text;
+    const nextChars = row.length + (rows.length ? 1 : 0);
+    if (rows.length && usedChars + nextChars > RECENT_STATE_CHAR_BUDGET) continue;
+    rows.push(row); seen.add(key); usedChars += nextChars;
+    if (rows.length >= RECENT_STATE_MAX_ITEMS) break;
+  }
+  if (!rows.length) return "";
+  rows.reverse();
+  return "【当前窗口近况·最近36小时的用户原话】\n" + rows.join("\n")
+    + "\n只在相关话题中自然承接，不要每轮逐条复述；『准备/等会』是计划，不能当作已经完成。";
 }
 // Build the wire-format message list, coalescing consecutive same-role turns.
 // (Multi-bubble replies store several assistant messages; APIs — esp. Anthropic —
@@ -6293,6 +6354,11 @@ async function streamChat(onDelta, onReasoning) {
   };
 
   let systemText = settings.systemPrompt || "";
+  const roleContinuityNote = "【角色身份连续性】你始终是当前系统设定中的「"
+    + ((settings.aiName || "当前角色").trim() || "当前角色")
+    + "」。角色设定是身份、性格、关系立场和行为边界的最高依据；连续性档案、记忆与旧文只补充事实，不能把你改写成客服、旁观者或另一个人格。"
+    + "具体事实不确定时先按需搜索旧聊天，不要用猜测补洞，也不要因暂时看不到一段原文就否认已经建立的关系。";
+  systemText = systemText ? systemText + "\n\n" + roleContinuityNote : roleContinuityNote;
   const emojiNote = emojiStyleNote(settings.emojiStyle);
   if (emojiNote) systemText = systemText ? systemText + "\n\n" + emojiNote : emojiNote;
   const styleNote = chatStyleNote();
@@ -6954,6 +7020,7 @@ function clipMemoryContextBlock(text, maxChars) {
 function buildBoundedMemoryContext(historyWindow) {
   const currentRecall = retrieveOmittedCurrentChat(historyWindow);
   const crossRecall = retrieveCrossChat();
+  const recentState = buildRecentStateContext(historyWindow);
   const continuity = rollingSummaryPrompt(messages);
   const profile = settings.memSummary?.trim()
     ? "【跨窗口稳定人物速写】\n" + settings.memSummary.trim()
@@ -6969,13 +7036,14 @@ function buildBoundedMemoryContext(historyWindow) {
   // Priority controls what survives the shared budget. Order keeps stable blocks
   // before dynamic exact recall so provider prompt caching remains effective.
   const blocks = [
-    { key: "currentExact", label: "本窗旧文", priority: 1, order: 90, cap: 800, recall: currentRecall, text: currentRecall.text },
-    { key: "crossExact", label: "跨窗旧文", priority: 2, order: 91, cap: 800, recall: crossRecall, text: crossRecall.text },
-    { key: "continuity", label: "连续性档案", priority: 3, order: 10, cap: 2100, text: continuity },
-    { key: "profile", label: "人物速写", priority: 4, order: 20, cap: 600, text: profile },
-    { key: "facts", label: "长期事实", priority: 5, order: 30, cap: 1700, text: facts },
-    { key: "diary", label: "私人日记", priority: 6, order: 40, cap: 850, text: diary },
-    { key: "notion", label: "Notion档案", priority: 7, order: 50, cap: 650, text: notion },
+    { key: "recentState", label: "近期生活状态", priority: 1, order: 80, cap: RECENT_STATE_CHAR_BUDGET, text: recentState },
+    { key: "currentExact", label: "本窗旧文", priority: 2, order: 90, cap: 800, recall: currentRecall, text: currentRecall.text },
+    { key: "crossExact", label: "跨窗旧文", priority: 3, order: 91, cap: 800, recall: crossRecall, text: crossRecall.text },
+    { key: "continuity", label: "连续性档案", priority: 4, order: 10, cap: 2100, text: continuity },
+    { key: "profile", label: "人物速写", priority: 5, order: 20, cap: 600, text: profile },
+    { key: "facts", label: "长期事实", priority: 6, order: 30, cap: 1700, text: facts },
+    { key: "diary", label: "私人日记", priority: 7, order: 40, cap: 850, text: diary },
+    { key: "notion", label: "Notion档案", priority: 8, order: 50, cap: 650, text: notion },
   ];
   const seenFacts = [], selected = [], auditBlocks = [];
   let used = 0, duplicateLines = 0;

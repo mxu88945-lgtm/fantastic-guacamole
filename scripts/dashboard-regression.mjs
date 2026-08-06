@@ -36,7 +36,7 @@ ok(css.includes("@media (max-width: 600px)"), "mobile dashboard layout is missin
 ok(js.includes('window.addEventListener("jyc:role-changed"'), "dashboard does not react to role changes");
 ok(js.includes('window.JYCAlbum?.summary?.(data.roleId)'), "dashboard album summary is not role-isolated");
 ok(album.includes("function summary(targetRoleId)"), "album summary API is missing");
-ok(sw.includes('const CACHE = "role-chat-cache-v144";'), "service worker cache was not bumped to v144");
+ok(sw.includes('const CACHE = "role-chat-cache-v145";'), "service worker cache was not bumped to v145");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "dashboard change introduced duplicate DOM ids");
