@@ -359,6 +359,19 @@
   .memory-api-grid .field { padding:0; }
   .memory-api-badge { display:inline-flex; align-items:center; gap:6px; color:var(--text-dim); font-size:11px; }
   .memory-api-badge::before { content:""; width:7px; height:7px; border-radius:50%; background:#56c596; }
+  .memory-inspection-summary { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-top:10px; }
+  .memory-inspection-summary strong { display:block; font-size:13px; }
+  .memory-inspection-summary span { display:block; margin-top:3px; color:var(--text-dim); font-size:10.5px; line-height:1.45; }
+  .memory-inspection-list { display:grid; gap:7px; margin-top:10px; }
+  .memory-inspection-lane { border:1px solid var(--border); border-radius:11px; background:var(--bg-panel); overflow:hidden; }
+  .memory-inspection-lane summary { display:flex; align-items:center; gap:8px; padding:9px 10px; cursor:pointer; list-style:none; }
+  .memory-inspection-lane summary::-webkit-details-marker { display:none; }
+  .memory-inspection-lane b { min-width:0; flex:1; font-size:11.5px; }
+  .memory-inspection-lane em { color:var(--text-dim); font-size:9.5px; font-style:normal; white-space:nowrap; }
+  .memory-inspection-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; background:var(--text-dim); opacity:.45; }
+  .memory-inspection-lane.included .memory-inspection-dot { background:#56c596; opacity:1; }
+  .memory-inspection-preview { margin:0; padding:0 10px 10px 25px; color:var(--text-dim); font-size:10px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .mem-meta { padding:2px 5px; border-radius:999px; background:var(--bg-soft); color:var(--text-dim); font-size:8.5px; white-space:nowrap; }
   @media (max-width: 560px) { .memory-api-grid { grid-template-columns:1fr; } }
   .card-fold { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; padding:2px 6px; flex-shrink:0; line-height:1; }
   .card-fold:hover { color:var(--text); }
@@ -2388,6 +2401,15 @@
 
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-weight:600;">🧭 本轮记忆检查</span>
+            <button class="mini-btn" type="button" id="memory-inspection-refresh">刷新</button>
+          </label>
+          <span class="hint" style="display:block;margin-top:6px;">只展示应用实际组装给模型的记忆来源，不展示模型私有思考。绿色表示本轮已注入。</span>
+          <div id="memory-inspection-view"></div>
+        </div>
+
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <span style="font-weight:600;">✨ 记忆摘要 <span class="hint" style="font-weight:400;">· 关于你的人物速写（每次都带）</span></span>
             <span style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
               <button class="mini-btn primary" id="mem-sum-gen" style="padding:5px 10px;">让 TA 总结</button>
@@ -3144,6 +3166,7 @@ const TEXT_FILE_MAX_BYTES = 1024 * 1024; // 1MB; larger prompt payloads are unre
 let lastCallUsage = null; // usage of the most recent streamChat call (for token label)
 let lastCallTiming = null;// timing of the most recent streamChat call (channel diagnostics)
 let lastPromptAudit = null;// estimated prompt composition of the latest request
+let lastMemoryInspection = null;// ephemeral, user-visible receipt for the latest memory assembly
 let stickBottom = true;   // whether streaming should keep auto-scrolling to bottom
 let bottomPinUntil = 0;   // keep iOS viewport/composer reflows pinned briefly after send
 let scrollControlsAwake = false, scrollControlsHideTimer = null;
@@ -6793,7 +6816,47 @@ function memoryRequestParseError(detail) {
 
 // Ask the model to extract durable facts from the recent chat and merge into memory.
 // ============ 可搜索记忆库（核心记忆永远带 + 普通条目按关键词按需取用，省 token） ============
-// settings.memEntries = [{id, text, core}]. Migrates the legacy settings.memory text on first use.
+// settings.memEntries began as [{id, text, core}]. V2 enriches each row in place
+// with source authority and semantic kind. Old rows remain readable and are never
+// deleted; normalization only fills missing metadata.
+const MEMORY_ENTRY_SCHEMA_VERSION = 2;
+function inferMemoryKind(text) {
+  const value = String(text || "");
+  if (/(?:叫|名字|称呼|生日|年龄|住在|来自|身份)/.test(value)) return "identity";
+  if (/(?:关系|恋人|老公|老婆|伴侣|纪念日|约定|承诺|暗号)/.test(value)) return "relationship";
+  if (/(?:喜欢|偏好|讨厌|不喜欢|习惯|希望|不希望)/.test(value)) return "preference";
+  if (/(?:身体|经期|头疼|过敏|疾病|药|健康)/.test(value)) return "wellbeing";
+  if (/(?:项目|仓库|计划|正在|待办|下一步)/.test(value)) return "project";
+  if (/(?:曾经|以前|当时|发生|去过|经历)/.test(value)) return "history";
+  return "fact";
+}
+function defaultMemoryAuthority(source) {
+  if (source === "auto" || source === "event") return "model_derived";
+  if (source === "legacy") return "imported";
+  return "user_confirmed";
+}
+function normalizeMemoryEntry(entry) {
+  if (!entry || typeof entry !== "object") return entry;
+  if (!entry.id) entry.id = uid();
+  if (!entry.status) entry.status = "active";
+  if (!entry.recordedAt) entry.recordedAt = entry.updatedAt || Date.now();
+  if (!entry.updatedAt) entry.updatedAt = entry.recordedAt;
+  if (!entry.kind) entry.kind = inferMemoryKind(entry.text);
+  if (!entry.authority) entry.authority = defaultMemoryAuthority(entry.source);
+  if (!Number.isFinite(entry.confidence))
+    entry.confidence = entry.authority === "model_derived" ? 0.72 : 1;
+  if (entry.autoInject == null) entry.autoInject = true;
+  if (!entry.roleId) entry.roleId = activeRole()?.id || settings.activeRoleId || "";
+  entry.schemaVersion = MEMORY_ENTRY_SCHEMA_VERSION;
+  return entry;
+}
+function memoryKindLabel(kind) {
+  return ({ identity:"身份", relationship:"关系", preference:"偏好", wellbeing:"健康",
+    project:"项目", history:"经历", fact:"事实" })[kind] || "事实";
+}
+function memoryAuthorityLabel(authority) {
+  return authority === "model_derived" ? "TA 提炼" : authority === "imported" ? "旧库迁入" : "你确认";
+}
 function memList() {
   if (!Array.isArray(settings.memEntries)) {
     settings.memEntries = [];
@@ -6801,11 +6864,7 @@ function memList() {
       .forEach(t => settings.memEntries.push({ id: uid(), text: t, core: true,
         source: "legacy", status: "active", recordedAt: Date.now(), updatedAt: Date.now() })); // keep old memory always-on
   }
-  settings.memEntries.forEach(entry => {
-    if (!entry.id) entry.id = uid();
-    if (!entry.status) entry.status = "active";
-    if (!entry.recordedAt) entry.recordedAt = entry.updatedAt || Date.now();
-  });
+  settings.memEntries.forEach(normalizeMemoryEntry);
   return settings.memEntries;
 }
 function memoryEntryIsActive(entry) {
@@ -6887,27 +6946,48 @@ function coreMemoryText() {
 }
 // Build the memory block for the prompt: all core entries + the top non-core entries
 // whose keywords match the recent conversation. Falls back to legacy text if no entries.
-function buildMemoryForPrompt() {
+function rankedMemoryEntriesForPrompt() {
   const entries = activeMemoryEntries();
-  if (!entries.length) return memList().length ? "" : (settings.memory || "").trim().slice(0, 4800);
+  if (!entries.length) return [];
   const core = entries.filter(e => e.core);
   const rest = entries.filter(e => !e.core);
   let chosen = core.slice();
   if (rest.length) {
-    const recent = messages.slice(-4).map(m => messageText(m)).join("  ");
+    // User wording is the retrieval query. Assistant echoes must not cause a
+    // self-reinforcing memory hit.
+    const recent = messages.filter(m => m?.role === "user" && !m._event && !m._summary)
+      .slice(-3).map(m => messageText(m)).join("  ");
     const q = memTokens(recent);
-    const scored = rest.map(e => ({ e, s: memScore(q, e.text) })).filter(x => x.s > 0)
-      .sort((a, b) => b.s - a.s).slice(0, 6).map(x => x.e);
+    const scored = rest.map(e => ({ e, s: memScore(q, e.text),
+      authority: e.authority === "user_confirmed" ? 2 : e.authority === "imported" ? 1 : 0 }))
+      .filter(x => x.s > 0)
+      .sort((a, b) => b.s - a.s || b.authority - a.authority
+        || (b.e.updatedAt || b.e.recordedAt || 0) - (a.e.updatedAt || a.e.recordedAt || 0))
+      .slice(0, 6).map(x => x.e);
     chosen = chosen.concat(scored);
   }
   const summary = normalizedPromptFact(settings.memSummary || "");
   const notionLines = new Set(String(settings.notionCache || "").split(/\n+/).map(normalizedPromptFact).filter(Boolean));
-  const candidates = chosen.map(e => e.text).filter(text => {
-    const key = normalizedPromptFact(text);
+  return chosen.filter(entry => {
+    const key = normalizedPromptFact(entry.text);
     return !notionLines.has(key) && !(key.length >= 12 && summary.includes(key));
   });
+}
+function memoryPromptLane(authorities) {
+  const allowed = new Set(authorities);
+  const candidates = rankedMemoryEntriesForPrompt()
+    .filter(entry => allowed.has(entry.authority) && entry.autoInject !== false)
+    .map(entry => entry.text);
   const picked = takePromptItems(candidates, 18, 4800);
   return picked.items.map(t => "- " + t).join("\n");
+}
+function buildMemoryForPrompt() {
+  if (!activeMemoryEntries().length)
+    return memList().length ? "" : (settings.memory || "").trim().slice(0, 4800);
+  return memoryPromptLane(["user_confirmed", "imported"]);
+}
+function buildDerivedMemoryForPrompt() {
+  return memoryPromptLane(["model_derived"]);
 }
 // A full Notion archive may reach 9k characters and often repeats local memory.
 // Keep its opening context plus lines relevant to the current topic, deduplicated
@@ -7018,6 +7098,61 @@ function clipMemoryContextBlock(text, maxChars) {
   }
   return out.join("\n").trim();
 }
+function rememberMemoryInspection(auditBlocks, selectedBlocks, used, duplicateLines) {
+  const selectedByKey = new Map((selectedBlocks || []).map(block => [block.key, block.text]));
+  const payload = {
+    version: 1, createdAt: Date.now(),
+    roleId: typeof activeRole === "function" ? (activeRole()?.id || "") : "",
+    roleName: typeof settings !== "undefined" ? (settings.aiName || "当前角色") : "当前角色",
+    conversationId: typeof currentId === "string" ? currentId : "",
+    query: typeof currentMemoryRecallQuery === "function" ? currentMemoryRecallQuery().slice(0, 280) : "",
+    budget: MEMORY_CONTEXT_CHAR_BUDGET, used, duplicateLines,
+    blocks: (auditBlocks || []).map(block => ({
+      ...block,
+      preview: String(selectedByKey.get(block.key) || "").slice(0, 900),
+    })),
+  };
+  lastMemoryInspection = payload;
+  try { sessionStorage.setItem("jyc_memory_inspection_v1", JSON.stringify(payload)); } catch (_) {}
+  if (typeof $ === "function" && typeof renderMemoryInspection === "function") renderMemoryInspection();
+}
+function currentMemoryInspection() {
+  if (lastMemoryInspection) return lastMemoryInspection;
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem("jyc_memory_inspection_v1") || "null");
+    if (parsed && Array.isArray(parsed.blocks)) lastMemoryInspection = parsed;
+  } catch (_) {}
+  return lastMemoryInspection;
+}
+function memoryInspectionTime(timestamp) {
+  if (!timestamp) return "";
+  const d = new Date(timestamp);
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+function renderMemoryInspection() {
+  const box = $("memory-inspection-view"); if (!box) return;
+  const receipt = currentMemoryInspection();
+  if (!receipt) {
+    box.innerHTML = `<div class="hint" style="margin-top:10px;">还没有本轮记录。和当前角色说一句话后，这里会显示实际使用了哪些记忆。</div>`;
+    return;
+  }
+  const roleMismatch = receipt.roleId && activeRole()?.id && receipt.roleId !== activeRole().id;
+  const heading = roleMismatch ? `上一轮属于 ${escapeHtml(receipt.roleName || "其他角色")}`
+    : `${escapeHtml(receipt.roleName || settings.aiName || "当前角色")} · ${memoryInspectionTime(receipt.createdAt)}`;
+  const lanes = receipt.blocks.map(block => {
+    const recall = block.recallSelected ? ` · 命中 ${block.recallSelected}/${block.recallCandidates || block.recallSelected}` : "";
+    const cool = block.cooldownSuppressed ? ` · 冷却 ${block.cooldownSuppressed}` : "";
+    const preview = block.preview
+      ? `<p class="memory-inspection-preview">${escapeHtml(block.preview)}</p>`
+      : `<p class="memory-inspection-preview">本轮没有注入这一层。</p>`;
+    return `<details class="memory-inspection-lane${block.included ? " included" : ""}">
+      <summary><i class="memory-inspection-dot"></i><b>${escapeHtml(block.label)}</b><em>${block.included ? `${block.chars} 字` : "未注入"}${recall}${cool}</em></summary>${preview}
+    </details>`;
+  }).join("");
+  box.innerHTML = `<div class="memory-inspection-summary"><div><strong>${heading}</strong><span>记忆预算 ${receipt.used || 0}/${receipt.budget || MEMORY_CONTEXT_CHAR_BUDGET} 字${receipt.duplicateLines ? ` · 去重 ${receipt.duplicateLines} 行` : ""}</span></div></div>
+    ${receipt.query ? `<div class="hint" style="margin-top:8px;">本轮召回依据：${escapeHtml(receipt.query)}</div>` : ""}
+    <div class="memory-inspection-list">${lanes}</div>`;
+}
 function buildBoundedMemoryContext(historyWindow) {
   const currentRecall = retrieveOmittedCurrentChat(historyWindow);
   const crossRecall = retrieveCrossChat();
@@ -7029,7 +7164,12 @@ function buildBoundedMemoryContext(historyWindow) {
     : "";
   const memoryFacts = buildMemoryForPrompt();
   const facts = memoryFacts?.trim()
-    ? "【跨窗口稳定长期事实·关于「" + userRef() + "」】\n" + memoryFacts.trim() : "";
+    ? "【已确认的跨窗口长期事实·关于「" + userRef() + "」】\n" + memoryFacts.trim()
+      + "\n这些来自用户确认或旧库迁入；若与最新用户原话冲突，以最新原话为准。" : "";
+  const derivedMemory = typeof buildDerivedMemoryForPrompt === "function" ? buildDerivedMemoryForPrompt() : "";
+  const derived = derivedMemory?.trim()
+    ? "【角色先前提炼的记忆线索·未经用户逐条确认】\n" + derivedMemory.trim()
+      + "\n只能作为理解线索，不能覆盖用户原话、角色设定或已确认事实；有冲突时先求证。" : "";
   const diary = privateDiaryPrompt(activeRole(), true);
   const notionText = settings.notionEnabled ? buildNotionForPrompt(memoryFacts) : "";
   const notion = notionText
@@ -7042,9 +7182,10 @@ function buildBoundedMemoryContext(historyWindow) {
     { key: "crossExact", label: "跨窗旧文", priority: 3, order: 91, cap: 800, recall: crossRecall, text: crossRecall.text },
     { key: "continuity", label: "连续性档案", priority: 4, order: 10, cap: 2100, text: continuity },
     { key: "profile", label: "人物速写", priority: 5, order: 20, cap: 600, text: profile },
-    { key: "facts", label: "长期事实", priority: 6, order: 30, cap: 1700, text: facts },
-    { key: "diary", label: "私人日记", priority: 7, order: 40, cap: 850, text: diary },
-    { key: "notion", label: "Notion档案", priority: 8, order: 50, cap: 650, text: notion },
+    { key: "facts", label: "用户确认长期事实", priority: 6, order: 30, cap: 1550, text: facts },
+    { key: "derived", label: "角色提炼记忆线索", priority: 7, order: 35, cap: 700, text: derived },
+    { key: "diary", label: "私人日记", priority: 8, order: 40, cap: 850, text: diary },
+    { key: "notion", label: "Notion档案", priority: 9, order: 50, cap: 650, text: notion },
   ];
   const seenFacts = [], selected = [], auditBlocks = [];
   let used = 0, duplicateLines = 0;
@@ -7069,6 +7210,7 @@ function buildBoundedMemoryContext(historyWindow) {
     });
   }
   selected.sort((a, b) => a.order - b.order);
+  rememberMemoryInspection(auditBlocks, selected, Math.min(used, MEMORY_CONTEXT_CHAR_BUDGET), duplicateLines);
   return {
     text: selected.map(block => block.text).join("\n\n"),
     audit: {
@@ -7476,6 +7618,13 @@ function addMemEntry(text, core, source, provenance) {
   memList().push({
     id: uid(), text, core: !!core, source: source || "manual",
     status: "active", recordedAt: now, updatedAt: now,
+    schemaVersion: MEMORY_ENTRY_SCHEMA_VERSION,
+    kind: provenance?.kind || inferMemoryKind(text),
+    authority: provenance?.authority || defaultMemoryAuthority(source || "manual"),
+    confidence: Number.isFinite(provenance?.confidence) ? provenance.confidence
+      : (defaultMemoryAuthority(source || "manual") === "model_derived" ? 0.72 : 1),
+    autoInject: provenance?.autoInject !== false,
+    roleId: activeRole()?.id || settings.activeRoleId || "",
     sourceConvId: provenance?.sourceConvId || "",
     sourceMessageId: provenance?.sourceMessageId || "",
     sourceMessageIds: Array.isArray(provenance?.sourceMessageIds)
@@ -7492,7 +7641,12 @@ function toggleMemCore(id) {
 function editMemEntry(id) {
   const e = memList().find(x => x.id === id); if (!e) return;
   const v = prompt("编辑这条记忆：", e.text);
-  if (v != null && v.trim()) { e.text = v.trim(); saveSettings(); renderMemList(); }
+  if (v != null && v.trim()) {
+    e.text = v.trim(); e.kind = inferMemoryKind(e.text);
+    e.authority = "user_confirmed"; e.confidence = 1; e.updatedAt = Date.now();
+    e.source = "manual-edit"; e.schemaVersion = MEMORY_ENTRY_SCHEMA_VERSION;
+    saveSettings(); renderMemList();
+  }
 }
 function supersedeMemoryEntries(ids, replacementId) {
   const targets = new Set(ids || []);
@@ -7599,6 +7753,7 @@ function renderMemList() {
     <div class="mem-row${e.core && memoryEntryIsActive(e) ? " core" : ""}${memoryEntryIsActive(e) ? "" : " inactive"}">
       <button class="mem-star" title="${memoryEntryIsActive(e) ? (e.core ? "核心记忆（每次都带）" : "设为核心（每次都带）") : "历史版本，不再注入"}" onclick="toggleMemCore('${e.id}')">${e.core && memoryEntryIsActive(e) ? "⭐" : "☆"}</button>
       <span class="mem-text" onclick="editMemEntry('${e.id}')">${escapeHtml(e.text)}</span>
+      <span class="mem-meta">${memoryKindLabel(e.kind)} · ${memoryAuthorityLabel(e.authority)}</span>
       ${memoryEntryIsActive(e) ? "" : `<span class="mem-status">${e.status === "superseded" ? "旧版" : "已失效"}</span>`}
       <button class="mem-del" title="删除" onclick="delMemEntry('${e.id}')">✕</button>
     </div>`).join("") || `<div class="hint">${q ? "没搜到～" : "还没有记忆，下面加一条，或开启「自动记忆」。"}</div>`;
@@ -7718,6 +7873,9 @@ async function autoUpdateMemory() {
     const entry = {
       id: uid(), text: addition.text, core: replaced.some(old => old.core),
       source: "auto", status: "active", recordedAt: now, updatedAt: now,
+      schemaVersion: MEMORY_ENTRY_SCHEMA_VERSION,
+      kind: inferMemoryKind(addition.text), authority: "model_derived", confidence: 0.72,
+      autoInject: true, roleId: activeRole()?.id || settings.activeRoleId || "",
       sourceConvId: currentId || "", sourceMessageIds,
       supersedes: addition.replaces,
     };
@@ -10286,6 +10444,7 @@ function showSettingsTab(tab, remember = true) {
   });
   const intro = $("settings-page-intro");
   intro.innerHTML = `<h2>${page.title}</h2><p>${page.desc}</p>`;
+  if (tab === "memory") renderMemoryInspection();
   inner.scrollTop = 0;
   if (remember) localStorage.setItem("rolechat_settings_tab", tab);
 }
@@ -10490,6 +10649,7 @@ async function init() {
   $("cycle-close").onclick = closeCyclePanel;
   $("notion-test").onclick = notionTest;
   $("mem-add-btn").onclick = () => { addMemEntry($("mem-add").value); $("mem-add").value = ""; };
+  $("memory-inspection-refresh").onclick = renderMemoryInspection;
   $("mem-sum-gen").onclick = generateMemSummary;
   $("header-new-btn").onclick = createConversation;
   $("header-more-btn").onclick = (e) => {
