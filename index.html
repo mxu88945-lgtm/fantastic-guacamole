@@ -349,8 +349,11 @@
   /* 记忆库条目 */
   .mem-row { display:flex; align-items:center; gap:6px; padding:6px 8px; border:1px solid var(--border); border-radius:9px; background:var(--bg-panel); }
   .mem-row.core { border-color:var(--accent); }
+  .mem-row.locked { border-color:#d6a126; box-shadow:inset 0 0 0 1px rgba(214,161,38,.16); }
   .mem-row.inactive { opacity:.56; background:var(--bg-soft); }
   .mem-star { background:none; border:none; cursor:pointer; font-size:15px; line-height:1; padding:2px; flex-shrink:0; }
+  .mem-lock { background:none; border:none; cursor:pointer; font-size:14px; line-height:1; padding:2px; flex-shrink:0; opacity:.45; }
+  .mem-lock.active { opacity:1; }
   .mem-text { flex:1; min-width:0; font-size:13px; line-height:1.4; cursor:text; word-break:break-word; }
   .mem-status { font-size:10px; color:var(--text-dim); white-space:nowrap; }
   .mem-del { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:13px; padding:2px 4px; flex-shrink:0; }
@@ -2428,7 +2431,7 @@
             </span>
           </label>
           <div id="mem-body" style="display:none;">
-            <span class="hint" style="display:block;margin-top:8px;">⭐核心记忆每次都带；其余按你说的话自动捞相关的几条（省 token）。点文字可编辑、点☆设为核心。</span>
+            <span class="hint" style="display:block;margin-top:8px;">🔒锁定记忆拥有独立预算、每轮必带且不参与旧文冷却；⭐核心记忆每轮参与长期事实层。其余按你说的话自动捞相关的几条（省 token）。点文字可编辑。</span>
             <textarea id="memory" style="display:none;"></textarea>
             <input id="mem-search" placeholder="🔍 搜索记忆…" oninput="renderMemList()" style="margin-top:8px;" />
             <div id="mem-list" style="display:flex;flex-direction:column;gap:5px;margin-top:8px;max-height:280px;overflow-y:auto;"></div>
@@ -3186,6 +3189,8 @@ const AUTO_MEMORY_EVERY = 24;
 const MEMORY_CONTEXT_CHAR_BUDGET = 6400; // all derived memory layers share one ceiling
 const MEMORY_RECALL_COOLDOWN_TURNS = 4;  // avoid echoing the same old excerpt every reply
 const MEMORY_RECALL_LEDGER_LIMIT = 120;  // bounded, metadata-only per-conversation audit
+const LOCKED_MEMORY_MAX_ITEMS = 12;       // user-controlled, always-on identity/relationship anchors
+const LOCKED_MEMORY_CHAR_BUDGET = 1200;   // protected slice inside the shared memory budget
 const RECENT_STATE_LOOKBACK_MS = 36 * 60 * 60 * 1000; // bridge daily facts that are too short-lived for durable memory
 const RECENT_STATE_MAX_ITEMS = 8;
 const RECENT_STATE_CHAR_BUDGET = 1100;
@@ -6816,10 +6821,10 @@ function memoryRequestParseError(detail) {
 
 // Ask the model to extract durable facts from the recent chat and merge into memory.
 // ============ 可搜索记忆库（核心记忆永远带 + 普通条目按关键词按需取用，省 token） ============
-// settings.memEntries began as [{id, text, core}]. V2 enriches each row in place
+// settings.memEntries began as [{id, text, core}]. V2 enriched each row in place
 // with source authority and semantic kind. Old rows remain readable and are never
-// deleted; normalization only fills missing metadata.
-const MEMORY_ENTRY_SCHEMA_VERSION = 2;
+// deleted. V3 adds a user-controlled locked tier with its own protected prompt lane.
+const MEMORY_ENTRY_SCHEMA_VERSION = 3;
 function inferMemoryKind(text) {
   const value = String(text || "");
   if (/(?:叫|名字|称呼|生日|年龄|住在|来自|身份)/.test(value)) return "identity";
@@ -6846,6 +6851,7 @@ function normalizeMemoryEntry(entry) {
   if (!Number.isFinite(entry.confidence))
     entry.confidence = entry.authority === "model_derived" ? 0.72 : 1;
   if (entry.autoInject == null) entry.autoInject = true;
+  if (entry.locked == null) entry.locked = false;
   if (!entry.roleId) entry.roleId = activeRole()?.id || settings.activeRoleId || "";
   entry.schemaVersion = MEMORY_ENTRY_SCHEMA_VERSION;
   return entry;
@@ -6941,16 +6947,28 @@ function takePromptItems(items, maxItems, maxChars, alreadySeen) {
 }
 // Core entries only (for greetings / when there's no query context).
 function coreMemoryText() {
-  const picked = takePromptItems(activeMemoryEntries().filter(e => e.core).map(e => e.text), 14, 3600);
+  const picked = takePromptItems(activeMemoryEntries().filter(e => e.locked || e.core).map(e => e.text), 14, 3600);
   return picked.items.map(t => "- " + t).join("\n");
+}
+function lockedMemoryEntries() {
+  return activeMemoryEntries().filter(entry => entry.locked && entry.autoInject !== false);
+}
+function lockedMemoryPromptItems(extraEntry) {
+  const entries = lockedMemoryEntries().filter(entry => !extraEntry || entry.id !== extraEntry.id);
+  if (extraEntry) entries.push(extraEntry);
+  return takePromptItems(entries.map(entry => entry.text), LOCKED_MEMORY_MAX_ITEMS, LOCKED_MEMORY_CHAR_BUDGET);
+}
+function buildLockedMemoryForPrompt() {
+  return lockedMemoryPromptItems().items.map(text => "- " + text).join("\n");
 }
 // Build the memory block for the prompt: all core entries + the top non-core entries
 // whose keywords match the recent conversation. Falls back to legacy text if no entries.
 function rankedMemoryEntriesForPrompt() {
   const entries = activeMemoryEntries();
   if (!entries.length) return [];
-  const core = entries.filter(e => e.core);
-  const rest = entries.filter(e => !e.core);
+  // Locked entries live in a protected lane and must not be duplicated here.
+  const core = entries.filter(e => e.core && !e.locked);
+  const rest = entries.filter(e => !e.core && !e.locked);
   let chosen = core.slice();
   if (rest.length) {
     // User wording is the retrieval query. Assistant echoes must not cause a
@@ -7140,8 +7158,8 @@ function renderMemoryInspection() {
   const heading = roleMismatch ? `上一轮属于 ${escapeHtml(receipt.roleName || "其他角色")}`
     : `${escapeHtml(receipt.roleName || settings.aiName || "当前角色")} · ${memoryInspectionTime(receipt.createdAt)}`;
   const lanes = receipt.blocks.map(block => {
-    const recall = block.recallSelected ? ` · 命中 ${block.recallSelected}/${block.recallCandidates || block.recallSelected}` : "";
-    const cool = block.cooldownSuppressed ? ` · 冷却 ${block.cooldownSuppressed}` : "";
+    const recall = block.recallCandidates ? ` · 召回 ${block.recallSelected || 0} / 候选 ${block.recallCandidates}` : "";
+    const cool = block.cooldownSuppressed ? ` · 冷却暂缓 ${block.cooldownSuppressed}` : "";
     const preview = block.preview
       ? `<p class="memory-inspection-preview">${escapeHtml(block.preview)}</p>`
       : `<p class="memory-inspection-preview">本轮没有注入这一层。</p>`;
@@ -7162,6 +7180,11 @@ function buildBoundedMemoryContext(historyWindow) {
     ? "【跨窗口稳定人物速写】\n" + settings.memSummary.trim()
       + "\n只用于理解 ta 的长期特征；若与最近原文冲突，以最近原文为准。"
     : "";
+  const lockedMemory = buildLockedMemoryForPrompt();
+  const locked = lockedMemory?.trim()
+    ? "【用户高权重锁定·每轮必须携带】\n" + lockedMemory.trim()
+      + "\n这些是用户亲自锁定的身份、关系或底线锚点；不参与旧文召回冷却。若用户明确更新，以最新原话为准。"
+    : "";
   const memoryFacts = buildMemoryForPrompt();
   const facts = memoryFacts?.trim()
     ? "【已确认的跨窗口长期事实·关于「" + userRef() + "」】\n" + memoryFacts.trim()
@@ -7171,21 +7194,24 @@ function buildBoundedMemoryContext(historyWindow) {
     ? "【角色先前提炼的记忆线索·未经用户逐条确认】\n" + derivedMemory.trim()
       + "\n只能作为理解线索，不能覆盖用户原话、角色设定或已确认事实；有冲突时先求证。" : "";
   const diary = privateDiaryPrompt(activeRole(), true);
-  const notionText = settings.notionEnabled ? buildNotionForPrompt(memoryFacts) : "";
+  const notionText = settings.notionEnabled ? buildNotionForPrompt([lockedMemory, memoryFacts].filter(Boolean).join("\n")) : "";
   const notion = notionText
     ? "【Notion 云端角色档案·相关长期信息】\n" + notionText : "";
   // Priority controls what survives the shared budget. Order keeps stable blocks
   // before dynamic exact recall so provider prompt caching remains effective.
   const blocks = [
-    { key: "recentState", label: "近期生活状态", priority: 1, order: 80, cap: RECENT_STATE_CHAR_BUDGET, text: recentState },
-    { key: "currentExact", label: "本窗旧文", priority: 2, order: 90, cap: 800, recall: currentRecall, text: currentRecall.text },
-    { key: "crossExact", label: "跨窗旧文", priority: 3, order: 91, cap: 800, recall: crossRecall, text: crossRecall.text },
-    { key: "continuity", label: "连续性档案", priority: 4, order: 10, cap: 2100, text: continuity },
-    { key: "profile", label: "人物速写", priority: 5, order: 20, cap: 600, text: profile },
-    { key: "facts", label: "用户确认长期事实", priority: 6, order: 30, cap: 1550, text: facts },
-    { key: "derived", label: "角色提炼记忆线索", priority: 7, order: 35, cap: 700, text: derived },
-    { key: "diary", label: "私人日记", priority: 8, order: 40, cap: 850, text: diary },
-    { key: "notion", label: "Notion档案", priority: 9, order: 50, cap: 650, text: notion },
+    { key: "locked", label: "🔒 高权重锁定", priority: 1, order: 5, cap: LOCKED_MEMORY_CHAR_BUDGET + 180, text: locked },
+    { key: "recentState", label: "近期生活状态", priority: 2, order: 80, cap: RECENT_STATE_CHAR_BUDGET, text: recentState },
+    { key: "currentExact", label: "本窗旧文", priority: 3, order: 90, cap: 800, recall: currentRecall, text: currentRecall.text },
+    { key: "crossExact", label: "跨窗旧文", priority: 4, order: 91, cap: 800, recall: crossRecall, text: crossRecall.text },
+    { key: "facts", label: "用户确认长期事实", priority: 5, order: 30, cap: 1550, text: facts },
+    // Keep a real slice for the connected archive before summaries can consume
+    // the remaining budget; this prevents a healthy Notion cache showing as absent.
+    { key: "notion", label: "Notion相关档案", priority: 6, order: 50, cap: 650, text: notion },
+    { key: "continuity", label: "连续性档案", priority: 7, order: 10, cap: 2100, text: continuity },
+    { key: "profile", label: "人物速写", priority: 8, order: 20, cap: 600, text: profile },
+    { key: "derived", label: "角色提炼记忆线索", priority: 9, order: 35, cap: 700, text: derived },
+    { key: "diary", label: "私人日记", priority: 10, order: 40, cap: 850, text: diary },
   ];
   const seenFacts = [], selected = [], auditBlocks = [];
   let used = 0, duplicateLines = 0;
@@ -7638,10 +7664,41 @@ function toggleMemCore(id) {
   const e = memList().find(x => x.id === id);
   if (e && memoryEntryIsActive(e)) { e.core = !e.core; saveSettings(); renderMemList(); }
 }
+function toggleMemLock(id) {
+  const entry = memList().find(item => item.id === id);
+  if (!entry || !memoryEntryIsActive(entry)) return;
+  if (!entry.locked) {
+    const locked = lockedMemoryEntries();
+    const projected = lockedMemoryPromptItems({ ...entry, locked: true });
+    if (locked.length >= LOCKED_MEMORY_MAX_ITEMS || projected.items.length !== locked.length + 1) {
+      showToast("🔒 锁定层已满：最多 " + LOCKED_MEMORY_MAX_ITEMS + " 条、共 " + LOCKED_MEMORY_CHAR_BUDGET + " 字");
+      return;
+    }
+    entry.locked = true;
+    entry.core = true;
+    entry.autoInject = true;
+    entry.authority = "user_confirmed";
+    entry.confidence = 1;
+    entry.updatedAt = Date.now();
+    showToast("🔒 已锁定：每轮必带，不参与旧文冷却");
+  } else {
+    entry.locked = false;
+    entry.updatedAt = Date.now();
+    showToast("已解除锁定，仍保留在记忆库");
+  }
+  saveSettings(); renderMemList();
+}
 function editMemEntry(id) {
   const e = memList().find(x => x.id === id); if (!e) return;
   const v = prompt("编辑这条记忆：", e.text);
   if (v != null && v.trim()) {
+    if (e.locked) {
+      const projected = lockedMemoryPromptItems({ ...e, text: v.trim() });
+      if (projected.items.length !== lockedMemoryEntries().length) {
+        showToast("这会超过锁定层的 " + LOCKED_MEMORY_CHAR_BUDGET + " 字预算，请先精简");
+        return;
+      }
+    }
     e.text = v.trim(); e.kind = inferMemoryKind(e.text);
     e.authority = "user_confirmed"; e.confidence = 1; e.updatedAt = Date.now();
     e.source = "manual-edit"; e.schemaVersion = MEMORY_ENTRY_SCHEMA_VERSION;
@@ -7742,15 +7799,18 @@ function renderMemList() {
   // Active/core first; superseded and branch-invalidated rows remain visible as
   // provenance history but are never injected into the model.
   list.sort((a, b) => (memoryEntryIsActive(b) ? 1 : 0) - (memoryEntryIsActive(a) ? 1 : 0)
+    || (b.locked ? 1 : 0) - (a.locked ? 1 : 0)
     || (b.core ? 1 : 0) - (a.core ? 1 : 0)
     || (b.updatedAt || b.recordedAt || 0) - (a.updatedAt || a.recordedAt || 0));
   const active = activeMemoryEntries();
-  const coreN = active.filter(e => e.core).length;
+  const lockedN = active.filter(e => e.locked).length;
+  const coreN = active.filter(e => e.core && !e.locked).length;
   const historyN = memList().length - active.length;
-  if ($("mem-count")) $("mem-count").textContent = active.length + " 条（⭐核心 " + coreN
+  if ($("mem-count")) $("mem-count").textContent = active.length + " 条（🔒锁定 " + lockedN + " · ⭐核心 " + coreN
     + (historyN ? " · 历史 " + historyN : "") + "）";
   box.innerHTML = list.map(e => `
-    <div class="mem-row${e.core && memoryEntryIsActive(e) ? " core" : ""}${memoryEntryIsActive(e) ? "" : " inactive"}">
+    <div class="mem-row${e.locked && memoryEntryIsActive(e) ? " locked" : (e.core && memoryEntryIsActive(e) ? " core" : "")}${memoryEntryIsActive(e) ? "" : " inactive"}">
+      <button class="mem-lock${e.locked && memoryEntryIsActive(e) ? " active" : ""}" title="${memoryEntryIsActive(e) ? (e.locked ? "解除高权重锁定" : "高权重锁定：每轮必带且不参与冷却") : "历史版本，不再注入"}" onclick="toggleMemLock('${e.id}')">${e.locked && memoryEntryIsActive(e) ? "🔒" : "🔓"}</button>
       <button class="mem-star" title="${memoryEntryIsActive(e) ? (e.core ? "核心记忆（每次都带）" : "设为核心（每次都带）") : "历史版本，不再注入"}" onclick="toggleMemCore('${e.id}')">${e.core && memoryEntryIsActive(e) ? "⭐" : "☆"}</button>
       <span class="mem-text" onclick="editMemEntry('${e.id}')">${escapeHtml(e.text)}</span>
       <span class="mem-meta">${memoryKindLabel(e.kind)} · ${memoryAuthorityLabel(e.authority)}</span>
@@ -7765,17 +7825,20 @@ async function organizeMemories(btn) {
   const old = btn?.textContent || "";
   if (btn) { btn.disabled = true; btn.textContent = "检查中…"; }
   try {
-    const payload = list.map(e => ({ id: e.id, text: e.text, core: !!e.core }));
+    const payload = list.map(e => ({ id: e.id, text: e.text, core: !!e.core, locked: !!e.locked }));
     const sys = "你是长期记忆库的谨慎校对员。只处理两类问题：①内容实质相同的重复条目；②同一事实明确冲突时，保留更新、更具体的一条。"
-      + "不要因为你觉得不重要就删除，不要猜测。输出严格 JSON，不加解释："
+      + "不要因为你觉得不重要就删除，不要猜测。locked=true 的条目由用户保护，绝对不要删除或修改。输出严格 JSON，不加解释："
       + '{"remove":["要删除的id"],"updates":[{"id":"要改的id","text":"合并后的准确文本"}]}。没有问题就输出 {"remove":[],"updates":[]}。';
     const out = await completeOnce(sys, JSON.stringify(payload), 900, true);
     const raw = (out || "").replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
     const plan = JSON.parse(raw);
     const ids = new Set(list.map(e => e.id));
-    const remove = [...new Set(Array.isArray(plan.remove) ? plan.remove.filter(id => ids.has(id)) : [])];
+    const protectedIds = new Set(list.filter(entry => entry.locked).map(entry => entry.id));
+    const remove = [...new Set(Array.isArray(plan.remove)
+      ? plan.remove.filter(id => ids.has(id) && !protectedIds.has(id)) : [])];
     const updates = (Array.isArray(plan.updates) ? plan.updates : [])
-      .filter(x => x && ids.has(x.id) && typeof x.text === "string" && x.text.trim())
+      .filter(x => x && ids.has(x.id) && !protectedIds.has(x.id)
+        && typeof x.text === "string" && x.text.trim())
       .filter(x => !remove.includes(x.id));
     if (!remove.length && !updates.length) { showToast("✨ 没发现需要整理的重复或冲突"); return; }
     const preview = remove.map(id => "删除：" + (list.find(e => e.id === id)?.text || id)).concat(updates.map(x => "合并：" + x.text.trim())).slice(0, 8);
@@ -7813,7 +7876,8 @@ function validatedMemoryReplacementIds(item, activeEntries, recentTranscript) {
   if (!explicitMemoryChangeInTranscript(recentTranscript)) return [];
   const requested = new Set(Array.isArray(item?.replaces) ? item.replaces : []);
   const query = memTokens(item?.text || "");
-  return activeEntries.filter(entry => requested.has(entry.id) && memScore(query, entry.text) >= 2)
+  // Automated maintenance may never silently supersede a user-locked anchor.
+  return activeEntries.filter(entry => !entry.locked && requested.has(entry.id) && memScore(query, entry.text) >= 2)
     .map(entry => entry.id);
 }
 async function autoUpdateMemory() {
@@ -7871,7 +7935,7 @@ async function autoUpdateMemory() {
   additions.forEach(addition => {
     const replaced = activeEntries.filter(entry => addition.replaces.includes(entry.id));
     const entry = {
-      id: uid(), text: addition.text, core: replaced.some(old => old.core),
+      id: uid(), text: addition.text, core: replaced.some(old => old.core), locked: false,
       source: "auto", status: "active", recordedAt: now, updatedAt: now,
       schemaVersion: MEMORY_ENTRY_SCHEMA_VERSION,
       kind: inferMemoryKind(addition.text), authority: "model_derived", confidence: 0.72,
