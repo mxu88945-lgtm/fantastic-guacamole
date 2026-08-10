@@ -10063,23 +10063,28 @@ function renderAccentSwatches() {
 // Keep the wire value untouched, while making route-specific model ids readable in UI.
  // Example: "kiro claude-opus5 不补" → "Claude-opus5".
  function getModelDisplayLabel(value) {
-   let label = String(value || "").trim();
-   if (!label) return "";
+  let label = String(value || "").trim();
+  if (!label) return "";
 
-   // Some relays prepend their route/channel name to the model id. Only remove a
-   // conservative allow-list so real model names containing other words stay intact.
-   label = label.replace(/^(?:kiro|openrouter|gateway|relay|proxy|provider|channel|openai|anthropic|google)(?:\s+|[/:_-]+)/i, "").trim();
-   // "不补" is a local routing hint, not part of the model family name.
-   label = label.replace(/(?:\s+|[-_])(?:不补|不思考|无思考|no[-_ ]?(?:think|thinking|reasoning)|without[-_ ]?(?:think|reasoning)|no[-_]?cot)\s*$/i, "").trim();
+  // Some relays prepend their route/channel name to the model id. Accept both
+  // plain and bracketed route hints, e.g. "[Kiro] claude-opus-5 [不补]".
+  label = label.replace(/^\[\s*(?:kiro|openrouter|gateway|relay|proxy|provider|channel|openai|anthropic|google)\s*\]\s*/i, "").trim();
+  label = label.replace(/^(?:kiro|openrouter|gateway|relay|proxy|provider|channel|openai|anthropic|google)(?:\s+|[/:_-]+)/i, "").trim();
 
-   // Keep familiar vendor casing while preserving the provider's model suffix.
-   label = label.replace(/^(claude|gpt|gemini|deepseek|qwen|llama|mistral)(?=[-_.\s]|$)/i, (brand) => ({
-     claude: "Claude", gpt: "GPT", gemini: "Gemini", deepseek: "DeepSeek",
-     qwen: "Qwen", llama: "Llama", mistral: "Mistral",
-   }[brand.toLowerCase()] || brand));
-   return label;
- }
- function parseModelLine(line) {
+  // Local routing hints are not part of the model family name; accept plain
+  // and bracketed suffixes.
+  const hint = "(?:不补|不思考|无思考|no[-_ ]?(?:think|thinking|reasoning)|without[-_ ]?(?:think|reasoning)|no[-_]?cot)";
+  label = label.replace(new RegExp("\\s*\\[\\s*" + hint + "\\s*\\]\\s*$", "i"), "").trim();
+  label = label.replace(new RegExp("(?:\\s+|[-_])" + hint + "\\s*$", "i"), "").trim();
+
+  // Keep familiar vendor casing while preserving the provider's model suffix.
+  label = label.replace(/^(claude|gpt|gemini|deepseek|qwen|llama|mistral)(?=[-_.\s]|$)/i, (brand) => ({
+    claude: "Claude", gpt: "GPT", gemini: "Gemini", deepseek: "DeepSeek",
+    qwen: "Qwen", llama: "Llama", mistral: "Mistral",
+  }[brand.toLowerCase()] || brand));
+  return label;
+}
+function parseModelLine(line) {
    const i = (line || "").indexOf("|");
    if (i > 0) { const id = line.slice(0, i).trim(), label = line.slice(i + 1).trim(); if (id && label) return { id, label }; }
    const id = (line || "").trim(); return { id, label: getModelDisplayLabel(id) || id };
