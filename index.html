@@ -3553,7 +3553,7 @@ function fillMemoryModelSelect(select, profile, value, followText) {
   if (!select) return;
   select.innerHTML = "";
   const follow = document.createElement("option"); follow.value = ""; follow.textContent = followText; select.appendChild(follow);
-  modelLinesFor(profile).forEach(id => { const o = document.createElement("option"); o.value = id; o.textContent = id; select.appendChild(o); });
+  modelLinesFor(profile).forEach(id => { const o = document.createElement("option"); o.value = id; o.textContent = getModelDisplayLabel(id); select.appendChild(o); });
   if (value && ![...select.options].some(o => o.value === value)) {
     const o = document.createElement("option"); o.value = value; o.textContent = value + "（自定义）"; select.appendChild(o);
   }
@@ -6726,7 +6726,7 @@ function renderUsage() {
       : "";
     return `<div style="display:flex; align-items:center; gap:8px; font-size:12px; padding:5px 0; border-top:1px solid var(--border);">
         <span style="color:var(--text-dim); width:42px; flex-shrink:0;">${hm}</span>
-        <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(e.model)} <span style="opacity:.7;">${fmtTok((e.in || 0) + (e.cache || 0))}→${fmtTok(e.out)}${cache}${audit}</span></span>
+        <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(getModelDisplayLabel(e.model))} <span style="opacity:.7;">${fmtTok((e.in || 0) + (e.cache || 0))}→${fmtTok(e.out)}${cache}${audit}</span></span>
         <span style="font-weight:600; flex-shrink:0;">${fmtCost(e.cost)}</span>
       </div>`;
   }).join("");
@@ -10060,11 +10060,30 @@ function renderAccentSwatches() {
 
 // ---------- Model quick switcher ----------
 // A model line is either "model-id" or "model-id | 显示名"（别名只用于展示，调用仍用 id）。
-function parseModelLine(line) {
-  const i = (line || "").indexOf("|");
-  if (i > 0) { const id = line.slice(0, i).trim(), label = line.slice(i + 1).trim(); if (id && label) return { id, label }; }
-  const id = (line || "").trim(); return { id, label: id };
-}
+// Keep the wire value untouched, while making route-specific model ids readable in UI.
+ // Example: "kiro claude-opus5 不补" → "Claude-opus5".
+ function getModelDisplayLabel(value) {
+   let label = String(value || "").trim();
+   if (!label) return "";
+
+   // Some relays prepend their route/channel name to the model id. Only remove a
+   // conservative allow-list so real model names containing other words stay intact.
+   label = label.replace(/^(?:kiro|openrouter|gateway|relay|proxy|provider|channel|openai|anthropic|google)(?:\s+|[/:_-]+)/i, "").trim();
+   // "不补" is a local routing hint, not part of the model family name.
+   label = label.replace(/(?:\s+|[-_])(?:不补|不思考|无思考|no[-_ ]?(?:think|thinking|reasoning)|without[-_ ]?(?:think|reasoning)|no[-_]?cot)\s*$/i, "").trim();
+
+   // Keep familiar vendor casing while preserving the provider's model suffix.
+   label = label.replace(/^(claude|gpt|gemini|deepseek|qwen|llama|mistral)(?=[-_.\s]|$)/i, (brand) => ({
+     claude: "Claude", gpt: "GPT", gemini: "Gemini", deepseek: "DeepSeek",
+     qwen: "Qwen", llama: "Llama", mistral: "Mistral",
+   }[brand.toLowerCase()] || brand));
+   return label;
+ }
+ function parseModelLine(line) {
+   const i = (line || "").indexOf("|");
+   if (i > 0) { const id = line.slice(0, i).trim(), label = line.slice(i + 1).trim(); if (id && label) return { id, label }; }
+   const id = (line || "").trim(); return { id, label: getModelDisplayLabel(id) || id };
+ }
 function getModelList() {
   const fromText = (settings.modelList || "").split("\n").map(s => s.trim()).filter(Boolean);
   const seen = new Set(); const list = [];
@@ -10421,7 +10440,7 @@ function updateStatusLine() {
   if (!el) return;   // header subtitle was removed (Claude-style minimal header)
   const ap = activeProvider();
   const m = settings.model || DEFAULTS[settings.provider].model;
-  el.textContent = `${ap ? ap.name + " · " : ""}${m}`;
+  el.textContent = `${ap ? ap.name + " · " : ""}${getModelDisplayLabel(m)}`;
 }
 function openSettings(force) {
   const panel = $("settings-panel");
@@ -10476,7 +10495,7 @@ function renderSettingsHome() {
   set("settings-status-appearance", currentTheme()?.name || "跟随主题");
   set("settings-status-media", settings.ttsEnabled ? "朗读已开启" : "按需开启");
   set("settings-status-memory", memoryCount ? `${memoryCount} 条` : "等待积累");
-  set("settings-status-services", provider?.model || settings.model || "待配置");
+  set("settings-status-services", getModelDisplayLabel(provider?.model || settings.model || "待配置"));
   set("settings-status-account", $("auth-status")?.textContent?.includes("已登录") ? "已同步" : "本地保存");
   set("settings-status-billing", usageCount ? `${usageCount} 次` : "本地统计");
   set("settings-status-data", settings.lockEnabled ? "隐私锁已开" : "可备份");
