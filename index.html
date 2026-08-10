@@ -10066,23 +10066,35 @@ function renderAccentSwatches() {
   let label = String(value || "").trim();
   if (!label) return "";
 
-  // Some relays prepend their route/channel name to the model id. Accept both
-  // plain and bracketed route hints, e.g. "[Kiro] claude-opus-5 [不补]".
-  label = label.replace(/^\[\s*(?:kiro|openrouter|gateway|relay|proxy|provider|channel|openai|anthropic|google)\s*\]\s*/i, "").trim();
-  label = label.replace(/^(?:kiro|openrouter|gateway|relay|proxy|provider|channel|openai|anthropic|google)(?:\s+|[/:_-]+)/i, "").trim();
-
-  // Local routing hints are not part of the model family name; accept plain
-  // and bracketed suffixes.
+  // Provider/channel routing hints belong to the transport, not the model family.
+  // Strip only known routing vocabulary; unknown model ids remain untouched.
+  const routeWords = "(?:kiro|openrouter|gateway|relay|proxy|provider|channel|openai|anthropic|google|azure|vertex|bedrock)";
   const hint = "(?:不补|不思考|无思考|no[-_ ]?(?:think|thinking|reasoning)|without[-_ ]?(?:think|reasoning)|no[-_]?cot)";
-  label = label.replace(new RegExp("\\s*\\[\\s*" + hint + "\\s*\\]\\s*$", "i"), "").trim();
-  label = label.replace(new RegExp("(?:\\s+|[-_])" + hint + "\\s*$", "i"), "").trim();
+
+  // A channel can wrap another provider (for example
+  // openrouter/anthropic/claude-3-7-sonnet), so peel known prefixes until stable.
+  let previous = "";
+  while (label && label !== previous) {
+    previous = label;
+    label = label
+      .replace(new RegExp("^\\s*\\[\\s*" + routeWords + "\\s*\\]\\s*", "i"), "")
+      .replace(new RegExp("^\\s*\\(\\s*" + routeWords + "\\s*\\)\\s*", "i"), "")
+      .replace(new RegExp("^\\s*" + routeWords + "(?:\\s*[/|:._-]\\s*|\\s+)", "i"), "")
+      .trim();
+  }
+
+  // Local routing hints may be plain, bracketed, or parenthesized.
+  label = label
+    .replace(new RegExp("\\s*[\\[\\(]\\s*" + hint + "\\s*[\\]\\)]\\s*$", "i"), "")
+    .replace(new RegExp("(?:\\s+|[-_])" + hint + "\\s*$", "i"), "")
+    .trim();
 
   // Keep familiar vendor casing while preserving the provider's model suffix.
-  label = label.replace(/^(claude|gpt|gemini|deepseek|qwen|llama|mistral)(?=[-_.\s]|$)/i, (brand) => ({
+  label = label.replace(/^(claude|gpt|gemini|deepseek|qwen|llama|mistral)(?=[-_.\\s]|$)/i, (brand) => ({
     claude: "Claude", gpt: "GPT", gemini: "Gemini", deepseek: "DeepSeek",
     qwen: "Qwen", llama: "Llama", mistral: "Mistral",
   }[brand.toLowerCase()] || brand));
-  return label;
+  return label || String(value || "").trim();
 }
 function parseModelLine(line) {
    const i = (line || "").indexOf("|");
