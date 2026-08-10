@@ -3555,7 +3555,7 @@ function fillMemoryModelSelect(select, profile, value, followText) {
   const follow = document.createElement("option"); follow.value = ""; follow.textContent = followText; select.appendChild(follow);
   modelLinesFor(profile).forEach(id => { const o = document.createElement("option"); o.value = id; o.textContent = getModelDisplayLabel(id); select.appendChild(o); });
   if (value && ![...select.options].some(o => o.value === value)) {
-    const o = document.createElement("option"); o.value = value; o.textContent = value + "（自定义）"; select.appendChild(o);
+    const o = document.createElement("option"); o.value = value; o.textContent = (getModelDisplayLabel(value) || value) + "（自定义）"; select.appendChild(o);
   }
   select.value = value || "";
 }
@@ -10063,39 +10063,48 @@ function renderAccentSwatches() {
 // Keep the wire value untouched, while making route-specific model ids readable in UI.
  // Example: "kiro claude-opus5 不补" → "Claude-opus5".
  function getModelDisplayLabel(value) {
-  let label = String(value || "").trim();
-  if (!label) return "";
+  const original = String(value || "").trim();
+  if (!original) return "";
 
-  // Provider/channel routing hints belong to the transport, not the model family.
-  // Strip only known routing vocabulary; unknown model ids remain untouched.
-  const routeWords = "(?:kiro|openrouter|gateway|relay|proxy|provider|channel|openai|anthropic|google|azure|vertex|bedrock)";
-  const hint = "(?:不补|不思考|无思考|no[-_ ]?(?:think|thinking|reasoning)|without[-_ ]?(?:think|reasoning)|no[-_]?cot)";
+  let label = original.replace(/^["']+|["']+$/g, "").trim();
+  const hint = "(?:不补|不思考|无思考|免思考|no[-_ ]?(?:think|thinking|reasoning)|without[-_ ]?(?:think|reasoning)|no[-_]?cot)";
 
-  // A channel can wrap another provider (for example
-  // openrouter/anthropic/claude-3-7-sonnet), so peel known prefixes until stable.
-  let previous = "";
-  while (label && label !== previous) {
-    previous = label;
-    label = label
-      .replace(new RegExp("^\\s*\\[\\s*" + routeWords + "\\s*\\]\\s*", "i"), "")
-      .replace(new RegExp("^\\s*\\(\\s*" + routeWords + "\\s*\\)\\s*", "i"), "")
-      .replace(new RegExp("^\\s*" + routeWords + "(?:\\s*[/|:._-]\\s*|\\s+)", "i"), "")
-      .trim();
-  }
-
-  // Local routing hints may be plain, bracketed, or parenthesized.
+  // Local route notes are useful for the request layer, but they are not part
+  // of the user-facing model name.
   label = label
-    .replace(new RegExp("\\s*[\\[\\(]\\s*" + hint + "\\s*[\\]\\)]\\s*$", "i"), "")
+    .replace(new RegExp("\\s*[\\[\\(（【]\\s*" + hint + "\\s*[\\]\\)）】]\\s*$", "i"), "")
     .replace(new RegExp("(?:\\s+|[-_])" + hint + "\\s*$", "i"), "")
     .trim();
 
-  // Keep familiar vendor casing while preserving the provider's model suffix.
-  label = label.replace(/^(claude|gpt|gemini|deepseek|qwen|llama|mistral)(?=[-_.\\s]|$)/i, (brand) => ({
-    claude: "Claude", gpt: "GPT", gemini: "Gemini", deepseek: "DeepSeek",
-    qwen: "Qwen", llama: "Llama", mistral: "Mistral",
-  }[brand.toLowerCase()] || brand));
-  return label || String(value || "").trim();
+  // Provider profiles use different wrappers (and users can add their own).
+  // Find the first known model family instead of maintaining a brittle list of
+  // every possible channel prefix. Unknown/custom model ids remain untouched.
+  const familyMatch = label.match(
+    /(?:^|[\/|:>@\s])((?:claude|gpt|gemini|deepseek|qwen|llama|mistral|kimi|glm|minimax|doubao|command|o[134])(?=[-_.\s\d]|$))/i
+  );
+  if (familyMatch) {
+    const familyOffset = familyMatch[0].lastIndexOf(familyMatch[1]);
+    label = label.slice((familyMatch.index || 0) + familyOffset).trim();
+  }
+
+  label = label
+    .replace(new RegExp("\\s*[\\[\\(（【]\\s*" + hint + "\\s*[\\]\\)）】]\\s*$", "i"), "")
+    .replace(new RegExp("(?:\\s+|[-_])" + hint + "\\s*$", "i"), "")
+    .replace(/\s*[\[\(（【][^\]\)）】]{1,40}[\]\)）】]\s*$/, "")
+    .trim();
+
+  label = label.replace(
+    /^(claude|gpt|gemini|deepseek|qwen|llama|mistral|kimi|glm|minimax|doubao|command|o[134])(?=[-_.\s\d]|$)/i,
+    (brand) => ({
+      claude: "Claude", gpt: "GPT", gemini: "Gemini", deepseek: "DeepSeek",
+      qwen: "Qwen", llama: "Llama", mistral: "Mistral", kimi: "Kimi",
+      glm: "GLM", minimax: "MiniMax", doubao: "Doubao", command: "Command",
+      o1: "o1", o3: "o3", o4: "o4",
+    }[brand.toLowerCase()] || brand)
+  );
+  return label || original;
 }
+
 function parseModelLine(line) {
    const i = (line || "").indexOf("|");
    if (i > 0) { const id = line.slice(0, i).trim(), label = line.slice(i + 1).trim(); if (id && label) return { id, label }; }
@@ -10126,7 +10135,7 @@ function renderModelQuick() {
       // if the current model isn't in the list (manually typed), show it as selected
       if (cur && !list.some(raw => parseModelLine(raw).id === cur)) {
         const opt = document.createElement("option");
-        opt.value = cur; opt.textContent = cur + "（自定义）"; opt.selected = true;
+        opt.value = cur; opt.textContent = (getModelDisplayLabel(cur) || cur) + "（自定义）"; opt.selected = true;
         sel.insertBefore(opt, sel.firstChild);
       }
       if (!list.length) {
@@ -10448,7 +10457,7 @@ function renderTtsVoices() {
 }
 function updateProviderHint() {
   const d = DEFAULTS[settings.provider];
-  $("provider-hint").textContent = `默认: ${d.baseUrl} · ${d.model}`;
+  $("provider-hint").textContent = `默认: ${d.baseUrl} · ${getModelDisplayLabel(d.model) || d.model}`;
   if (!$("baseUrl").value) $("baseUrl").placeholder = d.baseUrl;
   if (!$("model").value) $("model").placeholder = d.model;
 }
