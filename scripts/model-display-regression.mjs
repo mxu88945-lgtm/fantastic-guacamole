@@ -34,4 +34,19 @@ ok(getModelDisplayLabel("azure/openai/gpt-4o") === "GPT-4o",
   "stacked provider prefixes were not peeled");
 
 
+ok(getModelDisplayLabel("[UnknownChannel] anthropic/claude-opus-5 [不补]") === "Claude-opus-5",
+  "an unknown channel wrapper leaked into a known Claude model label");
+ok(getModelDisplayLabel("vendor-x::openai/gpt-4o (no-thinking)") === "GPT-4o",
+  "a provider-specific GPT route was not reduced to the model family");
+ok(getModelDisplayLabel("relay99/google/gemini-2.5-pro") === "Gemini-2.5-pro",
+  "a custom relay path leaked into a Gemini model label");
+ok(getModelDisplayLabel("[私人线路] qwen2.5-72b-instruct（高价）") === "Qwen2.5-72b-instruct",
+  "a custom channel annotation leaked into a Qwen model label");
+ok(html.includes('o.textContent = (getModelDisplayLabel(value) || value) + "（自定义）"'),
+  "memory-model custom values bypass the shared display formatter");
+ok(html.includes('opt.value = cur; opt.textContent = (getModelDisplayLabel(cur) || cur) + "（自定义）"'),
+  "quick-switch custom values bypass the shared display formatter");
+ok(html.includes('${getModelDisplayLabel(d.model) || d.model}'),
+  "provider defaults bypass the shared display formatter");
+
 console.log("model display regression passed");
