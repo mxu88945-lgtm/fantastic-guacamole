@@ -15,6 +15,8 @@ function ok(condition, message) {
 
 ok(getModelDisplayLabel("kiro claude-opus5 不补") === "Claude-opus5",
   "route prefix and local suffix were not hidden from the model label");
+ok(getModelDisplayLabel("[Kiro] claude-opus-5 [不补]") === "Claude-opus-5",
+  "bracketed route and local suffix were not hidden from the model label");
 ok(getModelDisplayLabel("claude-opus-4-8") === "Claude-opus-4-8",
   "a normal Claude model id was changed beyond casing");
 ok(getModelDisplayLabel("openrouter/gpt-4o") === "GPT-4o",
