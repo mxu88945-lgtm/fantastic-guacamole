@@ -17,6 +17,7 @@ Role Chat —— 一个支持多角色、多会话与长期记忆的零依赖单
 - 💾 设置和所有对话自动保存在浏览器 localStorage
 - 📝 基础 Markdown 渲染（代码块、加粗、列表、链接）
 - ⏹️ 流式生成中可随时停止
+- 🎵 **听歌房**：搜索、播放队列、同步歌词、喜欢列表、漫游播放与“发给 TA”
 
 > 🛠️ 计划中：MCP 工具支持（纯浏览器无法直连 MCP，需配一个本地后端/代理）、后端代理隐藏 Key、导出对话为 Markdown。
 
@@ -27,6 +28,19 @@ Role Chat —— 一个支持多角色、多会话与长期记忆的零依赖单
    - **OpenAI 兼容**：默认 `https://api.openai.com/v1`，也支持 DeepSeek / Moonshot / 本地 Ollama 等任何兼容 `/v1/chat/completions` 的服务
    - **Anthropic**：默认 `https://api.anthropic.com/v1`，模型如 `claude-opus-4-8`
 3. 开始聊天，`Enter` 发送，`Shift+Enter` 换行
+
+## 听歌房
+
+听歌房前端借鉴并适配了 [eryu](https://github.com/sebastianevan200-stack/eryu) 的 MIT 开源接口。由于 GitHub Pages 只能托管静态文件，需要单独运行一份 Eryu 服务：
+
+```bash
+git clone https://github.com/sebastianevan200-stack/eryu.git
+cd eryu
+echo "MUSIC_U=你的网易云 Cookie" > server/.netease_cred
+python3 server/eryu.py
+```
+
+然后在顾祁砚端口的“和 TA 一起听歌 → 连接设置”里填写 Eryu 地址和 `server/.secret` 内容。歌曲、音源缓存和歌词请求会由这台自托管服务处理，token 只保存在当前浏览器。
 
 ## 隐私说明
 

@@ -1572,6 +1572,7 @@
 <link rel="stylesheet" href="./src/album.css" />
 <link rel="stylesheet" href="./src/reading-room.css" />
 <link rel="stylesheet" href="./src/dashboard.css" />
+<link rel="stylesheet" href="./src/music.css" />
 </head>
 <body>
 <!-- status-bar-style is "default": iOS draws an opaque status bar tinted by the theme-color meta
@@ -1628,6 +1629,9 @@
     <div class="sidebar-footer-actions">
       <button class="sidebar-action-bubble" id="sidebar-home" aria-label="回到主页" title="主页">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9"/><path d="M9 20v-6h6v6"/></svg>
+      </button>
+      <button class="sidebar-action-bubble" id="sidebar-music" aria-label="打开听歌房" title="和 TA 听歌">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>
       </button>
       <button class="sidebar-action-bubble" id="sidebar-new-chat" aria-label="新对话" title="新对话">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h6"/><path d="M17 3v8M13 7h8"/></svg>
@@ -1709,6 +1713,13 @@
               <span class="dashboard-arrow" aria-hidden="true">↗</span>
             </button>
 
+            <button type="button" class="dashboard-card dashboard-music-card" data-dashboard-action="music">
+              <span class="dashboard-card-kicker">LISTEN TOGETHER</span>
+              <span class="dashboard-music-note" aria-hidden="true">♪</span>
+              <span class="dashboard-card-copy"><strong>一起听歌</strong><em id="dashboard-music-meta">把一首歌递给 TA</em></span>
+              <span class="dashboard-arrow" aria-hidden="true">↗</span>
+            </button>
+
             <article class="dashboard-card dashboard-welcome-card">
               <span class="dashboard-orb" aria-hidden="true"></span>
               <p><span id="dashboard-welcome-line">Good morning</span><br><strong id="dashboard-welcome-name">惟惟</strong>，今天想先去哪里？</p>
@@ -1743,6 +1754,69 @@
         </div>
       </div>
     </section>
+
+    <div class="settings music-panel" id="music-panel" hidden style="z-index:68;">
+      <div class="settings-header music-header">
+        <div class="settings-header-left">
+          <div class="music-header-title"><strong>♪ 和 TA 一起听歌</strong><small id="music-connection-status">未连接音乐服务</small></div>
+        </div>
+        <div class="music-header-actions">
+          <button type="button" class="music-head-btn" id="music-config-btn">连接设置</button>
+          <button class="settings-close-btn" id="music-close" aria-label="关闭听歌房"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+      </div>
+      <div class="music-shell">
+        <div class="music-scroll">
+          <div class="music-wrap">
+            <section class="music-connect-card" id="music-connect-card">
+              <div class="music-connect-kicker">ERYU MUSIC SERVICE</div>
+              <h2>先把音乐接进来</h2>
+              <p>顾祁砚端口负责陪你听歌，歌曲搜索、音源和歌词由云端 Eryu 服务处理。地址与 token 只保存在这台设备。</p>
+              <div class="music-connect-form">
+                <div class="music-field"><label for="music-base-url">Eryu 服务地址</label><input id="music-base-url" type="url" inputmode="url" placeholder="https://eryu-cloud-functions.vercel.app" autocomplete="off"></div>
+                <div class="music-field"><label for="music-token">访问 token</label><input id="music-token" type="password" placeholder="Vercel 的 ERYU_TOKEN" autocomplete="off"></div>
+                <div class="music-connect-actions"><button type="button" class="music-primary" id="music-connect-btn">连接并保存</button><button type="button" class="music-secondary" id="music-cancel-config" hidden>取消</button><button type="button" class="music-danger" id="music-logout-btn">清除连接</button></div>
+                <div class="music-connect-status" id="music-connect-status"></div>
+              </div>
+              <p class="music-connect-note">后端的网易云 Cookie 放在 Vercel 环境变量里，前端只保存服务地址和访问 token，不会把 Cookie 塞进网页。</p>
+            </section>
+
+            <section class="music-app" id="music-app" hidden>
+              <section class="music-current-card" aria-label="正在播放">
+                <img class="music-cover music-cover-placeholder" id="music-cover" alt="" />
+                <div class="music-current-info">
+                  <div class="music-kicker">NOW PLAYING</div>
+                  <h1 class="music-current-name" id="music-current-name">选一首歌开始</h1>
+                  <p class="music-current-artist" id="music-current-artist">和顾祁砚一起听点什么</p>
+                  <p class="music-current-album" id="music-current-album"></p>
+                  <div class="music-progress"><span id="music-time-current">0:00</span><input id="music-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度"><span class="music-time-end" id="music-time-total">0:00</span></div>
+                  <div class="music-controls">
+                    <button type="button" class="music-control-btn" id="music-prev-btn" aria-label="上一首">↶</button>
+                    <button type="button" class="music-control-btn primary" id="music-play-btn" aria-label="播放或暂停">▶</button>
+                    <button type="button" class="music-control-btn" id="music-next-btn" aria-label="下一首">↷</button>
+                    <button type="button" class="music-control-btn text" id="music-like-btn" disabled>♡</button>
+                    <button type="button" class="music-control-btn text" id="music-lyrics-btn">歌词</button>
+                    <button type="button" class="music-control-btn text" id="music-share-btn">发给 TA</button>
+                  </div>
+                </div>
+              </section>
+              <div class="music-error" id="music-inline-error" hidden></div>
+              <div class="music-tabs" role="tablist" aria-label="听歌房分区">
+                <button type="button" class="music-tab active" data-music-tab="search">发现</button>
+                <button type="button" class="music-tab" data-music-tab="liked">喜欢 <span class="music-tab-count" id="music-liked-count">0</span></button>
+                <button type="button" class="music-tab" data-music-tab="queue">队列 <span class="music-tab-count" id="music-queue-count">0</span></button>
+              </div>
+              <div class="music-view" id="music-view"></div>
+            </section>
+          </div>
+        </div>
+        <section class="music-lyrics" id="music-lyrics" hidden aria-label="同步歌词">
+          <div class="music-lyrics-header"><button type="button" id="music-lyrics-back" aria-label="返回听歌房">←</button><div class="music-lyrics-heading"><strong id="music-lyrics-name">正在播放</strong><small id="music-lyrics-artist">—</small></div><span style="width:36px"></span></div>
+          <div class="music-lyrics-main"><img class="music-lyrics-cover" id="music-lyrics-cover" alt=""><div class="music-lyrics-lines" id="music-lyrics-lines"></div></div>
+          <div class="music-lyrics-foot"><input class="music-lyrics-seek" id="music-lyrics-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="歌词播放进度"><div class="music-lyrics-controls"><button type="button" id="music-lyrics-prev" aria-label="上一首">↶</button><button type="button" class="primary" id="music-lyrics-play" aria-label="播放或暂停">▶</button><button type="button" id="music-lyrics-next" aria-label="下一首">↷</button></div></div>
+        </section>
+      </div>
+    </div>
 
     <div class="settings" id="reading-room-panel" style="z-index:66;">
       <div class="settings-header reading-room-header">
@@ -10732,6 +10806,7 @@ async function init() {
   startReminderTimer();   // resume any countdowns still ticking from before
 
   $("sidebar-new-chat").onclick = () => { createConversation(); if (isMobile()) closeSidebar(); };
+  $("sidebar-music").onclick = () => { window.JYCMusic?.open?.(); if (isMobile()) closeSidebar(); };
   $("sidebar-mailbox").onclick = () => { openCompanionPanel("mail"); if (isMobile()) closeSidebar(); };
   $("sidebar-special-days").onclick = () => { openSpecialDaysPanel(); if (isMobile()) closeSidebar(); };
   $("companion-close").onclick = closeCompanionPanel;
@@ -11266,6 +11341,7 @@ window.JYCDashboardBridge = {
   openMailbox: () => openCompanionPanel("mail"),
   openSpecialDays: openSpecialDaysPanel,
   openWorkbench: openWorkbenchPanel,
+  openMusic: () => window.JYCMusic?.open?.(),
   openSettings: () => openSettings(true),
   isMobile,
   closeSidebar,
@@ -11281,8 +11357,14 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 }
 </script>
+<div class="music-mini-player" id="music-mini-player" hidden aria-label="迷你播放器">
+  <img class="music-mini-cover" id="music-mini-cover" alt="">
+  <div class="music-mini-info"><span class="music-mini-name" id="music-mini-name"></span><span class="music-mini-artist" id="music-mini-artist"></span></div>
+  <div class="music-mini-controls"><button type="button" id="music-mini-play" aria-label="播放或暂停">▶</button><button type="button" id="music-mini-next" aria-label="下一首">↷</button></div>
+</div>
 <script type="module" src="./src/album.js"></script>
 <script type="module" src="./src/reading-room.js"></script>
+<script type="module" src="./src/music.js"></script>
 <script type="module" src="./src/dashboard.js"></script>
 </body>
 </html>

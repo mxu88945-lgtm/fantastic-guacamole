@@ -106,6 +106,20 @@ button.dashboard-card:active { transform: scale(.985); }
 .dashboard-album-card .dashboard-card-kicker { position: absolute; top: 23px; left: 24px; }
 .dashboard-album-card.has-photo .dashboard-card-kicker, .dashboard-album-card.has-photo .dashboard-card-copy em { color: rgba(255,255,255,.78); }
 
+.dashboard-music-card {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  background:
+    radial-gradient(circle at 78% 20%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 34%),
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 18%, var(--bg-panel)), color-mix(in srgb, var(--bg-panel) 76%, rgba(112, 174, 181, .2)));
+}
+.dashboard-music-card .dashboard-card-kicker { position: absolute; top: 23px; left: 24px; }
+.dashboard-music-card .dashboard-card-copy { position: relative; z-index: 1; max-width: 78%; }
+.dashboard-music-note {
+  position: absolute; top: 26px; right: 30px; color: color-mix(in srgb, var(--accent) 78%, #8d5d7a);
+  font: 700 64px/.8 Georgia, "Songti SC", serif; transform: rotate(-8deg); opacity: .82;
+}
+.dashboard-music-card .dashboard-card-copy strong { font-size: 20px; }
+
 .dashboard-welcome-card { padding: 22px; display: grid; place-items: center; text-align: center; }
 .dashboard-welcome-card::before {
   content: ""; position: absolute; inset: 16px; border-radius: 24px;
@@ -195,7 +209,7 @@ html[data-theme="dark"] .dashboard-card { box-shadow: inset 0 1px rgba(255,255,2
   .dashboard-chat-card .dashboard-card-copy strong { font-size: 26px; }
   .dashboard-chat-card .dashboard-card-copy em { font-size: 11px; }
   .dashboard-arrow { right: 15px; bottom: 15px; width: 34px; height: 34px; }
-  .dashboard-album-card, .dashboard-welcome-card, .dashboard-reading-card, .dashboard-day-card, .dashboard-tools-card { min-height: 175px; }
+  .dashboard-album-card, .dashboard-music-card, .dashboard-welcome-card, .dashboard-reading-card, .dashboard-day-card, .dashboard-tools-card { min-height: 175px; }
   .dashboard-album-card .dashboard-card-copy strong, .dashboard-day-card .dashboard-card-copy strong { font-size: 17px; }
   .dashboard-welcome-card p { margin-top: 42px; font-size: 20px; }
   .dashboard-orb { top: 24px; width: 42px; height: 42px; }
