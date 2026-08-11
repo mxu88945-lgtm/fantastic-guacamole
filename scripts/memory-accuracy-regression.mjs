@@ -115,6 +115,7 @@ const budgetContext = {
   rollingSummaryPrompt: () => '【连续性档案】\n惟惟喜欢茉莉花茶\n关系轻松亲密',
   buildMemoryForPrompt: () => '- 惟惟喜欢茉莉花茶\n- 惟惟长期养鹦鹉',
   privateDiaryPrompt: () => '【私人日记】\n我很在意她',
+  privateDiaryWritePrompt: () => '【私记写入】仅当本轮有新的明确情绪转折时写入。',
   activeRole: () => ({}),
   buildNotionForPrompt: () => '惟惟喜欢茉莉花茶\n项目仍在继续',
   userRef: () => '惟惟',
@@ -135,6 +136,7 @@ ok(budgetContext.budgetHelpers.clipMemoryContextBlock('x'.repeat(9000), 6400).le
   'line-safe clipping did not enforce the exact ceiling')
 ok(bounded.text.length <= 6400, 'memory context exceeded its shared budget')
 ok(bounded.audit.used <= bounded.audit.budget, 'memory audit reports an over-budget prompt')
+ok(bounded.text.includes('【私记写入】'), 'private diary write rule was dropped from the shared budget')
 ok(bounded.audit.duplicateLines >= 2, 'cross-layer duplicate facts were not removed')
 ok(bounded.audit.cooldownSuppressed === 1, 'cooldown suppression was not included in audit')
 ok(committed.length === 2, 'included recall sources were not committed to cooldown')

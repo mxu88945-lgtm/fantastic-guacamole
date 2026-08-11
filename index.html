@@ -7267,7 +7267,10 @@ function buildBoundedMemoryContext(historyWindow) {
   const derived = derivedMemory?.trim()
     ? "【角色先前提炼的记忆线索·未经用户逐条确认】\n" + derivedMemory.trim()
       + "\n只能作为理解线索，不能覆盖用户原话、角色设定或已确认事实；有冲突时先求证。" : "";
-  const diary = privateDiaryPrompt(activeRole(), true);
+  // Keep the write rule separate from recalled diary pages. Recalled pages are
+  // best-effort context; the instruction itself must survive the shared budget.
+  const diary = privateDiaryPrompt(activeRole(), false);
+  const diaryRule = privateDiaryWritePrompt(activeRole());
   const notionText = settings.notionEnabled ? buildNotionForPrompt([lockedMemory, memoryFacts].filter(Boolean).join("\n")) : "";
   const notion = notionText
     ? "【Notion 云端角色档案·相关长期信息】\n" + notionText : "";
@@ -7275,6 +7278,7 @@ function buildBoundedMemoryContext(historyWindow) {
   // before dynamic exact recall so provider prompt caching remains effective.
   const blocks = [
     { key: "locked", label: "🔒 高权重锁定", priority: 1, order: 5, cap: LOCKED_MEMORY_CHAR_BUDGET + 180, text: locked },
+    { key: "diaryRule", label: "私人日记写入规则", priority: 2, order: 40, cap: 260, text: diaryRule },
     { key: "recentState", label: "近期生活状态", priority: 2, order: 80, cap: RECENT_STATE_CHAR_BUDGET, text: recentState },
     { key: "currentExact", label: "本窗旧文", priority: 3, order: 90, cap: 800, recall: currentRecall, text: currentRecall.text },
     { key: "crossExact", label: "跨窗旧文", priority: 4, order: 91, cap: 800, recall: crossRecall, text: crossRecall.text },
@@ -9162,10 +9166,20 @@ function savePrivateDiaryEntry(text, sourceMessageId, role) {
 function extractPrivateDiary(text, sourceMessageId, role) {
   if (typeof text !== "string") return text;
   let saved = false;
-  return text.replace(/\[\s*(?:私记|私人日记|角色日记)\s*[:：]([\s\S]*?)\]/gi, (m, body) => {
+  // Relays may normalize the hidden marker to full-width brackets or an HTML-ish
+  // tag before it reaches the client. Capture all three forms before reasoning
+  // cleanup gets a chance to move the line out of the visible content.
+  const marker = /(?:\[\s*(?:私记|私人日记|角色日记)\s*[:：]([\s\S]*?)\]|【\s*(?:私记|私人日记|角色日记)\s*[:：]([\s\S]*?)】|<\s*(?:私记|私人日记|角色日记)\s*>\s*([\s\S]*?)<\s*\/\s*(?:私记|私人日记|角色日记)\s*>)/gi;
+  return text.replace(marker, (m, squareBody, fullWidthBody, tagBody) => {
+    const body = squareBody ?? fullWidthBody ?? tagBody ?? "";
     if (!saved) saved = savePrivateDiaryEntry(body, sourceMessageId, role);
     return "";
   }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function privateDiaryWritePrompt(role) {
+  role = ensureRoleCompanionData(role || activeRole());
+  if (!role) return "";
+  return "【私记写入】仅当本轮有新的明确情绪转折/关系判断时，在末尾写一条 `[私记:第一人称30～120字]`；闲聊不写，不替 ta 编造，标记隐藏。";
 }
 function privateDiaryRecallQuery(extraQuery) {
   const recentChat = Array.isArray(messages) ? messages
@@ -9209,7 +9223,7 @@ function privateDiaryPrompt(role, allowWrite, queryText) {
     out = lines.join("\n");
   }
   if (allowWrite) {
-    const rule = "【私记写入】仅当本轮有新的明确情绪转折/关系判断时，在末尾写一条 `[私记:第一人称30～120字]`；闲聊不写，不替 ta 编造，标记隐藏。";
+    const rule = privateDiaryWritePrompt(role);
     out = out ? out + "\n\n" + rule : rule;
   }
   return out;
@@ -9243,7 +9257,10 @@ function maybeReadMailbox() {
   mailboxReplyInFlight = true;
   markSeen();
   completeOnce(sys, usr, 700).then(out => {
-    const visible = extractPrivateDiary(visibleAssistantText(out), "", role);
+    // One-shot relays can put the hidden marker inside <think> before the
+    // visible-text helper strips that channel. Capture it from the raw result.
+    const captured = extractPrivateDiary(out, "", role);
+    const visible = extractPrivateDiary(visibleAssistantText(captured), "", role);
     if (!visible || !visible.trim()) throw new Error("信箱回应为空");
     markSpecialDaysPromptDelivered(specialDayClaim);
     const msg = appendProactiveMessage(conv, visible);
@@ -9659,6 +9676,12 @@ async function generateReply() {
       paint();
     }
     pendingSearchContext = "";
+    // Capture the private marker before reasoning normalization. A relay may
+    // flatten hidden reasoning into content, or stream it through the separate
+    // reasoning channel; either way it must be saved before that channel is
+    // collapsed away.
+    assistantMsg.content = extractPrivateDiary(assistantMsg.content, assistantMsg.id);
+    assistantMsg.reasoning = extractPrivateDiary(assistantMsg.reasoning, assistantMsg.id);
     // Normalize reasoning that a relay flattened into ordinary content. This
     // persists the clean answer and keeps the detected reasoning collapsed on
     // future renders instead of only hiding it for the current paint.
@@ -9672,6 +9695,7 @@ async function generateReply() {
     // The role may leave one private diary line for its next instance. Save it in
     // the role bundle and remove the marker before deciding whether the reply is visible.
     assistantMsg.content = extractPrivateDiary(assistantMsg.content, assistantMsg.id);
+    assistantMsg.reasoning = extractPrivateDiary(assistantMsg.reasoning, assistantMsg.id);
     const isEmpty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim();
     if (isEmpty) {
       messages.pop(); el.remove();
@@ -9712,6 +9736,8 @@ async function generateReply() {
     pendingSearchContext = "";
     console.error("[generateReply error]", e);
     if (e.name === "AbortError") {
+      assistantMsg.content = extractPrivateDiary(assistantMsg.content, assistantMsg.id);
+      assistantMsg.reasoning = extractPrivateDiary(assistantMsg.reasoning, assistantMsg.id);
       const normalized = extractAssistantReasoning(assistantMsg.content, false);
       if (normalized.reasoning) {
         assistantMsg.reasoning = [assistantMsg.reasoning || "", normalized.reasoning].filter(Boolean).join("\n").trim();
