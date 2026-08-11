@@ -83,6 +83,11 @@ if (!bridge) {
     $("dashboard-reading-meta").textContent = reading.active
       ? `《${reading.active.title}》· ${reading.active.progress}%`
       : reading.count ? `${reading.count} 本书，选一本继续` : "和 TA 打开一本书";
+
+    const music = window.JYCMusic?.summary?.() || { connected: false, song: null, queueCount: 0 };
+    $("dashboard-music-meta").textContent = music.song
+      ? `正在听《${music.song.name}》`
+      : music.connected ? "搜索一首歌，和 TA 一起听" : "连接 Eryu 后开始听歌";
   }
 
   function show() {
@@ -106,6 +111,7 @@ if (!bridge) {
     if (action === "mail") { bridge.openMailbox(); return; }
     if (action === "album") { await window.JYCAlbum?.ready; window.JYCAlbum?.open(); return; }
     if (action === "reading") { await window.JYCReadingRoom?.ready; window.JYCReadingRoom?.open(); return; }
+    if (action === "music") { await window.JYCMusic?.open?.(); return; }
     if (action === "days") { bridge.openSpecialDays(); return; }
     if (action === "workbench") { bridge.openWorkbench(); return; }
     if (action === "settings") bridge.openSettings();
@@ -122,6 +128,7 @@ if (!bridge) {
   window.addEventListener("jyc:role-changed", () => { if (open) render(); });
   window.addEventListener("jyc:album-updated", () => { if (open) render(); });
   window.addEventListener("jyc:reading-updated", () => { if (open) render(); });
+  window.addEventListener("jyc:music-updated", () => { if (open) render(); });
   window.addEventListener("jyc:dashboard-data-changed", () => { if (open) render(); });
   window.addEventListener("jyc:app-ready", () => { show(); });
 

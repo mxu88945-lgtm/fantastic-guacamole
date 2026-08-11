@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  base: "/fantastic-guacamole/",
+  base: process.env.VITE_BASE || "/fantastic-guacamole/",
   build: {
     target: "es2020",
     sourcemap: true,
