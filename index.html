@@ -1646,6 +1646,7 @@
 <link rel="stylesheet" href="./src/reading-room.css" />
 <link rel="stylesheet" href="./src/dashboard.css" />
 <link rel="stylesheet" href="./src/music.css" />
+<link rel="stylesheet" href="./src/game-room.css" />
 </head>
 <body>
 <!-- status-bar-style is "default": iOS draws an opaque status bar tinted by the theme-color meta
@@ -1798,6 +1799,13 @@
               <p><span id="dashboard-welcome-line">Good morning</span><br><strong id="dashboard-welcome-name">惟惟</strong>，今天想先去哪里？</p>
             </article>
 
+            <button type="button" class="dashboard-card dashboard-game-card" data-dashboard-action="game">
+              <span class="dashboard-card-kicker">PLAY TOGETHER</span>
+              <span class="dashboard-game-dice" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+              <span class="dashboard-card-copy"><strong>情侣游戏间</strong><em id="dashboard-game-meta">抽一张只属于你们的题</em></span>
+              <span class="dashboard-arrow" aria-hidden="true">↗</span>
+            </button>
+
             <button type="button" class="dashboard-card dashboard-mail-card" data-dashboard-action="mail">
               <span class="dashboard-card-icon" aria-hidden="true">✉</span>
               <span class="dashboard-card-copy"><strong>信箱与日记</strong><em id="dashboard-mail-meta">没有未读信</em></span>
@@ -1827,6 +1835,59 @@
         </div>
       </div>
     </section>
+
+    <div class="settings game-room-panel" id="game-room-panel" hidden style="z-index:69;">
+      <div class="settings-header game-room-header">
+        <div class="game-room-heading">
+          <span class="game-room-heading-mark" aria-hidden="true">◆</span>
+          <div><strong>情侣游戏间</strong><small id="game-room-subtitle">今晚想和 TA 玩什么？</small></div>
+        </div>
+        <button class="settings-close-btn" id="game-room-close" aria-label="关闭游戏间"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+
+      <div class="game-room-shell">
+        <section class="game-room-hero">
+          <div class="game-room-players" aria-label="当前游戏搭档">
+            <span class="game-room-avatar" id="game-room-user-avatar">你</span>
+            <span class="game-room-link" aria-hidden="true"><i></i><b>×</b><i></i></span>
+            <span class="game-room-avatar" id="game-room-role-avatar">TA</span>
+          </div>
+          <div class="game-room-hero-copy">
+            <small>PRIVATE PLAYGROUND</small>
+            <h2><span id="game-room-user-name">你</span> 与 <span id="game-room-role-name">TA</span></h2>
+            <p>答案留在这局，喜欢的瞬间再带回聊天。</p>
+          </div>
+          <div class="game-room-stats"><strong id="game-room-rounds">0</strong><span>已玩局数</span><strong id="game-room-favorites">0</strong><span>收藏题目</span></div>
+        </section>
+
+        <nav class="game-room-modes" id="game-room-modes" aria-label="选择游戏模式">
+          <button type="button" class="active" data-game-mode="jealousy"><span>♠</span><strong>吃醋挑战</strong><em>看 TA 能忍到第几级</em></button>
+          <button type="button" data-game-mode="truth"><span>♡</span><strong>真心话</strong><em>把藏着的话问出来</em></button>
+          <button type="button" data-game-mode="sync"><span>◎</span><strong>默契问答</strong><em>先猜，再揭晓答案</em></button>
+          <button type="button" data-game-mode="task"><span>✦</span><strong>随机任务</strong><em>抽到什么就做什么</em></button>
+        </nav>
+
+        <section class="game-room-stage" aria-live="polite">
+          <span class="game-room-stage-kicker" id="game-room-stage-kicker">JEALOUSY GAME</span>
+          <div class="game-room-card" id="game-room-card">
+            <span class="game-room-card-index" id="game-room-card-index">01</span>
+            <p id="game-room-question">深夜，一条叫你“姐姐”的消息突然亮在床头。TA 会怎么做？</p>
+            <span class="game-room-card-suit" id="game-room-card-suit" aria-hidden="true">♠</span>
+          </div>
+          <div class="game-room-actions">
+            <button type="button" id="game-room-draw">换一张</button>
+            <button type="button" id="game-room-favorite">♡ 收藏</button>
+            <button type="button" class="primary" id="game-room-play">和 TA 开始这局</button>
+          </div>
+          <p class="game-room-hint">开始后会把题目放进主聊天，由当前角色亲自回答；游戏记录不会自动写入长期记忆。</p>
+        </section>
+
+        <details class="game-room-history" id="game-room-history-panel">
+          <summary><span>最近玩过</span><em id="game-room-history-count">0 条</em></summary>
+          <div class="game-room-history-list" id="game-room-history-list"></div>
+        </details>
+      </div>
+    </div>
 
     <div class="settings music-panel" id="music-panel" hidden style="z-index:68;">
       <div class="settings-header music-header">
@@ -11451,6 +11512,23 @@ window.JYCDashboardBridge = {
     if (target && target.id !== currentId) switchConversation(target.id);
     requestAnimationFrame(() => $("input")?.focus());
   },
+  openChatWithDraft: (text) => {
+    const target = latestRoleConversation() || currentConv();
+    if (target && target.id !== currentId) switchConversation(target.id);
+    const draft = String(text || "").trim();
+    if (draft) {
+      const input = $("input");
+      input.value = draft;
+      autoResize();
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    window.dispatchEvent(new CustomEvent("jyc:chat-opened", { detail: { conversationId: target?.id || currentId } }));
+    requestAnimationFrame(() => {
+      const input = $("input");
+      input?.focus();
+      input?.setSelectionRange?.(input.value.length, input.value.length);
+    });
+  },
   openMailbox: () => openCompanionPanel("mail"),
   openSpecialDays: openSpecialDaysPanel,
   openWorkbench: openWorkbenchPanel,
@@ -11478,6 +11556,7 @@ if ("serviceWorker" in navigator) {
 <script type="module" src="./src/album.js"></script>
 <script type="module" src="./src/reading-room.js"></script>
 <script type="module" src="./src/music.js"></script>
+<script type="module" src="./src/game-room.js"></script>
 <script type="module" src="./src/dashboard.js"></script>
 </body>
 </html>

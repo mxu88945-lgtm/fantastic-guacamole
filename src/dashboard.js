@@ -88,6 +88,11 @@ if (!bridge) {
     $("dashboard-music-meta").textContent = music.song
       ? `正在听《${music.song.name}》`
       : music.connected ? "搜索一首歌，和 TA 一起听" : "连接 Eryu 后开始听歌";
+
+    const game = window.JYCGameRoom?.summary?.(data.roleId) || { rounds: 0, favorites: 0 };
+    $("dashboard-game-meta").textContent = game.rounds
+      ? `已经一起玩了 ${game.rounds} 局`
+      : game.favorites ? `收藏了 ${game.favorites} 道题` : "抽一张只属于你们的题";
   }
 
   function show() {
@@ -112,6 +117,7 @@ if (!bridge) {
     if (action === "album") { await window.JYCAlbum?.ready; window.JYCAlbum?.open(); return; }
     if (action === "reading") { await window.JYCReadingRoom?.ready; window.JYCReadingRoom?.open(); return; }
     if (action === "music") { await window.JYCMusic?.open?.(); return; }
+    if (action === "game") { window.JYCGameRoom?.open?.(); return; }
     if (action === "days") { bridge.openSpecialDays(); return; }
     if (action === "workbench") { bridge.openWorkbench(); return; }
     if (action === "settings") bridge.openSettings();
@@ -129,6 +135,7 @@ if (!bridge) {
   window.addEventListener("jyc:album-updated", () => { if (open) render(); });
   window.addEventListener("jyc:reading-updated", () => { if (open) render(); });
   window.addEventListener("jyc:music-updated", () => { if (open) render(); });
+  window.addEventListener("jyc:game-room-updated", () => { if (open) render(); });
   window.addEventListener("jyc:dashboard-data-changed", () => { if (open) render(); });
   window.addEventListener("jyc:app-ready", () => { show(); });
 
