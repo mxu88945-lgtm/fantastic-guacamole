@@ -963,6 +963,79 @@
     backdrop-filter: none;
   }
 
+  /* Tidal Echo · 珍珠潮汐 / 海港
+     Borrow the quiet 1:1-channel language—paper-like background, restrained
+     blue-grey bubbles, fine hairlines and Song-style display copy—without
+     replacing this app's own chat, memory, album or dashboard architecture. */
+  html[data-theme-key="tidalpearl"] body,
+  html[data-theme-key="tidalharbor"] body {
+    font-family: "Noto Serif SC", "Songti SC", "STSong", SimSun, serif;
+  }
+  html[data-theme-key="tidalpearl"] .main > .chat,
+  html[data-theme-key="tidalharbor"] .main > .chat {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.42), rgba(255,255,255,.05) 27%, rgba(255,255,255,.17));
+  }
+  html[data-theme-key="tidalpearl"] .main > header,
+  html[data-theme-key="tidalharbor"] .main > header {
+    min-height: calc(64px + env(safe-area-inset-top));
+    padding: calc(8px + env(safe-area-inset-top)) 17px 10px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, transparent), color-mix(in srgb, var(--bg) 46%, transparent));
+    -webkit-backdrop-filter: blur(14px) saturate(1.08);
+    backdrop-filter: blur(14px) saturate(1.08);
+  }
+  html[data-theme-key="tidalpearl"] .main > .chat,
+  html[data-theme-key="tidalharbor"] .main > .chat { padding-top: calc(78px + env(safe-area-inset-top)); }
+  html[data-theme-key="tidalpearl"] .messages,
+  html[data-theme-key="tidalharbor"] .messages { max-width: 760px; }
+  html[data-theme-key="tidalpearl"] .msg,
+  html[data-theme-key="tidalharbor"] .msg { gap: 10px; margin-bottom: 18px; }
+  html[data-theme-key="tidalpearl"] .msg .avatar,
+  html[data-theme-key="tidalharbor"] .msg .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    box-shadow: 0 9px 20px rgba(49,67,84,.13);
+  }
+  html[data-theme-key="tidalpearl"] .msg.assistant .bubble,
+  html[data-theme-key="tidalharbor"] .msg.assistant .bubble,
+  html[data-theme-key="tidalpearl"] .msg.user .bubble,
+  html[data-theme-key="tidalharbor"] .msg.user .bubble {
+    padding: 10px 14px; border-radius: 17px;
+    border: 0; -webkit-backdrop-filter: none; backdrop-filter: none;
+    box-shadow: 0 10px 27px rgba(67,84,99,.08);
+    color: var(--text);
+  }
+  html[data-theme-key="tidalpearl"] .msg.assistant .bubble,
+  html[data-theme-key="tidalharbor"] .msg.assistant .bubble { background: var(--assistant-bubble); border-bottom-left-radius: 3px; }
+  html[data-theme-key="tidalpearl"] .msg.user .bubble,
+  html[data-theme-key="tidalharbor"] .msg.user .bubble { background: var(--user-bubble); border-top-right-radius: 17px; border-bottom-right-radius: 3px; }
+  html[data-theme-key="tidalpearl"] .composer,
+  html[data-theme-key="tidalharbor"] .composer {
+    max-width: 760px; border-radius: 22px; padding: 11px 15px;
+    background: color-mix(in srgb, var(--bg-soft) 90%, transparent);
+    border-color: color-mix(in srgb, var(--border) 74%, transparent);
+    box-shadow: 0 12px 28px rgba(64,82,98,.09);
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  }
+  html[data-theme-key="tidalpearl"] .composer:focus-within,
+  html[data-theme-key="tidalharbor"] .composer:focus-within { border-color: var(--accent); }
+  html[data-theme-key="tidalpearl"] .sidebar,
+  html[data-theme-key="tidalharbor"] .sidebar {
+    background: color-mix(in srgb, var(--bg-soft) 92%, transparent);
+    border-right-color: color-mix(in srgb, var(--border) 78%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(1.05); backdrop-filter: blur(20px) saturate(1.05);
+  }
+  html[data-theme-key="tidalpearl"] .sidebar .brand,
+  html[data-theme-key="tidalharbor"] .sidebar .brand { border-bottom-color: color-mix(in srgb, var(--border) 75%, transparent); }
+  html[data-theme-key="tidalpearl"] .empty-state .greet,
+  html[data-theme-key="tidalharbor"] .empty-state .greet,
+  html[data-theme-key="tidalpearl"] .dashboard-heading h1,
+  html[data-theme-key="tidalharbor"] .dashboard-heading h1 { font-family: Georgia, "Songti SC", "STSong", serif; font-weight: 500; }
+  html[data-theme-key="tidalpearl"] .think,
+  html[data-theme-key="tidalharbor"] .think { color: var(--text-dim); }
+  html[data-theme-key="tidalpearl"] .theme-card.active,
+  html[data-theme-key="tidalharbor"] .theme-card.active { border-color: var(--accent); }
+
   /* Flat / Tavo-style layout: avatar + name on top, bubble fits its content */
   .msg.flat { flex-direction: column; gap: 6px; align-items: flex-start; }
   .msg.flat .msg-head { display: flex; align-items: center; gap: 8px; }
@@ -9851,6 +9924,20 @@ const THEMES = [
     bg:"#eef2ec", "bg-soft":"#e6ece6", "bg-panel":"#dbe4dc", border:"#cad6cd", text:"#111111",
     "text-dim":"#666666", accent:"#6f9e8d", "accent-soft":"#dbe8e1", "assistant-bubble":"#ffffff",
     "code-bg":"#dbe4dc", "err-bg":"#fde8e8", "err-text":"#c0392b", "item-active":"#d6e0d8" } },
+  // Tidal Echo · 珍珠潮汐 — 雾白海面、蓝灰消息卡与克制纸感。
+  { key: "tidalpearl", name: "珍珠潮汐", dark: false, glass: true, textColor: "#253447", textDim: "#5e7080",
+    gradient: "radial-gradient(circle at 8% 4%,rgba(223,234,244,.82) 0%,rgba(223,234,244,0) 38%),radial-gradient(circle at 93% 82%,rgba(226,234,241,.76) 0%,rgba(226,234,241,0) 42%),linear-gradient(155deg,#f8fbfd 0%,#f1f6fa 48%,#edf2f6 100%)",
+    vars: {
+    bg:"#f7fafc", "bg-soft":"#f4f8fb", "bg-panel":"#eef4f8", border:"#d8e2ea", text:"#253447",
+    "text-dim":"#657787", accent:"#4c6378", "accent-soft":"#dfe8ef", "assistant-bubble":"#eceef3", "user-bubble":"#dfe5ee",
+    "code-bg":"#e9eef3", "err-bg":"#fbecee", "err-text":"#ae4f58", "item-active":"#e7eef4" } },
+  // Tidal Echo · 海港 — 灰棕冷调，像阴天码头的雾和旧信纸。
+  { key: "tidalharbor", name: "海港", dark: false, glass: true, textColor: "#36404b", textDim: "#5e6b78",
+    gradient: "radial-gradient(circle at 12% 8%,rgba(231,229,225,.78) 0%,rgba(231,229,225,0) 39%),radial-gradient(circle at 88% 86%,rgba(207,216,222,.64) 0%,rgba(207,216,222,0) 43%),linear-gradient(155deg,#f6f4f1 0%,#eeeae6 54%,#e5e9ea 100%)",
+    vars: {
+    bg:"#f4f2ef", "bg-soft":"#f7f5f2", "bg-panel":"#efebe8", border:"#d8d5d0", text:"#36404b",
+    "text-dim":"#65707b", accent:"#4a5d6c", "accent-soft":"#dfe3e4", "assistant-bubble":"#eae6e4", "user-bubble":"#e1e0e3",
+    "code-bg":"#e7e5e2", "err-bg":"#f9ebea", "err-text":"#a7524a", "item-active":"#e7e5e2" } },
 ];
 function currentTheme() { return THEMES.find(t => t.key === settings.themeName) || THEMES[0]; }
 function applyTheme() {
@@ -9860,8 +9947,8 @@ function applyTheme() {
   root.setAttribute("data-theme-key", t.key);
   for (const k in t.vars) root.style.setProperty("--" + k, t.vars[k]);
   // Keep readable copy neutral: black/grey on light themes, white/grey on true dark themes.
-  root.style.setProperty("--text", t.dark ? "#f2f2f2" : "#111111");
-  root.style.setProperty("--text-dim", t.dark ? "#ababaf" : "#666666");
+  root.style.setProperty("--text", t.dark ? "#f2f2f2" : (t.textColor || "#111111"));
+  root.style.setProperty("--text-dim", t.dark ? "#ababaf" : (t.textDim || "#666666"));
   // metallic gradient background + translucent glass bubbles (per-theme opt-in)
   if (t.gradient) root.style.setProperty("--app-gradient", t.gradient);
   else root.style.removeProperty("--app-gradient");
