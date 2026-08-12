@@ -21,6 +21,8 @@ ok(html.includes('data-dashboard-action="album"'), "album dashboard card is miss
 ok(html.includes('data-dashboard-action="mail"'), "mail dashboard card is missing");
 ok(html.includes('data-dashboard-action="days"'), "special-days dashboard card is missing");
 ok(html.includes('data-dashboard-action="workbench"'), "workbench dashboard action is missing");
+ok(html.includes('data-dashboard-action="game"'), "game-room dashboard card is missing");
+ok(html.includes('id="dashboard-game-meta"'), "game-room dashboard summary is missing");
 ok(html.includes('class="sidebar-action-bubble sidebar-dashboard-secondary"'), "secondary sidebar actions were not moved off the footer");
 ok(html.includes('src="./src/dashboard.js"'), "dashboard module is not loaded");
 ok(html.includes('href="./src/dashboard.css"'), "dashboard stylesheet is not loaded");
@@ -34,9 +36,10 @@ ok(html.includes('id="toggle-sidebar"') && html.includes('$("toggle-sidebar").on
 ok(css.includes("grid-template-columns: 1.12fr .88fr 1fr"), "desktop dashboard grid is missing");
 ok(css.includes("@media (max-width: 600px)"), "mobile dashboard layout is missing");
 ok(js.includes('window.addEventListener("jyc:role-changed"'), "dashboard does not react to role changes");
+ok(js.includes('window.JYCGameRoom?.open?.()'), "dashboard does not open the game room");
 ok(js.includes('window.JYCAlbum?.summary?.(data.roleId)'), "dashboard album summary is not role-isolated");
 ok(album.includes("function summary(targetRoleId)"), "album summary API is missing");
-ok(sw.includes('const CACHE = "role-chat-cache-v151";'), "service worker cache was not bumped to v150");
+ok(sw.includes('const CACHE = "role-chat-cache-v152";'), "service worker cache was not bumped to v152");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "dashboard change introduced duplicate DOM ids");
