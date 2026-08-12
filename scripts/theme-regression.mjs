@@ -65,6 +65,30 @@ ok(html.includes('html[data-theme-key="mistgreen"] .sidebar {')
   && html.includes('background: linear-gradient(180deg, #edf2ed 0%, #dbe4dc 100%);'),
   'mist green drawer still lets chat content show through')
 
+
+const tidalPearlStart = html.indexOf('{ key: "tidalpearl", name: "珍珠潮汐"')
+const tidalPearlEnd = html.indexOf('{ key: "tidalharbor"', tidalPearlStart)
+ok(tidalPearlStart >= 0 && tidalPearlEnd > tidalPearlStart, 'tidal pearl theme block was not found')
+const tidalPearl = html.slice(tidalPearlStart, tidalPearlEnd)
+ok(tidalPearl.includes('glass: true') && tidalPearl.includes('textColor: "#253447"'),
+  'tidal pearl lost its soft glass and slate-copy treatment')
+ok(tidalPearl.includes('"assistant-bubble":"#eceef3"') && tidalPearl.includes('"user-bubble":"#dfe5ee"'),
+  'tidal pearl bubbles no longer retain their blue-grey pairing')
+
+const tidalHarborStart = html.indexOf('{ key: "tidalharbor", name: "海港"')
+const tidalHarborEnd = html.indexOf('];', tidalHarborStart)
+ok(tidalHarborStart >= 0 && tidalHarborEnd > tidalHarborStart, 'tidal harbor theme block was not found')
+const tidalHarbor = html.slice(tidalHarborStart, tidalHarborEnd)
+ok(tidalHarbor.includes('textColor: "#36404b"') && tidalHarbor.includes('accent:"#4a5d6c"'),
+  'tidal harbor lost its neutral harbor palette')
+ok(html.includes('html[data-theme-key="tidalpearl"] .msg.assistant .bubble,')
+  && html.includes('html[data-theme-key="tidalharbor"] .msg.assistant .bubble,'),
+  'tidal themes are not applying their own message surface')
+ok(html.includes('"Noto Serif SC", "Songti SC", "STSong", SimSun, serif'),
+  'tidal themes are missing their Song-style type treatment')
+ok(html.includes('(t.textColor || "#111111")') && html.includes('(t.textDim || "#666666")'),
+  'theme-specific slate copy is overwritten by the neutral text fallback')
+
 const diffuseStart = html.indexOf('{ key: "diffuse", name: "弥散柔光"')
 const diffuseEnd = html.indexOf('// 墨黑金', diffuseStart)
 ok(diffuseStart >= 0 && diffuseEnd > diffuseStart, 'diffuse glow theme block was not found')
@@ -108,6 +132,6 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v148";'), 'service worker cache was not bumped to v148')
+ok(sw.includes('const CACHE = "role-chat-cache-v150";'), 'service worker cache was not bumped to v150')
 
 console.log(`theme regression: ${checks} checks passed`)
