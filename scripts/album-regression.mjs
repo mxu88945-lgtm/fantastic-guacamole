@@ -25,7 +25,7 @@ ok(html.includes("await describeImage(matches[0].dataUrl)"), "album matches are 
 ok(html.includes("[相册:标题/日期/关键词]"), "the model was not taught the private album tool syntax");
 ok(html.includes('act = { type: "album"'), "the active tool loop does not execute album requests");
 ok(html.includes("(?:搜索|联网|相册)"), "album tool markers may leak into visible replies");
-ok(sw.includes('const CACHE = "role-chat-cache-v148";'), "service worker cache was not bumped to v148");
+ok(sw.includes('const CACHE = "role-chat-cache-v150";'), "service worker cache was not bumped to v150");
 ok(css.includes("-webkit-overflow-scrolling: touch"), "album panel is not iOS-scroll-safe");
 ok(css.includes("grid-template-columns: repeat(2"), "mobile album grid is missing");
 
