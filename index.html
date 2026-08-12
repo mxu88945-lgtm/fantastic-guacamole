@@ -978,15 +978,15 @@
   }
   html[data-theme-key="tidalpearl"] .main > header,
   html[data-theme-key="tidalharbor"] .main > header {
-    min-height: calc(64px + env(safe-area-inset-top));
-    padding: calc(8px + env(safe-area-inset-top)) 17px 10px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-    background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, transparent), color-mix(in srgb, var(--bg) 46%, transparent));
-    -webkit-backdrop-filter: blur(14px) saturate(1.08);
-    backdrop-filter: blur(14px) saturate(1.08);
+    min-height: 0;
+    padding: 0;
+    border-bottom: 0;
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
   html[data-theme-key="tidalpearl"] .main > .chat,
-  html[data-theme-key="tidalharbor"] .main > .chat { padding-top: calc(78px + env(safe-area-inset-top)); }
+  html[data-theme-key="tidalharbor"] .main > .chat { padding-top: calc(70px + env(safe-area-inset-top)); }
   html[data-theme-key="tidalpearl"] .messages,
   html[data-theme-key="tidalharbor"] .messages { max-width: 760px; }
   html[data-theme-key="tidalpearl"] .msg,
