@@ -84,6 +84,11 @@ ok(tidalHarbor.includes('textColor: "#36404b"') && tidalHarbor.includes('accent:
 ok(html.includes('html[data-theme-key="tidalpearl"] .msg.assistant .bubble,')
   && html.includes('html[data-theme-key="tidalharbor"] .msg.assistant .bubble,'),
   'tidal themes are not applying their own message surface')
+ok(html.includes('html[data-theme-key="tidalpearl"] .main > header,')
+  && html.includes('min-height: 0;')
+  && html.includes('background: transparent;')
+  && html.includes('backdrop-filter: none;'),
+  'tidal themes still render a full-width top banner')
 ok(html.includes('"Noto Serif SC", "Songti SC", "STSong", SimSun, serif'),
   'tidal themes are missing their Song-style type treatment')
 ok(html.includes('(t.textColor || "#111111")') && html.includes('(t.textDim || "#666666")'),
@@ -132,6 +137,6 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v150";'), 'service worker cache was not bumped to v150')
+ok(sw.includes('const CACHE = "role-chat-cache-v151";'), 'service worker cache was not bumped to v150')
 
 console.log(`theme regression: ${checks} checks passed`)
