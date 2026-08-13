@@ -28,7 +28,7 @@ ok(js.includes('state.value.history = state.value.history.slice(0, 30)'), "game 
 ok(dashboard.includes('window.JYCGameRoom?.summary?.(data.roleId)'), "dashboard game summary is not role-isolated");
 ok(html.includes('openChatWithDraft: (text)'), "dashboard bridge cannot carry a game prompt to chat");
 ok(css.includes('@media (max-width: 720px)'), "mobile game-room layout is missing");
-ok(sw.includes('const CACHE = "role-chat-cache-v153";'), "service worker cache was not bumped to v152");
+ok(sw.includes('const CACHE = "role-chat-cache-v154";'), "service worker cache was not bumped to v154");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "game-room change introduced duplicate DOM ids");

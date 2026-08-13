@@ -27,9 +27,10 @@ ok(html.includes('html[data-theme-key="white"] .model-quick {')
   && html.includes('background: var(--item-active); border-color: var(--border);'),
   'minimal white model picker has no visible pill surface')
 
-const claudeStart = html.indexOf('{ key: "claude", name: "暖杏 Claude"')
+const claudeStart = html.indexOf('{ key: "claude", name: "Claude 官端"')
 const claudeEnd = html.indexOf('{ key: "white"', claudeStart)
-ok(html.slice(claudeStart, claudeEnd).includes('bg:"#f5f4ef"'), 'warm Claude theme was changed accidentally')
+ok(html.slice(claudeStart, claudeEnd).includes('bg:"#f8f8f6"'), 'Claude app canvas changed unexpectedly')
+ok(html.slice(claudeStart, claudeEnd).includes('"user-bubble":"#eeeeec"'), 'Claude user bubble lost its warm-grey surface')
 
 const snowStart = html.indexOf('{ key: "snowblush", name: "樱雪"')
 const snowEnd = html.indexOf('// 墨黑金', snowStart)
@@ -137,6 +138,6 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v153";'), 'service worker cache was not bumped to v152')
+ok(sw.includes('const CACHE = "role-chat-cache-v154";'), 'service worker cache was not bumped to v154')
 
 console.log(`theme regression: ${checks} checks passed`)

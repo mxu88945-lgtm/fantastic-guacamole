@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN" data-theme="light" data-theme-key="claude">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -7,15 +7,17 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Role Chat" />
-<meta name="theme-color" content="#f5f4ef" />
+<meta name="theme-color" content="#f8f8f6" />
 <script>
 /* Pre-paint theme priming: iOS standalone snapshots the status-bar color at
    launch, so restore the last-applied theme BEFORE the first paint. applyTheme
    persists both values whenever the user switches themes. */
 (function () {
   try {
+    var preSettings = JSON.parse(localStorage.getItem("jyc_settings") || "{}");
     var bg = localStorage.getItem("jyc_themebg");
     var dark = localStorage.getItem("jyc_themedark");
+    document.documentElement.setAttribute("data-theme-key", preSettings.themeName || "claude");
     if (dark === "1" || dark === "0")
       document.documentElement.setAttribute("data-theme", dark === "1" ? "dark" : "light");
     if (bg) {
@@ -31,8 +33,7 @@
        this class once applySidebar() takes over. */
     var preCollapsed = window.innerWidth <= 720;
     if (!preCollapsed) {
-      var s = JSON.parse(localStorage.getItem("jyc_settings") || "{}");
-      preCollapsed = !!s.sidebarCollapsed;
+      preCollapsed = !!preSettings.sidebarCollapsed;
     }
     if (preCollapsed) document.documentElement.classList.add("sb-pre-collapsed");
   } catch (e) {}
@@ -1062,8 +1063,9 @@
     user-select: none; outline: none; display: inline-flex; align-items: center; gap: 5px;
   }
   .think > summary::-webkit-details-marker { display: none; }
-  .think > summary::after { content: "›"; font-size: 14px; opacity: .7; transition: transform .2s; }
-  .think[open] > summary::after { transform: rotate(90deg); }
+  .think-clock { width: 15px; height: 15px; flex: 0 0 auto; }
+  .think-chevron { width: 13px; height: 13px; opacity: .7; transition: transform .2s; }
+  .think[open] .think-chevron { transform: rotate(180deg); }
   .think .think-body {
     margin-top: 8px; color: var(--text-dim); white-space: pre-wrap;
     line-height: 1.55; font-size: 12.5px; padding-left: 11px;
@@ -1491,6 +1493,218 @@
     .starter-grid { grid-template-columns: 1fr; margin-top: 22px; }
     .empty-state { margin-top: clamp(90px, 17vh, 150px); }
     .empty-state .greet { font-size: 26px; }
+  }
+
+  /* Claude app shell
+     The existing `claude` preset is more than a colour swatch: it deliberately
+     changes the conversation's information hierarchy while leaving every data
+     and companion feature in place. Other themes keep the app's normal layout. */
+  html[data-theme-key="claude"] body {
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+      "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f8f8f6;
+  }
+  html[data-theme-key="claude"] .main > .chat {
+    background: #f8f8f6;
+    padding-top: calc(76px + env(safe-area-inset-top));
+  }
+  html[data-theme-key="claude"] .messages {
+    width: 100%; max-width: 720px; padding: 0 20px;
+  }
+  html[data-theme-key="claude"] .msg {
+    gap: 0; margin-bottom: 24px;
+  }
+  html[data-theme-key="claude"] .msg:not(.flat) > .avatar,
+  html[data-theme-key="claude"] .msg:not(.flat) > .body > .name,
+  html[data-theme-key="claude"] .msg.flat > .msg-head {
+    display: none;
+  }
+  html[data-theme-key="claude"] .msg:not(.flat) > .body {
+    width: 100%; flex: 1 1 100%;
+  }
+  html[data-theme-key="claude"] .msg.assistant,
+  html[data-theme-key="claude"] .msg.assistant.flat {
+    display: block; width: 100%;
+  }
+  html[data-theme-key="claude"] .msg.assistant .body {
+    width: 100%; align-items: stretch;
+  }
+  html[data-theme-key="claude"] .msg.assistant .bubble,
+  html[data-theme-key="claude"] .msg.assistant.flat .bubble {
+    width: 100%; max-width: none; padding: 0;
+    color: color-mix(in srgb, var(--system-text-color, #292826) var(--system-text-opacity, 100%), transparent);
+    font-size: var(--msg-font, 16px); line-height: 1.68;
+  }
+  html[data-theme-key="claude"] .msg.user,
+  html[data-theme-key="claude"] .msg.user.flat {
+    width: 100%; justify-content: flex-start; align-items: flex-end;
+  }
+  html[data-theme-key="claude"] .msg.user:not(.flat) > .body {
+    flex: 0 1 auto; width: auto; max-width: min(88%, 610px); align-items: flex-end;
+  }
+  html[data-theme-key="claude"] .msg.user.flat > .bubble,
+  html[data-theme-key="claude"] .msg.user .bubble {
+    width: fit-content; max-width: min(88vw, 610px);
+    padding: 10px 15px; border: 0; border-radius: 20px;
+    background: #eeeeec; box-shadow: none;
+    color: #292826; font-size: var(--msg-font, 15.5px); line-height: 1.58;
+  }
+  html[data-theme-key="claude"] .msg.user .msg-media { max-width: min(88%, 610px); }
+  html[data-theme-key="claude"] .msg-actions {
+    margin-top: 7px; gap: 0; color: #77766f;
+  }
+  html[data-theme-key="claude"] .msg-act {
+    width: 27px; height: 27px; border-radius: 8px;
+  }
+  html[data-theme-key="claude"] .msg-act:hover,
+  html[data-theme-key="claude"] .msg-act:active { background: #e9e8e4; color: #292826; }
+  html[data-theme-key="claude"] .msg-tokens,
+  html[data-theme-key="claude"] .msg-latency { color: #88877f; font-size: 10.5px; }
+  html[data-theme-key="claude"] .reply-variant-nav {
+    margin: -13px 0 18px; border: 0; background: transparent;
+    padding: 0; -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+
+  html[data-theme-key="claude"] .think {
+    margin: 0 0 17px; color: #6e6d66;
+  }
+  html[data-theme-key="claude"] .think > summary {
+    display: flex; width: fit-content; min-height: 28px; gap: 8px;
+    color: #6e6d66; font-size: 13px; font-weight: 520;
+  }
+  html[data-theme-key="claude"] .think-clock {
+    width: 16px; height: 16px; flex: 0 0 auto; opacity: .82;
+  }
+  html[data-theme-key="claude"] .think-chevron {
+    width: 14px; height: 14px; margin-left: 1px; opacity: .65;
+    transition: transform .18s ease;
+  }
+  html[data-theme-key="claude"] .think[open] .think-chevron { transform: rotate(180deg); }
+  html[data-theme-key="claude"] .think > summary::after { display: none; }
+  html[data-theme-key="claude"] .think .think-body {
+    max-width: 650px; margin: 7px 0 3px 8px; padding: 1px 0 1px 15px;
+    border-left: 1px solid #cfcec8; color: #77766f;
+    font-size: 13px; line-height: 1.62;
+  }
+
+  html[data-theme-key="claude"] .main > header {
+    padding: 6px 18px 0;
+    padding-top: calc(6px + env(safe-area-inset-top));
+  }
+  html[data-theme-key="claude"] header > #toggle-sidebar,
+  html[data-theme-key="claude"] .header-actions {
+    background: rgba(248,248,246,.94); border-color: rgba(217,216,211,.82);
+    box-shadow: 0 5px 18px rgba(45,43,38,.08), inset 0 1px rgba(255,255,255,.7);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  }
+  html[data-theme-key="claude"] header > #toggle-sidebar {
+    width: 46px; height: 46px;
+  }
+  html[data-theme-key="claude"] .header-actions { min-height: 46px; }
+  html[data-theme-key="claude"] .header-actions .icon-btn { width: 40px; height: 40px; }
+  html[data-theme-key="claude"] .header-menu {
+    background: #f6f6f4; border-color: #deddd8;
+    box-shadow: 0 14px 34px rgba(45,43,38,.13);
+  }
+
+  html[data-theme-key="claude"] .main > .composer-wrap {
+    padding: 9px 16px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    background: linear-gradient(to bottom, rgba(248,248,246,0), #f8f8f6 24%);
+  }
+  html[data-theme-key="claude"] .composer {
+    max-width: 720px; gap: 7px; padding: 12px 14px 11px;
+    border: 1px solid #deddd8; border-radius: 28px;
+    background: #f6f6f4;
+    box-shadow: 0 0 0 4px rgba(255,255,255,.56), 0 7px 24px rgba(45,43,38,.09);
+  }
+  html[data-theme-key="claude"] .composer:focus-within {
+    border-color: #c8c7c1;
+    box-shadow: 0 0 0 4px rgba(255,255,255,.72), 0 8px 25px rgba(45,43,38,.11);
+  }
+  html[data-theme-key="claude"] .composer textarea {
+    min-height: 38px; padding: 5px 3px 2px; color: #292826;
+    font-size: 16.5px; line-height: 1.48;
+  }
+  html[data-theme-key="claude"] .composer textarea::placeholder { color: #96958e; }
+  html[data-theme-key="claude"] .composer-row { gap: 6px; }
+  html[data-theme-key="claude"] .attach-btn,
+  html[data-theme-key="claude"] .voice-input-btn {
+    background: transparent; color: #5f5e58;
+  }
+  html[data-theme-key="claude"] .model-quick {
+    max-width: min(54vw, 320px); padding: 6px 11px;
+    background: #e9e8e4; border-color: transparent; color: #4f4e49;
+    font-size: 11.5px;
+  }
+  html[data-theme-key="claude"] .send-btn {
+    width: 38px; height: 38px; background: #292826; color: #fff;
+  }
+  html[data-theme-key="claude"] .composer-hint { color: #96958e; }
+  html[data-theme-key="claude"] .err-banner,
+  html[data-theme-key="claude"] #attach-preview,
+  html[data-theme-key="claude"] #emoji-panel,
+  html[data-theme-key="claude"] #sticker-panel { max-width: 720px !important; }
+  html[data-theme-key="claude"] #plus-menu {
+    max-width: 720px; margin-left: auto; margin-right: auto;
+    background: #f6f6f4; border-color: #deddd8;
+  }
+
+  html[data-theme-key="claude"] .scroll-nav {
+    right: 50%; transform: translateX(50%);
+    bottom: calc(108px + env(safe-area-inset-bottom));
+  }
+  html[data-theme-key="claude"] #scroll-top-btn { display: none; }
+  html[data-theme-key="claude"] .scroll-jump-btn {
+    width: 38px; height: 38px; background: #f6f6f4; border-color: #deddd8;
+    box-shadow: 0 5px 18px rgba(45,43,38,.12);
+  }
+
+  html[data-theme-key="claude"] .sidebar {
+    width: 284px; background: #f1f1ee; border-right-color: #deddd8;
+  }
+  html[data-theme-key="claude"] .sidebar.collapsed,
+  html[data-theme-key="claude"].sb-pre-collapsed .sidebar { margin-left: -284px; }
+  html[data-theme-key="claude"] .sidebar .brand {
+    padding: 13px 10px 13px 14px; border-bottom-color: transparent;
+  }
+  html[data-theme-key="claude"] .sidebar .brand .logo { border-radius: 50%; }
+  html[data-theme-key="claude"] .sidebar .brand .title { font-size: 14px; font-weight: 650; }
+  html[data-theme-key="claude"] .conv-list { padding: 5px 9px 9px; }
+  html[data-theme-key="claude"] .conv-item { border-radius: 10px; padding: 9px 10px; }
+  html[data-theme-key="claude"] .conv-item.active { background: #e4e4e0; }
+  html[data-theme-key="claude"] .sidebar-action-bubble {
+    background: transparent; border-color: transparent; box-shadow: none;
+  }
+  html[data-theme-key="claude"] .sidebar-action-bubble:hover,
+  html[data-theme-key="claude"] .sidebar-action-bubble:active { background: #e4e4e0; box-shadow: none; }
+  html[data-theme-key="claude"] .empty-state .greet {
+    color: #292826; font-size: 32px; font-weight: 450;
+    font-family: ui-serif, Georgia, "Songti SC", "STSong", serif;
+  }
+  html[data-theme-key="claude"] .empty-avatar {
+    width: 48px; height: 48px; border-radius: 50%; margin-bottom: 16px;
+    background: #d97757; box-shadow: none;
+  }
+  html[data-theme-key="claude"] .starter-card {
+    border-color: #deddd8; background: #f6f6f4; box-shadow: none;
+  }
+
+  @media (max-width: 720px) {
+    html[data-theme-key="claude"] .sidebar {
+      width: min(84vw, 320px); max-width: 320px; margin-left: 0;
+      box-shadow: 8px 0 28px rgba(45,43,38,.14);
+    }
+    html[data-theme-key="claude"] .sidebar.collapsed,
+    html[data-theme-key="claude"].sb-pre-collapsed .sidebar {
+      margin-left: 0; transform: translateX(-100%);
+    }
+    html[data-theme-key="claude"] .backdrop.show { left: min(84vw, 320px); }
+    html[data-theme-key="claude"] .messages { padding: 0 18px; }
+    html[data-theme-key="claude"] .main > .composer-wrap { padding-left: 13px; padding-right: 13px; }
+    html[data-theme-key="claude"] .msg.assistant .bubble { font-size: var(--msg-font, 15.5px); }
+    html[data-theme-key="claude"] .msg.user .bubble { max-width: 84vw; }
+    html[data-theme-key="claude"] .empty-state .greet { font-size: 28px; }
   }
 .workbench-shell {
   flex: 1;
@@ -4919,7 +5133,9 @@ function updateBrand() {
 function updateSilentUI() {
   const on = !!settings.silentMode;
   const chip = $("silent-chip"); if (chip) chip.style.display = on ? "" : "none";
-  const inp = $("input"); if (inp) inp.placeholder = on ? "🔇 旁白模式 · 只记录（AI 不回复）" : ("发送消息给 " + (settings.aiName || "当前角色"));
+  const aiName = settings.aiName || "当前角色";
+  const normal = currentTheme().key === "claude" ? ("回复给 " + aiName) : ("发送消息给 " + aiName);
+  const inp = $("input"); if (inp) inp.placeholder = on ? "🔇 旁白模式 · 只记录（AI 不回复）" : normal;
 }
 function greetingText() {
   const h = new Date().getHours();
@@ -5270,7 +5486,11 @@ function createStreamContentGate(onContent, onReasoning) {
 }
 function thinkBlockHtml(reasoning, open) {
   if (!reasoning || !reasoning.trim()) return "";
-  return `<details class="think"${open ? " open" : ""}><summary>💭 思考过程</summary>` +
+  return `<details class="think"${open ? " open" : ""}><summary>` +
+    `<svg class="think-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>` +
+    `<span class="think-label">思考过程</span>` +
+    `<svg class="think-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>` +
+    `</summary>` +
     `<div class="think-body">${escapeHtml(reasoning.trim())}</div></details>`;
 }
 function stickerImg(s) {
@@ -10144,11 +10364,11 @@ const ACCENT_PRESETS = [
 ];
 // Full theme presets: each defines the whole palette (CSS variables).
 const THEMES = [
-  // 暖杏 Claude（默认）— 扁平暖奶油
-  { key: "claude", name: "暖杏 Claude", dark: false, vars: {
-    bg:"#f5f4ef", "bg-soft":"#faf9f5", "bg-panel":"#eeece4", border:"#e3e0d6", text:"#111111",
-    "text-dim":"#666666", accent:"#d97757", "accent-soft":"#f0ddd4", "assistant-bubble":"#faf9f5",
-    "code-bg":"#efece3", "err-bg":"#fbe9e3", "err-text":"#b3503a", "item-active":"#eae7dd" } },
+  // Claude 官端（默认）— 暖纸画布、平铺回答与右侧用户气泡。
+  { key: "claude", name: "Claude 官端", dark: false, textColor: "#292826", textDim: "#6e6d66", vars: {
+    bg:"#f8f8f6", "bg-soft":"#f6f6f4", "bg-panel":"#eeeeec", border:"#deddd8", text:"#292826",
+    "text-dim":"#6e6d66", accent:"#d97757", "accent-soft":"#f0ddd4", "assistant-bubble":"#f8f8f6",
+    "user-bubble":"#eeeeec", "code-bg":"#e9e8e4", "err-bg":"#fbe9e3", "err-text":"#b3503a", "item-active":"#e4e4e0" } },
   { key: "white", name: "极简白", dark: false, vars: {
     bg:"#ffffff", "bg-soft":"#ffffff", "bg-panel":"#ffffff", border:"#eaeaea", text:"#111111",
     "text-dim":"#666666", accent:"#5d63e6", "accent-soft":"#f3f3f3", "assistant-bubble":"#ffffff",
@@ -10239,6 +10459,7 @@ function applyTheme() {
   applyChatBg();
   applyBubbleStyle();
   applyFont();
+  updateSilentUI();
 }
 function clampTextOpacity(value) {
   const n = Number(value);
@@ -10258,7 +10479,8 @@ function syncTextStyleControl(prefix, custom, fallback, opacity, follows) {
   if (pct) pct.textContent = opacity + "%";
 }
 function applySystemTextColor() {
-  const themeColor = currentTheme().dark ? "#f2f2f2" : "#111111";
+  const theme = currentTheme();
+  const themeColor = theme.dark ? "#f2f2f2" : (theme.textColor || "#111111");
   const system = validTextColor(settings.systemTextColor);
   const narration = validTextColor(settings.narrationTextColor);
   const quote = validTextColor(settings.quoteTextColor);
