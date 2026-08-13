@@ -1073,6 +1073,43 @@
     -webkit-user-select: text; user-select: text;
     -webkit-touch-callout: default;
   }
+  .think.process-trace > summary { max-width: 100%; }
+  .trace-live-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto;
+    background: currentColor; opacity: .72;
+    animation: tracePulse 1.2s ease-in-out infinite;
+  }
+  @keyframes tracePulse {
+    0%, 100% { transform: scale(.72); opacity: .38; }
+    50% { transform: scale(1); opacity: .9; }
+  }
+  .trace-steps {
+    display: grid; gap: 9px; margin: 9px 0 1px 7px; padding: 1px 0 1px 15px;
+    border-left: 1px solid var(--border); color: var(--text-dim);
+  }
+  .trace-step { display: grid; grid-template-columns: 14px minmax(0,1fr); gap: 8px; align-items: start; }
+  .trace-status {
+    width: 9px; height: 9px; margin-top: 5px; border-radius: 50%;
+    border: 1.5px solid currentColor; opacity: .66;
+  }
+  .trace-step.running .trace-status {
+    border-color: transparent; background: currentColor;
+    animation: tracePulse 1.2s ease-in-out infinite;
+  }
+  .trace-step.completed .trace-status { background: currentColor; }
+  .trace-step.error .trace-status { color: #b4493f; border-color: currentColor; }
+  .trace-step.stopped .trace-status { border-radius: 2px; }
+  .trace-step-copy { min-width: 0; }
+  .trace-step-title { color: inherit; font-size: 12.5px; line-height: 1.45; }
+  .trace-step-detail {
+    margin-top: 2px; opacity: .78; font-size: 11.5px; line-height: 1.4;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .trace-reasoning {
+    margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border);
+    white-space: pre-wrap; line-height: 1.55; font-size: 12.5px;
+    -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
+  }
   .summary-source-toggle {
     width: 100%; margin-top: 12px; padding: 8px 10px; border: 1px solid var(--border);
     border-radius: 10px; color: var(--accent); background: var(--bg-panel);
@@ -5206,7 +5243,8 @@ function renderMessages() {
     if (m.role === "reminder") { box.appendChild(reminderCardEl(m)); continue; }   // countdown / done card
     const isLast = i === messages.length - 1;
     const el = makeMsgEl(m.role, m.content, {
-      actions: true, isLast, reasoning: m.reasoning, ts: m.ts,
+      actions: true, isLast, reasoning: m.reasoning, traces: m.traces,
+      responseState: m.responseState, ts: m.ts,
       tokens: m.tokens, timing: m.timing, promptAudit: m.promptAudit,
     });
     el.dataset.idx = i;
@@ -5485,14 +5523,92 @@ function createStreamContentGate(onContent, onReasoning) {
   }
   return { push, finish, isHolding: () => mode !== "visible" };
 }
-function thinkBlockHtml(reasoning, open) {
-  if (!reasoning || !reasoning.trim()) return "";
-  return `<details class="think"${open ? " open" : ""}><summary>` +
-    `<svg class="think-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>` +
-    `<span class="think-label">思考过程</span>` +
+const TRACE_COPY = {
+  thinking: { running: "正在整理回复", completed: "整理了回复思路", error: "思考中断", stopped: "已停止思考" },
+  local: { running: "正在翻找以前的聊天", completed: "翻找了相关聊天", error: "旧聊天检索失败", stopped: "已停止检索旧聊天" },
+  web: { running: "正在搜索网页资料", completed: "查找了网页资料", error: "网页搜索失败", stopped: "已停止网页搜索" },
+  album: { running: "正在查看私人相册", completed: "查看了相关照片", error: "相册检索失败", stopped: "已停止检索相册" },
+};
+function traceLabel(type, status) {
+  const item = TRACE_COPY[type] || TRACE_COPY.thinking;
+  return item[status] || item.completed;
+}
+function startMessageTrace(message, type, detail) {
+  if (!message) return null;
+  if (!Array.isArray(message.traces)) message.traces = [];
+  const previous = [...message.traces].reverse().find(phase => phase && phase.status === "running");
+  if (previous && previous.type !== type) finishMessageTrace(message, previous.id, "completed");
+  const active = [...message.traces].reverse().find(phase => phase && phase.type === type && phase.status === "running");
+  if (active) {
+    if (detail) active.detail = detail;
+    active.label = traceLabel(type, "running");
+    return active;
+  }
+  const phase = {
+    id: uid(), type, status: "running", label: traceLabel(type, "running"),
+    detail: String(detail || "").trim(), startedAt: Date.now(),
+  };
+  message.traces.push(phase);
+  return phase;
+}
+function finishMessageTrace(message, id, status, error) {
+  const phase = (message?.traces || []).find(item => item && item.id === id);
+  if (!phase) return;
+  phase.status = status || "completed";
+  phase.label = traceLabel(phase.type, phase.status);
+  phase.endedAt = Date.now();
+  if (error) phase.error = String(error).slice(0, 240);
+}
+function finishRunningTraces(message, status, error) {
+  (message?.traces || []).forEach(phase => {
+    if (phase && phase.status === "running") finishMessageTrace(message, phase.id, status, error);
+  });
+}
+function tracePhasesForRender(traces, streaming) {
+  return (Array.isArray(traces) ? traces : []).filter(Boolean).map(phase => {
+    if (streaming || phase.status !== "running") return phase;
+    return { ...phase, status: "stopped", label: traceLabel(phase.type, "stopped") };
+  });
+}
+function processTraceLabel(phases, reasoning, streaming) {
+  const active = [...phases].reverse().find(phase => phase.status === "running");
+  if (active) return active.label || traceLabel(active.type, "running");
+  const failed = [...phases].reverse().find(phase => phase.status === "error");
+  if (failed) return failed.label || "有一步没有完成";
+  const stopped = [...phases].reverse().find(phase => phase.status === "stopped");
+  if (stopped) return stopped.label || "过程已停止";
+  const tools = phases.filter(phase => phase.type !== "thinking");
+  if (tools.length) return tools.length === 1 ? tools[0].label : `完成了 ${tools.length} 个步骤`;
+  if (reasoning && reasoning.trim()) return streaming ? "正在思考" : "思考过程";
+  return "处理过程";
+}
+function thinkBlockHtml(reasoning, open, traces, responseState, streaming) {
+  reasoning = String(reasoning || "").trim();
+  const phases = tracePhasesForRender(traces, !!streaming);
+  if (!reasoning && !phases.length) return "";
+  const label = processTraceLabel(phases, reasoning, !!streaming);
+  const running = phases.some(phase => phase.status === "running");
+  const steps = phases.map(phase => {
+    const status = ["running", "completed", "error", "stopped"].includes(phase.status)
+      ? phase.status : "completed";
+    const detail = phase.error || phase.detail || "";
+    return `<div class="trace-step ${status}">` +
+      `<span class="trace-status" aria-hidden="true"></span>` +
+      `<div class="trace-step-copy"><div class="trace-step-title">${escapeHtml(String(phase.label || traceLabel(phase.type, status)))}</div>` +
+      (detail ? `<div class="trace-step-detail">${escapeHtml(String(detail))}</div>` : "") +
+      `</div></div>`;
+  }).join("");
+  const reasoningHtml = reasoning
+    ? `<div class="trace-reasoning">${escapeHtml(reasoning)}</div>` : "";
+  const body = phases.length
+    ? `<div class="trace-steps">${steps}${reasoningHtml}</div>`
+    : `<div class="think-body">${escapeHtml(reasoning)}</div>`;
+  return `<details class="think process-trace"${open ? " open" : ""}><summary>` +
+    (running ? `<span class="trace-live-dot" aria-hidden="true"></span>` :
+      `<svg class="think-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`) +
+    `<span class="think-label">${escapeHtml(label)}</span>` +
     `<svg class="think-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>` +
-    `</summary>` +
-    `<div class="think-body">${escapeHtml(reasoning.trim())}</div></details>`;
+    `</summary>${body}</details>`;
 }
 function stickerImg(s) {
   return `<img class="sticker-img" src="${escapeHtml(s.dataUrl)}" alt="${escapeHtml(s.name)}" title="${escapeHtml(s.name)}">`;
@@ -5513,7 +5629,7 @@ function filePartsHtml(content) {
   return content.filter(p => p.type === "file")
     .map(p => fileCardHtml(p)).join("");
 }
-function bubbleHtml(role, content, reasoning, streaming) {
+function bubbleHtml(role, content, reasoning, streaming, traces, responseState) {
   let text = content, stickerParts = "";
   if (Array.isArray(content)) {
     stickerParts = content.filter(p => p.type === "sticker").map(p => stickerHtml(p)).join("");
@@ -5533,7 +5649,10 @@ function bubbleHtml(role, content, reasoning, streaming) {
     }
     // While the model is still thinking (streaming, no answer yet) keep the box
     // auto-expanded so you can watch it live; it collapses itself once the reply starts.
-    thinkHtml = thinkBlockHtml(reason, streaming && !!reason.trim() && !answer.trim());
+    const hasRunningTrace = tracePhasesForRender(traces, !!streaming).some(phase => phase.status === "running");
+    thinkHtml = thinkBlockHtml(reason,
+      !!streaming && (!!reason.trim() || hasRunningTrace) && !answer.trim(),
+      traces, responseState, streaming);
   }
   let textHtml = answer
     ? (role === "assistant" ? renderMarkdown(answer) : escapeHtml(answer).replace(/\n/g, "<br>"))
@@ -5547,14 +5666,14 @@ function bubbleHtml(role, content, reasoning, streaming) {
   }
   return stickerParts + thinkHtml + textHtml;
 }
-function messageContentHtml(role, content, reasoning) {
+function messageContentHtml(role, content, reasoning, traces, responseState) {
   const media = imagePartsHtml(content) + filePartsHtml(content);
-  if (!media) return `<div class="bubble">${bubbleHtml(role, content, reasoning)}</div>`;
+  if (!media) return `<div class="bubble">${bubbleHtml(role, content, reasoning, false, traces, responseState)}</div>`;
   const rest = content.filter(p => p.type !== "image" && p.type !== "file");
   const hasTextOrSticker = rest.some(p => p.type === "sticker" || (p.type === "text" && (p.text || "").trim()));
-  const hasReasoning = role === "assistant" && !!(reasoning || "").trim();
+  const hasReasoning = role === "assistant" && (!!(reasoning || "").trim() || (Array.isArray(traces) && traces.length));
   return `<div class="msg-media">${media}</div>` +
-    ((hasTextOrSticker || hasReasoning) ? `<div class="bubble">${bubbleHtml(role, rest, reasoning)}</div>` : "");
+    ((hasTextOrSticker || hasReasoning) ? `<div class="bubble">${bubbleHtml(role, rest, reasoning, false, traces, responseState)}</div>` : "");
 }
 function formatTime(ts) {
   if (!ts) return "";
@@ -5578,11 +5697,11 @@ function makeMsgEl(role, content, opts) {
   const nameHtml = escapeHtml(nameFor(role)) + timeHtml;
   if (flat) {
     el.innerHTML = `<div class="msg-head">${avatarHtml(role)}<span class="name">${nameHtml}</span></div>
-      ${messageContentHtml(role, content, opts.reasoning)}`;
+      ${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState)}`;
   } else {
     el.innerHTML = `${avatarHtml(role)}
       <div class="body"><div class="name">${nameHtml}</div>
-      ${messageContentHtml(role, content, opts.reasoning)}</div>`;
+      ${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState)}</div>`;
   }
   if (opts.actions && role === "user") {
     const container = flat ? el : el.querySelector(".body");
@@ -8959,6 +9078,9 @@ async function revealSegments(segments, baseMsg) {
         _originReplyId: baseMsg.id || "" };
       if (i === 0 && baseMsg.reasoning) msg.reasoning = baseMsg.reasoning;
     }
+    if (i === 0 && Array.isArray(baseMsg.traces) && baseMsg.traces.length)
+      msg.traces = cloneChatData(baseMsg.traces);
+    if (i === 0 && baseMsg.responseState) msg.responseState = baseMsg.responseState;
     messages.push(msg);
     renderMessages();
     if (stickBottom) scrollToBottom();
@@ -10113,7 +10235,10 @@ async function generateReply() {
   if (abortController) return;
   clearError();
   markSeen();
-  const assistantMsg = { id: uid(), role: "assistant", content: "", reasoning: "", ts: Date.now() };
+  const assistantMsg = {
+    id: uid(), role: "assistant", content: "", reasoning: "", traces: [],
+    responseState: "submitted", ts: Date.now(),
+  };
   messages.push(assistantMsg);
   const el = makeMsgEl("assistant", "");
   $("messages").appendChild(el);
@@ -10122,10 +10247,45 @@ async function generateReply() {
   pinToBottom();               // follow iOS keyboard/composer reflow as the reply starts
   setSending(true);
   const paint = () => {
-    const empty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim();
+    const empty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim()
+      && !(assistantMsg.traces || []).length;
     bubble.innerHTML = empty ? TYPING_HTML
-      : bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, true) + '<span class="cursor"></span>';
+      : bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, true,
+        assistantMsg.traces, assistantMsg.responseState) + '<span class="cursor"></span>';
     if (stickBottom) scrollToBottom();   // don't yank the view if the user scrolled up to read history
+  };
+  const appendReasoning = (delta, dedupe) => {
+    if (!delta) return;
+    assistantMsg.responseState = "thinking";
+    const continuingThought = [...(assistantMsg.traces || [])].reverse()
+      .some(phase => phase.type === "thinking" && phase.status === "running");
+    startMessageTrace(assistantMsg, "thinking", "");
+    if (!continuingThought && assistantMsg.reasoning && !assistantMsg.reasoning.endsWith("\n"))
+      assistantMsg.reasoning += "\n\n";
+    if (dedupe) {
+      if (!(assistantMsg.reasoning || "").includes(delta))
+        assistantMsg.reasoning = [assistantMsg.reasoning || "", delta].filter(Boolean).join("\n").trim();
+    } else {
+      assistantMsg.reasoning += delta;
+    }
+  };
+  const markAnswerStarted = () => {
+    assistantMsg.responseState = "answer";
+    const activeThought = [...(assistantMsg.traces || [])].reverse()
+      .find(phase => phase.type === "thinking" && phase.status === "running");
+    if (activeThought) finishMessageTrace(assistantMsg, activeThought.id, "completed");
+  };
+  const cleanPartialReply = () => {
+    assistantMsg.content = extractPrivateDiary(assistantMsg.content, assistantMsg.id);
+    assistantMsg.reasoning = extractPrivateDiary(assistantMsg.reasoning, assistantMsg.id);
+    const partial = extractAssistantReasoning(assistantMsg.content, false);
+    if (partial.reasoning) {
+      assistantMsg.reasoning = [assistantMsg.reasoning || "", partial.reasoning].filter(Boolean).join("\n").trim();
+      assistantMsg.content = partial.answer.trim();
+    }
+    assistantMsg.content = assistantMsg.content
+      .replace(/\[\s*(?:搜索|联网|相册|提醒)\s*[:：][^\]\n]*\]/g, "")
+      .replace(/\[\s*(?:私记|私人日记|角色日记)\s*[:：][\s\S]*?\]/gi, "").trim();
   };
 
   let replied = false;
@@ -10136,23 +10296,22 @@ async function generateReply() {
     pendingSearchContext = "";
     let searchRounds = 0;
     while (true) {
-      assistantMsg.content = ""; assistantMsg.reasoning = "";
+      assistantMsg.content = "";
+      assistantMsg.responseState = "thinking";
       const visibleStartedAt = performance.now();
       let visibleAt = 0, roundTiming = null;
       const contentGate = createStreamContentGate(
         (delta) => {
           if (delta && !visibleAt) visibleAt = performance.now();
+          if (delta) markAnswerStarted();
           assistantMsg.content += delta;
         },
-        (rdelta) => {
-          if (rdelta && !(assistantMsg.reasoning || "").includes(rdelta))
-            assistantMsg.reasoning = [assistantMsg.reasoning || "", rdelta].filter(Boolean).join("\n").trim();
-        }
+        (rdelta) => appendReasoning(rdelta, true)
       );
       try {
         roundTiming = await streamChat(
           (delta) => { contentGate.push(delta); paint(); },
-          (rdelta) => { assistantMsg.reasoning += rdelta; paint(); }
+          (rdelta) => { appendReasoning(rdelta, false); paint(); }
         );
       } finally {
         contentGate.finish();
@@ -10179,20 +10338,30 @@ async function generateReply() {
       }
       if (!act) break;
       searchRounds++;
-      if (act.type === "local") {
-        assistantMsg.content = "🔍 正在翻找以前的聊天「" + act.q + "」…"; assistantMsg.reasoning = ""; paint();
-        pendingSearchContext = "（你刚才请求搜索旧聊天「" + act.q + "」，以下是翻到的相关内容，请据此自然作答，别生硬复述原文）\n" + searchHistory(act.q);
-      } else if (act.type === "web") {
-        assistantMsg.content = "🌐 正在联网搜索「" + act.q + "」…"; assistantMsg.reasoning = ""; paint();
-        const web = await webSearch(act.q);
-        pendingSearchContext = "（你刚才请求联网搜索「" + act.q + "」，以下是网络搜索结果。请据此回答，注意信息可能有时效或不准，必要时提一下来源/不确定性）\n" + web;
-      } else {
-        assistantMsg.content = "🖼️ 正在相册里翻找「" + act.q + "」…"; assistantMsg.reasoning = ""; paint();
-        pendingSearchContext = await inspectAlbumForModel(act.q);
+      assistantMsg.content = "";
+      assistantMsg.responseState = "tool";
+      const toolTrace = startMessageTrace(assistantMsg, act.type, "关键词：" + act.q);
+      paint();
+      try {
+        if (act.type === "local") {
+          pendingSearchContext = "（你刚才请求搜索旧聊天「" + act.q + "」，以下是翻到的相关内容，请据此自然作答，别生硬复述原文）\n" + searchHistory(act.q);
+        } else if (act.type === "web") {
+          const web = await webSearch(act.q);
+          pendingSearchContext = "（你刚才请求联网搜索「" + act.q + "」，以下是网络搜索结果。请据此回答，注意信息可能有时效或不准，必要时提一下来源/不确定性）\n" + web;
+        } else {
+          pendingSearchContext = await inspectAlbumForModel(act.q);
+        }
+        finishMessageTrace(assistantMsg, toolTrace.id, "completed");
+      } catch (toolError) {
+        finishMessageTrace(assistantMsg, toolTrace.id, "error", "执行失败，请稍后重试");
+        paint();
+        throw toolError;
       }
       paint();
     }
     pendingSearchContext = "";
+    finishRunningTraces(assistantMsg, "completed");
+    assistantMsg.responseState = "complete";
     // Capture the private marker before reasoning normalization. A relay may
     // flatten hidden reasoning into content, or stream it through the separate
     // reasoning channel; either way it must be saved before that channel is
@@ -10204,6 +10373,8 @@ async function generateReply() {
     // future renders instead of only hiding it for the current paint.
     const normalized = extractAssistantReasoning(assistantMsg.content, false);
     if (normalized.reasoning) {
+      const normalizedTrace = startMessageTrace(assistantMsg, "thinking", "");
+      finishMessageTrace(assistantMsg, normalizedTrace.id, "completed");
       assistantMsg.reasoning = [assistantMsg.reasoning || "", normalized.reasoning].filter(Boolean).join("\n").trim();
       assistantMsg.content = normalized.answer.trim();
     }
@@ -10215,7 +10386,11 @@ async function generateReply() {
     assistantMsg.reasoning = extractPrivateDiary(assistantMsg.reasoning, assistantMsg.id);
     const isEmpty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim();
     if (isEmpty) {
-      messages.pop(); el.remove();
+      const emptyTrace = startMessageTrace(assistantMsg, "thinking", "模型没有返回可显示的正文");
+      finishMessageTrace(assistantMsg, emptyTrace.id, "error", "空回复");
+      assistantMsg.responseState = "error";
+      bubble.innerHTML = bubbleHtml("assistant", "", "", false,
+        assistantMsg.traces, assistantMsg.responseState);
       showError("模型返回了空回复。可能原因：thinking 模型不支持图片输入、temperature 设置有冲突，或接口限制。请打开浏览器控制台查看详细错误。");
       showToast("❌ 空回复（可能不支持图片/thinking 冲突）", 5000);
     } else {
@@ -10242,7 +10417,8 @@ async function generateReply() {
         await revealSegments(segs, assistantMsg);
       } else {
         if (segs && segs.length === 1 && segs[0].kind === "text") assistantMsg.content = segs[0].text;
-        bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning);
+        bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, false,
+          assistantMsg.traces, assistantMsg.responseState);
       }
       // now append the countdown cards as their own messages (after江屹琛's reply)
       remRes.reminders.forEach(r => addReminderMessage(r.text, r.mins));
@@ -10252,26 +10428,24 @@ async function generateReply() {
   } catch (e) {
     pendingSearchContext = "";
     console.error("[generateReply error]", e);
+    cleanPartialReply();
     if (e.name === "AbortError") {
-      assistantMsg.content = extractPrivateDiary(assistantMsg.content, assistantMsg.id);
-      assistantMsg.reasoning = extractPrivateDiary(assistantMsg.reasoning, assistantMsg.id);
-      const normalized = extractAssistantReasoning(assistantMsg.content, false);
-      if (normalized.reasoning) {
-        assistantMsg.reasoning = [assistantMsg.reasoning || "", normalized.reasoning].filter(Boolean).join("\n").trim();
-        assistantMsg.content = normalized.answer.trim();
-      }
-      assistantMsg.content = assistantMsg.content
-        .replace(/\[\s*(?:搜索|联网|相册|提醒)\s*[:：][^\]\n]*\]/g, "")
-        .replace(/\[\s*(?:私记|私人日记|角色日记)\s*[:：][\s\S]*?\]/gi, "").trim();
-      if (!assistantMsg.content && !(assistantMsg.reasoning || "").trim()) {
+      finishRunningTraces(assistantMsg, "stopped");
+      assistantMsg.responseState = "stopped";
+      if (!assistantMsg.content && !(assistantMsg.reasoning || "").trim() && !(assistantMsg.traces || []).length) {
         const idx = messages.findIndex(m => m.id === assistantMsg.id);
         if (idx >= 0) messages.splice(idx, 1);
         el.remove();
       } else {
-        bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning);
+        bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, false,
+          assistantMsg.traces, assistantMsg.responseState);
       }
     } else {
-      messages.pop(); el.remove();
+      if (!(assistantMsg.traces || []).length) startMessageTrace(assistantMsg, "thinking", "");
+      finishRunningTraces(assistantMsg, "error", "接口连接中断，可重新生成");
+      assistantMsg.responseState = "error";
+      bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, false,
+        assistantMsg.traces, assistantMsg.responseState);
       showError(e.message || String(e));
       showToast("❌ " + (e.message || String(e)).slice(0, 80), 5000);
     }
@@ -11640,7 +11814,7 @@ async function init() {
   messagesEl.addEventListener("contextmenu", (e) => {
     const idx = findIdx(e.target);
     if (idx == null) return;
-    if (e.target.closest && e.target.closest("pre, code, .think-body")) return;
+    if (e.target.closest && e.target.closest("pre, code, .think-body, .trace-reasoning")) return;
     e.preventDefault();
   });
   $("msg-menu").querySelectorAll("button").forEach(btn => {

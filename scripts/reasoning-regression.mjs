@@ -5,7 +5,7 @@ const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')
 const selectionChecks = [
   ['-webkit-user-select: text; user-select: text;', 'reasoning text is not selectable'],
   ['-webkit-touch-callout: default;', 'iOS native copy/translate callout is disabled'],
-  ['e.target.closest("pre, code, .think-body")', 'reasoning long-press is still intercepted by the message menu'],
+  ['e.target.closest("pre, code, .think-body, .trace-reasoning")', 'reasoning long-press is still intercepted by the message menu'],
   ['const anthropicBlockTypes = new Map();', 'Anthropic block types are not tracked across SSE events'],
   ['currentBlockType === "thinking" || currentBlockType === "reasoning"', 'text-shaped thinking deltas are not classified by their current block'],
   ['anthropicBlockTypes.delete(json.index ?? 0)', 'finished Anthropic block state is not cleared'],

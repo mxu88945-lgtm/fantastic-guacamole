@@ -31,7 +31,8 @@ ok(shell.includes('.sidebar {') && shell.includes('background: #f1f1ee'),
 ok(shell.includes('@media (max-width: 720px)') && shell.includes('width: min(84vw, 320px)'),
   'Claude mobile drawer is not bounded')
 
-ok(html.includes('<svg class="think-clock"') && html.includes('<span class="think-label">思考过程</span>')
+ok(html.includes('<svg class="think-clock"') && html.includes('processTraceLabel(phases, reasoning')
+  && html.includes('<span class="think-label">${escapeHtml(label)}</span>')
   && html.includes('<svg class="think-chevron"'), 'reasoning trace row is missing its semantic controls')
 ok(html.includes('currentTheme().key === "claude" ? ("回复给 " + aiName)'),
   'Claude composer does not use the role-aware reply placeholder')
@@ -48,6 +49,6 @@ ok(html.includes('const positionPlusMenu = () => {')
   'composer attachment menu is not anchored to the plus button')
 ok(html.includes('window.visualViewport.addEventListener("resize", positionPlusMenu'),
   'composer attachment menu does not follow the iOS visual viewport')
-ok(sw.includes('const CACHE = "role-chat-cache-v155";'), 'service worker cache was not bumped to v155')
+ok(sw.includes('const CACHE = "role-chat-cache-v156";'), 'service worker cache was not bumped to v156')
 
 console.log(`Claude shell regression: ${checks} checks passed`)
