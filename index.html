@@ -1094,6 +1094,21 @@
   .msg-latency { cursor: pointer; }
   .msg-act.playing { color: var(--accent); }
   .msg-act.tts-loading { opacity: .45; pointer-events: none; animation: tts-pulse .8s ease-in-out infinite; }
+  .reply-variant-nav {
+    display: flex; align-items: center; gap: 3px; width: fit-content;
+    margin: -10px 0 14px 44px; padding: 2px 5px;
+    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: 999px; color: var(--text-dim); background: color-mix(in srgb, var(--bg-soft) 84%, transparent);
+    font-size: 11px; line-height: 1; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  }
+  .reply-variant-nav button {
+    display: grid; place-items: center; width: 24px; height: 24px; padding: 0;
+    border: 0; border-radius: 50%; background: transparent; color: inherit;
+    font: inherit; font-size: 18px; cursor: pointer;
+  }
+  .reply-variant-nav button:not(:disabled):hover { color: var(--accent); background: var(--item-active); }
+  .reply-variant-nav button:disabled { opacity: .25; cursor: default; }
+  .reply-variant-nav span { min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
   @keyframes tts-pulse { 0%,100%{opacity:.45} 50%{opacity:.2} }
   /* long-press: suppress iOS selection on bubbles (but allow it in code blocks) */
   .bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
@@ -1678,6 +1693,8 @@
   <button data-mact="edit">✏️ 编辑重发</button>
   <button data-mact="edittext">✏️ 改文字</button>
   <button data-mact="quote">↩︎ 引用回复</button>
+  <button data-mact="fork">⑂ 从这里开分支</button>
+  <button data-mact="rewind">↶ 回拨到这里</button>
   <button data-mact="mem">🧠 存记忆</button>
   <button data-mact="del">🗑️ 删除</button>
 </div>
@@ -3813,6 +3830,7 @@ function saveSettings() {
   schedulePush();
 }
 function saveConversations() {
+  conversations.forEach(pruneReplyVariantsForConversation);
   localStorage.setItem("jyc_current", currentId);
   const snapshot = (typeof structuredClone === "function") ? structuredClone(conversations) : JSON.parse(JSON.stringify(conversations));
   queueConversationWrite(snapshot, currentId);
@@ -4051,6 +4069,52 @@ function messageEditableText(m) {
   if (typeof m.content === "string") return m.content;
   if (Array.isArray(m.content)) return m.content.filter(p => p.type === "text").map(p => p.text).join("\n");
   return "";
+}
+function cloneChatData(value) {
+  return (typeof structuredClone === "function") ? structuredClone(value) : JSON.parse(JSON.stringify(value));
+}
+function pruneReplyVariantsForConversation(conv) {
+  if (!conv || !conv.replyVariants || typeof conv.replyVariants !== "object") return;
+  const userIds = new Set((conv.messages || []).filter(m => m?.role === "user" && m.id).map(m => m.id));
+  Object.keys(conv.replyVariants).forEach(id => { if (!userIds.has(id)) delete conv.replyVariants[id]; });
+  if (!Object.keys(conv.replyVariants).length) delete conv.replyVariants;
+}
+function latestReplyTurn() {
+  let userIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") { userIndex = i; break; }
+  }
+  if (userIndex < 0) return null;
+  const user = messages[userIndex];
+  if (!user.id) user.id = uid();
+  const tail = messages.slice(userIndex + 1);
+  if (!tail.some(m => m?.role === "assistant")) return null;
+  return { userIndex, user, tail };
+}
+function replyVariantFingerprint(list) {
+  return JSON.stringify((list || []).map(m => [m?.id || "", m?.role || "", messageText(m || {}), m?.reasoning || ""]));
+}
+function replyVariantState(turn, create) {
+  const conv = currentConv();
+  if (!conv || !turn?.user?.id) return null;
+  if (!conv.replyVariants && create) conv.replyVariants = {};
+  if (!conv.replyVariants) return null;
+  if (!conv.replyVariants[turn.user.id] && create)
+    conv.replyVariants[turn.user.id] = { active: 0, variants: [] };
+  return conv.replyVariants[turn.user.id] || null;
+}
+function recordReplyVariant(turn, list) {
+  const state = replyVariantState(turn, true);
+  if (!state) return null;
+  const snapshot = cloneChatData(list || turn.tail || []);
+  const fingerprint = replyVariantFingerprint(snapshot);
+  let index = state.variants.findIndex(item => replyVariantFingerprint(item.messages) === fingerprint);
+  if (index < 0) {
+    state.variants.push({ id: uid(), createdAt: Date.now(), messages: snapshot });
+    index = state.variants.length - 1;
+  }
+  state.active = index;
+  return state;
 }
 function messageImages(m) {
   if (Array.isArray(m.content)) return m.content.filter(p => p.type === "image");
@@ -4864,6 +4928,31 @@ function greetingText() {
   if (h < 18) return "Afternoon";
   return "Good evening";
 }
+function renderReplyVariantNav(box) {
+  const turn = latestReplyTurn();
+  const state = replyVariantState(turn, false);
+  if (!turn || !state || state.variants.length < 2) return;
+  state.active = Math.max(0, Math.min(Number(state.active) || 0, state.variants.length - 1));
+  const lastAssistant = [...turn.tail].reverse().find(m => m?.role === "assistant" && m.id);
+  if (!lastAssistant) return;
+  const anchor = [...box.querySelectorAll(".msg")].find(el => el.dataset.mid === lastAssistant.id);
+  if (!anchor) return;
+  const nav = document.createElement("div");
+  nav.className = "reply-variant-nav";
+  nav.setAttribute("aria-label", "切换回复候选");
+  const previous = document.createElement("button");
+  previous.type = "button"; previous.textContent = "‹"; previous.title = "上一个回复";
+  previous.disabled = state.active <= 0;
+  previous.onclick = () => switchReplyVariant(-1);
+  const count = document.createElement("span");
+  count.textContent = (state.active + 1) + " / " + state.variants.length;
+  const next = document.createElement("button");
+  next.type = "button"; next.textContent = "›"; next.title = "下一个回复";
+  next.disabled = state.active >= state.variants.length - 1;
+  next.onclick = () => switchReplyVariant(1);
+  nav.append(previous, count, next);
+  anchor.insertAdjacentElement("afterend", nav);
+}
 function renderMessages() {
   const box = $("messages");
   if (messages.length === 0) {
@@ -4926,6 +5015,7 @@ function renderMessages() {
     }
     box.appendChild(el);
   }
+  renderReplyVariantNav(box);
   renderReminderPin();
   requestAnimationFrame(updateScrollControls);
 }
@@ -6468,7 +6558,7 @@ function chatStyleNote() {
     parts.push("【聊天风格·高优先级】像手机微信真人聊天：每条通常一句、最多两句；多说时用 `[next]` 分成 1～4 条。语气口语自然。除非 ta 明确要求沉浸式角色扮演，否则禁写旁白及动作、神态、环境描写，禁用 *…* 或括号包动作。");
   }
   if (settings.aiSticker) {
-    parts.push("【主动表情】情绪合适时常发独立的 `[表情包:情绪]`，约每几条一个；不要嵌在句中。");
+    parts.push("【主动表情】只有在情绪上自然想到时，才单独发 `[表情包:情绪]`；不设固定频率，不要嵌在句中，发出后也不要解释图片内容。");
   }
   return parts.join("\n");
 }
@@ -7964,6 +8054,38 @@ function invalidateDerivedForRemovedMessages(removedMessages, reason) {
   if (memories || diary) saveSettings();
   return { memories, diary };
 }
+function reactivateDerivedForMessages(restoredMessages) {
+  const sourceIds = new Set();
+  (restoredMessages || []).forEach(message => {
+    if (message?.id) sourceIds.add(message.id);
+    if (message?._originReplyId) sourceIds.add(message._originReplyId);
+  });
+  if (!sourceIds.size) return { memories: 0, diary: 0 };
+  const conv = currentConv();
+  const role = (settings.roles || []).find(item => item.id === conv?.roleId) || activeRole();
+  const entries = Array.isArray(role?.memEntries) ? role.memEntries : memList();
+  let memories = 0, diary = 0;
+  const restore = entry => {
+    entry.status = "active";
+    delete entry.invalidatedAt;
+    delete entry.invalidatedReason;
+  };
+  entries.forEach(entry => {
+    if (entry.status !== "invalidated" || entry.invalidatedReason !== "reply-variant-switch") return;
+    if (entry.sourceConvId && entry.sourceConvId !== currentId) return;
+    const ids = [entry.sourceMessageId].concat(entry.sourceMessageIds || []).filter(Boolean);
+    if (!ids.some(id => sourceIds.has(id))) return;
+    restore(entry); memories++;
+  });
+  rolePrivateDiary(role).forEach(entry => {
+    if (entry.status !== "invalidated" || entry.invalidatedReason !== "reply-variant-switch") return;
+    if (entry.sourceConvId && entry.sourceConvId !== currentId) return;
+    if (!sourceIds.has(entry.sourceMessageId)) return;
+    restore(entry); diary++;
+  });
+  if (memories || diary) saveSettings();
+  return { memories, diary };
+}
 // Ask the model to synthesize a concise "person sketch" from the memory库 + recent chat.
 async function generateMemSummary() {
   if (!memoryRuntimeConfig().apiKey) { showToast("请先给记忆模型选择一个已填写 Key 的接口"); return; }
@@ -8769,6 +8891,8 @@ function openMsgMenu(x, y, idx, mode) {
   $("msg-menu").querySelector('[data-mact="copy"]').style.display = inlineMore ? "none" : "";
   $("msg-menu").querySelector('[data-mact="edit"]').style.display = (!inlineMore && m && m.role === "user") ? "" : "none";
   $("msg-menu").querySelector('[data-mact="edittext"]').style.display = (!inlineMore && m && m.role === "assistant") ? "" : "none";
+  $("msg-menu").querySelector('[data-mact="fork"]').style.display = (m && !m._summary && !m._event) ? "" : "none";
+  $("msg-menu").querySelector('[data-mact="rewind"]').style.display = (m && m.role === "assistant" && !m._summary) ? "" : "none";
   const menu = $("msg-menu");
   menu.classList.add("show");
   // clamp within viewport
@@ -8796,6 +8920,44 @@ function quoteMessage(idx) {
   const inp = $("input");
   inp.value = q + "\n\n" + inp.value;
   inp.focus(); autoResize();
+}
+function branchConversationFrom(idx) {
+  const source = currentConv();
+  const sourceMessage = messages[idx];
+  if (!source || !sourceMessage || sourceMessage._summary || sourceMessage._event) return;
+  const branchMessages = cloneChatData(messages.slice(0, idx + 1));
+  const branch = {
+    id: uid(),
+    title: (source.title && source.title !== "新对话" ? source.title : deriveTitle(branchMessages)) + " · 分支",
+    messages: branchMessages,
+    updatedAt: Date.now(),
+    roleId: source.roleId || settings.activeRoleId,
+    branchedFrom: { conversationId: source.id, messageId: sourceMessage.id || "" },
+  };
+  conversations.unshift(branch);
+  switchConversation(branch.id, true);
+  showToast("⑂ 已从这条消息开了新分支");
+}
+function rewindToMessage(idx) {
+  const selected = messages[idx];
+  if (!selected || selected.role !== "assistant" || selected._summary) return;
+  let userIndex = -1;
+  for (let i = idx - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user" && !messages[i]._event) { userIndex = i; break; }
+  }
+  if (userIndex < 0) { showToast("这条回复前没有可回拨的手动消息"); return; }
+  if (!confirm("回拨会撤掉这次提问和后面的消息，并把原文放回输入框。继续？")) return;
+  const userMessage = messages[userIndex];
+  $("input").value = messageEditableText(userMessage);
+  pendingAttachments = Array.isArray(userMessage.content)
+    ? userMessage.content.filter(p => p.type === "image" || p.type === "sticker" || p.type === "file").map(p => ({ ...p })) : [];
+  renderAttachPreview();
+  const removed = messages.slice(userIndex);
+  invalidateDerivedForRemovedMessages(removed, "rewind");
+  messages.splice(userIndex);
+  saveConversations(); renderMessages();
+  autoResize(); $("input").focus();
+  showToast("↶ 已回拨，原文在输入框里");
 }
 // Edit & resend: load the message back into the input (with its attachments) and
 // drop it + everything after, so sending starts fresh from that point.
@@ -9914,16 +10076,48 @@ async function generateReply() {
   }
 }
 
-// Re-answer the last user turn (drop the previous assistant reply and stream a new one).
+function switchReplyVariant(direction) {
+  if (abortController) return;
+  const turn = latestReplyTurn();
+  const state = replyVariantState(turn, false);
+  if (!turn || !state || state.variants.length < 2) return;
+  const targetIndex = Math.max(0, Math.min(state.variants.length - 1, state.active + direction));
+  if (targetIndex === state.active) return;
+  const currentTail = messages.slice(turn.userIndex + 1);
+  invalidateDerivedForRemovedMessages(currentTail, "reply-variant-switch");
+  const restored = cloneChatData(state.variants[targetIndex].messages || []);
+  messages.splice(turn.userIndex + 1, currentTail.length, ...restored);
+  state.active = targetIndex;
+  reactivateDerivedForMessages(restored);
+  const conv = currentConv(); if (conv) conv.updatedAt = Date.now();
+  saveConversations(); renderMessages(); jumpToBottom();
+}
+
+// Re-answer the last user turn without destroying the previous answer. Every
+// successful result becomes a left/right-switchable candidate for this turn.
 async function regenerate() {
   if (abortController) return;
-  const removed = [];
-  while (messages.length && messages[messages.length - 1].role === "assistant") removed.unshift(messages.pop());
-  invalidateDerivedForRemovedMessages(removed, "regenerate");
-  if (!messages.length) { showToast("没有可重新生成的内容"); return; }
+  const turn = latestReplyTurn();
+  if (!turn) { showToast("没有可重新生成的内容"); return; }
   if (!settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
-  renderMessages();
+  const previousTail = cloneChatData(turn.tail);
+  const state = recordReplyVariant(turn, previousTail);
+  const previousIndex = state.active;
+  invalidateDerivedForRemovedMessages(turn.tail, "reply-variant-switch");
+  messages.splice(turn.userIndex + 1);
+  saveConversations(); renderMessages();
   await generateReply();
+  const generated = latestReplyTurn();
+  if (!generated || !generated.tail.some(m => m?.role === "assistant")) {
+    messages.splice(turn.userIndex + 1, messages.length - turn.userIndex - 1, ...cloneChatData(previousTail));
+    state.active = previousIndex;
+    reactivateDerivedForMessages(previousTail);
+    saveConversations(); renderMessages();
+    return;
+  }
+  recordReplyVariant(generated, generated.tail);
+  const conv = currentConv(); if (conv) conv.updatedAt = Date.now();
+  saveConversations(); renderMessages();
 }
 
 function setSending(on) {
@@ -11209,6 +11403,8 @@ async function init() {
       else if (a === "edit") editMessage(idx);
       else if (a === "edittext") editMessageText(idx);
       else if (a === "quote") quoteMessage(idx);
+      else if (a === "fork") branchConversationFrom(idx);
+      else if (a === "rewind") rewindToMessage(idx);
       else if (a === "mem") {
         const source = messages[idx], t = messageText(source).trim();
         if (t) {
