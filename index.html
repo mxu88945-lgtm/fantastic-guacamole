@@ -1214,7 +1214,8 @@
   html[data-glass="1"] .attach-btn { background: rgba(255,255,255,.42); }
   #emoji-btn { font-size: 20px; }
   #plus-menu {
-    display: none; flex-direction: column; gap: 2px; width: 200px; margin: 0 0 8px;
+    display: none; position: fixed; z-index: 55;
+    flex-direction: column; gap: 2px; width: 200px; margin: 0;
     background: var(--bg-soft); border: 1px solid var(--border); border-radius: 16px;
     box-shadow: 0 10px 30px rgba(0,0,0,.14); padding: 6px;
   }
@@ -1646,7 +1647,7 @@
   html[data-theme-key="claude"] #emoji-panel,
   html[data-theme-key="claude"] #sticker-panel { max-width: 720px !important; }
   html[data-theme-key="claude"] #plus-menu {
-    max-width: 720px; margin-left: auto; margin-right: auto;
+    max-width: calc(100vw - 24px); margin: 0;
     background: #f6f6f4; border-color: #deddd8;
   }
 
@@ -11549,12 +11550,39 @@ async function init() {
     $("emoji-panel").classList.remove("show");
     $("sticker-panel").classList.remove("show");
   };
+  const positionPlusMenu = () => {
+    const menu = $("plus-menu");
+    if (!menu.classList.contains("show")) return;
+    const trigger = $("plus-btn").getBoundingClientRect();
+    const bounds = menu.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const viewLeft = viewport ? viewport.offsetLeft : 0;
+    const viewTop = viewport ? viewport.offsetTop : 0;
+    const viewWidth = viewport ? viewport.width : window.innerWidth;
+    const viewHeight = viewport ? viewport.height : window.innerHeight;
+    const gutter = 12;
+    const left = Math.max(viewLeft + gutter,
+      Math.min(trigger.left, viewLeft + viewWidth - bounds.width - gutter));
+    let top = trigger.top - bounds.height - 10;
+    if (top < viewTop + gutter) top = Math.min(trigger.bottom + 10,
+      viewTop + viewHeight - bounds.height - gutter);
+    menu.style.left = Math.round(left) + "px";
+    menu.style.top = Math.round(Math.max(viewTop + gutter, top)) + "px";
+  };
   $("plus-btn").onclick = (e) => {
     e.stopPropagation();
     const open = $("plus-menu").classList.contains("show");
     closePopups();
-    if (!open) $("plus-menu").classList.add("show");
+    if (!open) {
+      $("plus-menu").classList.add("show");
+      requestAnimationFrame(positionPlusMenu);
+    }
   };
+  window.addEventListener("resize", positionPlusMenu, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", positionPlusMenu, { passive: true });
+    window.visualViewport.addEventListener("scroll", positionPlusMenu, { passive: true });
+  }
   $("plus-menu").querySelectorAll("button").forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();

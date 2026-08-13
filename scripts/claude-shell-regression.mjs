@@ -40,6 +40,14 @@ ok(html.includes('<html lang="zh-CN" data-theme="light" data-theme-key="claude">
   'Claude shell is not restored before the first PWA paint')
 ok(html.includes('applyFont();\n  updateSilentUI();'),
   'switching themes does not immediately refresh the composer placeholder')
-ok(sw.includes('const CACHE = "role-chat-cache-v154";'), 'service worker cache was not bumped to v154')
+ok(html.includes('#plus-menu {\n    display: none; position: fixed; z-index: 55;'),
+  'composer attachment menu still participates in layout flow')
+ok(html.includes('const positionPlusMenu = () => {')
+  && html.includes('const trigger = $("plus-btn").getBoundingClientRect();')
+  && html.includes('requestAnimationFrame(positionPlusMenu);'),
+  'composer attachment menu is not anchored to the plus button')
+ok(html.includes('window.visualViewport.addEventListener("resize", positionPlusMenu'),
+  'composer attachment menu does not follow the iOS visual viewport')
+ok(sw.includes('const CACHE = "role-chat-cache-v155";'), 'service worker cache was not bumped to v155')
 
 console.log(`Claude shell regression: ${checks} checks passed`)
