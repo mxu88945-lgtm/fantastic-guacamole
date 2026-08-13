@@ -20,7 +20,7 @@ has('const queryText = currentMemoryRecallQuery();', 'recall still uses assistan
 has('memory: boundedMemory.audit,', 'memory audit is absent from prompt diagnostics')
 has('sourceMessageIds: Array.isArray(provenance?.sourceMessageIds)', 'memory provenance is not stored')
 has('invalidateDerivedForRemovedMessages(messages.slice(idx), "edit-resend")', 'edit/resend does not invalidate derived memory')
-has('invalidateDerivedForRemovedMessages(removed, "regenerate")', 'regenerate does not invalidate derived memory')
+has('invalidateDerivedForRemovedMessages(turn.tail, "reply-variant-switch")', 'regenerate does not isolate derived memory by reply candidate')
 has('_originReplyId: baseMsg.id || ""', 'multi-bubble replies lack a stable derivation source')
 has('const entries = activeMemoryEntries();', 'inactive memory versions are not filtered from prompts')
 has('supersedeMemoryEntries(addition.replaces, entry.id);', 'changed facts do not supersede old versions')
@@ -202,6 +202,6 @@ ok(versionContext.versionHelpers.validatedMemoryReplacementIds(
 ok(versionContext.versionHelpers.validatedMemoryReplacementIds(
   { text: '惟惟不喝咖啡', replaces: ['coffee'] }, oldFacts, '今天聊到咖啡',
 ).length === 0, 'implicit text incorrectly superseded a durable fact')
-ok(sw.includes('const CACHE = "role-chat-cache-v152";'), 'service worker cache was not bumped to v152')
+ok(sw.includes('const CACHE = "role-chat-cache-v153";'), 'service worker cache was not bumped to v152')
 
 console.log(`memory accuracy regression: ${checks} checks passed`)
