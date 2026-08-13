@@ -17,6 +17,6 @@ ok(html.includes('{ key: "locked", label: "🔒 高权重锁定", priority: 1'),
 ok(html.includes('entry => !entry.locked && requested.has(entry.id)'), 'automatic replacement can still overwrite a lock')
 ok(html.includes('label: "Notion相关档案", priority: 6'), 'Notion does not receive a protected pre-summary slot')
 ok(html.includes('召回 ${block.recallSelected || 0} / 候选 ${block.recallCandidates}'), 'recall inspection remains ambiguous')
-ok(sw.includes('const CACHE = "role-chat-cache-v155";'), 'service worker cache was not bumped to v155')
+ok(sw.includes('const CACHE = "role-chat-cache-v156";'), 'service worker cache was not bumped to v156')
 
 console.log(`memory lock regression: ${checks} checks passed`)
