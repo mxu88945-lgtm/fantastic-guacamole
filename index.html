@@ -3559,7 +3559,7 @@ let settings = {
   temperature: 0.7,
   maxTokens: 2048,
   systemPrompt: "",
-  emojiStyle: "normal",   // off | cool | normal | cute
+  emojiStyle: "off",      // off | cool | normal | cute
   silentMode: false,      // 旁白：发消息只记录、不触发 AI 回复
   proactiveGreet: true,   // 久未聊天再打开时，AI 主动招呼
   visionModel: "",        // 读图(视觉)模型 id，用于把图片转述成文字
@@ -3610,7 +3610,7 @@ let settings = {
   stickers: [],           // [{id, name, dataUrl}] image stickers / 表情包
   favorites: [],          // [{id, who, text, ts}] starred quotes / 语录集
   multiBubble: true,      // 像真人发消息：把回复拆成多条气泡（[next] 分隔），逐条冒出来
-  aiSticker: true,        // AI 主动发表情：[表情包:情绪] 单独成一条气泡（emoji 大贴纸 / 已上传的同名表情）
+  aiSticker: false,       // AI 主动发表情已关闭；保留手动发送表情包能力
   aiGenSticker: false,    // 进一步用画图模型把表情包生成成真实图片（较慢、耗额度，默认关）
   sttEnabled: true,       // 输入栏语音按钮（说话转文字，不自动发送）
   sttEngine: "auto",      // auto | browser | api
@@ -3875,7 +3875,10 @@ async function loadState() {
     ROLE_FIELDS.forEach(f => { if (_r[f] !== undefined) settings[f] = _r[f]; });
   }
   // Retired chat-simulation controls stay disabled, while their old local data is preserved.
-  settings.emojiStyle = "normal";
+  // Keep the retired automatic expression/sticker behavior disabled for both
+  // new installs and existing local settings. Manual emoji/sticker sending
+  // remains available from the composer.
+  settings.emojiStyle = "off";
   settings.multiBubble = false;
   settings.aiSticker = false;
   settings.aiGenSticker = false;
@@ -5659,8 +5662,13 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState) 
     : "";
   // turn [贴纸:名字] tokens in the assistant's reply into the actual sticker image
   if (role === "assistant") {
-    textHtml = textHtml.replace(/\[(?:贴纸|表情包|表情|sticker)[:：]\s*([^\]]+)\]/gi, (m, name) =>
-      stickerHtml(resolveSticker(name.trim())));
+    const stickerToken = /\[(?:贴纸|表情包|表情|sticker)[:：]\s*([^\]]+)\]/gi;
+    // Do not let an old prompt, imported history, or a model that ignores the
+    // disabled setting turn an assistant reply into a sticker. Manual sticker
+    // parts still render through the content-array branch above.
+    textHtml = settings.aiSticker
+      ? textHtml.replace(stickerToken, (m, name) => stickerHtml(resolveSticker(name.trim())))
+      : textHtml.replace(stickerToken, "");
     // hide any [记忆:…] token from display (it's parsed/saved separately)
     textHtml = textHtml.replace(/\[\s*(?:记忆|记住|存记忆|memory)\s*[:：][^\]]*\]/gi, "");
   }
@@ -7073,7 +7081,7 @@ async function streamChat(onDelta, onReasoning) {
     const rnote = reminderStatusNote();
     if (rnote) systemText = systemText ? systemText + "\n\n" + rnote : rnote;
   }
-  if (settings.stickers && settings.stickers.length) {
+  if (settings.aiSticker && settings.stickers && settings.stickers.length) {
     const names = settings.stickers.map(s => s.name).join("、");
     const note = "【贴纸】可用：" + names + "。发送 `[贴纸:名字]`；只能使用列表内名字。";
     systemText = systemText ? systemText + "\n\n" + note : note;
