@@ -30,6 +30,8 @@ requireText('naturally become v3 the next time normal rolling compaction is actu
   'lazy legacy-summary upgrade policy is undocumented')
 requireText('const archived = messages.filter(m => isChatContentMessage(m) && m._compactedBy);', 'archived raw turns are absent from topical recall')
 requireText('const COMPACT_TRANSCRIPT_BYTE_BUDGET = 24000;', 'UTF-8 compaction budget is missing')
+requireText('const PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET = 900;', 'failed-summary continuity bridge budget is missing')
+requireText('function buildPendingContinuityBridge(historyWindow)', 'failed-summary continuity bridge is missing')
 requireText('const COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET = 12000;', 'safe retry budget is missing')
 requireText('useMemoryApi && resp.status === 400 && !retriedShortTranscript', 'strict JSON relay retry is missing')
 requireText('const transientStatuses = new Set([429, 500, 502, 503, 504]);', 'one-shot maintenance requests do not retry transient failures')
@@ -185,7 +187,11 @@ vm.runInNewContext(
   context,
 )
 const badResponse = (status, detail) => ({ ok: false, status, text: async () => detail })
-const goodResponse = data => ({ ok: true, status: 200, json: async () => data })
+const goodResponse = data => ({
+  ok: true, status: 200,
+  headers: { get: () => 'application/json' },
+  text: async () => JSON.stringify(data),
+})
 let queued = [
   badResponse(400, "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead."),
   goodResponse({ choices: [{ message: { content: [
@@ -202,7 +208,8 @@ const compatibleResult = await context.completeOnce('system', 'transcript', 2200
 if (compatibleResult !== '压缩完成') throw new Error('array-shaped completion content was not normalized')
 if (!Object.hasOwn(requestBodies[0], 'max_tokens')
     || !Object.hasOwn(requestBodies[1], 'max_completion_tokens')
-    || Object.hasOwn(requestBodies[1], 'max_tokens')) {
+    || Object.hasOwn(requestBodies[1], 'max_tokens')
+    || requestBodies[1].stream !== false) {
   throw new Error('max_completion_tokens compatibility retry did not rewrite the request')
 }
 requestBodies.length = 0
@@ -213,6 +220,44 @@ if (retryResult !== '重试成功' || requestBodies.length !== 2) {
 }
 if (!Object.hasOwn(requestBodies[0], 'max_completion_tokens')) {
   throw new Error('learned max_completion_tokens capability was not reused')
+}
+requestBodies.length = 0
+queued = [{
+  ok: true, status: 200,
+  headers: { get: () => 'text/event-stream; charset=utf-8' },
+  text: async () => [
+    'data: {"choices":[{"delta":{"content":"连续"}}]}',
+    'data: {"choices":[{"delta":{"content":"性档案"}}]}',
+    'data: [DONE]',
+  ].join('\n'),
+}]
+const sseResult = await context.completeOnce('system', 'transcript', 2200, true)
+if (sseResult !== '连续性档案' || requestBodies[0].stream !== false) {
+  throw new Error('one-shot memory completion did not accept an SSE response')
+}
+
+const bridgeStart = html.indexOf('function buildPendingContinuityBridge(')
+const bridgeEnd = html.indexOf('function currentMemoryRecallQuery(', bridgeStart)
+if (bridgeStart < 0 || bridgeEnd < 0) throw new Error('continuity bridge helper section not found')
+const bridgeContext = {
+  PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET: 900,
+  isChatContentMessage: message => !!message?.content,
+  messageText: message => message?.content || '',
+  messageImages: () => [],
+  nameFor: role => role === 'user' ? '惟惟' : '顾祁砚',
+  clipUnicodeChars: (value, max) => Array.from(String(value)).slice(0, max).join(''),
+}
+vm.runInNewContext(html.slice(bridgeStart, bridgeEnd), bridgeContext)
+const bridge = bridgeContext.buildPendingContinuityBridge({
+  rollingSummary: null,
+  omitted: Array.from({ length: 8 }, (_, index) => ({ role: index % 2 ? 'assistant' : 'user', content: `边界消息${index + 1}` })),
+})
+if (!bridge.includes('边界消息3') || !bridge.includes('边界消息8') || bridge.includes('边界消息1')
+    || Array.from(bridge).length > 900) {
+  throw new Error('failed-summary continuity bridge did not preserve the nearest bounded turns')
+}
+if (bridgeContext.buildPendingContinuityBridge({ rollingSummary: { id: 'summary' }, omitted: [{ content: '不应重复' }] })) {
+  throw new Error('temporary continuity bridge duplicated an existing rolling summary')
 }
 
 const compactBatchStart = html.indexOf('async function compactMessageBatch(')
@@ -242,7 +287,7 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v157";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v158";')) {
   throw new Error('service worker cache was not bumped for lazy summary upgrade')
 }
 

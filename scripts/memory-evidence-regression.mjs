@@ -20,6 +20,6 @@ ok(html.includes('rememberMemoryInspection(auditBlocks, selected'), 'request ass
 ok(html.includes('id="memory-inspection-view"'), 'memory inspection surface is missing')
 ok(html.includes('只展示应用实际组装给模型的记忆来源'), 'inspection surface does not explain its boundary')
 ok(html.includes('if (tab === "memory") renderMemoryInspection();'), 'memory inspection does not refresh when opened')
-ok(sw.includes('const CACHE = "role-chat-cache-v157";'), 'service worker cache was not bumped to v157')
+ok(sw.includes('const CACHE = "role-chat-cache-v158";'), 'service worker cache was not bumped to v158')
 
 console.log(`memory evidence regression: ${checks} checks passed`)

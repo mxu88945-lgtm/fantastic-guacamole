@@ -3662,6 +3662,7 @@ const AUTO_COMPACT_RETRY_COOLDOWN_MS = 5 * 60 * 1000; // failed maintenance must
 const ROLLING_SUMMARY_VERSION = 3;
 const ROLLING_SUMMARY_CHAR_LIMIT = 2400;
 const ROLLING_SUMMARY_MAX_TOKENS = 2200;
+const PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET = 900; // exact boundary turns while a rolling summary is unavailable
 const AUTO_MEMORY_EVERY = 24;
 const MEMORY_CONTEXT_CHAR_BUDGET = 6400; // all derived memory layers share one ceiling
 const MEMORY_RECALL_COOLDOWN_TURNS = 4;  // avoid echoing the same old excerpt every reply
@@ -6565,6 +6566,22 @@ function buildApiHistoryWindow() {
   };
 }
 
+function buildPendingContinuityBridge(historyWindow) {
+  if (!historyWindow || historyWindow.rollingSummary || !historyWindow.omitted?.length) return "";
+  const boundary = historyWindow.omitted.filter(isChatContentMessage).slice(-6);
+  if (!boundary.length) return "";
+  const rows = boundary.map(message => {
+    const body = messageText(message).replace(/\s+/g, " ").trim()
+      || (messageImages(message).length ? "[图片]" : "");
+    return nameFor(message.role) + "：" + clipUnicodeChars(body, 180);
+  });
+  return clipUnicodeChars(
+    "【尚未生成连续性档案时的旧文衔接桥】\n" + rows.join("\n")
+      + "\n这些是紧邻当前可见历史之前的准确原文，只用于承接场景；若与最近消息冲突，以最近消息为准。",
+    PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET,
+  );
+}
+
 function currentMemoryRecallQuery() {
   const userTurns = messages.filter(m =>
     m && m.role === "user" && !m._event && !m._summary && messageText(m).trim());
@@ -6997,6 +7014,78 @@ function oneShotCompletionText(data, isAnthropic) {
   }
   return text.trim();
 }
+function oneShotEventText(data, isAnthropic) {
+  if (!data || typeof data !== "object") return "";
+  if (isAnthropic) {
+    if (data.type === "content_block_start") {
+      const block = data.content_block || {};
+      if (/thinking|reasoning|analysis/i.test(block.type || "")) return "";
+      return block.type === "text" ? completionContentText(block.text) : "";
+    }
+    if (data.type === "content_block_delta") {
+      const delta = data.delta || {};
+      if (/thinking|reasoning|analysis/i.test(delta.type || "")) return "";
+      return completionContentText(delta.text);
+    }
+    return "";
+  }
+  const choice = data.choices?.[0];
+  const delta = choice?.delta;
+  if (delta) return completionContentText(delta.content);
+  if (choice?.message?.content != null) return completionContentText(choice.message.content);
+  if (choice?.text != null) return completionContentText(choice.text);
+  if (typeof data.delta === "string" && /output_text/i.test(data.type || "")) return data.delta;
+  if (typeof data.output_text === "string") return data.output_text;
+  return "";
+}
+function parseOneShotEventStreamText(raw, isAnthropic) {
+  let output = "";
+  for (const line of String(raw || "").split(/\r?\n/)) {
+    if (!line.startsWith("data:")) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === "[DONE]") continue;
+    try { output += oneShotEventText(JSON.parse(payload), isAnthropic); }
+    catch (_) {}
+  }
+  return output.trim();
+}
+async function readOneShotEventStream(resp, isAnthropic) {
+  if (!resp.body?.getReader) return parseOneShotEventStreamText(await resp.text(), isAnthropic);
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "", output = "", ended = false;
+  const consumeLines = (lines) => {
+    for (const line of lines) {
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload) continue;
+      if (payload === "[DONE]") { ended = true; break; }
+      try { output += oneShotEventText(JSON.parse(payload), isAnthropic); }
+      catch (_) {}
+    }
+  };
+  while (!ended) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || "";
+    consumeLines(lines);
+    if (done) break;
+  }
+  if (!ended && buffer.trim()) consumeLines([buffer]);
+  if (ended) { try { await reader.cancel(); } catch (_) {} }
+  return output.trim();
+}
+async function oneShotResponseText(resp, isAnthropic) {
+  const contentType = resp.headers?.get?.("content-type") || "";
+  if (/text\/event-stream/i.test(contentType)) return readOneShotEventStream(resp, isAnthropic);
+  const raw = await resp.text();
+  if (/^\s*(?:event:.*\r?\n)?data:/m.test(raw)) return parseOneShotEventStreamText(raw, isAnthropic);
+  let data;
+  try { data = JSON.parse(raw); }
+  catch (_) { throw new Error("记忆接口返回了无法识别的内容格式"); }
+  return oneShotCompletionText(data, isAnthropic);
+}
 async function streamChat(onDelta, onReasoning) {
   onReasoning = onReasoning || (() => {});
   const isAnthropic = settings.provider === "anthropic";
@@ -7395,12 +7484,12 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
     url = base + "/messages";
     headers = { "content-type": "application/json", "x-api-key": apiKey,
       "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
-    body = { model, max_tokens: maxTokens, temperature: 0,
+    body = { model, max_tokens: maxTokens, temperature: 0, stream: false,
       system: systemText, messages: [{ role: "user", content: userText }] };
   } else {
     url = base + "/chat/completions";
     headers = { "content-type": "application/json", "authorization": "Bearer " + apiKey };
-    body = { model, temperature: compatibleTemperature(model, 0), max_tokens: maxTokens, messages: [
+    body = { model, temperature: compatibleTemperature(model, 0), max_tokens: maxTokens, stream: false, messages: [
       { role: "system", content: systemText }, { role: "user", content: userText } ] };
     if (usesMaxCompletionTokens(provider, base, model)) {
       body.max_completion_tokens = body.max_tokens;
@@ -7457,8 +7546,9 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
     throw new Error("memory HTTP " + resp.status + (detail ? " — " + detail.slice(0, 240) : ""));
   }
   if (!resp?.ok) throw new Error("memory HTTP retry exhausted" + (detail ? " — " + detail.slice(0, 240) : ""));
-  const data = await resp.json();
-  return oneShotCompletionText(data, isAnthropic);
+  const output = await oneShotResponseText(resp, isAnthropic);
+  if (!output) throw new Error("记忆接口没有返回可用正文");
+  return output;
 }
 function memoryRequestParseError(detail) {
   return /failed to parse the request body as json|unexpected end of hex escape|invalid (?:unicode|surrogate|escape)/i
@@ -7822,6 +7912,7 @@ function buildBoundedMemoryContext(historyWindow) {
   const crossRecall = retrieveCrossChat();
   const recentState = buildRecentStateContext(historyWindow);
   const continuity = rollingSummaryPrompt(messages);
+  const pendingContinuity = buildPendingContinuityBridge(historyWindow);
   const profile = settings.memSummary?.trim()
     ? "【跨窗口稳定人物速写】\n" + settings.memSummary.trim()
       + "\n只用于理解 ta 的长期特征；若与最近原文冲突，以最近原文为准。"
@@ -7852,6 +7943,7 @@ function buildBoundedMemoryContext(historyWindow) {
     { key: "locked", label: "🔒 高权重锁定", priority: 1, order: 5, cap: LOCKED_MEMORY_CHAR_BUDGET + 180, text: locked },
     { key: "diaryRule", label: "私人日记写入规则", priority: 2, order: 40, cap: 260, text: diaryRule },
     { key: "recentState", label: "近期生活状态", priority: 2, order: 80, cap: RECENT_STATE_CHAR_BUDGET, text: recentState },
+    { key: "pendingContinuity", label: "旧文临时衔接", priority: 3, order: 85, cap: PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET, text: pendingContinuity },
     { key: "currentExact", label: "本窗旧文", priority: 3, order: 90, cap: 800, recall: currentRecall, text: currentRecall.text },
     { key: "crossExact", label: "跨窗旧文", priority: 4, order: 91, cap: 800, recall: crossRecall, text: crossRecall.text },
     { key: "facts", label: "用户确认长期事实", priority: 5, order: 30, cap: 1550, text: facts },

@@ -111,6 +111,7 @@ const budgetContext = {
     candidateCount: 1, selectedCount: 1, suppressedCount: 1,
   }),
   buildRecentStateContext: () => '',
+  buildPendingContinuityBridge: () => '',
   buildLockedMemoryForPrompt: () => '- 惟惟害怕的不是离开，而是仍在却不认得她',
   rollingSummaryPrompt: () => '【连续性档案】\n惟惟喜欢茉莉花茶\n关系轻松亲密',
   buildMemoryForPrompt: () => '- 惟惟喜欢茉莉花茶\n- 惟惟长期养鹦鹉',
@@ -127,6 +128,7 @@ vm.runInContext(
   `const MEMORY_CONTEXT_CHAR_BUDGET = 6400;
    const RECENT_STATE_CHAR_BUDGET = 1100;
    const LOCKED_MEMORY_CHAR_BUDGET = 1200;
+   const PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET = 900;
    ${html.slice(budgetStart, budgetEnd)}
    globalThis.budgetHelpers = { buildBoundedMemoryContext, clipMemoryContextBlock };`,
   budgetContext,
@@ -202,6 +204,6 @@ ok(versionContext.versionHelpers.validatedMemoryReplacementIds(
 ok(versionContext.versionHelpers.validatedMemoryReplacementIds(
   { text: '惟惟不喝咖啡', replaces: ['coffee'] }, oldFacts, '今天聊到咖啡',
 ).length === 0, 'implicit text incorrectly superseded a durable fact')
-ok(sw.includes('const CACHE = "role-chat-cache-v157";'), 'service worker cache was not bumped to v157')
+ok(sw.includes('const CACHE = "role-chat-cache-v158";'), 'service worker cache was not bumped to v158')
 
 console.log(`memory accuracy regression: ${checks} checks passed`)
