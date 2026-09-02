@@ -2836,6 +2836,19 @@
           </div>
         </div>
 
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-weight:600;">系统指令 <span class="hint" style="font-weight:400;">· 独立附加</span></span>
+            <button class="mini-btn" data-edit="systemInstruction" data-title="系统指令" title="全屏编辑" style="padding:5px 8px;line-height:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+          </label>
+          <span class="hint" style="display:block;margin-top:5px;">不会替换上面的角色设定；专门补充模型的执行、输出与格式要求，从下一条消息起生效。</span>
+          <textarea id="systemInstruction" placeholder="在这里另外写给模型的指令……" spellcheck="false" style="margin-top:10px;min-height:150px;"></textarea>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:7px;">
+            <span class="hint" id="system-instruction-save-status">已自动保存</span>
+            <span class="hint" id="system-instruction-count">0 字</span>
+          </div>
+        </div>
+
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.65-7 10-7 10z"/></svg>角色陪伴</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">主动陪伴</label>
@@ -3566,6 +3579,7 @@ let settings = {
   temperature: 0.7,
   maxTokens: 2048,
   systemPrompt: "",
+  systemInstruction: "",
   emojiStyle: "off",      // off | cool | normal | cute
   silentMode: false,      // 旁白：发消息只记录、不触发 AI 回复
   proactiveGreet: true,   // 久未聊天再打开时，AI 主动招呼
@@ -3700,7 +3714,7 @@ let voiceInputState = "idle"; // idle | listening | stopping | transcribing
 let voiceInputBaseText = "";
 let voicePointerStopHandled = false;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","autoMemory","crossChat","crossSearch","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
+  "systemPrompt","systemInstruction","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","autoMemory","crossChat","crossSearch","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "sttEnabled","sttEngine","sttBaseUrl","sttModel","sttLanguage",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
@@ -3852,7 +3866,10 @@ async function loadState() {
   }
   if (!settings.roles.find(r => r.id === settings.activeRoleId))
     settings.activeRoleId = settings.roles[0].id;
-  settings.roles.forEach(ensureRoleCompanionData);
+  settings.roles.forEach(r => {
+    ensureRoleCompanionData(r);
+    if (r.systemInstruction == null) r.systemInstruction = "";
+  });
   // One-time, non-destructive memory migration: the old build kept memEntries and
   // memSummary globally. Give that data to the active role, while other roles start
   // with their own empty searchable library (their legacy `memory` text is kept).
@@ -3904,7 +3921,7 @@ async function loadState() {
 }
 // Persona fields bundled into a switchable 角色. Memory V2 keeps each role's
 // searchable entries and summary isolated instead of leaking them across personas.
-const ROLE_FIELDS = ["systemPrompt", "aiName", "aiAvatar", "memory", "memEntries", "memSummary", "ttsVoice"];
+const ROLE_FIELDS = ["systemPrompt", "systemInstruction", "aiName", "aiAvatar", "memory", "memEntries", "memSummary", "ttsVoice"];
 function activeRole() { return (settings.roles || []).find(r => r.id === settings.activeRoleId); }
 function ensureRoleCompanionData(role) {
   if (!role) return null;
@@ -3957,6 +3974,7 @@ function addRole() {
   const r = {
     id: uid(), name,
     systemPrompt: "",
+    systemInstruction: "",
     aiName: name,
     aiAvatar: ([...name][0] || "AI"),
     memory: "",
@@ -7125,6 +7143,11 @@ async function streamChat(onDelta, onReasoning) {
   };
 
   let systemText = settings.systemPrompt || "";
+  const additionalSystemInstruction = String(settings.systemInstruction || "").trim();
+  if (additionalSystemInstruction) {
+    const instructionBlock = "【用户附加系统指令】\n" + additionalSystemInstruction;
+    systemText = systemText ? systemText + "\n\n" + instructionBlock : instructionBlock;
+  }
   const roleContinuityNote = "【角色身份连续性】你始终是当前系统设定中的「"
     + ((settings.aiName || "当前角色").trim() || "当前角色")
     + "」。角色设定是身份、性格、关系立场和行为边界的最高依据；连续性档案、记忆与旧文只补充事实，不能把你改写成客服、旁观者或另一个人格。"
@@ -11132,6 +11155,8 @@ function syncSettingsToUI() {
   $("imageApiKey").value = settings.imageApiKey || "";
   $("systemPrompt").value = settings.systemPrompt;
   updateSystemPromptUI();
+  $("systemInstruction").value = settings.systemInstruction || "";
+  updateSystemInstructionUI();
   $("proactiveGreet").checked = settings.proactiveGreet !== false;
   $("reminderEnabled").checked = settings.reminderEnabled !== false;
   $("cycleEnabled").checked = cycleData().enabled !== false;
@@ -11299,6 +11324,7 @@ function readSettingsFromUI() {
   settings.imageBaseUrl = $("imageBaseUrl").value.trim();
   settings.imageApiKey = $("imageApiKey").value.trim();
   settings.systemPrompt = $("systemPrompt").value;
+  settings.systemInstruction = $("systemInstruction").value;
   settings.proactiveGreet = $("proactiveGreet").checked;
   settings.reminderEnabled = $("reminderEnabled").checked;
   settings.memory = $("memory").value;
@@ -11430,6 +11456,32 @@ function queueSystemPromptSave() {
     if (settings.activeRoleId === roleId) updateSystemPromptUI();
   }, 350);
 }
+let systemInstructionSaveTimer = null;
+function updateSystemInstructionUI() {
+  const input = $("systemInstruction");
+  const count = $("system-instruction-count");
+  const status = $("system-instruction-save-status");
+  if (count) count.textContent = `${input ? input.value.length : String(settings.systemInstruction || "").length} 字`;
+  if (status) status.textContent = "已自动保存 · 下一条消息生效";
+}
+function queueSystemInstructionSave() {
+  const input = $("systemInstruction");
+  const status = $("system-instruction-save-status");
+  const count = $("system-instruction-count");
+  if (!input) return;
+  const value = input.value;
+  const roleId = settings.activeRoleId;
+  if (count) count.textContent = `${value.length} 字`;
+  if (status) status.textContent = "正在保存…";
+  clearTimeout(systemInstructionSaveTimer);
+  systemInstructionSaveTimer = setTimeout(() => {
+    const role = (settings.roles || []).find(item => item.id === roleId);
+    if (role) role.systemInstruction = value;
+    if (settings.activeRoleId === roleId) settings.systemInstruction = value;
+    saveSettings();
+    if (settings.activeRoleId === roleId) updateSystemInstructionUI();
+  }, 350);
+}
 function updateProviderHint() {
   const d = DEFAULTS[settings.provider];
   $("provider-hint").textContent = `默认: ${d.baseUrl} · ${getModelDisplayLabel(d.model) || d.model}`;
@@ -11494,7 +11546,9 @@ function renderSettingsHome() {
   try { usageCount = JSON.parse(localStorage.getItem("jyc_usage") || "[]").length; } catch (_) {}
   const set = (id, value) => { const el = $(id); if (el) el.textContent = value || ""; };
   set("settings-status-role", `${(settings.roles || []).length} 个角色`);
-  set("settings-status-prompt", settings.systemPrompt?.trim() ? `${settings.systemPrompt.length} 字` : "待填写");
+  const promptLength = String(settings.systemPrompt || "").length;
+  const instructionLength = String(settings.systemInstruction || "").length;
+  set("settings-status-prompt", instructionLength ? `人设 ${promptLength} · 指令 ${instructionLength}` : (promptLength ? `${promptLength} 字` : "待填写"));
   set("settings-status-appearance", currentTheme()?.name || "跟随主题");
   set("settings-status-media", settings.ttsEnabled ? "朗读已开启" : "按需开启");
   set("settings-status-memory", memoryCount ? `${memoryCount} 条` : "等待积累");
@@ -12047,6 +12101,13 @@ async function init() {
     settings.systemPrompt = $("systemPrompt").value;
     saveSettings();
     updateSystemPromptUI();
+  });
+  $("systemInstruction").addEventListener("input", queueSystemInstructionSave);
+  $("systemInstruction").addEventListener("change", () => {
+    clearTimeout(systemInstructionSaveTimer);
+    settings.systemInstruction = $("systemInstruction").value;
+    saveSettings();
+    updateSystemInstructionUI();
   });
   $("provider").addEventListener("change", () => {
     const d = DEFAULTS[$("provider").value];

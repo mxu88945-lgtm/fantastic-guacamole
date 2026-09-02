@@ -35,8 +35,14 @@ ok(html.includes('id="system-prompt-count"'), "system prompt character count is 
 ok(html.includes('$("systemPrompt").addEventListener("input", queueSystemPromptSave)'), "system prompt is not auto-saved while typing");
 ok(html.includes('let systemText = settings.systemPrompt || "";'), "system prompt is not connected to chat requests");
 ok(html.includes('const ROLE_FIELDS = ["systemPrompt"'), "system prompt is not isolated per role");
+ok(html.includes('id="systemInstruction"'), "independent system instruction input is missing");
+ok(html.includes('id="system-instruction-save-status"'), "system instruction save status is missing");
+ok(html.includes('id="system-instruction-count"'), "system instruction character count is missing");
+ok(html.includes('$("systemInstruction").addEventListener("input", queueSystemInstructionSave)'), "system instruction is not auto-saved while typing");
+ok(html.includes('const additionalSystemInstruction = String(settings.systemInstruction || "").trim()'), "system instruction is not connected to chat requests");
+ok(html.includes('"systemPrompt", "systemInstruction"'), "system instruction is not stored separately per role");
 
-ok(sw.includes('const CACHE = "role-chat-cache-v159";'), "service worker cache was not bumped to v159");
+ok(sw.includes('const CACHE = "role-chat-cache-v160";'), "service worker cache was not bumped to v160");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "settings redesign introduced duplicate DOM ids");
