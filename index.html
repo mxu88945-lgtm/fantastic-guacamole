@@ -2462,6 +2462,7 @@
             <div class="settings-nav-title" id="settings-space-title">你们的空间</div>
             <div class="settings-nav-card">
               <button data-settings-tab="role"><span class="settings-item-icon">◎</span><span class="settings-item-copy"><strong>角色与关系</strong><em>称呼、头像与陪伴方式</em></span><span class="settings-item-status" id="settings-status-role"></span><span class="settings-chevron">›</span></button>
+              <button data-settings-tab="prompt"><span class="settings-item-icon">¶</span><span class="settings-item-copy"><strong>系统提示词</strong><em>身份、人设、语气与行为边界</em></span><span class="settings-item-status" id="settings-status-prompt"></span><span class="settings-chevron">›</span></button>
               <button data-settings-tab="appearance"><span class="settings-item-icon">✦</span><span class="settings-item-copy"><strong>外观与聊天</strong><em>主题、背景、字体与消息布局</em></span><span class="settings-item-status" id="settings-status-appearance"></span><span class="settings-chevron">›</span></button>
               <button data-settings-tab="media"><span class="settings-item-icon">◖</span><span class="settings-item-copy"><strong>语音与媒体</strong><em>朗读、音色与媒体能力</em></span><span class="settings-item-status" id="settings-status-media"></span><span class="settings-chevron">›</span></button>
               <button data-settings-tab="memory"><span class="settings-item-icon">◇</span><span class="settings-item-copy"><strong>记忆</strong><em>长期记忆与跨窗口回忆</em></span><span class="settings-item-status" id="settings-status-memory"></span><span class="settings-chevron">›</span></button>
@@ -2821,15 +2822,21 @@
           </div>
         </div>
 
-        <div class="field" style="grid-column: 1 / -1;">
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14M5 9h14M5 14h9M5 19h9"/></svg>系统提示词</div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <span style="font-weight:600;">核心人设 <span class="hint" style="font-weight:400;">· 系统提示词</span></span>
-            <button class="mini-btn" data-edit="systemPrompt" data-title="核心人设" title="展开编辑" style="padding:5px 8px;line-height:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+            <span style="font-weight:600;">当前角色 · <span id="system-prompt-role-name">顾祁砚</span></span>
+            <button class="mini-btn" data-edit="systemPrompt" data-title="系统提示词" title="全屏编辑" style="padding:5px 8px;line-height:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
           </label>
-          <span class="hint">决定 AI 如何理解身份、关系、语气与边界。</span>
-          <textarea id="systemPrompt" placeholder="填写角色身份、关系、语气与行为边界……" style="margin-top:6px;"></textarea>
+          <span class="hint" style="display:block;margin-top:5px;">这里写的内容会作为最高优先级角色设定，从下一条消息起生效；每个角色独立保存。</span>
+          <textarea id="systemPrompt" placeholder="例如：你是顾祁砚。请在这里填写他的身份、与你的关系、说话语气、性格和行为边界……" spellcheck="false" style="margin-top:10px;min-height:180px;"></textarea>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:7px;">
+            <span class="hint" id="system-prompt-save-status">已自动保存</span>
+            <span class="hint" id="system-prompt-count">0 字</span>
+          </div>
         </div>
 
+        <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.65-7 10-7 10z"/></svg>角色陪伴</div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">主动陪伴</label>
           <span class="hint" style="display:block;margin-top:5px;">控制当前角色主动来找你和下任务卡的方式。</span>
@@ -11124,6 +11131,7 @@ function syncSettingsToUI() {
   $("imageBaseUrl").value = settings.imageBaseUrl || "";
   $("imageApiKey").value = settings.imageApiKey || "";
   $("systemPrompt").value = settings.systemPrompt;
+  updateSystemPromptUI();
   $("proactiveGreet").checked = settings.proactiveGreet !== false;
   $("reminderEnabled").checked = settings.reminderEnabled !== false;
   $("cycleEnabled").checked = cycleData().enabled !== false;
@@ -11394,6 +11402,34 @@ function renderTtsVoices() {
   });
   saveSettings();
 }
+let systemPromptSaveTimer = null;
+function updateSystemPromptUI() {
+  const input = $("systemPrompt");
+  const roleName = $("system-prompt-role-name");
+  const count = $("system-prompt-count");
+  const status = $("system-prompt-save-status");
+  if (roleName) roleName.textContent = settings.aiName || activeRole()?.name || "当前角色";
+  if (count) count.textContent = `${input ? input.value.length : String(settings.systemPrompt || "").length} 字`;
+  if (status) status.textContent = "已自动保存 · 下一条消息生效";
+}
+function queueSystemPromptSave() {
+  const input = $("systemPrompt");
+  const status = $("system-prompt-save-status");
+  const count = $("system-prompt-count");
+  if (!input) return;
+  const value = input.value;
+  const roleId = settings.activeRoleId;
+  if (count) count.textContent = `${input.value.length} 字`;
+  if (status) status.textContent = "正在保存…";
+  clearTimeout(systemPromptSaveTimer);
+  systemPromptSaveTimer = setTimeout(() => {
+    const role = (settings.roles || []).find(item => item.id === roleId);
+    if (role) role.systemPrompt = value;
+    if (settings.activeRoleId === roleId) settings.systemPrompt = value;
+    saveSettings();
+    if (settings.activeRoleId === roleId) updateSystemPromptUI();
+  }, 350);
+}
 function updateProviderHint() {
   const d = DEFAULTS[settings.provider];
   $("provider-hint").textContent = `默认: ${d.baseUrl} · ${getModelDisplayLabel(d.model) || d.model}`;
@@ -11419,7 +11455,8 @@ function closeSettings() {
 
 const SETTINGS_PAGES = {
   account: { title: "账号与同步", desc: "管理登录、多设备同步与本地使用状态。" },
-  role: { title: "角色与关系", desc: "切换角色，编辑称呼、人设、头像与陪伴方式。" },
+  role: { title: "角色与关系", desc: "切换角色，编辑称呼、头像与陪伴方式。" },
+  prompt: { title: "系统提示词", desc: "编辑当前角色的人设、语气与行为边界；保存后从下一条消息生效。" },
   services: { title: "模型与服务", desc: "管理聊天渠道、模型、联网与画图能力。" },
   billing: { title: "用量与账单", desc: "查看本地 token、调用次数与花费记录。" },
   memory: { title: "记忆", desc: "整理长期记忆与跨窗口回忆内容。" },
@@ -11457,6 +11494,7 @@ function renderSettingsHome() {
   try { usageCount = JSON.parse(localStorage.getItem("jyc_usage") || "[]").length; } catch (_) {}
   const set = (id, value) => { const el = $(id); if (el) el.textContent = value || ""; };
   set("settings-status-role", `${(settings.roles || []).length} 个角色`);
+  set("settings-status-prompt", settings.systemPrompt?.trim() ? `${settings.systemPrompt.length} 字` : "待填写");
   set("settings-status-appearance", currentTheme()?.name || "跟随主题");
   set("settings-status-media", settings.ttsEnabled ? "朗读已开启" : "按需开启");
   set("settings-status-memory", memoryCount ? `${memoryCount} 条` : "等待积累");
@@ -11469,6 +11507,8 @@ function renderSettingsHome() {
 function settingsGroupFor(title) {
   if (title.includes("账号")) return "account";
   if (title.includes("角色档案")) return "role";
+  if (title.includes("系统提示词")) return "prompt";
+  if (title.includes("角色陪伴")) return "role";
   if (title.includes("用量")) return "billing";
   if (title.includes("模型")) return "services";
   if (title.includes("记忆")) return "memory";
@@ -11998,8 +12038,15 @@ async function init() {
   });
   $("input").addEventListener("input", autoResize);
 
-  ["provider","baseUrl","apiKey","model","maxTokens","modelList","systemPrompt","memory","autoMemory","sbUrl","sbKey"].forEach(id => {
+  ["provider","baseUrl","apiKey","model","maxTokens","modelList","memory","autoMemory","sbUrl","sbKey"].forEach(id => {
     $(id).addEventListener("change", () => { readSettingsFromUI(); updateProviderHint(); });
+  });
+  $("systemPrompt").addEventListener("input", queueSystemPromptSave);
+  $("systemPrompt").addEventListener("change", () => {
+    clearTimeout(systemPromptSaveTimer);
+    settings.systemPrompt = $("systemPrompt").value;
+    saveSettings();
+    updateSystemPromptUI();
   });
   $("provider").addEventListener("change", () => {
     const d = DEFAULTS[$("provider").value];

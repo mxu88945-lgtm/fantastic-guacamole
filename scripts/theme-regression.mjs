@@ -138,6 +138,6 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v158";'), 'service worker cache was not bumped to v158')
+ok(sw.includes('const CACHE = "role-chat-cache-v159";'), 'service worker cache was not bumped to v159')
 
 console.log(`theme regression: ${checks} checks passed`)

@@ -49,6 +49,6 @@ ok(html.includes('const positionPlusMenu = () => {')
   'composer attachment menu is not anchored to the plus button')
 ok(html.includes('window.visualViewport.addEventListener("resize", positionPlusMenu'),
   'composer attachment menu does not follow the iOS visual viewport')
-ok(sw.includes('const CACHE = "role-chat-cache-v158";'), 'service worker cache was not bumped to v158')
+ok(sw.includes('const CACHE = "role-chat-cache-v159";'), 'service worker cache was not bumped to v159')
 
 console.log(`Claude shell regression: ${checks} checks passed`)
