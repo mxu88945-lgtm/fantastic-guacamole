@@ -2624,6 +2624,7 @@
           <select id="provider">
             <option value="openai">OpenAI 兼容</option>
             <option value="anthropic">Anthropic (Claude)</option>
+            <option value="gemini">Gemini 官方 API</option>
           </select>
           <span class="hint" id="provider-hint"></span>
         </div>
@@ -3570,6 +3571,7 @@ async function initWorkbench() {
 const DEFAULTS = {
   openai:    { baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
   anthropic: { baseUrl: "https://api.anthropic.com/v1", model: "claude-opus-4-8" },
+  gemini:    { baseUrl: "https://generativelanguage.googleapis.com/v1beta", model: "gemini-2.5-flash" },
 };
 let settings = {
   provider: "openai",
@@ -6810,6 +6812,50 @@ function apiMessagesFor(isAnthropic, sourceMessages) {
   }
   return out;
 }
+// Google Gemini uses its own native message shape: user/model turns containing
+// parts. Keeping this conversion separate prevents the Gemini endpoint from
+// ever receiving OpenAI's image_url or assistant role names.
+function geminiModelId(model) {
+  return String(model || "").trim().replace(/^models\//i, "");
+}
+function geminiPartsForContent(content) {
+  if (typeof content === "string") return content.trim() ? [{ text: content }] : [];
+  if (!Array.isArray(content)) return [];
+  return content.flatMap(part => {
+    if (!part) return [];
+    if (part.type === "text") return String(part.text || "").trim() ? [{ text: part.text }] : [];
+    if (part.type === "sticker") return [{ text: `（发了一个表情：${part.name || ""}）` }];
+    if (part.type === "file") return [{ text: filePromptText(part) }];
+    if (part.type === "image" && part.desc) return [{ text: `【图片内容】${part.desc}` }];
+    if (part.type === "image" && part.dataUrl) {
+      const comma = part.dataUrl.indexOf(",");
+      if (comma < 0) return [];
+      const detectedType = /^data:([^;,]+)/i.exec(part.dataUrl)?.[1];
+      return [{ inlineData: {
+        mimeType: part.mediaType || detectedType || "image/jpeg",
+        data: part.dataUrl.slice(comma + 1),
+      } }];
+    }
+    return [];
+  });
+}
+function geminiContentsFor(sourceMessages) {
+  const out = [];
+  for (const m of (sourceMessages || messages)) {
+    if (m.role === "reminder" || m._compactedBy || m._summary) continue;
+    const parts = geminiPartsForContent(sendContent(m));
+    if (!parts.length) continue;
+    const role = m.role === "assistant" ? "model" : "user";
+    const last = out[out.length - 1];
+    if (last && last.role === role) last.parts.push(...parts);
+    else out.push({ role, parts });
+  }
+  return out;
+}
+function geminiPartsTokenEstimate(parts) {
+  return (parts || []).reduce((n, part) => n + (part?.text ? estimateTextTokens(part.text)
+    : part?.inlineData ? 1200 : 0), 0);
+}
 // Vision relay: ask a dedicated image-capable model to describe an image, so the
 // (possibly text-only) main model can work from the text instead of the picture.
 async function describeImage(dataUrl) {
@@ -7030,8 +7076,10 @@ function completionContentText(value) {
   if (value && typeof value.text === "string") return value.text;
   return "";
 }
-function oneShotCompletionText(data, isAnthropic) {
+function oneShotCompletionText(data, isAnthropic, isGemini) {
   if (isAnthropic) return completionContentText(data?.content).trim();
+  if (isGemini) return (data?.candidates?.[0]?.content?.parts || [])
+    .map(part => completionContentText(part?.text)).join("").trim();
   const choice = data?.choices?.[0];
   let text = completionContentText(choice?.message?.content || choice?.text || data?.output_text);
   if (!text && Array.isArray(data?.output)) {
@@ -7039,7 +7087,7 @@ function oneShotCompletionText(data, isAnthropic) {
   }
   return text.trim();
 }
-function oneShotEventText(data, isAnthropic) {
+function oneShotEventText(data, isAnthropic, isGemini) {
   if (!data || typeof data !== "object") return "";
   if (isAnthropic) {
     if (data.type === "content_block_start") {
@@ -7054,6 +7102,8 @@ function oneShotEventText(data, isAnthropic) {
     }
     return "";
   }
+  if (isGemini) return (data?.candidates?.[0]?.content?.parts || [])
+    .map(part => completionContentText(part?.text)).join("");
   const choice = data.choices?.[0];
   const delta = choice?.delta;
   if (delta) return completionContentText(delta.content);
@@ -7063,19 +7113,19 @@ function oneShotEventText(data, isAnthropic) {
   if (typeof data.output_text === "string") return data.output_text;
   return "";
 }
-function parseOneShotEventStreamText(raw, isAnthropic) {
+function parseOneShotEventStreamText(raw, isAnthropic, isGemini) {
   let output = "";
   for (const line of String(raw || "").split(/\r?\n/)) {
     if (!line.startsWith("data:")) continue;
     const payload = line.slice(5).trim();
     if (!payload || payload === "[DONE]") continue;
-    try { output += oneShotEventText(JSON.parse(payload), isAnthropic); }
+    try { output += oneShotEventText(JSON.parse(payload), isAnthropic, isGemini); }
     catch (_) {}
   }
   return output.trim();
 }
-async function readOneShotEventStream(resp, isAnthropic) {
-  if (!resp.body?.getReader) return parseOneShotEventStreamText(await resp.text(), isAnthropic);
+async function readOneShotEventStream(resp, isAnthropic, isGemini) {
+  if (!resp.body?.getReader) return parseOneShotEventStreamText(await resp.text(), isAnthropic, isGemini);
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "", output = "", ended = false;
@@ -7085,7 +7135,7 @@ async function readOneShotEventStream(resp, isAnthropic) {
       const payload = line.slice(5).trim();
       if (!payload) continue;
       if (payload === "[DONE]") { ended = true; break; }
-      try { output += oneShotEventText(JSON.parse(payload), isAnthropic); }
+      try { output += oneShotEventText(JSON.parse(payload), isAnthropic, isGemini); }
       catch (_) {}
     }
   };
@@ -7101,19 +7151,20 @@ async function readOneShotEventStream(resp, isAnthropic) {
   if (ended) { try { await reader.cancel(); } catch (_) {} }
   return output.trim();
 }
-async function oneShotResponseText(resp, isAnthropic) {
+async function oneShotResponseText(resp, isAnthropic, isGemini) {
   const contentType = resp.headers?.get?.("content-type") || "";
-  if (/text\/event-stream/i.test(contentType)) return readOneShotEventStream(resp, isAnthropic);
+  if (/text\/event-stream/i.test(contentType)) return readOneShotEventStream(resp, isAnthropic, isGemini);
   const raw = await resp.text();
-  if (/^\s*(?:event:.*\r?\n)?data:/m.test(raw)) return parseOneShotEventStreamText(raw, isAnthropic);
+  if (/^\s*(?:event:.*\r?\n)?data:/m.test(raw)) return parseOneShotEventStreamText(raw, isAnthropic, isGemini);
   let data;
   try { data = JSON.parse(raw); }
   catch (_) { throw new Error("记忆接口返回了无法识别的内容格式"); }
-  return oneShotCompletionText(data, isAnthropic);
+  return oneShotCompletionText(data, isAnthropic, isGemini);
 }
 async function streamChat(onDelta, onReasoning) {
   onReasoning = onReasoning || (() => {});
   const isAnthropic = settings.provider === "anthropic";
+  const isGemini = settings.provider === "gemini";
   const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
   const model = settings.model || DEFAULTS[settings.provider].model;
   const historyWindow = buildApiHistoryWindow();
@@ -7244,6 +7295,20 @@ async function streamChat(onDelta, onReasoning) {
       body.max_tokens = Math.max(body.max_tokens, thinkBudget + 2048); // ensure room for output
     }
     if (systemText) body.system = systemText;
+  } else if (isGemini) {
+    url = base + "/models/" + encodeURIComponent(geminiModelId(model)) + ":streamGenerateContent?alt=sse";
+    headers = {
+      "content-type": "application/json",
+      "x-goog-api-key": settings.apiKey,
+    };
+    body = {
+      contents: geminiContentsFor(historyWindow.messages),
+      generationConfig: {
+        temperature: settings.temperature,
+        maxOutputTokens: settings.maxTokens || 2048,
+      },
+    };
+    if (systemText) body.systemInstruction = { parts: [{ text: systemText }] };
   } else {
     url = base + "/chat/completions";
     headers = {
@@ -7266,10 +7331,15 @@ async function streamChat(onDelta, onReasoning) {
     }
     if (/openrouter\.ai/i.test(base)) body.usage = { include: true };  // OpenRouter: also return cost
   }
-  if (temperatureUnsupportedFor(settings.provider, base, model)) delete body.temperature;
-  const wireHistory = isAnthropic ? body.messages : body.messages.filter(m => m.role !== "system");
+  if (temperatureUnsupportedFor(settings.provider, base, model)) {
+    if (isGemini) delete body.generationConfig.temperature;
+    else delete body.temperature;
+  }
+  const wireHistory = isAnthropic ? body.messages
+    : isGemini ? body.contents : body.messages.filter(m => m.role !== "system");
   const systemEstimate = estimateTextTokens(systemText);
-  const historyEstimate = wireHistory.reduce((n, m) => n + estimateContentTokens(m.content) + 4, 0);
+  const historyEstimate = wireHistory.reduce((n, m) => n
+    + (isGemini ? geminiPartsTokenEstimate(m.parts) : estimateContentTokens(m.content)) + 4, 0);
   lastPromptAudit = {
     system: systemEstimate,
     history: historyEstimate,
@@ -7311,11 +7381,14 @@ async function streamChat(onDelta, onReasoning) {
     // Some Claude Code / reasoning routes reject temperature entirely. Retry
     // once without it instead of making the user guess which model supports it.
     if (resp.status === 400 && !omittedDeprecatedTemperature
-        && Object.prototype.hasOwnProperty.call(body, "temperature")
+        && (isGemini
+          ? Object.prototype.hasOwnProperty.call(body.generationConfig || {}, "temperature")
+          : Object.prototype.hasOwnProperty.call(body, "temperature"))
         && temperatureIsDeprecated(lastDetail)) {
       omittedDeprecatedTemperature = true;
       rememberTemperatureUnsupported(settings.provider, base, model);
-      delete body.temperature;
+      if (isGemini) delete body.generationConfig.temperature;
+      else delete body.temperature;
       showToast("当前模型不使用温度参数，已自动兼容重试", 2800);
       continue;
     }
@@ -7379,6 +7452,18 @@ async function streamChat(onDelta, onReasoning) {
         }
         if (json.type === "content_block_stop") anthropicBlockTypes.delete(json.index ?? 0);
         if (json.type === "error") throw new Error(json.error?.message || "stream error");
+      } else if (isGemini) {
+        if (json.error) throw new Error(json.error.message || "Gemini stream error");
+        if (json.usageMetadata) {
+          usageRaw = {
+            prompt_tokens: json.usageMetadata.promptTokenCount || 0,
+            completion_tokens: json.usageMetadata.candidatesTokenCount || 0,
+            total_tokens: json.usageMetadata.totalTokenCount || 0,
+          };
+        }
+        (json.candidates?.[0]?.content?.parts || []).forEach(part => {
+          if (typeof part?.text === "string" && part.text) { markToken(part.text); onDelta(part.text); }
+        });
       } else {
         if (json.usage) usageRaw = json.usage;
         const d = json.choices?.[0]?.delta;
@@ -7507,6 +7592,7 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
   const provider = cfg.provider || settings.provider;
   const apiKey = cfg.apiKey || settings.apiKey;
   const isAnthropic = provider === "anthropic";
+  const isGemini = provider === "gemini";
   const base = (cfg.baseUrl || DEFAULTS[provider].baseUrl).replace(/\/$/, "");
   const model = cfg.model || DEFAULTS[provider].model;
   let url, headers, body;
@@ -7516,6 +7602,14 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
       "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
     body = { model, max_tokens: maxTokens, temperature: 0, stream: false,
       system: systemText, messages: [{ role: "user", content: userText }] };
+  } else if (isGemini) {
+    url = base + "/models/" + encodeURIComponent(geminiModelId(model)) + ":generateContent";
+    headers = { "content-type": "application/json", "x-goog-api-key": apiKey };
+    body = {
+      contents: [{ role: "user", parts: [{ text: userText }] }],
+      generationConfig: { temperature: 0, maxOutputTokens: maxTokens },
+    };
+    if (systemText) body.systemInstruction = { parts: [{ text: systemText }] };
   } else {
     url = base + "/chat/completions";
     headers = { "content-type": "application/json", "authorization": "Bearer " + apiKey };
@@ -7526,7 +7620,10 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
       delete body.max_tokens;
     }
   }
-  if (temperatureUnsupportedFor(provider, base, model)) delete body.temperature;
+  if (temperatureUnsupportedFor(provider, base, model)) {
+    if (isGemini) delete body.generationConfig.temperature;
+    else delete body.temperature;
+  }
   const transientStatuses = new Set([429, 500, 502, 503, 504]);
   let resp, detail = "", transientRetries = 0;
   let retriedTemperature = false, retriedTokenParam = false, retriedShortTranscript = false;
@@ -7544,14 +7641,17 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
     if (resp.ok) break;
     detail = await responseErrorDetail(resp);
     if (resp.status === 400 && !retriedTemperature
-        && Object.prototype.hasOwnProperty.call(body, "temperature")
+        && (isGemini
+          ? Object.prototype.hasOwnProperty.call(body.generationConfig || {}, "temperature")
+          : Object.prototype.hasOwnProperty.call(body, "temperature"))
         && temperatureIsDeprecated(detail)) {
       retriedTemperature = true;
       rememberTemperatureUnsupported(provider, base, model);
-      delete body.temperature;
+      if (isGemini) delete body.generationConfig.temperature;
+      else delete body.temperature;
       continue;
     }
-    if (!isAnthropic && resp.status === 400 && !retriedTokenParam
+    if (!isAnthropic && !isGemini && resp.status === 400 && !retriedTokenParam
         && Object.prototype.hasOwnProperty.call(body, "max_tokens")
         && maxCompletionTokensRequired(detail)) {
       retriedTokenParam = true;
@@ -7565,6 +7665,7 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
       retriedShortTranscript = true;
       const retryText = clipUtf8(userText, COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET);
       if (isAnthropic) body.messages[0].content = retryText;
+      else if (isGemini) body.contents[0].parts[0].text = retryText;
       else body.messages[1].content = retryText;
       continue;
     }
@@ -7576,7 +7677,7 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
     throw new Error("memory HTTP " + resp.status + (detail ? " — " + detail.slice(0, 240) : ""));
   }
   if (!resp?.ok) throw new Error("memory HTTP retry exhausted" + (detail ? " — " + detail.slice(0, 240) : ""));
-  const output = await oneShotResponseText(resp, isAnthropic);
+  const output = await oneShotResponseText(resp, isAnthropic, isGemini);
   if (!output) throw new Error("记忆接口没有返回可用正文");
   return output;
 }
@@ -8886,10 +8987,13 @@ async function fetchModels() {
     return;
   }
   const isAnthropic = settings.provider === "anthropic";
+  const isGemini = settings.provider === "gemini";
   const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
   const headers = isAnthropic
     ? { "x-api-key": settings.apiKey, "anthropic-version": "2023-06-01",
         "anthropic-dangerous-direct-browser-access": "true" }
+    : isGemini
+      ? { "x-goog-api-key": settings.apiKey }
     : { "authorization": "Bearer " + settings.apiKey };
   if (btn) btn.disabled = true;
   setState("正在连接当前接口…", "同步中");
@@ -8898,7 +9002,13 @@ async function fetchModels() {
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
     const list = (data.data || data.models || [])
-      .map(m => m.id || m.name || m).filter(x => typeof x === "string");
+      .filter(m => !isGemini || !Array.isArray(m?.supportedGenerationMethods)
+        || m.supportedGenerationMethods.includes("generateContent")
+        || m.supportedGenerationMethods.includes("streamGenerateContent"))
+      .map(m => {
+        const id = m.id || m.name || m;
+        return isGemini && typeof id === "string" ? geminiModelId(id) : id;
+      }).filter(x => typeof x === "string");
     if (!list.length) {
       setState("当前接口没有返回模型", "拉取模型");
       showToast("没拉到模型，可能该服务不支持");
@@ -11484,7 +11594,9 @@ function queueSystemInstructionSave() {
 }
 function updateProviderHint() {
   const d = DEFAULTS[settings.provider];
-  $("provider-hint").textContent = `默认: ${d.baseUrl} · ${getModelDisplayLabel(d.model) || d.model}`;
+  $("provider-hint").textContent = settings.provider === "gemini"
+    ? `Gemini 官端：填 Google AI Studio API Key；默认 ${d.baseUrl}，点「拉取模型」后选择可用模型。`
+    : `默认: ${d.baseUrl} · ${getModelDisplayLabel(d.model) || d.model}`;
   if (!$("baseUrl").value) $("baseUrl").placeholder = d.baseUrl;
   if (!$("model").value) $("model").placeholder = d.model;
 }
@@ -12111,8 +12223,18 @@ async function init() {
   });
   $("provider").addEventListener("change", () => {
     const d = DEFAULTS[$("provider").value];
-    if (!$("baseUrl").value) $("baseUrl").value = d.baseUrl;
-    if (!$("model").value) $("model").value = d.model;
+    const baseInput = $("baseUrl"), modelInput = $("model");
+    // A previously attempted Gemini profile was often saved with Google's v1
+    // endpoint but the OpenAI protocol. When the user switches it to native
+    // Gemini, repair only those unmistakably incompatible defaults and retain
+    // their API key and any intentional custom relay URL.
+    if ($("provider").value === "gemini") {
+      if (!baseInput.value || /(?:api\.openai\.com|generativelanguage\.googleapis\.com\/v1)\/?$/i.test(baseInput.value)) baseInput.value = d.baseUrl;
+      if (!modelInput.value || /^gpt-/i.test(modelInput.value)) modelInput.value = d.model;
+    } else {
+      if (!baseInput.value) baseInput.value = d.baseUrl;
+      if (!modelInput.value) modelInput.value = d.model;
+    }
     readSettingsFromUI(); updateProviderHint();
   });
   $("temperature").addEventListener("input", () => {

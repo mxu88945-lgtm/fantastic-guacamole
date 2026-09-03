@@ -42,7 +42,7 @@ ok(html.includes('$("systemInstruction").addEventListener("input", queueSystemIn
 ok(html.includes('const additionalSystemInstruction = String(settings.systemInstruction || "").trim()'), "system instruction is not connected to chat requests");
 ok(html.includes('"systemPrompt", "systemInstruction"'), "system instruction is not stored separately per role");
 
-ok(sw.includes('const CACHE = "role-chat-cache-v160";'), "service worker cache was not bumped to v160");
+ok(sw.includes('const CACHE = "role-chat-cache-v161";'), "service worker cache was not bumped to v160");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "settings redesign introduced duplicate DOM ids");
