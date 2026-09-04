@@ -2,6 +2,13 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-09-04｜聊天窗口独立线路与模型（sw v162）
+
+- 每个 conversation 新增 `providerId` 与 `model`，同一角色的不同聊天窗口可分别使用不同线路/模型；切回旧窗口时自动恢复它自己的选择，实际聊天请求、自动记忆与读图回退均读取当前窗口模型。
+- 顶部模型胶囊和设置页的线路/模型选择只修改当前窗口，同时更新对应线路的默认模型供下一次新建窗口继承；既有其他窗口不会被一起切换。
+- 旧聊天首次升级时无损继承当前线路与模型；模型绑定随原 conversation 进入 IndexedDB、备份与既有云同步，API Key 仍只保留在线路配置并继续遵守不上云规则。
+- 侧栏每个窗口的摘要前显示其模型简称，方便辨认 3.5 / 3.8 等并行窗口；删除某条线路时，仅将引用它的窗口安全回退至保留线路。
+
 ## 2026-09-03｜Gemini 官端原生接入（sw v161）
 
 - 模型与服务新增 `Gemini 官方 API`，使用 Google 原生 `x-goog-api-key` 鉴权、`/models` 模型拉取与 `generateContent / streamGenerateContent` 请求；不能再把 Google 的 `generativelanguage.googleapis.com` 当作 OpenAI 兼容接口。

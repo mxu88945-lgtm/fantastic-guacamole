@@ -23,6 +23,6 @@ ok(html.includes('className = "reply-variant-nav"'), "candidate navigation UI is
 
 ok(html.includes("不设固定频率"), "sticker prompt should explicitly avoid a fixed cadence");
 ok(!html.includes("约每几条一个"), "old mechanical sticker cadence is still present");
-ok(sw.includes('const CACHE = "role-chat-cache-v161";'), "service worker cache was not bumped to v160");
+ok(sw.includes('const CACHE = "role-chat-cache-v162";'), "service worker cache was not bumped to v160");
 
 console.log("reply variants regression passed");

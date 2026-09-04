@@ -63,7 +63,7 @@ ok(dashboard.includes("JYCReadingRoom?.summary?.(data.roleId)"), "dashboard read
 ok(css.includes("grid-template-columns: 270px minmax(0, 1fr)"), "desktop bookshelf-reader layout is missing");
 ok(css.includes("@media (max-width: 780px)"), "mobile reading-room layout is missing");
 ok(css.includes(".reading-spread") && css.includes(".reading-page"), "page-spread styling is missing");
-ok(sw.includes('const CACHE = "role-chat-cache-v161";'), "service worker cache was not bumped to v160");
+ok(sw.includes('const CACHE = "role-chat-cache-v162";'), "service worker cache was not bumped to v160");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "reading-room change introduced duplicate DOM ids");

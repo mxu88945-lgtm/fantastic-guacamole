@@ -2611,7 +2611,7 @@
         </div>
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg>模型与服务</div>
         <div class="field" style="grid-column: 1 / -1;">
-          <label>接口配置（可存多个，随时切换）</label>
+          <label>当前窗口接口（可存多个，随时切换）</label>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <select id="active-provider" style="flex:1; min-width:150px;"></select>
             <button class="mini-btn" id="provider-add">＋ 新增</button>
@@ -2641,7 +2641,7 @@
         </div>
         <div class="field">
           <div class="model-current-head">
-            <label>当前模型</label>
+            <label>当前窗口模型</label>
             <button class="model-fetch-btn" id="fetch-models-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg><span>拉取模型</span></button>
           </div>
           <select id="model-select"></select>
@@ -3043,7 +3043,7 @@
           <button class="attach-btn" id="plus-btn" title="更多">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
-          <select class="model-quick" id="model-quick" title="切换模型"></select>
+          <select class="model-quick" id="model-quick" title="切换当前窗口模型"></select>
           <span class="spacer"></span>
           <button class="voice-input-btn" id="voice-input-btn" type="button" title="语音输入" aria-label="语音输入">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>
@@ -3859,6 +3859,16 @@ async function loadState() {
   if (!settings.providers.find(p => p.id === settings.activeProviderId))
     settings.activeProviderId = settings.providers[0].id;
   mirrorActiveToFlat();
+  // v162: make provider/model selection conversation-scoped. Older chats inherit
+  // the current profile once; no messages, memory, role data, or API keys move.
+  conversations.forEach(conv => {
+    if (!settings.providers.find(p => p.id === conv.providerId)) conv.providerId = settings.activeProviderId;
+    if (!conv.model) {
+      const profile = providerById(conv.providerId) || activeProvider();
+      conv.model = profile?.model || DEFAULTS[profile?.provider || settings.provider]?.model || "";
+    }
+  });
+  activateConversationRuntime(currentConv());
   // seed a default role from the current persona if none exist
   if (!Array.isArray(settings.roles) || settings.roles.length === 0) {
     const r = { id: uid(), name: settings.aiName || "新角色" };
@@ -3955,6 +3965,8 @@ function applyRole(id) {
   if (!target) { target = newConversation(); conversations.unshift(target); }
   currentId = target.id;
   messages = currentConv().messages;
+  activateConversationRuntime(target);
+  saveSettings();
   saveConversations();
   syncSettingsToUI();
   updateBrand();
@@ -4041,11 +4053,12 @@ function memoryRuntimeConfig() {
   const providerId = useRole && role.memoryProviderId ? role.memoryProviderId : settings.memoryProviderId;
   const profile = providerById(providerId) || activeProvider();
   const modelOverride = useRole && role.memoryModel ? role.memoryModel : settings.memoryModel;
+  const followsCurrentChat = !useRole && !settings.memoryProviderId && !settings.memoryModel;
   return {
     provider: profile?.provider || settings.provider,
     baseUrl: profile?.baseUrl || settings.baseUrl,
     apiKey: profile?.apiKey || settings.apiKey,
-    model: modelOverride || profile?.model || settings.model,
+    model: modelOverride || (followsCurrentChat ? conversationModel() : (profile?.model || settings.model)),
     profile,
     source: useRole ? "role" : (settings.memoryProviderId || settings.memoryModel ? "global" : "chat"),
   };
@@ -4334,9 +4347,35 @@ function pushCloudNow() {
 }
 
 function newConversation() {
-  return { id: uid(), title: "新对话", messages: [], updatedAt: Date.now(), roleId: settings.activeRoleId };
+  return {
+    id: uid(), title: "新对话", messages: [], updatedAt: Date.now(), roleId: settings.activeRoleId,
+    providerId: settings.activeProviderId || "",
+    model: settings.model || DEFAULTS[settings.provider]?.model || "",
+  };
 }
 function currentConv() { return conversations.find(c => c.id === currentId); }
+function conversationProvider(conv) {
+  conv = conv || currentConv();
+  return providerById(conv?.providerId) || activeProvider();
+}
+function conversationModel(conv) {
+  conv = conv || currentConv();
+  const profile = conversationProvider(conv);
+  return conv?.model || profile?.model || DEFAULTS[profile?.provider || settings.provider]?.model || "";
+}
+// Entering a conversation restores only its provider profile. The model remains
+// on the conversation itself, so two windows can share one API key while using
+// different Gemini/GPT/Claude model versions.
+function activateConversationRuntime(conv) {
+  conv = conv || currentConv();
+  if (!conv) return;
+  const profile = conversationProvider(conv);
+  if (!profile) return;
+  conv.providerId = profile.id;
+  settings.activeProviderId = profile.id;
+  mirrorActiveToFlat();
+  if (!conv.model) conv.model = profile.model || DEFAULTS[profile.provider]?.model || "";
+}
 // Conversations belonging to the currently active role.
 function roleConvs() { return conversations.filter(c => c.roleId === settings.activeRoleId); }
 // A message's content may be a string, or an array of parts (text + attachments).
@@ -4697,7 +4736,10 @@ function switchConversation(id, openChatView) {
   chatNavigationRevision++;
   currentId = target.id;
   messages = target.messages;
+  activateConversationRuntime(target);
+  saveSettings();
   saveConversations();
+  syncSettingsToUI();
   renderConvList();
   renderMessages();
   updateConvTitle();
@@ -4732,9 +4774,11 @@ function deleteConversation(id, ev) {
     let rc = roleConvs();
     if (!rc.length) { const nc = newConversation(); conversations.unshift(nc); rc = [nc]; }
     currentId = rc[0].id; messages = currentConv().messages;
+    activateConversationRuntime(currentConv());
+    saveSettings();
   }
   saveConversations();
-  renderConvList(); renderMessages(); updateConvTitle();
+  syncSettingsToUI(); renderConvList(); renderMessages(); updateConvTitle();
 }
 function touchConversation() {
   const conv = currentConv();
@@ -5082,7 +5126,9 @@ function renderConvList() {
     const el = document.createElement("div");
     el.className = "conv-item" + (c.id === currentId ? " active" : "");
     const last = [...c.messages].reverse().find(m => !m._event && m.role !== "reminder");
-    const snippet = last ? messageText(last).replace(/\s+/g, " ").slice(0, 34) : "";
+    const messageSnippet = last ? messageText(last).replace(/\s+/g, " ").slice(0, 28) : "";
+    const windowModel = getModelDisplayLabel(conversationModel(c));
+    const snippet = [windowModel, messageSnippet].filter(Boolean).join(" · ");
     el.innerHTML = `<span class="ic">◌</span><span class="conv-copy"><span class="name"></span><span class="snippet"></span></span>
       <button class="act ren" title="重命名">✎</button>
       <button class="act del" title="删除">✕</button>`;
@@ -6864,7 +6910,7 @@ async function describeImage(dataUrl) {
   const useOwn = !!(settings.visionBaseUrl || settings.visionApiKey);
   const base = (settings.visionBaseUrl || settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
   const key = settings.visionApiKey || settings.apiKey;
-  const model = settings.visionModel || settings.model || DEFAULTS[settings.provider].model;
+  const model = settings.visionModel || conversationModel();
   // Detect API format: for an independent endpoint, sniff Anthropic from the URL/model; otherwise
   // follow the active provider's format.
   const isAnthropic = useOwn
@@ -7166,7 +7212,7 @@ async function streamChat(onDelta, onReasoning) {
   const isAnthropic = settings.provider === "anthropic";
   const isGemini = settings.provider === "gemini";
   const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
-  const model = settings.model || DEFAULTS[settings.provider].model;
+  const model = conversationModel();
   const historyWindow = buildApiHistoryWindow();
   abortController = new AbortController();
   const callStartedAt = performance.now();
@@ -7594,7 +7640,7 @@ async function completeOnce(systemText, userText, maxTokens, useMemoryApi) {
   const isAnthropic = provider === "anthropic";
   const isGemini = provider === "gemini";
   const base = (cfg.baseUrl || DEFAULTS[provider].baseUrl).replace(/\/$/, "");
-  const model = cfg.model || DEFAULTS[provider].model;
+  const model = useMemoryApi ? (cfg.model || DEFAULTS[provider].model) : conversationModel();
   let url, headers, body;
   if (isAnthropic) {
     url = base + "/messages";
@@ -9447,6 +9493,11 @@ function importBackup(file) {
     mirrorActiveToFlat();
     currentId = conversations[0].id;
     messages = currentConv().messages;
+    conversations.forEach(conv => {
+      if (!settings.providers.find(p => p.id === conv.providerId)) conv.providerId = settings.activeProviderId;
+      if (!conv.model) conv.model = conversationModel(conv);
+    });
+    activateConversationRuntime(currentConv());
     const cloudConfigChanged = cloudConfigSignature() !== previousCloudConfig;
     if (cloudConfigChanged) resetCloudRuntime("备份中的云配置已载入，正在重新连接…");
     saveSettings();
@@ -11193,13 +11244,13 @@ function getModelList() {
   const fromText = (settings.modelList || "").split("\n").map(s => s.trim()).filter(Boolean);
   const seen = new Set(); const list = [];
   for (const line of fromText) { const id = parseModelLine(line).id; if (id && !seen.has(id)) { seen.add(id); list.push(line); } }
-  const cur = settings.model || DEFAULTS[settings.provider].model;
+  const cur = conversationModel();
   if (cur && !seen.has(cur)) list.unshift(cur);
   return list;
 }
 function renderModelQuick() {
   const list = getModelList();
-  const cur = settings.model || DEFAULTS[settings.provider].model;
+  const cur = conversationModel();
   const fill = (sel, withCustom) => {
     if (!sel) return;
     sel.innerHTML = "";
@@ -11251,7 +11302,7 @@ function syncSettingsToUI() {
   $("provider").value = settings.provider;
   $("baseUrl").value = settings.baseUrl;
   $("apiKey").value = settings.apiKey;
-  $("model").value = settings.model;
+  $("model").value = conversationModel();
   $("temperature").value = settings.temperature;
   $("tempVal").textContent = settings.temperature;
   $("maxTokens").value = settings.maxTokens;
@@ -11349,10 +11400,19 @@ function renderProviderSelect() {
   }
 }
 function switchProvider(id) {
+  const profile = providerById(id);
+  if (!profile) return;
   settings.activeProviderId = id;
   mirrorActiveToFlat();
+  const conv = currentConv();
+  if (conv) {
+    conv.providerId = id;
+    conv.model = profile.model || DEFAULTS[profile.provider]?.model || "";
+  }
   saveSettings();
+  saveConversations();
   syncSettingsToUI();
+  showToast("当前窗口已切换到「" + profile.name + "」");
 }
 function addProvider() {
   const name = prompt("新接口的名字（比如 DeepSeek、OpenRouter）：", "接口 " + (settings.providers.length + 1));
@@ -11362,7 +11422,10 @@ function addProvider() {
   settings.providers.push(p);
   settings.activeProviderId = p.id;
   mirrorActiveToFlat();
+  const conv = currentConv();
+  if (conv) { conv.providerId = p.id; conv.model = ""; }
   saveSettings();
+  saveConversations();
   syncSettingsToUI();
   showToast("已新增接口，填好下面的 Base URL 和 API Key 即可");
 }
@@ -11379,10 +11442,17 @@ function deleteProvider() {
   if (settings.providers.length <= 1) { showToast("至少要保留一个接口"); return; }
   const ap = activeProvider();
   if (!confirm(`确定删除接口「${ap.name}」？`)) return;
+  const deletedId = ap.id;
   settings.providers = settings.providers.filter(p => p.id !== ap.id);
   settings.activeProviderId = settings.providers[0].id;
   mirrorActiveToFlat();
+  conversations.forEach(conv => {
+    if (conv.providerId !== deletedId) return;
+    conv.providerId = settings.activeProviderId;
+    conv.model = settings.model || DEFAULTS[settings.provider]?.model || "";
+  });
   saveSettings();
+  saveConversations();
   syncSettingsToUI();
 }
 // ---------- Per-provider TTS config (so switching service doesn't wipe the other's settings) ----------
@@ -11423,6 +11493,11 @@ function readSettingsFromUI() {
   ap.apiKey = $("apiKey").value.trim();
   ap.model = $("model").value.trim();
   ap.modelList = $("modelList").value;
+  const conv = currentConv();
+  if (conv) {
+    conv.providerId = ap.id;
+    conv.model = ap.model;
+  }
   mirrorActiveToFlat();
   settings.temperature = parseFloat($("temperature").value);
   settings.maxTokens = parseInt($("maxTokens").value) || 2048;
@@ -11477,6 +11552,7 @@ function readSettingsFromUI() {
   saveTtsConfigFromUI(settings.ttsProvider);
   updateTtsProviderUI();
   saveSettings();
+  if (conv) saveConversations();
   updateStatusLine();
   renderModelQuick();
   updateVoiceInputButton();
@@ -11604,7 +11680,7 @@ function updateStatusLine() {
   const el = $("status-line");
   if (!el) return;   // header subtitle was removed (Claude-style minimal header)
   const ap = activeProvider();
-  const m = settings.model || DEFAULTS[settings.provider].model;
+  const m = conversationModel();
   el.textContent = `${ap ? ap.name + " · " : ""}${getModelDisplayLabel(m)}`;
 }
 function openSettings(force) {
@@ -11664,7 +11740,7 @@ function renderSettingsHome() {
   set("settings-status-appearance", currentTheme()?.name || "跟随主题");
   set("settings-status-media", settings.ttsEnabled ? "朗读已开启" : "按需开启");
   set("settings-status-memory", memoryCount ? `${memoryCount} 条` : "等待积累");
-  set("settings-status-services", getModelDisplayLabel(provider?.model || settings.model || "待配置"));
+  set("settings-status-services", getModelDisplayLabel(conversationModel() || "待配置"));
   set("settings-status-account", $("auth-status")?.textContent?.includes("已登录") ? "已同步" : "本地保存");
   set("settings-status-billing", usageCount ? `${usageCount} 次` : "本地统计");
   set("settings-status-data", settings.lockEnabled ? "隐私锁已开" : "可备份");
@@ -12192,9 +12268,17 @@ async function init() {
   const pickModel = (value) => {
     if (!value) return;
     activeProvider().model = value;
+    const conv = currentConv();
+    if (conv) {
+      conv.providerId = settings.activeProviderId;
+      conv.model = value;
+    }
     mirrorActiveToFlat();
-    $("model").value = settings.model;
-    saveSettings(); updateStatusLine(); renderModelQuick();
+    $("model").value = value;
+    saveSettings();
+    saveConversations();
+    updateStatusLine(); renderModelQuick();
+    showToast("这个窗口已使用 " + (getModelDisplayLabel(value) || value));
   };
   $("model-quick").addEventListener("change", () => pickModel($("model-quick").value));
   $("model-select").addEventListener("change", () => pickModel($("model-select").value));

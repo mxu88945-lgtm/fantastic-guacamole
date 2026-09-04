@@ -26,7 +26,7 @@ ok(html.includes('tracePhasesForRender(traces, !!streaming)'),
   'stale running phases are not normalized when history is restored')
 ok(html.includes('msg.traces = cloneChatData(baseMsg.traces)'),
   'multi-bubble replies do not preserve their trace history')
-ok(sw.includes('const CACHE = "role-chat-cache-v161";'),
+ok(sw.includes('const CACHE = "role-chat-cache-v162";'),
   'service worker cache was not bumped to v160')
 
 const start = html.indexOf('const TRACE_COPY = {')
