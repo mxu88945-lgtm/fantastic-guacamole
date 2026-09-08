@@ -38,7 +38,8 @@ requireText('const transientStatuses = new Set([429, 500, 502, 503, 504]);', 'on
 requireText('maxCompletionTokensRequired(detail)', 'new-model completion token compatibility is missing')
 requireText('const AUTO_COMPACT_RETRY_COOLDOWN_MS = 5 * 60 * 1000;', 'failed automatic compaction has no retry cooldown')
 requireText('autoCompactRetryAfter.set(conv.id, Date.now() + AUTO_COMPACT_RETRY_COOLDOWN_MS)', 'failed automatic compaction can retry after every reply')
-requireText('"🧭 对话满 " + AUTO_COMPACT_THRESHOLD + " 条', 'automatic compaction notice can drift from its threshold')
+requireText('🧭 旧文已接近即时上下文边界，正在整理连续性档案',
+  'automatic compaction notice does not explain the actual context boundary')
 
 const helperStart = html.indexOf('function isChatContentMessage(')
 const helperEnd = html.indexOf('async function compactMessageBatch(', helperStart)
@@ -287,7 +288,7 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v162";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v163";')) {
   throw new Error('service worker cache was not bumped for lazy summary upgrade')
 }
 

@@ -57,6 +57,7 @@ vm.runInContext(
    const RECENT_STATE_LOOKBACK_MS = 36 * 60 * 60 * 1000;
    const RECENT_STATE_MAX_ITEMS = 8;
    const RECENT_STATE_CHAR_BUDGET = 1100;
+   const RECALL_NEIGHBOR_CHAR_BUDGET = 520;
    ${html.slice(recallStart, recallEnd)}
    globalThis.recallHelpers = {
      currentMemoryRecallQuery, explicitMemoryRecallIntent,
@@ -204,6 +205,6 @@ ok(versionContext.versionHelpers.validatedMemoryReplacementIds(
 ok(versionContext.versionHelpers.validatedMemoryReplacementIds(
   { text: '惟惟不喝咖啡', replaces: ['coffee'] }, oldFacts, '今天聊到咖啡',
 ).length === 0, 'implicit text incorrectly superseded a durable fact')
-ok(sw.includes('const CACHE = "role-chat-cache-v162";'), 'service worker cache was not bumped to v160')
+ok(sw.includes('const CACHE = "role-chat-cache-v163";'), 'service worker cache was not bumped to v160')
 
 console.log(`memory accuracy regression: ${checks} checks passed`)
