@@ -18,6 +18,10 @@ ok(html.includes('const semantic = recallSemanticAffinity(queryText, txt);'),
   'automatic old-chat recall does not use semantic topic affinity')
 ok(html.includes('recallNeighborhood(h.c.messages, h.m)'),
   'cross-chat recall does not restore the hit neighborhood')
+ok(html.includes('/记忆接口没有返回可用正文/.test'),
+  'empty memory completion does not activate the local continuity fallback')
+ok(html.includes('_summaryFallback: usedExtractiveFallback'),
+  'fallback summaries are not marked for later inspection')
 
 const recallStart = html.indexOf('function currentMemoryRecallQuery(')
 const recallEnd = html.indexOf('function memoryRecallTurn(', recallStart)
@@ -72,6 +76,22 @@ ok((wrapped.match(/<\/reference_attachment>/g) || []).length === 1,
   'attachment content can forge the closing boundary')
 ok(wrapped.includes('默认只分析、概括或讨论附件'), 'attachment default task is not analysis')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v163";'), 'service worker cache was not bumped to v163')
+const fallbackStart = html.indexOf('function compactContinuityExcerpt(')
+const fallbackEnd = html.indexOf('async function compactMessageBatch(', fallbackStart)
+ok(fallbackStart >= 0 && fallbackEnd > fallbackStart, 'extractive continuity fallback section not found')
+const fallbackContext = {
+  normalizeMemoryTransportText: value => String(value ?? ''),
+  clipUnicodeChars: (value, max) => Array.from(String(value)).slice(0, max).join(''),
+  ROLLING_SUMMARY_CHAR_LIMIT: 2400,
+}
+vm.runInNewContext(html.slice(fallbackStart, fallbackEnd), fallbackContext)
+const digest = fallbackContext.extractiveContinuityFallback(
+  '【此前连续性档案】\n旧约定仍有效\n\n【本批对话原文】\n惟惟：今天继续修复\n顾祁砚：我记住了',
+)
+ok(digest.includes('旧约定仍有效') && digest.includes('今天继续修复') && digest.includes('我记住了'),
+  'local continuity fallback lost the prior archive or boundary turns')
+ok(digest.includes('不新增推断'), 'fallback digest is not labeled as extractive evidence')
 
-console.log('memory continuity v4 regression: 18 checks passed')
+ok(sw.includes('const CACHE = "role-chat-cache-v164";'), 'service worker cache was not bumped to v163')
+
+console.log('memory continuity v4 regression: 25 checks passed')

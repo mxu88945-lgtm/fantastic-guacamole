@@ -5017,6 +5017,31 @@ async function maybeUpgradeRollingSummary(conv) {
     autoCompactInFlight = false;
   }
 }
+function compactContinuityExcerpt(value, maxChars) {
+  const chars = Array.from(normalizeMemoryTransportText(value).replace(/\n{3,}/g, "\n\n").trim());
+  if (chars.length <= maxChars) return chars.join("");
+  const head = Math.floor((maxChars - 3) * 0.52);
+  const tail = Math.max(0, maxChars - 3 - head);
+  return chars.slice(0, head).join("") + "\n…\n" + chars.slice(-tail).join("");
+}
+function extractiveContinuityFallback(transcript) {
+  // A successful HTTP response may contain only a provider-specific reasoning
+  // field and no visible content. Preserve an exact, bounded bridge locally in
+  // that case; never promote hidden reasoning or mutate/delete the raw turns.
+  const source = normalizeMemoryTransportText(transcript).trim();
+  const marker = "【本批对话原文】";
+  const markerAt = source.lastIndexOf(marker);
+  const prior = markerAt >= 0
+    ? source.slice(0, markerAt).replace(/^【此前连续性档案】\s*/, "").trim() : "";
+  const batch = markerAt >= 0 ? source.slice(markerAt + marker.length).trim() : source;
+  const sections = ["【保底连续性摘录·原文优先】",
+    "记忆模型本轮没有返回可用正文；以下内容由本地直接摘录，不新增推断。"];
+  if (prior) sections.push("【此前档案摘录】\n" + compactContinuityExcerpt(prior, 850));
+  sections.push("【本批边界原文摘录】\n"
+    + compactContinuityExcerpt(batch, prior ? 1300 : 2150));
+  sections.push("后续承接以角色设定、最近原文与可搜索旧文为准；不要把摘录当成新的聊天发言。");
+  return clipUnicodeChars(sections.join("\n\n"), ROLLING_SUMMARY_CHAR_LIMIT);
+}
 async function compactMessageBatch(conv, batch, automatic) {
   if (!conv || !batch.length || !memoryRuntimeConfig().apiKey) return false;
   batch.forEach(m => { if (!m.id) m.id = uid(); });
@@ -5026,13 +5051,18 @@ async function compactMessageBatch(conv, batch, automatic) {
   showToast(automatic
     ? "🧭 旧文已接近即时上下文边界，正在整理连续性档案…"
     : "正在整理连续性档案…", 3600);
-  let summary;
+  let summary, usedExtractiveFallback = false;
   try {
     summary = await completeOnce(
       rollingSummarySystemPrompt(), transcript, ROLLING_SUMMARY_MAX_TOKENS, true);
   } catch (e) {
-    showToast((automatic ? "连续性档案稍后重试：" : "整理失败：") + (e.message || e), 4200);
-    return false;
+    if (automatic && /记忆接口没有返回可用正文/.test(String(e?.message || e))) {
+      summary = extractiveContinuityFallback(transcript);
+      usedExtractiveFallback = true;
+    } else {
+      showToast((automatic ? "连续性档案稍后重试：" : "整理失败：") + (e.message || e), 4200);
+      return false;
+    }
   }
   if (!summary || !conversations.includes(conv)) {
     if (!summary) showToast(automatic ? "连续性档案暂未生成，稍后重试" : "整理失败：没有生成档案");
@@ -5044,6 +5074,7 @@ async function compactMessageBatch(conv, batch, automatic) {
       + clipUnicodeChars(summary.trim(), ROLLING_SUMMARY_CHAR_LIMIT),
     ts: batch[batch.length - 1]?.ts || Date.now(), _summary: true, _autoSummary: true,
     _summaryVersion: ROLLING_SUMMARY_VERSION,
+    _summaryFallback: usedExtractiveFallback,
     _summaryCount: (previousSummary?._summaryCount || 0) + batch.length,
   };
   const batchIds = new Set(batch.map(m => m.id));
@@ -5062,7 +5093,9 @@ async function compactMessageBatch(conv, batch, automatic) {
     renderMessages();
     if (stickBottom) scrollToBottom();
   }
-  showToast(automatic
+  showToast(usedExtractiveFallback
+    ? "✅ 记忆接口本轮只返回思考，已用本地原文摘录安全衔接"
+    : automatic
     ? "✅ 已整理连续性档案：旧原文仍在本地，最近 " + AUTO_COMPACT_KEEP + " 条保持原样"
     : "✅ 已整理连续性档案：旧原文仍在本地，可通过搜索找到", 4200);
   return true;
