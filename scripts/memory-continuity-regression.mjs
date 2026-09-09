@@ -288,7 +288,7 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v165";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v166";')) {
   throw new Error('service worker cache was not bumped for lazy summary upgrade')
 }
 

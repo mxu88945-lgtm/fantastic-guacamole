@@ -20,6 +20,6 @@ ok(/const pickModel = \(value\)[\s\S]*?conv\.model = value[\s\S]*?saveConversati
   "quick model selection is not persisted to the conversation");
 ok(html.includes("const windowModel = getModelDisplayLabel(conversationModel(c));"),
   "conversation list does not identify each window model");
-ok(sw.includes('const CACHE = "role-chat-cache-v165";'), "service worker cache was not bumped to v162");
+ok(sw.includes('const CACHE = "role-chat-cache-v166";'), "service worker cache was not bumped to v166");
 
 console.log("conversation model regression checks passed");
