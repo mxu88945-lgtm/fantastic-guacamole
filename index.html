@@ -3678,14 +3678,15 @@ const CHAT_HISTORY_TOKEN_BUDGET = 5800; // local history stays intact; only API 
 const CHAT_HISTORY_MESSAGE_CAP = 56;    // safety cap for many short multi-bubbles
 const CHAT_HISTORY_MIN_ROLE_RUNS = 6;   // preserve at least three recent user/assistant exchanges
 const COMPACTED_HISTORY_TOKEN_BUDGET = 5600; // summary is injected separately; keep enough raw voice nearby
-const AUTO_COMPACT_THRESHOLD = 180;     // compact less often; API history still has its own strict token ceiling
-const AUTO_COMPACT_KEEP = 72;           // keep twice as much recent verbatim voice before folding older turns
+const AUTO_COMPACT_THRESHOLD = 240;     // compact at a larger story stage instead of interrupting every few turns
+const AUTO_COMPACT_KEEP = 96;           // preserve a longer recent verbatim window around the active scene
 const COMPACT_TRANSCRIPT_BYTE_BUDGET = 24000; // UTF-8 ceiling: enough continuity without a costly CJK transcript dump
 const COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET = 12000; // one shorter retry for strict JSON relays
-const AUTO_COMPACT_RETRY_COOLDOWN_MS = 5 * 60 * 1000; // failed maintenance must not bill again after every reply
+const AUTO_COMPACT_RETRY_COOLDOWN_MS = 30 * 60 * 1000; // failed maintenance must not bill again after every reply
 const ROLLING_SUMMARY_VERSION = 3;
 const ROLLING_SUMMARY_CHAR_LIMIT = 2400;
-const ROLLING_SUMMARY_MAX_TOKENS = 2200;
+const ROLLING_SUMMARY_MAX_TOKENS = 1400;
+const ROLLING_SUMMARY_RETRY_MAX_TOKENS = 900; // quota-limited maintenance gets one deliberately smaller retry
 const PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET = 900; // exact boundary turns while a rolling summary is unavailable
 const AUTO_MEMORY_EVERY = 24; // lower-cost background scan; continuity layers still bridge the turns between checks
 const MEMORY_CONTEXT_CHAR_BUDGET = 6400; // all derived memory layers share one ceiling
@@ -3696,8 +3697,8 @@ const LOCKED_MEMORY_CHAR_BUDGET = 1200;   // protected slice inside the shared m
 const RECENT_STATE_LOOKBACK_MS = 36 * 60 * 60 * 1000; // bridge daily facts that are too short-lived for durable memory
 const RECENT_STATE_MAX_ITEMS = 8;
 const RECENT_STATE_CHAR_BUDGET = 1100;
-const AUTO_COMPACT_OMITTED_MESSAGE_THRESHOLD = 16; // wait for a meaningful omitted prefix before paying for maintenance
-const AUTO_COMPACT_OMITTED_TOKEN_THRESHOLD = 4200; // long prose/files can still trigger safely before 180 stored messages
+const AUTO_COMPACT_OMITTED_MESSAGE_THRESHOLD = 24; // wait for a fuller story stage before paying for maintenance
+const AUTO_COMPACT_OMITTED_TOKEN_THRESHOLD = 6000; // long prose/files can still trigger safely before 240 stored messages
 const RECALL_NEIGHBOR_CHAR_BUDGET = 520; // a hit needs nearby turns to preserve who said what and what followed
 let autoCompactInFlight = false;
 const autoCompactRetryAfter = new Map(); // runtime-only; never changes or migrates stored conversations
@@ -4879,7 +4880,7 @@ function rollingSummarySystemPrompt() {
     + "【未完事项与隐性张力】保留正在进行的事、承诺、悬念、误会、没说透的话和下一轮应自然承接的点。\n"
     + "规则：只写原文能支持的内容，不编造；新信息明确推翻旧信息时保留新版；不要道德评价、不要分析模型机制、不要写通用建议。"
     + "近期生活报备即使不值得长期收藏，只要后续一两天仍可能被追问，也要留在对应段落。"
-    + "优先保留会改变下一轮语气和判断的细节。中文分点，控制在 1400～2100 字内。";
+    + "优先保留会改变下一轮语气和判断的细节。中文分点，控制在 900～1400 字内，宁可合并重复事实，也不要为了凑长度扩写。";
 }
 // JS string slicing can leave half of an emoji (a lone UTF-16 surrogate).
 // JSON.stringify then emits an escape some strict OpenAI-compatible relays reject.
@@ -5043,6 +5044,10 @@ function extractiveContinuityFallback(transcript) {
   sections.push("后续承接以角色设定、最近原文与可搜索旧文为准；不要把摘录当成新的聊天发言。");
   return clipUnicodeChars(sections.join("\n\n"), ROLLING_SUMMARY_CHAR_LIMIT);
 }
+function maintenanceQuotaError(error) {
+  const text = String(error?.message || error || "").toLowerCase();
+  return /more credits|fewer max_tokens|only afford|insufficient credits|quota|credit limit|额度|余额不足|配额/.test(text);
+}
 async function compactMessageBatch(conv, batch, automatic) {
   if (!conv || !batch.length || !memoryRuntimeConfig().apiKey) return false;
   batch.forEach(m => { if (!m.id) m.id = uid(); });
@@ -5060,6 +5065,15 @@ async function compactMessageBatch(conv, batch, automatic) {
     if (automatic && /记忆接口没有返回可用正文/.test(String(e?.message || e))) {
       summary = extractiveContinuityFallback(transcript);
       usedExtractiveFallback = true;
+    } else if (maintenanceQuotaError(e)) {
+      showToast("额度有限，改用精简版连续性档案重试…", 3000);
+      try {
+        summary = await completeOnce(
+          rollingSummarySystemPrompt(), transcript, ROLLING_SUMMARY_RETRY_MAX_TOKENS, true);
+      } catch (retryError) {
+        showToast((automatic ? "连续性档案稍后重试：" : "整理失败：") + (retryError.message || retryError), 4200);
+        return false;
+      }
     } else {
       showToast((automatic ? "连续性档案稍后重试：" : "整理失败：") + (e.message || e), 4200);
       return false;

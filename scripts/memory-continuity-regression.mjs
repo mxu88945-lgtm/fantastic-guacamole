@@ -8,8 +8,8 @@ const requireText = (text, message) => {
   if (!html.includes(text)) throw new Error(message)
 }
 
-requireText('const AUTO_COMPACT_THRESHOLD = 180;', 'automatic compaction still triggers too early')
-requireText('const AUTO_COMPACT_KEEP = 72;', 'recent verbatim retention was not doubled')
+requireText('const AUTO_COMPACT_THRESHOLD = 240;', 'automatic compaction still triggers too early')
+requireText('const AUTO_COMPACT_KEEP = 96;', 'recent verbatim retention was not lengthened')
 requireText('AUTO_COMPACT_THRESHOLD - AUTO_COMPACT_KEEP', 'automatic compaction batch is not derived from both limits')
 requireText('最近 " + AUTO_COMPACT_KEEP + " 条保持原样', 'success notice can drift from the retention setting')
 requireText('const ROLLING_SUMMARY_VERSION = 3;', 'continuity summary version is missing')
@@ -36,8 +36,11 @@ requireText('const COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET = 12000;', 'safe retry b
 requireText('useMemoryApi && resp.status === 400 && !retriedShortTranscript', 'strict JSON relay retry is missing')
 requireText('const transientStatuses = new Set([429, 500, 502, 503, 504]);', 'one-shot maintenance requests do not retry transient failures')
 requireText('maxCompletionTokensRequired(detail)', 'new-model completion token compatibility is missing')
-requireText('const AUTO_COMPACT_RETRY_COOLDOWN_MS = 5 * 60 * 1000;', 'failed automatic compaction has no retry cooldown')
+requireText('const AUTO_COMPACT_RETRY_COOLDOWN_MS = 30 * 60 * 1000;', 'failed automatic compaction has no retry cooldown')
 requireText('autoCompactRetryAfter.set(conv.id, Date.now() + AUTO_COMPACT_RETRY_COOLDOWN_MS)', 'failed automatic compaction can retry after every reply')
+requireText('const ROLLING_SUMMARY_MAX_TOKENS = 1400;', 'rolling summary budget was not reduced for maintenance')
+requireText('const ROLLING_SUMMARY_RETRY_MAX_TOKENS = 900;', 'quota fallback budget is missing')
+requireText('function maintenanceQuotaError(error)', 'quota fallback detector is missing')
 requireText('🧭 旧文已接近即时上下文边界，正在整理连续性档案',
   'automatic compaction notice does not explain the actual context boundary')
 
@@ -48,7 +51,8 @@ if (helperStart < 0 || helperEnd < 0) throw new Error('rolling summary helper se
 const context = {
   ROLLING_SUMMARY_VERSION: 3,
   ROLLING_SUMMARY_CHAR_LIMIT: 2400,
-  ROLLING_SUMMARY_MAX_TOKENS: 2200,
+  ROLLING_SUMMARY_MAX_TOKENS: 1400,
+  ROLLING_SUMMARY_RETRY_MAX_TOKENS: 900,
   COMPACT_TRANSCRIPT_BYTE_BUDGET: 24000,
   COMPACT_TRANSCRIPT_RETRY_BYTE_BUDGET: 12000,
   autoCompactInFlight: false,
@@ -264,6 +268,41 @@ if (bridgeContext.buildPendingContinuityBridge({ rollingSummary: { id: 'summary'
 const compactBatchStart = html.indexOf('async function compactMessageBatch(')
 const compactBatchEnd = html.indexOf('async function maybeAutoCompactConversation(', compactBatchStart)
 if (compactBatchStart < 0 || compactBatchEnd < 0) throw new Error('compaction mutation section not found')
+let quotaRetryTokens = []
+let quotaSaved = false
+const quotaTurns = [
+  { id: 'quota-1', role: 'user', content: '阶段中的第一句' },
+  { id: 'quota-2', role: 'assistant', content: '阶段中的第二句' },
+]
+const quotaConversation = { id: 'quota-conv', messages: quotaTurns }
+let quotaCalls = 0
+Object.assign(context, {
+  AUTO_COMPACT_THRESHOLD: 240,
+  AUTO_COMPACT_KEEP: 96,
+  ROLLING_SUMMARY_RETRY_MAX_TOKENS: 900,
+  conversations: [quotaConversation],
+  currentId: 'quota-conv',
+  messages: quotaTurns,
+  stickBottom: false,
+  activeRollingSummary: () => null,
+  compactTranscript: () => '阶段原文',
+  rollingSummarySystemPrompt: () => '连续性档案系统指令',
+  uid: (() => { let n = 0; return () => `quota-id-${++n}` })(),
+  saveConversations: () => { quotaSaved = true },
+  completeOnce: async (_system, _transcript, maxTokens) => {
+    quotaCalls++
+    quotaRetryTokens.push(maxTokens)
+    if (quotaCalls === 1) throw new Error('This request requires more credits, or fewer max_tokens.')
+    return '【事实与时间线】\n- 阶段已安全整理'
+  },
+})
+vm.runInNewContext(html.slice(compactBatchStart, compactBatchEnd), context)
+const quotaCompaction = await context.compactMessageBatch(quotaConversation, quotaTurns.slice(), true)
+if (!quotaCompaction || !quotaSaved || quotaCalls !== 2 || quotaRetryTokens[1] !== 900
+    || !quotaConversation.messages.some(message => message._summary && message._summaryFallback === false)) {
+  throw new Error('quota-limited compaction did not retry once with the compact budget')
+}
+
 let savedAfterFailure = false
 const failureTurns = [
   { id: 'turn-1', role: 'user', content: '第一句' },
@@ -271,8 +310,6 @@ const failureTurns = [
 ]
 const failureConversation = { id: 'failure-conv', messages: failureTurns }
 Object.assign(context, {
-  AUTO_COMPACT_THRESHOLD: 180,
-  AUTO_COMPACT_KEEP: 72,
   conversations: [failureConversation],
   currentId: 'failure-conv',
   messages: failureTurns,
@@ -288,8 +325,8 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v166";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v167";')) {
   throw new Error('service worker cache was not bumped for lazy summary upgrade')
 }
 
-console.log('memory continuity regression: 47 checks passed')
+console.log('memory continuity regression: 49 checks passed')
