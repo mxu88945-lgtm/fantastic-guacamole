@@ -41,6 +41,7 @@ requireText('autoCompactRetryAfter.set(conv.id, Date.now() + AUTO_COMPACT_RETRY_
 requireText('const ROLLING_SUMMARY_MAX_TOKENS = 1400;', 'rolling summary budget was not reduced for maintenance')
 requireText('const ROLLING_SUMMARY_RETRY_MAX_TOKENS = 900;', 'quota fallback budget is missing')
 requireText('function maintenanceQuotaError(error)', 'quota fallback detector is missing')
+requireText('function maintenanceBalanceError(error)', 'balance fallback detector is missing')
 requireText('🧭 旧文已接近即时上下文边界，正在整理连续性档案',
   'automatic compaction notice does not explain the actual context boundary')
 
@@ -303,6 +304,31 @@ if (!quotaCompaction || !quotaSaved || quotaCalls !== 2 || quotaRetryTokens[1] !
   throw new Error('quota-limited compaction did not retry once with the compact budget')
 }
 
+let balanceCalls = 0
+let balanceSaved = false
+const balanceTurns = [
+  { id: 'balance-1', role: 'user', content: '余额不足时也要保住剧情' },
+  { id: 'balance-2', role: 'assistant', content: '本地摘录继续承接' },
+]
+const balanceConversation = { id: 'balance-conv', messages: balanceTurns }
+Object.assign(context, {
+  conversations: [balanceConversation],
+  currentId: 'balance-conv',
+  messages: balanceTurns,
+  uid: (() => { let n = 0; return () => `balance-id-${++n}` })(),
+  saveConversations: () => { balanceSaved = true },
+  completeOnce: async () => {
+    balanceCalls++
+    throw new Error('memory HTTP 402 — {"error":{"message":"Insufficient balance"}}')
+  },
+})
+vm.runInNewContext(html.slice(compactBatchStart, compactBatchEnd), context)
+const balanceCompaction = await context.compactMessageBatch(balanceConversation, balanceTurns.slice(), true)
+if (!balanceCompaction || !balanceSaved || balanceCalls !== 1
+    || !balanceConversation.messages.some(message => message._summary && message._summaryFallback === true)) {
+  throw new Error('insufficient-balance compaction did not switch directly to the local continuity fallback')
+}
+
 let savedAfterFailure = false
 const failureTurns = [
   { id: 'turn-1', role: 'user', content: '第一句' },
@@ -325,7 +351,7 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v167";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v168";')) {
   throw new Error('service worker cache was not bumped for lazy summary upgrade')
 }
 

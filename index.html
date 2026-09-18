@@ -5048,6 +5048,10 @@ function maintenanceQuotaError(error) {
   const text = String(error?.message || error || "").toLowerCase();
   return /more credits|fewer max_tokens|only afford|insufficient credits|quota|credit limit|额度|余额不足|配额/.test(text);
 }
+function maintenanceBalanceError(error) {
+  const text = String(error?.message || error || "").toLowerCase();
+  return /insufficient balance|余额不足|账户余额|http\s*402|\b402\b/.test(text);
+}
 async function compactMessageBatch(conv, batch, automatic) {
   if (!conv || !batch.length || !memoryRuntimeConfig().apiKey) return false;
   batch.forEach(m => { if (!m.id) m.id = uid(); });
@@ -5057,7 +5061,7 @@ async function compactMessageBatch(conv, batch, automatic) {
   showToast(automatic
     ? "🧭 旧文已接近即时上下文边界，正在整理连续性档案…"
     : "正在整理连续性档案…", 3600);
-  let summary, usedExtractiveFallback = false;
+  let summary, usedExtractiveFallback = false, fallbackReason = "";
   try {
     summary = await completeOnce(
       rollingSummarySystemPrompt(), transcript, ROLLING_SUMMARY_MAX_TOKENS, true);
@@ -5065,6 +5069,13 @@ async function compactMessageBatch(conv, batch, automatic) {
     if (automatic && /记忆接口没有返回可用正文/.test(String(e?.message || e))) {
       summary = extractiveContinuityFallback(transcript);
       usedExtractiveFallback = true;
+      fallbackReason = "empty";
+    } else if (maintenanceBalanceError(e)) {
+      // A 402 / insufficient-balance response cannot be fixed by lowering output
+      // tokens. Preserve the continuity bridge locally without making a second billable call.
+      summary = extractiveContinuityFallback(transcript);
+      usedExtractiveFallback = true;
+      fallbackReason = "balance";
     } else if (maintenanceQuotaError(e)) {
       showToast("额度有限，改用精简版连续性档案重试…", 3000);
       try {
@@ -5109,7 +5120,9 @@ async function compactMessageBatch(conv, batch, automatic) {
     if (stickBottom) scrollToBottom();
   }
   showToast(usedExtractiveFallback
-    ? "✅ 记忆接口本轮只返回思考，已用本地原文摘录安全衔接"
+    ? fallbackReason === "balance"
+      ? "✅ 记忆接口余额不足，已用本地原文摘录安全衔接"
+      : "✅ 记忆接口本轮只返回思考，已用本地原文摘录安全衔接"
     : automatic
     ? "✅ 已整理连续性档案：旧原文仍在本地，最近 " + AUTO_COMPACT_KEEP + " 条保持原样"
     : "✅ 已整理连续性档案：旧原文仍在本地，可通过搜索找到", 4200);
