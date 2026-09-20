@@ -130,6 +130,6 @@ ok(!quotaContext.checkQuota({ message: 'relay unavailable' }),
 ok(quotaContext.checkBalance({ message: 'memory HTTP 402 — {"error":{"message":"Insufficient balance"}}' }),
   'balance error detector misses the provider 402 wording')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v168";'), 'service worker cache was not bumped to v167')
+ok(sw.includes('const CACHE = "role-chat-cache-v169";'), 'service worker cache was not bumped to v167')
 
 console.log('memory continuity v4 regression: 36 checks passed')

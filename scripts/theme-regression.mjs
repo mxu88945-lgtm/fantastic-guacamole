@@ -122,6 +122,23 @@ ok(html.includes('.msg.assistant .bubble .chat-narration { font-style: normal; }
 ok(html.includes('.msg.assistant .bubble em {\n    font-style: italic;'),
   'explicit Markdown emphasis no longer keeps its italic style')
 
+const frostStart = html.indexOf('{ key: "frostbubble", name: "磨砂气泡"')
+const frostEnd = html.indexOf('// 墨黑金', frostStart)
+ok(frostStart >= 0 && frostEnd > frostStart, 'frosted bubble theme block was not found')
+const frost = html.slice(frostStart, frostEnd)
+ok(frost.includes('dark: false, glass: true'), 'frosted bubble theme lost its glass treatment')
+ok(frost.includes('linear-gradient(155deg,#fffafc 0%,#f7eaf0 52%,#eee5ef 100%)'),
+  'frosted bubble base gradient changed unexpectedly')
+ok(html.includes('html[data-theme-key="frostbubble"] .msg.flat.assistant .bubble {')
+  && html.includes('width: 100%;\n    max-width: 100%;\n    padding: 14px 17px;'),
+  'frosted assistant long-form card no longer fills the flat layout')
+ok(html.includes('html[data-theme-key="frostbubble"] .msg.flat.user .bubble {')
+  && html.includes('max-width: min(88%, 720px);'),
+  'frosted user bubble no longer hugs shorter messages')
+ok(html.includes('html[data-theme-key="frostbubble"] .composer,')
+  && html.includes('backdrop-filter: blur(14px) saturate(1.18);'),
+  'frosted theme chrome lost its optical blur')
+
 // CC's iOS standalone status-bar chain is protected: default status-bar mode,
 // pre-paint local restoration, root background fallback and runtime meta refresh.
 ok(html.includes('<meta name="apple-mobile-web-app-status-bar-style" content="default" />'),
@@ -138,6 +155,6 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v168";'), 'service worker cache was not bumped to v166')
+ok(sw.includes('const CACHE = "role-chat-cache-v169";'), 'service worker cache was not bumped to v166')
 
 console.log(`theme regression: ${checks} checks passed`)
