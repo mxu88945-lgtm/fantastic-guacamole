@@ -10,6 +10,12 @@ const requireText = (text, message) => {
 
 requireText('const AUTO_COMPACT_THRESHOLD = 240;', 'automatic compaction still triggers too early')
 requireText('const AUTO_COMPACT_KEEP = 96;', 'recent verbatim retention was not lengthened')
+requireText('const AUTO_COMPACT_OMITTED_MESSAGE_THRESHOLD = 32;', 'omitted dialogue compaction threshold is too eager')
+requireText('const AUTO_COMPACT_OMITTED_TOKEN_THRESHOLD = 9000;', 'omitted dialogue token threshold is too eager')
+requireText('const omittedDialogue = omittedRaw.filter(message => !hasReferenceAttachment(message));',
+  'reference files can still trigger automatic conversation compaction')
+requireText('const REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET = 2600;',
+  'follow-up file reference budget is missing')
 requireText('AUTO_COMPACT_THRESHOLD - AUTO_COMPACT_KEEP', 'automatic compaction batch is not derived from both limits')
 requireText('最近 " + AUTO_COMPACT_KEEP + " 条保持原样', 'success notice can drift from the retention setting')
 requireText('const ROLLING_SUMMARY_VERSION = 3;', 'continuity summary version is missing')
@@ -351,7 +357,7 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v172";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v173";')) {
   throw new Error('service worker cache was not bumped for lazy summary upgrade')
 }
 

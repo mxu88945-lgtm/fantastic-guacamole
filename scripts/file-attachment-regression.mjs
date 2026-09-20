@@ -16,9 +16,17 @@ requireText('const TEXT_FILE_MAX_BYTES = 1024 * 1024;',
   'text attachment ceiling is not the intended 1MB')
 requireText('const REFERENCE_FILE_PROMPT_CHAR_BUDGET = 8000;',
   'large reference files are not bounded before entering model context')
+requireText('const REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET = 2600;',
+  'follow-up file excerpt budget is missing')
+requireText('function hasReferenceAttachment(message)',
+  'reference-file messages are not identified separately from dialogue')
+requireText('m === fullReferenceMessage',
+  'newly uploaded files are not distinguished from historical file references')
+requireText('REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET',
+  'historical file references are not reduced after the first read')
 requireText('type: "file",', 'selected text files are not stored as attachment parts')
 requireText('function fileCardHtml(filePart)', 'file attachment card renderer is missing')
-requireText('if (p.type === "file") return filePromptText(p);',
+requireText('if (p.type === "file") return filePromptText(p, fileCharBudget);',
   'file contents are not expanded for text-only model requests')
 requireText('content = fileAwareContentOrder(content);',
   'file references are not ordered before the current user request')
@@ -30,7 +38,7 @@ requireText('p.type === "image" || p.type === "sticker" || p.type === "file"',
   'edit-and-resend does not preserve file attachments')
 rejectText('已插入文件内容', 'legacy behavior still inserts an entire file into the composer')
 
-if (!sw.includes('const CACHE = "role-chat-cache-v172";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v173";')) {
   throw new Error('service worker cache was not bumped for file attachments')
 }
 

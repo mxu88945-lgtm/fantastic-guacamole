@@ -64,7 +64,7 @@ ok(html.includes('e.target.value = "";\n    await setChatBgFile(file);'),
 ok(html.includes('await restoreChatBackground();'), "legacy or IndexedDB background is not restored during startup");
 ok(html.includes('$("bg-clear").onclick = clearChatBackground;'), "background clear does not remove IndexedDB state");
 
-ok(sw.includes('const CACHE = "role-chat-cache-v172";'), "service worker cache was not bumped for global prompt presets");
+ok(sw.includes('const CACHE = "role-chat-cache-v173";'), "service worker cache was not bumped for global prompt presets");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "settings redesign introduced duplicate DOM ids");
