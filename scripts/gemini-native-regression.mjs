@@ -14,6 +14,6 @@ ok(html.includes(':streamGenerateContent?alt=sse'), "Gemini streaming endpoint i
 ok(html.includes(':generateContent'), "Gemini one-shot endpoint is missing");
 ok(html.includes('function geminiContentsFor('), "Gemini conversation conversion is missing");
 ok(html.includes('supportedGenerationMethods.includes("generateContent")'), "Gemini model capability filter is missing");
-ok(sw.includes('const CACHE = "role-chat-cache-v171";'), "service worker cache was not bumped to v166");
+ok(sw.includes('const CACHE = "role-chat-cache-v172";'), "service worker cache was not bumped to v166");
 
 console.log("Gemini native regression checks passed");

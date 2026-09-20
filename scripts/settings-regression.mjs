@@ -41,6 +41,17 @@ ok(html.includes('id="system-instruction-count"'), "system instruction character
 ok(html.includes('$("systemInstruction").addEventListener("input", queueSystemInstructionSave)'), "system instruction is not auto-saved while typing");
 ok(html.includes('const additionalSystemInstruction = String(settings.systemInstruction || "").trim()'), "system instruction is not connected to chat requests");
 ok(html.includes('"systemPrompt", "systemInstruction"'), "system instruction is not stored separately per role");
+ok(html.includes('const DEFAULT_GLOBAL_PROMPT_PRESETS = ['), "global prompt preset defaults are missing");
+ok(html.includes('id="global-prompt-presets"') && html.includes('id="global-prompt-add"'),
+  "global prompt preset editor is missing from system prompt settings");
+ok(html.includes('function renderGlobalPromptPresets()') && html.includes('function addGlobalPromptPreset()'),
+  "global prompt presets cannot be rendered or added");
+ok(html.includes('"globalPromptPresets"') && html.includes('buildGlobalPromptPresetText()'),
+  "global prompt presets are not persisted and injected into model requests");
+ok(html.includes('【全局预设 · ${item.name.trim() || "未命名预设"}】'),
+  "global preset order is not represented in the injected system prompt");
+ok(html.includes('settings.globalPromptPresets = presets;\n      saveSettings(); renderGlobalPromptPresets(); renderSettingsHome();'),
+  "global prompt presets cannot be reordered");
 
 ok(html.includes('const CHAT_BG_DB_KEY = "chatBackgroundV1";'), "chat background is not isolated in IndexedDB");
 ok(html.includes('await dbPut(CHAT_BG_DB_KEY, blob);'), "compressed chat background is not persisted in IndexedDB");
@@ -53,7 +64,7 @@ ok(html.includes('e.target.value = "";\n    await setChatBgFile(file);'),
 ok(html.includes('await restoreChatBackground();'), "legacy or IndexedDB background is not restored during startup");
 ok(html.includes('$("bg-clear").onclick = clearChatBackground;'), "background clear does not remove IndexedDB state");
 
-ok(sw.includes('const CACHE = "role-chat-cache-v171";'), "service worker cache was not bumped for background persistence");
+ok(sw.includes('const CACHE = "role-chat-cache-v172";'), "service worker cache was not bumped for global prompt presets");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "settings redesign introduced duplicate DOM ids");
