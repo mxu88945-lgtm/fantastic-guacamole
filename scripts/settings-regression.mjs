@@ -42,7 +42,18 @@ ok(html.includes('$("systemInstruction").addEventListener("input", queueSystemIn
 ok(html.includes('const additionalSystemInstruction = String(settings.systemInstruction || "").trim()'), "system instruction is not connected to chat requests");
 ok(html.includes('"systemPrompt", "systemInstruction"'), "system instruction is not stored separately per role");
 
-ok(sw.includes('const CACHE = "role-chat-cache-v170";'), "service worker cache was not bumped to v166");
+ok(html.includes('const CHAT_BG_DB_KEY = "chatBackgroundV1";'), "chat background is not isolated in IndexedDB");
+ok(html.includes('await dbPut(CHAT_BG_DB_KEY, blob);'), "compressed chat background is not persisted in IndexedDB");
+ok(html.includes('canvas.toBlob(') && !html.includes('settings.chatBg = canvas.toDataURL('),
+  "chat background still uses blocking Base64 localStorage persistence");
+ok(html.includes('let chatBgLoadRevision = 0;') && html.includes('revision !== chatBgLoadRevision'),
+  "overlapping background replacements can still finish out of order");
+ok(html.includes('e.target.value = "";\n    await setChatBgFile(file);'),
+  "background picker cannot reliably select another image while replacement runs");
+ok(html.includes('await restoreChatBackground();'), "legacy or IndexedDB background is not restored during startup");
+ok(html.includes('$("bg-clear").onclick = clearChatBackground;'), "background clear does not remove IndexedDB state");
+
+ok(sw.includes('const CACHE = "role-chat-cache-v171";'), "service worker cache was not bumped for background persistence");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "settings redesign introduced duplicate DOM ids");

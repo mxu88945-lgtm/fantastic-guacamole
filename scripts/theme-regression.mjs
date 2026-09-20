@@ -127,8 +127,16 @@ const frostEnd = html.indexOf('// 墨黑金', frostStart)
 ok(frostStart >= 0 && frostEnd > frostStart, 'frosted bubble theme block was not found')
 const frost = html.slice(frostStart, frostEnd)
 ok(frost.includes('dark: false, glass: true'), 'frosted bubble theme lost its glass treatment')
-ok(frost.includes('linear-gradient(155deg,#fffafc 0%,#f7eaf0 52%,#eee5ef 100%)'),
+ok(frost.includes('linear-gradient(155deg,#fbfbfd 0%,#f0eef7 52%,#e8ebf2 100%)'),
   'frosted bubble base gradient changed unexpectedly')
+ok(frost.includes('accent:"#8d83b5"')
+  && frost.includes('"accent-soft":"#e6e1f1"')
+  && !frost.includes('accent:"#c8799b"'),
+  'frosted bubble palette is not the intended restrained lilac-grey')
+ok(html.includes('settings.themeName === "frostbubble"')
+  && html.includes('String(settings.accent || "").toLowerCase() === "#c8799b"')
+  && html.includes('settings.accent = "#8d83b5";'),
+  'the persisted legacy rose accent is not migrated for existing frosted-theme users')
 ok(html.includes('html[data-theme-key="frostbubble"] .msg.flat.assistant .bubble {')
   && html.includes('width: 100%;\n    max-width: 100%;\n    padding: 14px 17px;'),
   'frosted assistant long-form card no longer fills the flat layout')
@@ -138,10 +146,10 @@ ok(html.includes('html[data-theme-key="frostbubble"] .msg.flat.user .bubble {')
 ok(html.includes('html[data-theme-key="frostbubble"] .composer,')
   && html.includes('backdrop-filter: blur(14px) saturate(1.18);'),
   'frosted theme chrome lost its optical blur')
-ok(html.includes('linear-gradient(145deg, rgba(255,255,255,.44), rgba(255,247,251,.22));'),
+ok(html.includes('linear-gradient(145deg, rgba(255,255,255,.44), rgba(243,241,250,.22));'),
   'frosted theme chrome is no longer softly translucent')
 ok(html.includes('rgba(255,255,255,.14) var(--bubble-pct, 100%)')
-  && html.includes('rgba(247,226,236,.22) var(--bubble-pct, 100%)'),
+  && html.includes('rgba(228,223,243,.22) var(--bubble-pct, 100%)'),
   'frosted bubble surfaces are too opaque or ignore the opacity slider')
 
 // CC's iOS standalone status-bar chain is protected: default status-bar mode,
@@ -160,6 +168,6 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v170";'), 'service worker cache was not bumped to v166')
+ok(sw.includes('const CACHE = "role-chat-cache-v171";'), 'service worker cache was not bumped for the lilac frosted theme')
 
 console.log(`theme regression: ${checks} checks passed`)

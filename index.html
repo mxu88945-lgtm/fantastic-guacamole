@@ -948,14 +948,14 @@
   html[data-theme-key="frostbubble"] .header-menu,
   html[data-theme-key="frostbubble"] #plus-menu,
   html[data-theme-key="frostbubble"] #msg-menu {
-    background: linear-gradient(145deg, rgba(255,255,255,.44), rgba(255,247,251,.22));
+    background: linear-gradient(145deg, rgba(255,255,255,.44), rgba(243,241,250,.22));
     border-color: rgba(255,255,255,.64);
     -webkit-backdrop-filter: blur(14px) saturate(1.18);
     backdrop-filter: blur(14px) saturate(1.18);
     box-shadow:
-      0 8px 22px rgba(112,82,96,.09),
+      0 8px 22px rgba(73,69,94,.09),
       inset 0 1px 0 rgba(255,255,255,.72),
-      inset 0 -1px 0 rgba(168,130,148,.08);
+      inset 0 -1px 0 rgba(132,126,160,.08);
   }
   html[data-theme-key="frostbubble"] .msg.assistant .bubble,
   html[data-theme-key="frostbubble"] .msg.user .bubble {
@@ -964,7 +964,7 @@
     -webkit-backdrop-filter: blur(10px) saturate(1.15);
     backdrop-filter: blur(10px) saturate(1.15);
     box-shadow:
-      0 6px 18px rgba(104,76,90,.10),
+      0 6px 18px rgba(70,66,91,.10),
       inset 0 1px 0 rgba(255,255,255,.70),
       inset 0 -8px 18px rgba(255,255,255,.08);
     color: var(--text);
@@ -978,7 +978,7 @@
   html[data-theme-key="frostbubble"] .msg.user .bubble {
     background:
       radial-gradient(circle at 82% 0%, color-mix(in srgb, rgba(255,255,255,.32) var(--bubble-pct, 100%), transparent), transparent 46%),
-      color-mix(in srgb, rgba(247,226,236,.22) var(--bubble-pct, 100%), transparent);
+      color-mix(in srgb, rgba(228,223,243,.22) var(--bubble-pct, 100%), transparent);
     border-radius: 18px 18px 6px 18px;
   }
   html[data-theme-key="frostbubble"] .msg.flat.assistant {
@@ -996,11 +996,11 @@
   }
   html[data-theme-key="frostbubble"] .msg .avatar {
     border-color: rgba(255,255,255,.82);
-    box-shadow: 0 4px 12px rgba(91,66,79,.12), inset 0 1px 0 rgba(255,255,255,.8);
+    box-shadow: 0 4px 12px rgba(66,62,84,.12), inset 0 1px 0 rgba(255,255,255,.8);
   }
   html[data-theme-key="frostbubble"] .msg .name,
   html[data-theme-key="frostbubble"] .msg-time {
-    color: rgba(67,54,61,.68);
+    color: rgba(57,55,69,.68);
     text-shadow: 0 1px 0 rgba(255,255,255,.72);
   }
   html[data-theme-key="frostbubble"] .model-quick,
@@ -1011,7 +1011,7 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.68);
   }
   html[data-theme-key="frostbubble"] .sidebar {
-    background: rgba(255,250,252,.46);
+    background: rgba(249,248,253,.46);
     border-right-color: rgba(255,255,255,.62);
     -webkit-backdrop-filter: blur(18px) saturate(1.12);
     backdrop-filter: blur(18px) saturate(1.12);
@@ -3821,8 +3821,12 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const DB_NAME = "jyc_role_chat";
 const DB_VERSION = 1;
 const DB_STORE = "app";
+const CHAT_BG_DB_KEY = "chatBackgroundV1";
 let appDb = null;
 let dbWriteQueue = Promise.resolve();
+let chatBgWriteQueue = Promise.resolve();
+let chatBgObjectUrl = "";
+let chatBgLoadRevision = 0;
 function openAppDb() {
   if (appDb) return Promise.resolve(appDb);
   if (!("indexedDB" in window)) return Promise.reject(new Error("IndexedDB unavailable"));
@@ -3852,6 +3856,16 @@ async function dbPut(key, value) {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error || new Error("IndexedDB write failed"));
     tx.onabort = () => reject(tx.error || new Error("IndexedDB write aborted"));
+  });
+}
+async function dbDelete(key) {
+  const db = await openAppDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, "readwrite");
+    tx.objectStore(DB_STORE).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error("IndexedDB delete failed"));
+    tx.onabort = () => reject(tx.error || new Error("IndexedDB delete aborted"));
   });
 }
 function queueConversationWrite(snapshot, selectedId) {
@@ -3898,6 +3912,10 @@ async function loadState() {
       butter:"claude", mistpink:"claude", glaze:"white", dusk:"gold",
     };
     if (THEME_MIGRATE[settings.themeName]) settings.themeName = THEME_MIGRATE[settings.themeName];
+    // v171: the original frosted theme persisted its rose accent separately.
+    // Migrate only that exact legacy default so intentional custom accents stay untouched.
+    if (settings.themeName === "frostbubble" && String(settings.accent || "").toLowerCase() === "#c8799b")
+      settings.accent = "#8d83b5";
     const legacyCurrent = localStorage.getItem("jyc_current") || null;
     let stored = null;
     try { stored = await dbGet("conversations"); } catch (e) { console.warn("IndexedDB load failed", e); }
@@ -11133,13 +11151,13 @@ const THEMES = [
     bg:"#f2f4ee", "bg-soft":"#f7f3ef", "bg-panel":"#ece9e4", border:"#dedbd7", text:"#111111",
     "text-dim":"#69686b", accent:"#565b68", "accent-soft":"#eee4c4", "assistant-bubble":"#fbfaf7",
     "code-bg":"#edf0f4", "err-bg":"#fbe9e9", "err-text":"#ad4250", "item-active":"#eee9df" } },
-  // 磨砂气泡 — 淡粉雾面玻璃；平铺模式下角色长文保持完整阅读宽度。
+  // 磨砂气泡 — 冷白与淡紫灰雾面玻璃；平铺模式下角色长文保持完整阅读宽度。
   { key: "frostbubble", name: "磨砂气泡", dark: false, glass: true,
-    gradient: "radial-gradient(circle at 12% 10%,rgba(255,255,255,.96) 0%,rgba(255,255,255,0) 34%),radial-gradient(circle at 88% 20%,rgba(247,218,231,.68) 0%,rgba(247,218,231,0) 38%),radial-gradient(circle at 20% 88%,rgba(235,224,239,.64) 0%,rgba(235,224,239,0) 40%),linear-gradient(155deg,#fffafc 0%,#f7eaf0 52%,#eee5ef 100%)",
+    gradient: "radial-gradient(circle at 12% 10%,rgba(255,255,255,.97) 0%,rgba(255,255,255,0) 34%),radial-gradient(circle at 88% 20%,rgba(226,221,242,.58) 0%,rgba(226,221,242,0) 38%),radial-gradient(circle at 20% 88%,rgba(217,225,235,.52) 0%,rgba(217,225,235,0) 40%),linear-gradient(155deg,#fbfbfd 0%,#f0eef7 52%,#e8ebf2 100%)",
     vars: {
-    bg:"#fffafc", "bg-soft":"#fff8fb", "bg-panel":"#f7eaf0", border:"#ead9e1", text:"#2f292c",
-    "text-dim":"#74656c", accent:"#c8799b", "accent-soft":"#f3dce6", "assistant-bubble":"#fffafd", "user-bubble":"#f5e2eb",
-    "code-bg":"#f6eaf0", "err-bg":"#fdebed", "err-text":"#ae405b", "item-active":"#f3e2e9" } },
+    bg:"#fbfbfd", "bg-soft":"#f7f6fb", "bg-panel":"#eeedf5", border:"#dedbe8", text:"#2e2d33",
+    "text-dim":"#6d6a78", accent:"#8d83b5", "accent-soft":"#e6e1f1", "assistant-bubble":"#fbfbfd", "user-bubble":"#ebe7f5",
+    "code-bg":"#efedf6", "err-bg":"#f8e9ed", "err-text":"#a34a63", "item-active":"#e9e6f1" } },
   // 墨黑金 — 真正的深黑画布，金色只保留为细节点缀。
   { key: "gold", name: "墨黑金", dark: true, vars: {
     bg:"#0e0e0f", "bg-soft":"#161617", "bg-panel":"#1d1d1f", border:"#343438", text:"#f2f2f2",
@@ -11284,11 +11302,12 @@ function highlightLayoutButtons() {
 function applyChatBg() {
   const bg = $("chat-bg");
   if (!bg) return;
-  if (settings.chatBg) {
+  const imageUrl = chatBgObjectUrl || settings.chatBg || "";
+  if (imageUrl) {
     const dark = currentTheme().dark;
     const d = (settings.chatBgDim ?? 35) / 100;
     const overlay = dark ? `rgba(8,10,15,${d})` : `rgba(255,255,255,${d})`;
-    bg.style.backgroundImage = `linear-gradient(${overlay}, ${overlay}), url("${settings.chatBg}")`;
+    bg.style.backgroundImage = `linear-gradient(${overlay}, ${overlay}), url("${imageUrl}")`;
     bg.style.filter = `blur(${settings.chatBgBlur ?? 6}px)`;
     bg.style.display = "block";
   } else {
@@ -11405,26 +11424,103 @@ function setupDeskPet() {
   window.addEventListener("resize", () => placeDeskPet((settings.petX || .84) * innerWidth, (settings.petY || .68) * innerHeight, 0));
   document.addEventListener("visibilitychange", () => { if (document.hidden) clearTimeout(petWalkTimer); else schedulePetWalk(1800); });
 }
-function setChatBgFile(file) {
-  if (!file || !file.type.startsWith("image/")) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    const img = new Image();
-    img.onload = () => {
-      const max = 1280;
-      let { width: w, height: h } = img;
-      const scale = Math.min(1, max / Math.max(w, h));
-      w = Math.round(w * scale); h = Math.round(h * scale);
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      settings.chatBg = canvas.toDataURL("image/jpeg", 0.82);
-      saveSettings(); applyChatBg();
-      showToast("🖼️ 背景已设置");
+function replaceChatBgObjectUrl(blob) {
+  if (chatBgObjectUrl) URL.revokeObjectURL(chatBgObjectUrl);
+  chatBgObjectUrl = blob ? URL.createObjectURL(blob) : "";
+}
+function readImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("图片格式无法读取"));
+      img.src = reader.result;
     };
-    img.src = reader.result;
-  };
-  reader.readAsDataURL(file);
+    reader.onerror = () => reject(reader.error || new Error("图片读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+function canvasToJpegBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("图片压缩失败")), "image/jpeg", 0.78);
+  });
+}
+async function dataUrlToBlob(dataUrl) {
+  const response = await fetch(dataUrl);
+  if (!response.ok) throw new Error("旧背景迁移失败");
+  return response.blob();
+}
+async function restoreChatBackground() {
+  try {
+    let blob = await dbGet(CHAT_BG_DB_KEY);
+    if (!(blob instanceof Blob) && settings.chatBg) {
+      blob = await dataUrlToBlob(settings.chatBg);
+      await dbPut(CHAT_BG_DB_KEY, blob);
+    }
+    if (blob instanceof Blob) {
+      replaceChatBgObjectUrl(blob);
+      if (settings.chatBg) {
+        settings.chatBg = "";
+        saveSettings();
+      }
+    }
+  } catch (error) {
+    // Keep the legacy data URL usable if IndexedDB is unavailable; replacing it
+    // later will retry the migration without losing the currently visible image.
+    console.warn("Background restore deferred", error);
+  }
+}
+async function setChatBgFile(file) {
+  if (!file || !file.type.startsWith("image/")) {
+    showToast("请选择图片文件");
+    return;
+  }
+  const revision = ++chatBgLoadRevision;
+  showToast("正在处理背景…");
+  try {
+    const img = await readImageFile(file);
+    if (revision !== chatBgLoadRevision) return;
+    const max = 1280;
+    let { width: w, height: h } = img;
+    const scale = Math.min(1, max / Math.max(w, h));
+    w = Math.max(1, Math.round(w * scale));
+    h = Math.max(1, Math.round(h * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("浏览器无法处理这张图片");
+    context.drawImage(img, 0, 0, w, h);
+    const blob = await canvasToJpegBlob(canvas);
+    if (revision !== chatBgLoadRevision) return;
+    const committed = await (chatBgWriteQueue = chatBgWriteQueue.catch(() => {}).then(async () => {
+      if (revision !== chatBgLoadRevision) return false;
+      await dbPut(CHAT_BG_DB_KEY, blob);
+      return revision === chatBgLoadRevision;
+    }));
+    if (!committed) return;
+    replaceChatBgObjectUrl(blob);
+    settings.chatBg = "";
+    saveSettings();
+    applyChatBg();
+    refreshStorageStatus();
+    showToast("🖼️ 背景已更换");
+  } catch (error) {
+    if (revision !== chatBgLoadRevision) return;
+    console.warn("Background replacement failed", error);
+    showToast("背景更换失败：" + (error.message || "请换一张图片重试"));
+  }
+}
+async function clearChatBackground() {
+  ++chatBgLoadRevision;
+  try { await dbDelete(CHAT_BG_DB_KEY); }
+  catch (error) { console.warn("Background delete deferred", error); }
+  replaceChatBgObjectUrl(null);
+  settings.chatBg = "";
+  saveSettings();
+  applyChatBg();
+  refreshStorageStatus();
+  showToast("已清除背景");
 }
 function applyAccent() {
   document.documentElement.style.setProperty("--accent", settings.accent || currentTheme().vars.accent);
@@ -12223,6 +12319,7 @@ function closeSidebar() {
 // ---------- Wire up ----------
 async function init() {
   await loadState();
+  await restoreChatBackground();
   await initWorkbench();
   applyTheme();
   // On phones, start with the sidebar tucked away so the chat is front-and-center.
@@ -12516,8 +12613,12 @@ async function init() {
   });
   // Chat background image + frosted-glass blur
   $("bg-upload").onclick = () => $("chatBgFile").click();
-  $("chatBgFile").onchange = (e) => { setChatBgFile(e.target.files[0]); e.target.value = ""; };
-  $("bg-clear").onclick = () => { settings.chatBg = ""; saveSettings(); applyChatBg(); showToast("已清除背景"); };
+  $("chatBgFile").onchange = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    await setChatBgFile(file);
+  };
+  $("bg-clear").onclick = clearChatBackground;
   $("chatBgBlur").addEventListener("input", () => {
     settings.chatBgBlur = parseInt($("chatBgBlur").value);
     $("bgBlurVal").textContent = settings.chatBgBlur;
