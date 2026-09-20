@@ -138,6 +138,11 @@ ok(html.includes('html[data-theme-key="frostbubble"] .msg.flat.user .bubble {')
 ok(html.includes('html[data-theme-key="frostbubble"] .composer,')
   && html.includes('backdrop-filter: blur(14px) saturate(1.18);'),
   'frosted theme chrome lost its optical blur')
+ok(html.includes('linear-gradient(145deg, rgba(255,255,255,.44), rgba(255,247,251,.22));'),
+  'frosted theme chrome is no longer softly translucent')
+ok(html.includes('rgba(255,255,255,.14) var(--bubble-pct, 100%)')
+  && html.includes('rgba(247,226,236,.22) var(--bubble-pct, 100%)'),
+  'frosted bubble surfaces are too opaque or ignore the opacity slider')
 
 // CC's iOS standalone status-bar chain is protected: default status-bar mode,
 // pre-paint local restoration, root background fallback and runtime meta refresh.
@@ -155,6 +160,6 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v169";'), 'service worker cache was not bumped to v166')
+ok(sw.includes('const CACHE = "role-chat-cache-v170";'), 'service worker cache was not bumped to v166')
 
 console.log(`theme regression: ${checks} checks passed`)
