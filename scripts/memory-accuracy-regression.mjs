@@ -23,7 +23,7 @@ has('invalidateDerivedForRemovedMessages(messages.slice(idx), "edit-resend")', '
 has('invalidateDerivedForRemovedMessages(turn.tail, "reply-variant-switch")', 'regenerate does not isolate derived memory by reply candidate')
 has('_originReplyId: baseMsg.id || ""', 'multi-bubble replies lack a stable derivation source')
 has('const entries = activeMemoryEntries();', 'inactive memory versions are not filtered from prompts')
-has('supersedeMemoryEntries(addition.replaces, entry.id);', 'changed facts do not supersede old versions')
+ok(!html.includes('async function autoUpdateMemory()'), 'retired automatic memory extraction still exists')
 
 const recallStart = html.indexOf('function currentMemoryRecallQuery(')
 const recallEnd = html.indexOf('// Build the wire-format message list', recallStart)
@@ -185,26 +185,6 @@ entries[1].status = 'active'
 const superseded = invalidationContext.invalidationHelpers.supersedeMemoryEntries(['m2'], 'm3')
 ok(superseded === 1 && entries[1].supersededBy === 'm3', 'old fact version was not archived')
 
-const versionStart = html.indexOf('function explicitMemoryChangeInTranscript(')
-const versionEnd = html.indexOf('async function autoUpdateMemory(', versionStart)
-ok(versionStart >= 0 && versionEnd > versionStart, 'fact-version validation section not found')
-const versionContext = {
-  memTokens: text => new Set([...String(text || '')]),
-  memScore: (query, text) => [...query].filter(token => String(text).includes(token)).length,
-}
-vm.createContext(versionContext)
-vm.runInContext(
-  `${html.slice(versionStart, versionEnd)}
-   globalThis.versionHelpers = { validatedMemoryReplacementIds };`,
-  versionContext,
-)
-const oldFacts = [{ id: 'coffee', text: '惟惟喜欢喝咖啡' }]
-ok(versionContext.versionHelpers.validatedMemoryReplacementIds(
-  { text: '惟惟现在不再喝咖啡', replaces: ['coffee'] }, oldFacts, '惟惟说：我现在不再喝咖啡',
-).includes('coffee'), 'explicit changed preference did not supersede its old version')
-ok(versionContext.versionHelpers.validatedMemoryReplacementIds(
-  { text: '惟惟不喝咖啡', replaces: ['coffee'] }, oldFacts, '今天聊到咖啡',
-).length === 0, 'implicit text incorrectly superseded a durable fact')
-ok(sw.includes('const CACHE = "role-chat-cache-v173";'), 'service worker cache was not bumped to v166')
+ok(sw.includes('const CACHE = "role-chat-cache-v174";'), 'service worker cache was not bumped to v166')
 
 console.log(`memory accuracy regression: ${checks} checks passed`)

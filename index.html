@@ -2944,12 +2944,6 @@
           <span class="hint" style="display:block;margin-top:5px;">控制当前角色主动来找你和下任务卡的方式。</span>
           <div style="margin-top:10px;border:1px solid var(--border);border-radius:12px;overflow:hidden;">
             <label style="display:flex;align-items:center;gap:10px;min-height:50px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;">
-              <input type="checkbox" id="proactiveGreet" style="width:auto;flex-shrink:0;" onchange="readSettingsFromUI();" />
-              <span>🌙 久未聊天时，TA 主动来找我
-                <span class="hint" style="display:block;font-weight:400;margin-top:2px;">隔约 3 小时再打开时，消息接在这个角色最近聊过的窗口，不新开对话。</span>
-              </span>
-            </label>
-            <label style="display:flex;align-items:center;gap:10px;min-height:50px;padding:8px 12px;border-top:1px solid var(--border);font-size:13px;font-weight:600;cursor:pointer;">
               <input type="checkbox" id="reminderEnabled" style="width:auto;flex-shrink:0;" onchange="readSettingsFromUI();" />
               <span>⏰ TA 可以给我下任务提醒
                 <span class="hint" style="display:block;font-weight:400;margin-top:2px;">在对话里生成倒计时任务卡；可完成或取消，到点会提醒。</span>
@@ -2985,7 +2979,7 @@
             <div class="field"><label>当前角色接口</label><select id="memory-role-provider"></select></div>
             <div class="field"><label>当前角色模型</label><select id="memory-role-model"></select></div>
           </div>
-          <span class="hint" style="display:block;margin-top:8px;">自动记忆与人物速写走这里；留空时跟随当前聊天模型。其他角色默认复用全局设置，也可单独覆盖。</span>
+          <span class="hint" style="display:block;margin-top:8px;">人物速写与连续性档案走这里；留空时跟随当前聊天模型。其他角色默认复用全局设置，也可单独覆盖。</span>
         </div>
 
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
@@ -3031,10 +3025,6 @@
             </div>
             <div style="margin-top:10px;border:1px solid var(--border);border-radius:12px;overflow:hidden;">
               <label style="display:flex;align-items:center;gap:10px;min-height:46px;padding:0 12px;font-size:13px;font-weight:600;cursor:pointer;">
-                <input type="checkbox" id="autoMemory" style="width:auto;flex-shrink:0;" />
-                <span>✨ 自动记忆</span>
-              </label>
-              <label style="display:flex;align-items:center;gap:10px;min-height:46px;padding:0 12px;border-top:1px solid var(--border);font-size:13px;font-weight:600;cursor:pointer;">
                 <input type="checkbox" id="crossChat" style="width:auto;flex-shrink:0;" onchange="readSettingsFromUI();" />
                 <span>🪟 跨对话回忆</span>
               </label>
@@ -3680,7 +3670,6 @@ let settings = {
   globalPromptPresets: DEFAULT_GLOBAL_PROMPT_PRESETS.map(item => ({ ...item })),
   emojiStyle: "off",      // off | cool | normal | cute
   silentMode: false,      // 旁白：发消息只记录、不触发 AI 回复
-  proactiveGreet: true,   // 久未聊天再打开时，AI 主动招呼
   visionModel: "",        // 读图(视觉)模型 id，用于把图片转述成文字
   visionBaseUrl: "",      // 读图接口地址（留空用当前接口）
   visionApiKey: "",       // 读图 Key（留空用当前接口；不上云）
@@ -3689,7 +3678,6 @@ let settings = {
   imageBaseUrl: "",       // 画图接口地址（留空用当前接口）
   imageApiKey: "",        // 画图 Key（留空用当前接口；不上云）
   memory: "",
-  autoMemory: false,
   theme: "light",
   themeName: "claude",
   accent: "",
@@ -3758,7 +3746,6 @@ let settings = {
   reminderEnabled: true,  // 任务提醒：让江屹琛能写 [提醒:做的事|分钟] 给惟惟下个带倒计时的任务（卡片作为消息存进对话）
   companionFeaturesV1: false, // 一次性恢复曾被设置页重构误停用的主动招呼与任务卡
 };
-let turnsSinceMemory = 0; // throttle auto-memory extraction
 let pendingAttachments = []; // image / sticker / text-file parts staged for the next message
 let attachmentStaging = [];  // in-flight image/file reads (iOS PWA race fix)
 const TEXT_FILE_MAX_BYTES = 1024 * 1024; // 1MB; larger prompt payloads are unreliable across providers
@@ -3787,7 +3774,6 @@ const ROLLING_SUMMARY_CHAR_LIMIT = 2400;
 const ROLLING_SUMMARY_MAX_TOKENS = 1400;
 const ROLLING_SUMMARY_RETRY_MAX_TOKENS = 900; // quota-limited maintenance gets one deliberately smaller retry
 const PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET = 900; // exact boundary turns while a rolling summary is unavailable
-const AUTO_MEMORY_EVERY = 24; // lower-cost background scan; continuity layers still bridge the turns between checks
 const MEMORY_CONTEXT_CHAR_BUDGET = 6400; // all derived memory layers share one ceiling
 const MEMORY_RECALL_COOLDOWN_TURNS = 4;  // avoid echoing the same old excerpt every reply
 const MEMORY_RECALL_LEDGER_LIMIT = 120;  // bounded, metadata-only per-conversation audit
@@ -3796,8 +3782,6 @@ const LOCKED_MEMORY_CHAR_BUDGET = 1200;   // protected slice inside the shared m
 const RECENT_STATE_LOOKBACK_MS = 36 * 60 * 60 * 1000; // bridge daily facts that are too short-lived for durable memory
 const RECENT_STATE_MAX_ITEMS = 8;
 const RECENT_STATE_CHAR_BUDGET = 1100;
-const AUTO_COMPACT_OMITTED_MESSAGE_THRESHOLD = 32; // wait for a fuller story stage before paying for maintenance
-const AUTO_COMPACT_OMITTED_TOKEN_THRESHOLD = 9000; // only substantial omitted dialogue, never a reference file alone
 const RECALL_NEIGHBOR_CHAR_BUDGET = 520; // a hit needs nearby turns to preserve who said what and what followed
 let autoCompactInFlight = false;
 const autoCompactRetryAfter = new Map(); // runtime-only; never changes or migrates stored conversations
@@ -3820,7 +3804,7 @@ let voiceInputState = "idle"; // idle | listening | stopping | transcribing
 let voiceInputBaseText = "";
 let voicePointerStopHandled = false;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","systemInstruction","globalPromptPresets","emojiStyle","proactiveGreet","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","autoMemory","crossChat","crossSearch","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
+  "systemPrompt","systemInstruction","globalPromptPresets","emojiStyle","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","crossChat","crossSearch","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "sttEnabled","sttEngine","sttBaseUrl","sttModel","sttLanguage",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
@@ -4061,10 +4045,9 @@ async function loadState() {
   settings.multiBubble = false;
   settings.aiSticker = false;
   settings.aiGenSticker = false;
-  // The settings-page simplification used to force these two established features
-  // off on every launch. Restore them once; after that the user's switches win.
+  // The settings-page simplification used to force task cards off on every
+  // launch. Restore that feature once; after that the user's switch wins.
   if (!settings.companionFeaturesV1) {
-    settings.proactiveGreet = true;
     settings.reminderEnabled = true;
     settings.companionFeaturesV1 = true;
   }
@@ -4405,11 +4388,10 @@ async function pullCloud(navigationAtStart) {
     (settings.providers || []).forEach(p => { localKeys[p.id] = p.apiKey; });
     if (payload.settings) for (const k of SYNCED_KEYS)
       if (payload.settings[k] !== undefined) settings[k] = payload.settings[k];
-    // Old cloud snapshots were written while these features were forcibly disabled.
-    // Migrate that snapshot too, otherwise a newer cloud timestamp could switch them
-    // straight back off after the local one-time repair above.
+    // Old cloud snapshots were written while task cards were forcibly disabled.
+    // Migrate that snapshot too, otherwise a newer cloud timestamp could switch
+    // them straight back off after the local one-time repair above.
     if (!payload.settings || !payload.settings.companionFeaturesV1) {
-      settings.proactiveGreet = true;
       settings.reminderEnabled = true;
       settings.companionFeaturesV1 = true;
     }
@@ -5196,7 +5178,7 @@ async function compactMessageBatch(conv, batch, automatic) {
   if (previousSummary && !previousSummary.id) previousSummary.id = uid();
   const transcript = compactTranscript(batch, previousSummary);
   showToast(automatic
-    ? "🧭 旧文已接近即时上下文边界，正在整理连续性档案…"
+    ? "🧭 已累积到 240 条，正在整理连续性档案…"
     : "正在整理连续性档案…", 3600);
   let summary, usedExtractiveFallback = false, fallbackReason = "";
   try {
@@ -5270,29 +5252,13 @@ async function maybeAutoCompactConversation() {
   const conv = currentConv();
   const raw = conv ? conv.messages.filter(compactableMessage) : [];
   if (!conv || !memoryRuntimeConfig().apiKey) return false;
-  // Message count alone is a poor proxy for context size: a handful of long
-  // role-play turns or one text attachment can push older exchanges outside the
-  // provider window long before AUTO_COMPACT_THRESHOLD. Compact the already
-  // omitted prefix as soon as it is materially large, while preserving every raw
-  // message locally and keeping the existing count-based fallback.
-  const windowInfo = buildApiHistoryWindow();
-  const omittedMessages = new Set(windowInfo.omitted || []);
-  const omittedRaw = raw.filter(message => omittedMessages.has(message));
-  // Files are a user-provided reference source, not conversational turns that
-  // have become stale. A large TXT used to make one ordinary next reply look
-  // like a context overflow and triggered a fresh summary almost immediately.
-  const omittedDialogue = omittedRaw.filter(message => !hasReferenceAttachment(message));
-  const omittedTokens = omittedDialogue.reduce((sum, message) =>
-    sum + messagePromptTokens(message, REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET), 0);
-  const overflowDue = omittedDialogue.length >= AUTO_COMPACT_OMITTED_MESSAGE_THRESHOLD
-    || omittedTokens >= AUTO_COMPACT_OMITTED_TOKEN_THRESHOLD;
-  if (raw.length < AUTO_COMPACT_THRESHOLD && !overflowDue) return false;
+  // Automatic maintenance is deliberately stage-based: never interrupt the
+  // conversation before 240 eligible messages, regardless of prompt size.
+  if (raw.length < AUTO_COMPACT_THRESHOLD) return false;
   if ((autoCompactRetryAfter.get(conv.id) || 0) > Date.now()) return false;
   autoCompactInFlight = true;
   try {
-    const countBatch = raw.length >= AUTO_COMPACT_THRESHOLD
-      ? raw.slice(0, AUTO_COMPACT_THRESHOLD - AUTO_COMPACT_KEEP) : [];
-    const batch = overflowDue && omittedDialogue.length > countBatch.length ? omittedDialogue : countBatch;
+    const batch = raw.slice(0, AUTO_COMPACT_THRESHOLD - AUTO_COMPACT_KEEP);
     const compacted = await compactMessageBatch(conv, batch, true);
     if (compacted) autoCompactRetryAfter.delete(conv.id);
     else autoCompactRetryAfter.set(conv.id, Date.now() + AUTO_COMPACT_RETRY_COOLDOWN_MS);
@@ -9198,97 +9164,6 @@ async function organizeMemories(btn) {
   } catch (e) { showToast("检查失败：" + (e.message || e)); }
   finally { if (btn) { btn.disabled = false; btn.textContent = old; } }
 }
-function explicitMemoryChangeInTranscript(text) {
-  return /(?:现在|如今|目前|以后|从今|改成|改为|换成|更新为|不再|已经不|不喜欢了|取消了|停止了|变成了)/.test(String(text || ""));
-}
-function validatedMemoryReplacementIds(item, activeEntries, recentTranscript) {
-  if (!explicitMemoryChangeInTranscript(recentTranscript)) return [];
-  const requested = new Set(Array.isArray(item?.replaces) ? item.replaces : []);
-  const query = memTokens(item?.text || "");
-  // Automated maintenance may never silently supersede a user-locked anchor.
-  return activeEntries.filter(entry => !entry.locked && requested.has(entry.id) && memScore(query, entry.text) >= 2)
-    .map(entry => entry.id);
-}
-async function autoUpdateMemory() {
-  if (!settings.autoMemory || !memoryRuntimeConfig().apiKey) return;
-  const uname = userRef();
-  const recentMessages = messages.filter(isChatContentMessage).slice(-8);
-  const recent = recentMessages
-    .map(m => (m.role === "user" ? uname : (settings.aiName || "当前角色")) + ": " + messageText(m)).join("\n");
-  if (!recent.trim()) return;
-  const sys = "你是一个极其克制的「值得珍藏的记忆」守门人。这只是低频漏检，不要求本次产生内容。只记录真正值得长期珍藏、定义 ta 这个人或你俩关系的事，比如："
-    + "①ta 的人生背景 / 重要经历 / 难忘的故事；②重要的人、关系、宠物；③长期稳定的强烈偏好、底线、禁忌；④健康/过敏等要紧的事；"
-    + "⑤你和 ta 之间特别值得记的：约定、承诺、纪念日、有意义的瞬间、心愿。"
-    + "【绝对不要记】日常琐事（今天吃了啥、做了啥）、一时的情绪心情、闲聊、天气、临时安排、对方随口一提的小事、不确定或模糊的事。"
-    + "宁可几十轮都输出 NONE，也绝不为了本次检查凑内容。除非这条事『一个月后回看依然重要』，否则不记。"
-    + "已有记忆中的同一事实即使换了说法，也不要新增。只有最近原文明确说“现在/以后/不再/改为”等变化时，才把被取代旧记忆的 id 写进 replaces。"
-    + "若确无遗漏，只输出 NONE；若确有，只输出严格 JSON："
-    + '{"items":[{"text":"简洁中文，不超过30字","replaces":["被明确取代的旧记忆id"]}]}。最多2条，不加解释。'
-    + "称呼 ta 一律用「" + uname + "」，绝对不要写「用户」二字。";
-  const activeEntries = activeMemoryEntries();
-  const orderedMemory = activeEntries.filter(e => e.core).concat(
-    activeEntries.filter(e => !e.core).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-  );
-  const maintenanceMemory = takePromptItems(orderedMemory.map(e => e.id + " | " + e.text), 32, 6500);
-  const existingText = maintenanceMemory.items.join("\n") || "（空）";
-  const usr = "【已有长期记忆】\n" + existingText
-    + "\n\n【最近对话】\n" + recent + "\n\n请输出 NONE 或 JSON：";
-  let out;
-  try { out = await completeOnce(sys, usr, 500, true); } catch (e) { return; }
-  if (!out || /^NONE\b/i.test(out)) return;
-  const raw = out.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-  let proposed = [];
-  try {
-    const parsed = JSON.parse(raw);
-    proposed = Array.isArray(parsed?.items) ? parsed.items : [];
-  } catch (_) {
-    // Older or less strict compatible models may still answer with bullet lines.
-    proposed = out.split("\n").map(s => s.trim())
-      .filter(s => /^[-*]\s+/.test(s))
-      .map(s => ({ text: s.replace(/^[-*]\s+/, "").trim(), replaces: [] }));
-  }
-  const additions = [];
-  for (const item of proposed) {
-    const text = String(item?.text || "").trim().slice(0, 80);
-    if (!text) continue;
-    const replaces = validatedMemoryReplacementIds(item, activeEntries, recent);
-    const known = activeEntries.filter(entry => !replaces.includes(entry.id))
-      .concat(additions.map(addition => ({ text: addition.text })));
-    if (memoryFactNearDuplicate(text, known)) continue;
-    additions.push({ text, replaces });
-    if (additions.length >= 2) break;
-  }
-  if (additions.length === 0) return;
-  const now = Date.now();
-  const sourceMessageIds = recentMessages.map(message => message.id).filter(Boolean);
-  additions.forEach(addition => {
-    const replaced = activeEntries.filter(entry => addition.replaces.includes(entry.id));
-    const entry = {
-      id: uid(), text: addition.text, core: replaced.some(old => old.core), locked: false,
-      source: "auto", status: "active", recordedAt: now, updatedAt: now,
-      schemaVersion: MEMORY_ENTRY_SCHEMA_VERSION,
-      kind: inferMemoryKind(addition.text), authority: "model_derived", confidence: 0.72,
-      autoInject: true, roleId: activeRole()?.id || settings.activeRoleId || "",
-      sourceConvId: currentId || "", sourceMessageIds,
-      supersedes: addition.replaces,
-    };
-    memList().push(entry);
-    supersedeMemoryEntries(addition.replaces, entry.id);
-  });
-  saveSettings();
-  renderMemList();
-  const replacedCount = additions.reduce((n, addition) => n + addition.replaces.length, 0);
-  showToast("🧠 记忆已更新：新增 " + additions.length + " 条"
-    + (replacedCount ? "，旧版 " + replacedCount + " 条已归档" : ""));
-  // also write the new facts up to Notion if the cloud memory库 is connected
-  if (settings.notionEnabled && settings.notionToken && settings.notionPageId) {
-    for (const addition of additions) {
-      try { await appendNotionMemory(addition.text); }
-      catch (e) { console.warn("notion append failed", e); }
-    }
-  }
-}
-
 // ============ 记忆库 · Notion（云端档案，读+写，经 Worker /notion 代理） ============
 function notionBase() { return (settings.notionProxy || "").trim().replace(/\/$/, ""); }
 // Accept a raw 32-hex id, a dashed UUID, or a full Notion URL — return the bare id.
@@ -10112,8 +9987,6 @@ async function send() {
   }
 }
 
-// ---------- Proactive "welcome back" greeting (zero-backend: fires on app open/visible) ----------
-const GREET_GAP_MS = 3 * 3600 * 1000;   // greet if away ≥ 3 hours
 // Show/hide a password input (eye toggle).
 function togglePw(id, btn) {
   const el = document.getElementById(id); if (!el) return;
@@ -10584,43 +10457,6 @@ function maybeReadMailbox() {
   }).finally(() => { mailboxReplyInFlight = false; });
   return true;
 }
-let proactiveGreetInFlight = false;
-async function greetProactively(hours) {
-  if (abortController || proactiveGreetInFlight || !settings.apiKey) return;
-  // Continue the role's most recent real conversation. Never create or fill a
-  // fresh "新对话" just for an automatic greeting.
-  const conv = latestRoleConversation();
-  if (!conv) return;   // no existing chat → skip (don't spawn a new conversation just to greet)
-  if (currentId !== conv.id) switchConversation(conv.id);   // bring the old chat into view
-  const role = (settings.roles || []).find(r => r.id === conv.roleId) || activeRole();
-  let sys = settings.systemPrompt || "";
-  const en = emojiStyleNote(settings.emojiStyle); if (en) sys += "\n\n" + en;
-  const coreMem = coreMemoryText(); if (coreMem) sys += "\n\n以下是需要长期记住的信息（用户的长期记忆）：\n" + coreMem;
-  const continuity = rollingSummaryPrompt(conv.messages); if (continuity) sys += "\n\n" + continuity;
-  const diaryNote = privateDiaryPrompt(role, false, recentConversationForMailbox(conv)); if (diaryNote) sys += "\n\n" + diaryNote;
-  const specialDayClaim = buildSpecialDaysPromptClaim(role);
-  if (specialDayClaim.text) sys += "\n\n" + specialDayClaim.text;
-  sys += `\n\n【场景】用户隔了大约 ${hours} 小时后刚回来继续你们之前这段对话。请你主动、自然、温柔地跟 ta 打个招呼、关心一句，像有点想 ta 了，承接你们刚才聊的，别太长（1~3 句）。`;
-  proactiveGreetInFlight = true;
-  try {
-    const out = await completeOnce(sys, "（我回来了，主动跟我说句话吧～）", 400);
-    markSpecialDaysPromptDelivered(specialDayClaim);
-    appendProactiveMessage(conv, extractPrivateDiary(visibleAssistantText(out), "", role));
-  } catch (_) {
-  } finally {
-    proactiveGreetInFlight = false;
-  }
-}
-function maybeProactiveGreet() {
-  if (settings.proactiveGreet === false || !settings.apiKey) { markSeen(); return; }
-  const last = +(localStorage.getItem("jyc_lastseen") || 0);
-  const gap = Date.now() - last;
-  markSeen();
-  if (last && gap > GREET_GAP_MS) {
-    setTimeout(() => greetProactively(Math.round(gap / 3600000)), 700);
-  }
-}
-
 // ============ 经期记录（生理期） ============
 function cycleData() {
   if (!settings.cycle) settings.cycle = { enabled: true, log: [], cycleLen: 28, periodLen: 5, remindBefore: 3 };
@@ -10890,13 +10726,11 @@ function maybeCycleReminder() {
   return true;
 }
 // App became active (cold start / tab refocus): caring period reminder takes priority,
-// otherwise the generic "welcome back" greeting.
 function onAppActive() {
   updateReminderCards(); startReminderTimer();   // catch up countdowns after the tab was backgrounded
   notionAutoSync();
   if (maybeReadMailbox()) return;
   if (maybeCycleReminder()) return;
-  maybeProactiveGreet();
 }
 
 // Generate an assistant reply for the current messages (which must end with a user turn).
@@ -11127,16 +10961,7 @@ async function generateReply() {
   }
 
   if (replied) {
-    const compacted = await maybeAutoCompactConversation();
-    if (settings.autoMemory) {
-      turnsSinceMemory++;
-      // Avoid paying for two maintenance calls on the same turn. If compaction
-      // just ran, memory extraction waits until the next successful reply.
-      if (!compacted && !autoCompactInFlight && turnsSinceMemory >= AUTO_MEMORY_EVERY) {
-        turnsSinceMemory = 0;
-        autoUpdateMemory();
-      }
-    }
+    await maybeAutoCompactConversation();
   }
 }
 
@@ -11782,13 +11607,11 @@ function syncSettingsToUI() {
   $("systemInstruction").value = settings.systemInstruction || "";
   updateSystemInstructionUI();
   renderGlobalPromptPresets();
-  $("proactiveGreet").checked = settings.proactiveGreet !== false;
   $("reminderEnabled").checked = settings.reminderEnabled !== false;
   $("cycleEnabled").checked = cycleData().enabled !== false;
   $("memory").value = settings.memory;
   $("memSummary").value = settings.memSummary || "";
   renderMemList();
-  $("autoMemory").checked = settings.autoMemory;
   $("crossChat").checked = settings.crossChat !== false;
   $("crossSearch").checked = settings.crossSearch !== false;
   $("webSearch").checked = !!settings.webSearch;
@@ -11974,11 +11797,9 @@ function readSettingsFromUI() {
   settings.imageApiKey = $("imageApiKey").value.trim();
   settings.systemPrompt = $("systemPrompt").value;
   settings.systemInstruction = $("systemInstruction").value;
-  settings.proactiveGreet = $("proactiveGreet").checked;
   settings.reminderEnabled = $("reminderEnabled").checked;
   settings.memory = $("memory").value;
   settings.memSummary = $("memSummary").value;
-  settings.autoMemory = $("autoMemory").checked;
   settings.crossChat = $("crossChat").checked;
   settings.crossSearch = $("crossSearch").checked;
   settings.webSearch = $("webSearch").checked;
@@ -12833,7 +12654,7 @@ async function init() {
   });
   $("input").addEventListener("input", autoResize);
 
-  ["provider","baseUrl","apiKey","model","maxTokens","modelList","memory","autoMemory","sbUrl","sbKey"].forEach(id => {
+  ["provider","baseUrl","apiKey","model","maxTokens","modelList","memory","sbUrl","sbKey"].forEach(id => {
     $(id).addEventListener("change", () => { readSettingsFromUI(); updateProviderHint(); });
   });
   $("systemPrompt").addEventListener("input", queueSystemPromptSave);
@@ -12884,8 +12705,8 @@ async function init() {
   // restore cloud session (if previously logged in) and sync
   initCloud().catch(e => console.warn("cloud init:", e));
 
-  // proactive "welcome back" greeting: on first load + whenever the PWA resumes
-  document.addEventListener("visibilitychange", () => { if (document.hidden) markSeen(); else onAppActive(); });
+  // Resume task cards, mailbox, cycle reminders and cloud sync when the PWA returns.
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) onAppActive(); });
   setTimeout(onAppActive, 2000);
   window.dispatchEvent(new CustomEvent("jyc:app-ready"));
 }

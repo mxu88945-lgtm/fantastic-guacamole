@@ -7,13 +7,19 @@ const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8')
 const requireText = (text, message) => {
   if (!html.includes(text)) throw new Error(message)
 }
+const rejectText = (text, message) => {
+  if (html.includes(text)) throw new Error(message)
+}
 
 requireText('const AUTO_COMPACT_THRESHOLD = 240;', 'automatic compaction still triggers too early')
 requireText('const AUTO_COMPACT_KEEP = 96;', 'recent verbatim retention was not lengthened')
-requireText('const AUTO_COMPACT_OMITTED_MESSAGE_THRESHOLD = 32;', 'omitted dialogue compaction threshold is too eager')
-requireText('const AUTO_COMPACT_OMITTED_TOKEN_THRESHOLD = 9000;', 'omitted dialogue token threshold is too eager')
-requireText('const omittedDialogue = omittedRaw.filter(message => !hasReferenceAttachment(message));',
-  'reference files can still trigger automatic conversation compaction')
+requireText('if (raw.length < AUTO_COMPACT_THRESHOLD) return false;',
+  'automatic continuity maintenance is not strictly gated at 240 messages')
+rejectText('AUTO_COMPACT_OMITTED_MESSAGE_THRESHOLD', 'message-count shortcut still compacts before 240 messages')
+rejectText('AUTO_COMPACT_OMITTED_TOKEN_THRESHOLD', 'token shortcut still compacts before 240 messages')
+rejectText('AUTO_MEMORY_EVERY', 'retired 24-turn memory extraction cadence still exists')
+rejectText('autoUpdateMemory()', 'retired automatic memory extraction still exists')
+rejectText('GREET_GAP_MS', 'retired three-hour automatic greeting still exists')
 requireText('const REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET = 2600;',
   'follow-up file reference budget is missing')
 requireText('AUTO_COMPACT_THRESHOLD - AUTO_COMPACT_KEEP', 'automatic compaction batch is not derived from both limits')
@@ -48,8 +54,8 @@ requireText('const ROLLING_SUMMARY_MAX_TOKENS = 1400;', 'rolling summary budget 
 requireText('const ROLLING_SUMMARY_RETRY_MAX_TOKENS = 900;', 'quota fallback budget is missing')
 requireText('function maintenanceQuotaError(error)', 'quota fallback detector is missing')
 requireText('function maintenanceBalanceError(error)', 'balance fallback detector is missing')
-requireText('🧭 旧文已接近即时上下文边界，正在整理连续性档案',
-  'automatic compaction notice does not explain the actual context boundary')
+requireText('🧭 已累积到 240 条，正在整理连续性档案',
+  'automatic compaction notice does not explain the 240-message stage threshold')
 
 const helperStart = html.indexOf('function isChatContentMessage(')
 const helperEnd = html.indexOf('async function compactMessageBatch(', helperStart)
@@ -357,7 +363,7 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v173";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v174";')) {
   throw new Error('service worker cache was not bumped for lazy summary upgrade')
 }
 

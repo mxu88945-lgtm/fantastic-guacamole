@@ -23,8 +23,8 @@ ok(html.includes('specialDayClaim = buildSpecialDaysPromptClaim(activeRole());')
   'normal chat does not claim an upcoming important-day reminder')
 ok(html.includes('if (delta && specialDayClaim) {\n      markSpecialDaysPromptDelivered(specialDayClaim);'),
   'normal chat does not wait for returned model content before marking the reminder')
-ok((html.match(/markSpecialDaysPromptDelivered\(specialDayClaim\);/g) || []).length >= 4,
-  'proactive model paths do not mark successful important-day reminders')
+ok((html.match(/markSpecialDaysPromptDelivered\(specialDayClaim\);/g) || []).length >= 3,
+  'remaining model paths do not mark successful important-day reminders')
 
 const start = html.indexOf('function parseLocalDay(')
 const end = html.indexOf('let editingSpecialDayId', start)
@@ -75,6 +75,6 @@ const todayRole = { id: 'role-today', specialDays: [
 ] }
 ok(context.days.buildSpecialDaysPromptClaim(todayRole, new Date(2026, 2, 5, 12)).text.includes('就是今天，第 6 周年'),
   'same-day anniversary does not tell the model the anniversary count')
-ok(sw.includes('const CACHE = "role-chat-cache-v173";'), 'service worker cache was not bumped to v166')
+ok(sw.includes('const CACHE = "role-chat-cache-v174";'), 'service worker cache was not bumped to v166')
 
 console.log(`special days regression: ${checks} checks passed`)

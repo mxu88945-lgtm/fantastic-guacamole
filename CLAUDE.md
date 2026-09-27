@@ -2,9 +2,15 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-09-27｜取消频繁后台整理与三小时问候（sw v174）
+
+- 删除“离开约三小时后自动发消息”的开门问候，包括设置开关、计时判断和模型请求；信箱、经期关心与用户主动设置的倒计时任务不受影响。
+- 删除每 24 轮自动提炼长期记忆的机制与开关；人物速写、记忆条目编辑、重复冲突检查等手动操作继续保留。
+- 自动连续性档案现在严格只在达到 240 条可压缩消息时整理，保留最近 96 条原文；删除按遗漏消息数或 token 提前整理的旁路。
+
 ## 2026-09-18｜连续性档案阶段批次与额度降级 v5（sw v168）
 
-- 自动连续性档案改为更大的阶段批次：达到 240 条可压缩消息才按数量整理，最近 96 条原文保持逐字可见；对超长内容的提前触发也提高到遗漏 24 条或约 6000 tokens，减少刚聊几轮就打断剧情的情况。
+- 自动连续性档案改为更大的阶段批次：达到 240 条可压缩消息才按数量整理，最近 96 条原文保持逐字可见。（2026-09-27 起已取消所有提前整理旁路。）
 - 累计档案输出收紧到 900～1400 字，优先保留事实、关系温度、角色表达和未完事项，合并重复内容，不为凑字数扩写。
 - 连续性维护请求遇到“额度不足／需要更多 credits／max_tokens 超预算”时，自动用 900 token 精简版本重试一次；若渠道明确返回 HTTP 402／Insufficient balance，则不作无效重试，直接以本地原文摘录生成安全衔接。普通中继故障仍按原逻辑失败保护，不修改原文、不覆盖旧档案。
 - 维护失败冷却从 5 分钟延长到 30 分钟，避免每次回复都重复发起同一笔失败维护请求；服务工作缓存升级到 v168。
@@ -172,7 +178,7 @@
 - 纯原生 HTML / CSS / JavaScript，**不引入框架、不加构建工具**（保持单文件、零依赖是核心约定）。
 - 中文 UI，暗色主题为主，配色变量定义在 `:root` CSS 变量里。
 - 数据持久化用浏览器 `localStorage`：
-  - `jyc_settings` —— 设置（providers / activeProviderId / temperature / maxTokens / systemPrompt / memory / autoMemory / theme / sidebarCollapsed / supabase* / userName / userAvatar / aiName / aiAvatar）
+  - `jyc_settings` —— 设置（providers / activeProviderId / temperature / maxTokens / systemPrompt / memory / theme / sidebarCollapsed / supabase* / userName / userAvatar / aiName / aiAvatar）
     - `providers` —— 多接口配置数组，每项 `{id, name, provider, baseUrl, apiKey, model, modelList}`；`activeProviderId` 指当前激活的那个。顶层 `provider/baseUrl/apiKey/model/modelList` 是「激活接口的镜像」，`streamChat` 等直接读这些，靠 `mirrorActiveToFlat()` 保持同步。
     - `userAvatar` / `aiAvatar` —— 头像，可为文字 / emoji / 图片链接 / 上传的 `data:` URL（上传时压缩到 128px JPEG）。
     - `memory` 是「长期记忆」文本，每次请求会拼进 system prompt（见 `streamChat` 里的 `systemText`）；清空对话不会清掉它。
@@ -189,7 +195,7 @@
   - `payload = { conversations, settings(仅 SYNCED_KEYS) }`。**apiKey 和 supabase* 配置不上云**，只留本地（换设备要重填 URL/key/各种 Key 再登录）。
   - 登录后 `pullCloud`（云端非空则覆盖本地，空则把本地推上去），改动经 `schedulePush` 防抖 1.5s 后 `pushCloudNow`；`initCloud()` 在启动时自动恢复会话（session 存 localStorage，刷新免重登）。`doAuth()` 全程 try/catch + 「处理中…」态，任何失败都弹 toast（以前库加载失败=点了没反应）。
   - ⚠️ **邮箱确认的 localhost 坑**：Supabase 默认 Site URL=localhost，点确认链接后会跳 `localhost` 报「拒绝连接」——但**确认其实已完成**，回 App 点登录即可。想根治：Authentication → URL Configuration 把 Site URL 改成 Pages 网址，或 Authentication → Email 关掉「Confirm email」。
-- 「自动记忆」：`settings.autoMemory` 开启后，每 2 轮成功回复调一次 `autoUpdateMemory()`（非流式 `completeOnce`）提炼新事实，追加进 `settings.memory`。
+- 长期记忆条目由用户手动维护；自动维护仅保留达到 240 条消息后的连续性档案整理。
 - 支持两种 API 格式，靠 `settings.provider` 切换：
   - `openai` —— 走 `/chat/completions`，`Authorization: Bearer` 头
   - `anthropic` —— 走 `/messages`，`x-api-key` + `anthropic-version` + `anthropic-dangerous-direct-browser-access` 头
@@ -254,7 +260,6 @@
 - **表情风格档**（`settings.emojiStyle`=off/cool/normal/cute，`emojiStyleNote`）。
 - **多角色（独立人设+音色+记忆+对话）**：`settings.roles`/`activeRoleId`、`ROLE_FIELDS`、`applyRole`/`addRole`/`renderRoles`、`mirrorActiveRole`；对话按 `roleId` 分流（`roleConvs`），侧栏顶 `#role-quick` 切换；新角色是**空白模板**。
 - **导出对话长图**（canvas 手绘 `exportChatImage`/`openExportDialog` 选范围/`showImagePreview`，iOS 走 `navigator.share` 或长按存）。
-- **久未聊天·开门问候**（`settings.proactiveGreet`、`greetProactively`/`maybeProactiveGreet`/`markSeen`，≥3h 触发）。
 - **读图转述（视觉中继）**：`settings.visionModel`+`visionBaseUrl`+`visionApiKey`+`visionRelay`、`describeImage`，发图先读成文字塞进 `part.desc`，`toApiContent` 把已描述的图当文字发 → 纯文字模型不再卡。读图可配**独立接口**（填了 `visionBaseUrl`/`visionApiKey` 就走它自己的，切主供应商不影响读图；留空回退当前接口；格式按 URL/模型名嗅探 anthropic/openai）。`visionApiKey` 不上云。
 - **文生图**：`settings.imageModel`/`imageBaseUrl`/`imageApiKey`、`generateImage`（`/v1/images/generations`）、`drawImage`（「＋」菜单「生成图片」，用输入框文字当 prompt）。
 - **UI Claude 化**：奶油主题、英文衬线问候、胶囊输入、圆形发送、顶栏磨砂悬浮（`backdrop-filter`，bg 8%）、圆图标 + 顶栏「···」菜单（重命名/导出/压缩/删除）、设置移进侧栏、状态栏色随主题（`applyTheme` 里改 `theme-color` meta）。
