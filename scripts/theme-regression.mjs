@@ -148,9 +148,18 @@ ok(html.includes('html[data-theme-key="frostbubble"] .composer,')
   'frosted theme chrome lost its optical blur')
 ok(html.includes('linear-gradient(145deg, rgba(255,255,255,.44), rgba(243,241,250,.22));'),
   'frosted theme chrome is no longer softly translucent')
-ok(html.includes('rgba(255,255,255,.14) var(--bubble-pct, 100%)')
-  && html.includes('rgba(228,223,243,.22) var(--bubble-pct, 100%)'),
-  'frosted bubble surfaces are too opaque or ignore the opacity slider')
+ok(html.includes('rgba(249,248,253,.36) var(--bubble-pct, 100%)')
+  && html.includes('rgba(235,231,246,.40) var(--bubble-pct, 100%)'),
+  'frosted bubble surfaces lost their readable mist layer or opacity slider')
+ok(html.includes('background: linear-gradient(180deg, #fbfafd 0%, #f5f3fa 54%, #eeedf6 100%);')
+  && html.includes('html[data-theme-key="frostbubble"] .sidebar {')
+  && html.includes('isolation: isolate;'),
+  'frosted drawer no longer prevents live chat text from bleeding through')
+ok(html.includes('html[data-theme-key="frostbubble"] .remind-card,')
+  && html.includes('backdrop-filter: blur(22px) saturate(1.08);'),
+  'frosted utility cards no longer resist high-contrast background bleed-through')
+ok(html.includes('-webkit-backdrop-filter: blur(22px) saturate(1.10);'),
+  'frosted reading surfaces lost their stronger optical blur')
 
 // CC's iOS standalone status-bar chain is protected: default status-bar mode,
 // pre-paint local restoration, root background fallback and runtime meta refresh.
