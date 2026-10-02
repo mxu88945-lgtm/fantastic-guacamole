@@ -5953,6 +5953,55 @@ function messageContentHtml(role, content, reasoning, traces, responseState) {
   return `<div class="msg-media">${media}</div>` +
     ((hasTextOrSticker || hasReasoning) ? `<div class="bubble">${bubbleHtml(role, rest, reasoning, false, traces, responseState)}</div>` : "");
 }
+// Keep streamed paragraphs, media and animated indicators mounted. Replacing
+// the entire subtree for every token repeatedly invalidates glass compositing.
+function reconcileStreamChildren(parent, source) {
+  let current = parent.firstChild;
+  for (const next of Array.from(source.childNodes)) {
+    const compatible = node => node && node.nodeType === next.nodeType
+      && node.nodeName === next.nodeName
+      && (node.nodeType !== 1 || node.className === next.className);
+    if (!compatible(current)) {
+      let match = current && current.nextSibling;
+      while (match && !compatible(match)) match = match.nextSibling;
+      if (match) parent.insertBefore(match, current);
+      else parent.insertBefore(next.cloneNode(true), current);
+      current = current ? current.previousSibling : parent.lastChild;
+    }
+    if (current.nodeType === 1) {
+      // Preserve a manually opened/closed thought panel until its automatic
+      // state changes (e.g. thinking finishes and the answer starts).
+      for (const attr of Array.from(current.attributes)) {
+        if (attr.name !== "open" && !next.hasAttribute(attr.name)) current.removeAttribute(attr.name);
+      }
+      for (const attr of Array.from(next.attributes)) {
+        if (attr.name !== "open" && current.getAttribute(attr.name) !== attr.value)
+          current.setAttribute(attr.name, attr.value);
+      }
+      if (current.nodeName === "DETAILS") {
+        const autoOpen = next.hasAttribute("open");
+        if (current._streamAutoOpen !== autoOpen) current.open = autoOpen;
+        current._streamAutoOpen = autoOpen;
+      }
+      reconcileStreamChildren(current, next);
+    } else if (current.nodeValue !== next.nodeValue) {
+      current.nodeValue = next.nodeValue;
+    }
+    current = current.nextSibling;
+  }
+  while (current) {
+    const unused = current;
+    current = current.nextSibling;
+    parent.removeChild(unused);
+  }
+}
+function updateStreamBubble(bubble, html) {
+  if (bubble._streamHtml === html) return;
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  reconcileStreamChildren(bubble, template.content);
+  bubble._streamHtml = html;
+}
 function formatTime(ts) {
   if (!ts) return "";
   const d = new Date(ts), now = new Date();
@@ -10759,13 +10808,19 @@ async function generateReply() {
   bubble.innerHTML = TYPING_HTML;
   pinToBottom();               // follow iOS keyboard/composer reflow as the reply starts
   setSending(true);
+  let paintFrame = null;
   const paint = () => {
-    const empty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim()
-      && !(assistantMsg.traces || []).length;
-    bubble.innerHTML = empty ? TYPING_HTML
-      : bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, true,
-        assistantMsg.traces, assistantMsg.responseState) + '<span class="cursor"></span>';
-    if (stickBottom) scrollToBottom();   // don't yank the view if the user scrolled up to read history
+    if (paintFrame !== null) return;
+    paintFrame = requestAnimationFrame(() => {
+      paintFrame = null;
+      if (!bubble.isConnected) return;
+      const empty = !assistantMsg.content.trim() && !(assistantMsg.reasoning || "").trim()
+        && !(assistantMsg.traces || []).length;
+      updateStreamBubble(bubble, empty ? TYPING_HTML
+        : bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, true,
+          assistantMsg.traces, assistantMsg.responseState) + '<span class="cursor"></span>');
+      if (stickBottom) scrollToBottom();   // don't yank the view if the user scrolled up to read history
+    });
   };
   const appendReasoning = (delta, dedupe) => {
     if (!delta) return;
@@ -10963,6 +11018,8 @@ async function generateReply() {
       showToast("❌ " + (e.message || String(e)).slice(0, 80), 5000);
     }
   } finally {
+    // A queued streaming frame must never overwrite a completed/stopped reply.
+    if (paintFrame !== null) cancelAnimationFrame(paintFrame);
     setSending(false);
     abortController = null;
     saveConversations();
