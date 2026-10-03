@@ -17,7 +17,7 @@ requireText('await addConversationProjectFile(file)', "selected project files ar
 requireText('const conversationProjectText = buildConversationProjectText();', "project files are not injected into chat requests");
 requireText('projectFiles: conversationProjectFiles().length', "prompt audit does not report project files");
 requireText('只绑定当前对话', "the UI does not explain conversation isolation");
-if (!sw.includes('const CACHE = "role-chat-cache-v176";')) throw new Error("service worker cache was not bumped");
+if (!sw.includes('const CACHE = "role-chat-cache-v177";')) throw new Error("service worker cache was not bumped");
 
 const start = html.indexOf("function conversationProjectFiles(");
 const end = html.indexOf("function filePromptText(", start);
@@ -50,6 +50,14 @@ if (!prompt.includes("世界观.txt") || !prompt.includes("故事发生在临洲
 if (!prompt.includes("不得把本窗口资料泄漏或混入其他对话")) {
   throw new Error("cross-conversation isolation instruction is missing");
 }
+if (!prompt.includes("只定义当前窗口的戏内人物与舞台")
+  || !prompt.includes("不得覆盖系统角色本体")
+  || !prompt.includes("项目资料边界复核")) {
+  throw new Error("project files can overwrite the assistant's underlying identity");
+}
+requireText("必须区分‘戏内叙事自我’与‘后台真实本体’", "roleplay layers are not explicitly separated");
+requireText("用户说暂停、出戏、停止扮演", "roleplay exit commands do not restore the system role");
+requireText("用户未要求出戏时则保持沉浸", "identity guard leaks meta commentary into roleplay");
 if (context.projectHelpers.buildConversationProjectText({ projectFiles: [] }) !== "") {
   throw new Error("empty conversations still spend prompt tokens on project files");
 }

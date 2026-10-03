@@ -36,6 +36,8 @@ requireText('const boundedMemory = buildBoundedMemoryContext(historyWindow);', '
 requireText('const recentState = buildRecentStateContext(historyWindow);', 'recent daily state is not injected into bounded memory')
 requireText('const roleContinuityNote = "【角色身份连续性】" + roleIdentityLead',
   'role identity continuity guard is missing')
+requireText('你的后台主体身份始终是当前系统设定中的「',
+  'project roleplay can overwrite the system role identity')
 requireText(': "你始终是当前系统设定中的「"',
   'default role identity fallback is missing')
 if (html.includes('await maybeUpgradeRollingSummary(currentConv());')) {
@@ -366,7 +368,7 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v176";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v177";')) {
   throw new Error('service worker cache was not bumped for lazy summary upgrade')
 }
 
