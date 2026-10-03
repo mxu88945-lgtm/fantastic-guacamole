@@ -488,6 +488,24 @@
     margin: 18px 0 12px; padding: 12px 14px; border-radius: 14px;
     background: var(--item-active); color: var(--text-dim); font-size: 12px; line-height: 1.55;
   }
+  .conversation-roleplay-guard {
+    margin: 0 0 12px; padding: 13px 14px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+    border-radius: 15px; background: color-mix(in srgb, var(--accent) 8%, var(--bg-panel));
+    display: flex; align-items: flex-start; gap: 11px;
+  }
+  .conversation-roleplay-guard-icon {
+    width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center;
+    border-radius: 11px; background: color-mix(in srgb, var(--accent) 14%, var(--bg-panel)); color: var(--accent);
+  }
+  .conversation-roleplay-guard-icon svg { width: 19px; height: 19px; }
+  .conversation-roleplay-guard-copy { flex: 1; min-width: 0; }
+  .conversation-roleplay-guard-title { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+  .conversation-roleplay-guard-title strong { font-size: 13px; }
+  .conversation-roleplay-guard-state {
+    padding: 2px 7px; border-radius: 999px; background: var(--accent); color: #fff;
+    font-size: 10px; font-weight: 700; line-height: 1.45;
+  }
+  .conversation-roleplay-guard p { margin: 5px 0 0; color: var(--text-dim); font-size: 11px; line-height: 1.55; }
   .conversation-files-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
   .conversation-files-empty {
     margin: auto 0; padding: 34px 20px; text-align: center; color: var(--text-dim);
@@ -2110,6 +2128,13 @@
       <button type="button" class="conversation-files-close" id="conversation-files-close" aria-label="关闭本对话资料">×</button>
     </div>
     <div class="conversation-files-note">资料不会显示成聊天消息，只绑定当前对话。更换窗口不会串卡；同名文件再次上传会直接更新。</div>
+    <div class="conversation-roleplay-guard" id="conversation-roleplay-guard">
+      <span class="conversation-roleplay-guard-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 20 6v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6Z"/><path d="m9 12 2 2 4-5"/></svg></span>
+      <div class="conversation-roleplay-guard-copy">
+        <div class="conversation-roleplay-guard-title"><strong>扮演身份保护</strong><span class="conversation-roleplay-guard-state" id="conversation-roleplay-guard-state">已开启</span></div>
+        <p id="conversation-roleplay-guard-copy">当前角色保留本体；角色卡只用于当前窗口的剧情表演。</p>
+      </div>
+    </div>
     <div class="conversation-files-list" id="conversation-files-list"></div>
     <button type="button" class="conversation-files-add" id="conversation-files-add">＋ 添加角色卡或资料</button>
   </div>
@@ -6907,6 +6932,13 @@ function renderConversationProjectFiles() {
   const count = $("conversation-files-count");
   if (!list || !count) return;
   const files = conversationProjectFiles();
+  const systemRoleName = ((settings.aiName || "当前角色").trim() || "当前角色");
+  const guardState = $("conversation-roleplay-guard-state");
+  const guardCopy = $("conversation-roleplay-guard-copy");
+  if (guardState) guardState.textContent = files.length ? "保护中" : "已开启";
+  if (guardCopy) guardCopy.textContent = files.length
+    ? `${systemRoleName} 保留本体；当前 ${files.length} 份资料只用于这个窗口的剧情表演。`
+    : `${systemRoleName} 保留本体；上传角色卡后，资料只用于当前窗口的剧情表演。`;
   count.textContent = String(files.length);
   count.classList.toggle("has-files", files.length > 0);
   if (!files.length) {

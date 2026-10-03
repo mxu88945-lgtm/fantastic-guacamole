@@ -10,6 +10,11 @@ const requireText = (text, message) => {
 requireText('data-hact="files"', "conversation project files are missing from the header menu");
 requireText('id="conversation-file-input"', "conversation project file picker is missing");
 requireText('id="conversation-files-panel"', "conversation project file manager is missing");
+requireText('id="conversation-roleplay-guard-state"', "visible roleplay identity guard status is missing");
+requireText('id="conversation-roleplay-guard-copy"', "visible roleplay identity guard explanation is missing");
+requireText('guardState.textContent = files.length ? "保护中" : "已开启"', "identity guard state does not reflect attached files");
+requireText('保留本体；上传角色卡后', "empty project state does not explain identity protection");
+requireText('份资料只用于这个窗口的剧情表演', "active project state does not explain roleplay isolation");
 requireText('projectFiles: []', "new conversations do not isolate their own project files");
 requireText('const CONVERSATION_PROJECT_FILE_LIMIT = 12;', "project file count is unbounded");
 requireText('if (a === "files") openConversationProjectFiles()', "project file manager cannot be opened");
@@ -17,7 +22,7 @@ requireText('await addConversationProjectFile(file)', "selected project files ar
 requireText('const conversationProjectText = buildConversationProjectText();', "project files are not injected into chat requests");
 requireText('projectFiles: conversationProjectFiles().length', "prompt audit does not report project files");
 requireText('只绑定当前对话', "the UI does not explain conversation isolation");
-if (!sw.includes('const CACHE = "role-chat-cache-v177";')) throw new Error("service worker cache was not bumped");
+if (!sw.includes('const CACHE = "role-chat-cache-v178";')) throw new Error("service worker cache was not bumped");
 
 const start = html.indexOf("function conversationProjectFiles(");
 const end = html.indexOf("function filePromptText(", start);
