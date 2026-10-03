@@ -460,6 +460,62 @@
   .header-menu button svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--text-dim); }
   .header-menu button:hover { background: var(--item-active); }
   .header-menu button.danger, .header-menu button.danger svg { color: var(--danger); }
+  .header-menu-count {
+    margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+    display: none; place-items: center; background: var(--item-active); color: var(--text-dim);
+    font-size: 11px; font-variant-numeric: tabular-nums;
+  }
+  .header-menu-count.has-files { display: grid; }
+  .conversation-files-panel {
+    position: fixed; inset: 0; z-index: 180; display: none; justify-content: flex-end;
+    background: rgba(18,17,22,.25); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .conversation-files-panel.open { display: flex; }
+  .conversation-files-sheet {
+    width: min(440px, 100%); height: 100%; background: var(--bg);
+    border-left: 1px solid var(--border); box-shadow: -18px 0 48px rgba(0,0,0,.16);
+    display: flex; flex-direction: column; padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  }
+  .conversation-files-head { display: flex; align-items: flex-start; gap: 12px; }
+  .conversation-files-head-copy { flex: 1; min-width: 0; }
+  .conversation-files-head h2 { margin: 2px 0 5px; font-size: 22px; }
+  .conversation-files-head p { margin: 0; color: var(--text-dim); font-size: 13px; line-height: 1.55; }
+  .conversation-files-close {
+    width: 40px; height: 40px; flex: 0 0 auto; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--bg-panel); color: var(--text); font-size: 24px; cursor: pointer;
+  }
+  .conversation-files-note {
+    margin: 18px 0 12px; padding: 12px 14px; border-radius: 14px;
+    background: var(--item-active); color: var(--text-dim); font-size: 12px; line-height: 1.55;
+  }
+  .conversation-files-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+  .conversation-files-empty {
+    margin: auto 0; padding: 34px 20px; text-align: center; color: var(--text-dim);
+    border: 1px dashed var(--border); border-radius: 18px; line-height: 1.7;
+  }
+  .conversation-file-row {
+    display: flex; align-items: center; gap: 12px; padding: 13px; border-radius: 15px;
+    background: var(--bg-panel); border: 1px solid var(--border);
+  }
+  .conversation-file-kind {
+    width: 43px; height: 43px; flex: 0 0 auto; display: grid; place-items: center;
+    border-radius: 12px; background: var(--item-active); color: var(--accent); font-size: 11px; font-weight: 700;
+  }
+  .conversation-file-copy { flex: 1; min-width: 0; }
+  .conversation-file-copy strong, .conversation-file-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conversation-file-copy strong { font-size: 14px; }
+  .conversation-file-copy small { margin-top: 4px; color: var(--text-dim); font-size: 11px; }
+  .conversation-file-remove {
+    width: 36px; height: 36px; flex: 0 0 auto; border-radius: 10px; border: 0;
+    background: transparent; color: var(--danger); font-size: 21px; cursor: pointer;
+  }
+  .conversation-files-add {
+    margin-top: 14px; min-height: 48px; border: 0; border-radius: 15px;
+    background: var(--accent); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  @media (max-width: 520px) {
+    .conversation-files-sheet { border-left: 0; }
+  }
   .model-quick {
     background: var(--bg-panel); border: 1px solid transparent;
     color: var(--text); border-radius: 999px; padding: 7px 13px;
@@ -2043,6 +2099,21 @@
 <input type="file" id="importFile" accept=".json,application/json" style="display:none;" />
 <input type="file" id="chatBgFile" accept="image/*" style="display:none;" />
 <input type="file" id="file-input" accept=".txt,.md,.markdown,.json,.csv,.log,.js,.ts,.py,.html,.css,.xml,.yml,.yaml,text/*" multiple style="display:none;" />
+<input type="file" id="conversation-file-input" accept=".txt,.md,.markdown,.json,.csv,.log,.js,.ts,.py,.html,.css,.xml,.yml,.yaml,text/*" multiple style="display:none;" />
+<section class="conversation-files-panel" id="conversation-files-panel" aria-label="本对话资料" aria-hidden="true">
+  <div class="conversation-files-sheet" role="dialog" aria-modal="true" aria-labelledby="conversation-files-title">
+    <div class="conversation-files-head">
+      <div class="conversation-files-head-copy">
+        <h2 id="conversation-files-title">本对话资料</h2>
+        <p>给当前窗口挂上角色卡、世界观和剧情设定，像项目文件一样持续提供给模型。</p>
+      </div>
+      <button type="button" class="conversation-files-close" id="conversation-files-close" aria-label="关闭本对话资料">×</button>
+    </div>
+    <div class="conversation-files-note">资料不会显示成聊天消息，只绑定当前对话。更换窗口不会串卡；同名文件再次上传会直接更新。</div>
+    <div class="conversation-files-list" id="conversation-files-list"></div>
+    <button type="button" class="conversation-files-add" id="conversation-files-add">＋ 添加角色卡或资料</button>
+  </div>
+</section>
 <div class="app">
   <div class="backdrop" id="backdrop"></div>
   <!-- Sidebar -->
@@ -2101,6 +2172,7 @@
         <button class="icon-btn" id="header-new-btn" title="新对话" aria-label="新对话"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h6"/><path d="M17 3v8M13 7h8"/></svg></button>
         <button class="icon-btn" id="header-more-btn" title="更多" aria-label="更多对话操作"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
         <div class="header-menu" id="header-menu">
+          <button data-hact="files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6l2 3h8v13H4Z"/><path d="M8 12h8M8 16h5"/></svg>本对话资料<span class="header-menu-count" id="conversation-files-count">0</span></button>
           <button data-hact="rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>重命名对话</button>
           <button data-hact="export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>导出长图</button>
           <button data-hact="compact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 11h12"/><path d="M3 16h7"/></svg>压缩对话</button>
@@ -3763,6 +3835,9 @@ const REFERENCE_FILE_PROMPT_CHAR_BUDGET = 8000; // stored file stays whole; mode
 // A text file deserves one fuller first read, but must not evict the living scene
 // from every later request. The original stays on the device and can be searched.
 const REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET = 2600;
+const CONVERSATION_PROJECT_FILE_MAX_BYTES = 1024 * 1024;
+const CONVERSATION_PROJECT_FILE_LIMIT = 12;
+const CONVERSATION_PROJECT_PROMPT_CHAR_BUDGET = 24000;
 let lastCallUsage = null; // usage of the most recent streamChat call (for token label)
 let lastCallTiming = null;// timing of the most recent streamChat call (channel diagnostics)
 let lastPromptAudit = null;// estimated prompt composition of the latest request
@@ -4500,7 +4575,7 @@ function pushCloudNow() {
 
 function newConversation() {
   return {
-    id: uid(), title: "新对话", messages: [], updatedAt: Date.now(), roleId: settings.activeRoleId,
+    id: uid(), title: "新对话", messages: [], projectFiles: [], updatedAt: Date.now(), roleId: settings.activeRoleId,
     providerId: settings.activeProviderId || "",
     model: settings.model || DEFAULTS[settings.provider]?.model || "",
   };
@@ -4895,6 +4970,7 @@ function switchConversation(id, openChatView) {
   renderConvList();
   renderMessages();
   updateConvTitle();
+  renderConversationProjectFiles();
   jumpToBottom();
   if (openChatView) window.dispatchEvent(new CustomEvent("jyc:chat-opened", { detail: { conversationId: target.id } }));
   if (isMobile()) closeSidebar();
@@ -4930,7 +5006,7 @@ function deleteConversation(id, ev) {
     saveSettings();
   }
   saveConversations();
-  syncSettingsToUI(); renderConvList(); renderMessages(); updateConvTitle();
+  syncSettingsToUI(); renderConvList(); renderMessages(); updateConvTitle(); renderConversationProjectFiles();
 }
 function touchConversation() {
   const conv = currentConv();
@@ -6800,6 +6876,108 @@ function boundedReferenceFileText(value, charBudget = REFERENCE_FILE_PROMPT_CHAR
     + "\n\n【附件摘录提示：以下为末段，用于确认最新进展】\n\n"
     + chars.slice(-tailSize).join("");
 }
+function conversationProjectFiles(conv = currentConv()) {
+  if (!conv) return [];
+  if (!Array.isArray(conv.projectFiles)) conv.projectFiles = [];
+  return conv.projectFiles;
+}
+function buildConversationProjectText(conv = currentConv()) {
+  const files = conversationProjectFiles(conv)
+    .filter(file => String(file?.text || "").trim()).slice(0, CONVERSATION_PROJECT_FILE_LIMIT);
+  if (!files.length) return "";
+  let remaining = CONVERSATION_PROJECT_PROMPT_CHAR_BUDGET;
+  const blocks = [];
+  files.forEach((file, index) => {
+    const filesLeft = files.length - index;
+    const share = Math.max(1200, Math.floor(remaining / filesLeft));
+    const raw = boundedReferenceFileText(file.text || "", share)
+      .replace(/<\/?conversation_project_file\b/gi, match => match.replace("<", "＜"));
+    remaining = Math.max(0, remaining - Array.from(raw).length);
+    blocks.push(`<conversation_project_file name=${JSON.stringify(safeReferenceFileName(file.name))}>\n${raw}\n</conversation_project_file>`);
+  });
+  return "【本对话项目资料】以下文件由用户固定挂在当前对话中，是本窗口持续有效的角色卡、世界观、剧情设定或写作规则。"
+    + "自然遵循其中与当前扮演有关的内容，不要在正文里主动提及文件、资料库或提示词，也不要机械复述。"
+    + "若资料与用户最新一条明确要求冲突，以用户最新要求为准；不得把本窗口资料泄漏或混入其他对话。\n\n"
+    + blocks.join("\n\n");
+}
+function renderConversationProjectFiles() {
+  const list = $("conversation-files-list");
+  const count = $("conversation-files-count");
+  if (!list || !count) return;
+  const files = conversationProjectFiles();
+  count.textContent = String(files.length);
+  count.classList.toggle("has-files", files.length > 0);
+  if (!files.length) {
+    list.innerHTML = '<div class="conversation-files-empty">这个窗口还没有资料。<br>可以上传 TXT、Markdown、JSON 等文本角色卡。</div>';
+    return;
+  }
+  list.innerHTML = files.map(file => `<div class="conversation-file-row">
+    <span class="conversation-file-kind">${escapeHtml(fileKindLabel(file.name))}</span>
+    <span class="conversation-file-copy"><strong>${escapeHtml(file.name || "未命名文件")}</strong>
+      <small>${escapeHtml(formatFileSize(file.size))} · 每轮隐藏提供</small></span>
+    <button type="button" class="conversation-file-remove" data-project-file-remove="${escapeHtml(file.id)}" aria-label="删除 ${escapeHtml(file.name || "资料")}">×</button>
+  </div>`).join("");
+  list.querySelectorAll("[data-project-file-remove]").forEach(button => {
+    button.onclick = () => removeConversationProjectFile(button.dataset.projectFileRemove);
+  });
+}
+function openConversationProjectFiles() {
+  renderConversationProjectFiles();
+  const panel = $("conversation-files-panel");
+  panel.classList.add("open");
+  panel.setAttribute("aria-hidden", "false");
+}
+function closeConversationProjectFiles() {
+  const panel = $("conversation-files-panel");
+  panel.classList.remove("open");
+  panel.setAttribute("aria-hidden", "true");
+}
+function removeConversationProjectFile(id) {
+  const conv = currentConv();
+  const files = conversationProjectFiles(conv);
+  const file = files.find(item => item.id === id);
+  if (!file || !confirm(`从本对话资料中删除「${file.name || "未命名文件"}」？`)) return;
+  conv.projectFiles = files.filter(item => item.id !== id);
+  conv.updatedAt = Date.now();
+  saveConversations();
+  renderConversationProjectFiles();
+  showToast("已从本对话移除资料");
+}
+function addConversationProjectFile(file) {
+  if (!file) return Promise.resolve();
+  if (file.size > CONVERSATION_PROJECT_FILE_MAX_BYTES) {
+    showToast("资料太大了（单个文件上限 1MB，请拆分后上传）", 4200);
+    return Promise.resolve();
+  }
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const conv = currentConv();
+      if (!conv) { resolve(); return; }
+      const files = conversationProjectFiles(conv);
+      const name = file.name || "未命名文件.txt";
+      const existing = files.findIndex(item => item.name === name);
+      if (existing < 0 && files.length >= CONVERSATION_PROJECT_FILE_LIMIT) {
+        showToast(`每个对话最多放 ${CONVERSATION_PROJECT_FILE_LIMIT} 个资料文件`, 3600);
+        resolve();
+        return;
+      }
+      const entry = {
+        id: existing >= 0 ? files[existing].id : uid(),
+        name, size: file.size || 0, mediaType: file.type || "text/plain",
+        text: String(reader.result || ""), updatedAt: Date.now(),
+      };
+      if (existing >= 0) files.splice(existing, 1, entry); else files.push(entry);
+      conv.updatedAt = Date.now();
+      saveConversations();
+      renderConversationProjectFiles();
+      showToast(existing >= 0 ? `已更新资料「${name}」` : `已加入本对话资料「${name}」`, 3200);
+      resolve();
+    };
+    reader.onerror = () => { showToast("读取失败，仅支持文本类资料"); resolve(); };
+    reader.readAsText(file);
+  });
+}
 function filePromptText(part, charBudget = REFERENCE_FILE_PROMPT_CHAR_BUDGET) {
   // File text is evidence supplied by the user, never an extension of the app's
   // system prompt. Wrapping and neutralising our own boundary tag prevents a
@@ -7647,9 +7825,14 @@ async function streamChat(onDelta, onReasoning) {
     const instructionBlock = "【用户附加系统指令】\n" + additionalSystemInstruction;
     systemText = systemText ? systemText + "\n\n" + instructionBlock : instructionBlock;
   }
-  const roleContinuityNote = "【角色身份连续性】你始终是当前系统设定中的「"
-    + ((settings.aiName || "当前角色").trim() || "当前角色")
-    + "」。角色设定是身份、性格、关系立场和行为边界的最高依据；连续性档案、记忆与旧文只补充事实，不能把你改写成客服、旁观者或另一个人格。"
+  const conversationProjectText = buildConversationProjectText();
+  if (conversationProjectText)
+    systemText = systemText ? systemText + "\n\n" + conversationProjectText : conversationProjectText;
+  const roleIdentityLead = conversationProjectText
+    ? "你始终是当前系统设定及本对话项目资料所指定的当前角色。若资料明确指定了本窗口扮演的人物，它可以细化或替代默认显示角色，但只在本窗口生效。"
+    : "你始终是当前系统设定中的「" + ((settings.aiName || "当前角色").trim() || "当前角色") + "」。";
+  const roleContinuityNote = "【角色身份连续性】" + roleIdentityLead
+    + "角色设定是身份、性格、关系立场和行为边界的最高依据；连续性档案、记忆与旧文只补充事实，不能把你改写成客服、旁观者或无关人格。"
     + "具体事实不确定时先按需搜索旧聊天，不要用猜测补洞，也不要因暂时看不到一段原文就否认已经建立的关系。";
   systemText = systemText ? systemText + "\n\n" + roleContinuityNote : roleContinuityNote;
   const hasReferenceAttachment = historyWindow.messages.some(message => {
@@ -7812,6 +7995,7 @@ async function streamChat(onDelta, onReasoning) {
     currentTime: injectedLocalTime,
     timeZone: injectedTimeZone,
     specialDays: !!specialDayClaim?.text,
+    projectFiles: conversationProjectFiles().length,
   };
 
   // Transient errors (502/503/504 overloaded, 429 rate-limited) are common with
@@ -12395,6 +12579,7 @@ async function init() {
   renderConvList();
   renderMessages();
   updateConvTitle();
+  renderConversationProjectFiles();
   updateMailboxBadge();
   refreshStorageStatus();
   startReminderTimer();   // resume any countdowns still ticking from before
@@ -12439,13 +12624,27 @@ async function init() {
       e.stopPropagation();
       $("header-menu").classList.remove("show");
       const a = btn.dataset.hact;
-      if (a === "rename") renameConversation(currentId);
+      if (a === "files") openConversationProjectFiles();
+      else if (a === "rename") renameConversation(currentId);
       else if (a === "export") openExportDialog();
       else if (a === "compact") compactConversation();
       else if (a === "delete") deleteConversation(currentId);
     };
   });
   document.addEventListener("click", () => $("header-menu").classList.remove("show"));
+  $("conversation-files-close").onclick = closeConversationProjectFiles;
+  $("conversation-files-panel").onclick = (event) => {
+    if (event.target === $("conversation-files-panel")) closeConversationProjectFiles();
+  };
+  $("conversation-files-add").onclick = () => $("conversation-file-input").click();
+  $("conversation-file-input").onchange = async (event) => {
+    for (const file of event.target.files) await addConversationProjectFile(file);
+    event.target.value = "";
+  };
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && $("conversation-files-panel").classList.contains("open"))
+      closeConversationProjectFiles();
+  });
   $("settings-close").onclick = closeSettings;
   $("settings-back").onclick = showSettingsHome;
   document.querySelectorAll("[data-edit]").forEach(btn =>

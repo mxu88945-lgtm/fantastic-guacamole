@@ -34,7 +34,10 @@ requireText('【未完事项与隐性张力】', 'unfinished tension layer is mi
 requireText('m._compactedBy || m._summary', 'summary cards are still eligible for wire history')
 requireText('const boundedMemory = buildBoundedMemoryContext(historyWindow);', 'bounded layered memory context is not injected')
 requireText('const recentState = buildRecentStateContext(historyWindow);', 'recent daily state is not injected into bounded memory')
-requireText('【角色身份连续性】你始终是当前系统设定中的「', 'role identity continuity guard is missing')
+requireText('const roleContinuityNote = "【角色身份连续性】" + roleIdentityLead',
+  'role identity continuity guard is missing')
+requireText(': "你始终是当前系统设定中的「"',
+  'default role identity fallback is missing')
 if (html.includes('await maybeUpgradeRollingSummary(currentConv());')) {
   throw new Error('legacy summary rebuild still spends a separate model call during send')
 }
@@ -363,7 +366,7 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v175";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v176";')) {
   throw new Error('service worker cache was not bumped for lazy summary upgrade')
 }
 
