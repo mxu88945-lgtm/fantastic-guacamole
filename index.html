@@ -3933,44 +3933,62 @@ async function refreshStorageStatus() {
   const fmt = n => n ? (n / 1048576).toFixed(n >= 10485760 ? 0 : 1) + " MB" : "—";
   el.textContent = "对话与聊天图片：" + mode + (quota ? (" · 已用 " + fmt(usage) + " / 可用 " + fmt(quota)) : (mode === "IndexedDB" ? " · 已启用大容量存储" : ""));
 }
+function readStoredText(key) {
+  try { return localStorage.getItem(key); }
+  catch (error) {
+    console.warn(`Local storage read failed for ${key}`, error);
+    return null;
+  }
+}
+function readStoredJson(key) {
+  const raw = readStoredText(key);
+  if (!raw) return null;
+  try { return JSON.parse(raw); }
+  catch (error) {
+    console.warn(`Ignoring invalid local storage JSON for ${key}`, error);
+    return null;
+  }
+}
 async function loadState() {
-  try {
-    const s = JSON.parse(localStorage.getItem("jyc_settings") || "null");
-    if (s) settings = { ...settings, ...s };
-    // migrate old dark/light flag to the named-theme system
-    if (s && !s.themeName) settings.themeName = (s.theme === "light") ? "white" : "gold";
-    // 主题精简：删掉的旧主题 → 迁移到相近的保留主题，避免白屏
-    const THEME_MIGRATE = {
-      night:"gold", ocean:"mistgreen", rose:"claude", metalrose:"white",
-      sakura:"claude", peach:"claude", milktea:"claude", mint:"mistgreen",
-      aurora:"white", sunset:"claude", milkyblue:"mistgreen", lavender:"white",
-      butter:"claude", mistpink:"claude", glaze:"white", dusk:"gold",
-    };
-    if (THEME_MIGRATE[settings.themeName]) settings.themeName = THEME_MIGRATE[settings.themeName];
-    // v171: the original frosted theme persisted its rose accent separately.
-    // Migrate only that exact legacy default so intentional custom accents stay untouched.
-    if (settings.themeName === "frostbubble" && String(settings.accent || "").toLowerCase() === "#c8799b")
-      settings.accent = "#8d83b5";
-    const legacyCurrent = localStorage.getItem("jyc_current") || null;
-    let stored = null;
-    try { stored = await dbGet("conversations"); } catch (e) { console.warn("IndexedDB load failed", e); }
-    if (Array.isArray(stored)) {
-      conversations = stored;
-      try { currentId = (await dbGet("currentId")) || legacyCurrent; } catch (_) { currentId = legacyCurrent; }
-    } else {
-      const cs = JSON.parse(localStorage.getItem("jyc_conversations") || "null");
-      if (Array.isArray(cs)) {
-        conversations = cs;
-        currentId = legacyCurrent;
-        try { conversations = await migrateConversationsToDb(cs, currentId); }
-        catch (e) { console.warn("IndexedDB migration deferred", e); }
-      } else currentId = legacyCurrent;
-    }
-  } catch (e) { console.warn(e); }
+  const s = readStoredJson("jyc_settings");
+  if (s) settings = { ...settings, ...s };
+  // migrate old dark/light flag to the named-theme system
+  if (s && !s.themeName) settings.themeName = (s.theme === "light") ? "white" : "gold";
+  // 主题精简：删掉的旧主题 → 迁移到相近的保留主题，避免白屏
+  const THEME_MIGRATE = {
+    night:"gold", ocean:"mistgreen", rose:"claude", metalrose:"white",
+    sakura:"claude", peach:"claude", milktea:"claude", mint:"mistgreen",
+    aurora:"white", sunset:"claude", milkyblue:"mistgreen", lavender:"white",
+    butter:"claude", mistpink:"claude", glaze:"white", dusk:"gold",
+  };
+  if (THEME_MIGRATE[settings.themeName]) settings.themeName = THEME_MIGRATE[settings.themeName];
+  // v171: the original frosted theme persisted its rose accent separately.
+  // Migrate only that exact legacy default so intentional custom accents stay untouched.
+  if (settings.themeName === "frostbubble" && String(settings.accent || "").toLowerCase() === "#c8799b")
+    settings.accent = "#8d83b5";
+
+  // Settings, the selected conversation id, and conversation data are independent
+  // persistence domains. One malformed legacy value must never prevent a valid
+  // IndexedDB conversation snapshot from loading.
+  const legacyCurrent = readStoredText("jyc_current") || null;
+  let stored = null;
+  try { stored = await dbGet("conversations"); } catch (e) { console.warn("IndexedDB load failed", e); }
+  if (Array.isArray(stored)) {
+    conversations = stored;
+    try { currentId = (await dbGet("currentId")) || legacyCurrent; } catch (_) { currentId = legacyCurrent; }
+  } else {
+    const cs = readStoredJson("jyc_conversations");
+    if (Array.isArray(cs)) {
+      conversations = cs;
+      currentId = legacyCurrent;
+      try { conversations = await migrateConversationsToDb(cs, currentId); }
+      catch (e) { console.warn("IndexedDB migration deferred", e); }
+    } else currentId = legacyCurrent;
+  }
 
   // migrate old single-conversation storage
   if (conversations.length === 0) {
-    const oldMsgs = JSON.parse(localStorage.getItem("jyc_messages") || "null");
+    const oldMsgs = readStoredJson("jyc_messages");
     const conv = newConversation();
     if (Array.isArray(oldMsgs) && oldMsgs.length) {
       conv.messages = oldMsgs;
