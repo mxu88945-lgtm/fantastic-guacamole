@@ -26,7 +26,7 @@ ok(html.includes('不得继承附件人物的身份、经历、关系或第一�
   'file wrapper does not forbid identity inheritance')
 ok(html.includes('const semantic = recallSemanticAffinity(queryText, txt);'),
   'automatic old-chat recall does not use semantic topic affinity')
-ok(html.includes('recallNeighborhood(h.c.messages, h.m)'),
+ok(html.includes('historyEvidenceBody(hit, result.query, bodyBudget)'),
   'cross-chat recall does not restore the hit neighborhood')
 ok(html.includes('/记忆接口没有返回可用正文/.test'),
   'empty memory completion does not activate the local continuity fallback')
@@ -133,6 +133,6 @@ ok(!quotaContext.checkQuota({ message: 'relay unavailable' }),
 ok(quotaContext.checkBalance({ message: 'memory HTTP 402 — {"error":{"message":"Insufficient balance"}}' }),
   'balance error detector misses the provider 402 wording')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v178";'), 'service worker cache was not bumped for the maintenance cleanup')
+ok(sw.includes('const CACHE = "role-chat-cache-v179";'), 'service worker cache was not bumped for the maintenance cleanup')
 
 console.log('memory continuity v4 regression: 36 checks passed')

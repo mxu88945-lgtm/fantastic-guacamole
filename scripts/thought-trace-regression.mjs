@@ -12,7 +12,7 @@ const ok = (value, message) => {
 
 ok(html.includes('traces: [],\n    responseState: "submitted"'),
   'assistant messages do not initialize the trace state machine')
-ok(html.includes('startMessageTrace(assistantMsg, act.type, "关键词：" + act.q)'),
+ok(html.includes('startMessageTrace(assistantMsg, act.type === "original" ? "local" : act.type,'),
   'internal tools are not recorded as trace phases')
 ok(!html.includes('assistantMsg.content = "🔍 正在翻找以前的聊天'),
   'history-search progress still pollutes visible answer text')
@@ -26,7 +26,7 @@ ok(html.includes('tracePhasesForRender(traces, !!streaming)'),
   'stale running phases are not normalized when history is restored')
 ok(html.includes('msg.traces = cloneChatData(baseMsg.traces)'),
   'multi-bubble replies do not preserve their trace history')
-ok(sw.includes('const CACHE = "role-chat-cache-v178";'),
+ok(sw.includes('const CACHE = "role-chat-cache-v179";'),
   'service worker cache was not bumped to v160')
 
 const start = html.indexOf('const TRACE_COPY = {')
