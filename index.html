@@ -778,6 +778,34 @@
     width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto;
     box-shadow: 0 0 0 2px rgba(255,255,255,.8), 0 0 0 3px rgba(0,0,0,.08);
   }
+  .bubble-style-picker {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px; margin-top: 8px;
+  }
+  .bubble-style-option {
+    min-width: 0; padding: 9px 7px 8px; color: var(--text);
+    background: var(--bg-panel); border: 1.5px solid var(--border);
+    border-radius: 12px; cursor: pointer; text-align: center;
+  }
+  .bubble-style-option.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .bubble-style-preview {
+    height: 42px; display: flex; flex-direction: column; align-items: flex-end;
+    justify-content: center; gap: 4px; padding: 0 7px; margin-bottom: 5px;
+    border-radius: 9px; background: var(--bg-soft);
+  }
+  .bubble-style-preview i { display: block; width: 65%; height: 11px; }
+  .bubble-style-preview i:last-child { width: 43%; }
+  .bubble-style-option span { display: block; font-size: 11px; white-space: nowrap; }
+  .bubble-preview-gpt i { background: #f2f2f2; border-radius: 999px; }
+  .bubble-preview-soft i { background: #f6f3fa; border-radius: 999px; box-shadow: 0 4px 10px rgba(70,62,90,.10); }
+  .bubble-preview-outline i { background: #fff; border: 1px solid #dedee4; border-radius: 8px; }
+  .bubble-preview-theme i { background: color-mix(in srgb, var(--accent) 14%, var(--assistant-bubble)); border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 8px 3px 8px 8px; }
+  @media (max-width: 520px) {
+    .bubble-style-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
 
   /* Roaming desk pets */
   @keyframes pet-float { 0%,100% { transform:translateY(0) rotate(-3deg) } 50% { transform:translateY(-5px) rotate(3deg) } }
@@ -1398,6 +1426,21 @@
     background: #fafafa;
     border-color: rgba(255,255,255,.95);
     box-shadow: 0 8px 32px rgba(0,0,0,.045);
+  }
+  /* Optional user-message surfaces for the minimal white theme. */
+  html[data-theme-key="white"][data-bubble-style="gpt"] .msg.user .bubble {
+    background: color-mix(in srgb, #f2f2f2 var(--bubble-pct, 100%), transparent);
+    border: 0; border-radius: 22px; padding: 10px 16px; box-shadow: none;
+  }
+  html[data-theme-key="white"][data-bubble-style="soft"] .msg.user .bubble {
+    background: color-mix(in srgb, #f6f3fa var(--bubble-pct, 100%), transparent);
+    border: 0; border-radius: 22px; padding: 10px 16px;
+    box-shadow: 0 7px 20px rgba(61,56,82,.09);
+  }
+  html[data-theme-key="white"][data-bubble-style="outline"] .msg.user .bubble {
+    background: color-mix(in srgb, #ffffff var(--bubble-pct, 100%), transparent);
+    border: 1px solid #dedee4; border-radius: 17px; padding: 10px 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.035);
   }
 
   .composer textarea {
@@ -2775,6 +2818,15 @@
             <button class="mini-btn" id="layout-flat">平铺式（头像名字在上）</button>
           </div>
           <div style="margin-top:12px;">
+            <div class="hint">极简白气泡</div>
+            <div class="bubble-style-picker" id="bubble-style-picker">
+              <button class="bubble-style-option" type="button" data-bubble-style="gpt"><span class="bubble-style-preview bubble-preview-gpt"><i></i><i></i></span><span>GPT 浅灰</span></button>
+              <button class="bubble-style-option" type="button" data-bubble-style="soft"><span class="bubble-style-preview bubble-preview-soft"><i></i><i></i></span><span>柔雾</span></button>
+              <button class="bubble-style-option" type="button" data-bubble-style="outline"><span class="bubble-style-preview bubble-preview-outline"><i></i><i></i></span><span>细线白</span></button>
+              <button class="bubble-style-option" type="button" data-bubble-style="theme"><span class="bubble-style-preview bubble-preview-theme"><i></i><i></i></span><span>主题原样</span></button>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
             <div class="hint">气泡透明度 <span id="bubbleOpVal">100</span>%</div>
             <input id="bubbleOpacity" type="range" min="10" max="100" step="5" value="100" style="width:100%;" />
           </div>
@@ -3835,6 +3887,7 @@ let settings = {
   lockEnabled: false,
   lockPin: "",
   chatLayout: "bubble",   // "bubble" | "flat" (Tavo-style header on top)
+  bubbleStyle: "gpt",     // minimal-white user bubble: gpt | soft | outline | theme
   bubbleOpacity: 100,     // bubble background opacity (%)
   showTime: true,         // show message timestamps
   timeAware: true,        // tell the model the current local time
@@ -3936,7 +3989,7 @@ let voiceInputBaseText = "";
 let voicePointerStopHandled = false;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","systemInstruction","globalPromptPresets","emojiStyle","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","crossChat","crossSearch","historyRecallScope","historyRecallAliases","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
-  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
+  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleStyle","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "sttEnabled","sttEngine","sttBaseUrl","sttModel","sttLanguage",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
   "reminderEnabled","companionFeaturesV1"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
@@ -11659,7 +11712,23 @@ function applySystemTextColor() {
 }
 function applyBubbleStyle() {
   const pct = settings.bubbleOpacity == null ? 100 : settings.bubbleOpacity;
+  const allowed = new Set(["gpt", "soft", "outline", "theme"]);
+  if (!allowed.has(settings.bubbleStyle)) settings.bubbleStyle = "gpt";
   document.documentElement.style.setProperty("--bubble-pct", pct + "%");
+  document.documentElement.setAttribute("data-bubble-style", settings.bubbleStyle);
+  highlightBubbleStyleButtons();
+}
+function highlightBubbleStyleButtons() {
+  document.querySelectorAll("[data-bubble-style]").forEach((button) => {
+    const active = button.dataset.bubbleStyle === settings.bubbleStyle;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+}
+function setBubbleStyle(style) {
+  settings.bubbleStyle = style;
+  saveSettings();
+  applyBubbleStyle();
 }
 const FONT_SIZES = { small: "13px", medium: "14.5px", large: "16.5px" };
 const FONT_FAMS = { default: "inherit", kai: '"Kaiti SC","STKaiti",KaiTi,serif', song: '"Songti SC","STSong",serif' };
@@ -12119,6 +12188,7 @@ function syncSettingsToUI() {
   $("lockPin").value = settings.lockPin;
   $("bubbleOpacity").value = settings.bubbleOpacity;
   $("bubbleOpVal").textContent = settings.bubbleOpacity;
+  highlightBubbleStyleButtons();
   $("showTime").checked = settings.showTime;
   $("timeAware").checked = settings.timeAware;
   $("sttEnabled").checked = settings.sttEnabled !== false;
@@ -13119,6 +13189,9 @@ async function init() {
     settings.bubbleOpacity = parseInt($("bubbleOpacity").value);
     $("bubbleOpVal").textContent = settings.bubbleOpacity;
     saveSettings(); applyBubbleStyle();
+  });
+  document.querySelectorAll("[data-bubble-style]").forEach((button) => {
+    button.addEventListener("click", () => setBubbleStyle(button.dataset.bubbleStyle));
   });
   $("showTime").addEventListener("change", () => { settings.showTime = $("showTime").checked; saveSettings(); renderMessages(); });
   $("timeAware").addEventListener("change", () => { settings.timeAware = $("timeAware").checked; saveSettings(); });
