@@ -11719,7 +11719,7 @@ function applyBubbleStyle() {
   highlightBubbleStyleButtons();
 }
 function highlightBubbleStyleButtons() {
-  document.querySelectorAll("[data-bubble-style]").forEach((button) => {
+  document.querySelectorAll(".bubble-style-option[data-bubble-style]").forEach((button) => {
     const active = button.dataset.bubbleStyle === settings.bubbleStyle;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", active ? "true" : "false");
@@ -13190,7 +13190,7 @@ async function init() {
     $("bubbleOpVal").textContent = settings.bubbleOpacity;
     saveSettings(); applyBubbleStyle();
   });
-  document.querySelectorAll("[data-bubble-style]").forEach((button) => {
+  document.querySelectorAll(".bubble-style-option[data-bubble-style]").forEach((button) => {
     button.addEventListener("click", () => setBubbleStyle(button.dataset.bubbleStyle));
   });
   $("showTime").addEventListener("change", () => { settings.showTime = $("showTime").checked; saveSettings(); renderMessages(); });
