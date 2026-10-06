@@ -1853,6 +1853,22 @@
   }
   html[data-theme-key="claude"] .header-actions { min-height: 46px; }
   html[data-theme-key="claude"] .header-actions .icon-btn { width: 40px; height: 40px; }
+  /* Every theme uses the same half-transparent frosted header controls.
+     The glass keeps each theme's own panel tint while letting chat content show through. */
+  html[data-theme-key] header > #toggle-sidebar,
+  html[data-theme-key] .header-actions {
+    background: color-mix(in srgb, var(--bg-panel) 56%, transparent);
+    border-color: color-mix(in srgb, var(--border) 46%, rgba(255,255,255,.58));
+    box-shadow: 0 10px 30px rgba(24,26,32,.10), inset 0 1px 0 rgba(255,255,255,.58);
+    -webkit-backdrop-filter: blur(22px) saturate(1.32);
+    backdrop-filter: blur(22px) saturate(1.32);
+  }
+  html[data-theme-key] .header-actions .icon-btn:hover,
+  html[data-theme-key] .header-actions .icon-btn:active,
+  html[data-theme-key] header > #toggle-sidebar:hover,
+  html[data-theme-key] header > #toggle-sidebar:active {
+    background: color-mix(in srgb, var(--bg-panel) 68%, transparent);
+  }
   html[data-theme-key="claude"] .header-menu {
     background: #f6f6f4; border-color: #deddd8;
     box-shadow: 0 14px 34px rgba(45,43,38,.13);
