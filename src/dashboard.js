@@ -20,7 +20,9 @@ if (!bridge) {
 
   const setAvatar = (id, avatar, name) => {
     const target = $(id);
-    target.replaceChildren(avatarMarkup(avatar, name));
+    const content = avatarMarkup(avatar, name);
+    target.classList.toggle("has-image", content.nodeType === Node.ELEMENT_NODE);
+    target.replaceChildren(content);
   };
 
   const welcome = () => {
