@@ -2975,6 +2975,8 @@
             <option value="low">低（更快）</option>
             <option value="medium">中（均衡）</option>
             <option value="high">高（更仔细）</option>
+            <option value="xhigh">极高（深度推理）</option>
+            <option value="max">最高（最深推理）</option>
           </select>
           <span class="hint">只影响当前聊天窗口；模型或接口不支持时会自动按默认方式重试。</span>
         </div>
@@ -3410,6 +3412,8 @@
               <option value="low">低</option>
               <option value="medium">中</option>
               <option value="high">高</option>
+              <option value="xhigh">极高</option>
+              <option value="max">最高</option>
             </select>
           </div>
         </div>
@@ -4798,7 +4802,7 @@ function conversationModel(conv) {
   return conv?.model || profile?.model || DEFAULTS[profile?.provider || settings.provider]?.model || "";
 }
 function normalizeReasoningEffort(value) {
-  return ["auto", "off", "low", "medium", "high"].includes(value) ? value : "auto";
+  return ["auto", "off", "low", "medium", "high", "xhigh", "max"].includes(value) ? value : "auto";
 }
 function conversationReasoningEffort(conv) {
   conv = conv || currentConv();
@@ -7964,22 +7968,25 @@ function shouldRequestStructuredReasoning(model) {
   return /(?:claude|opus|sonnet|haiku)/i.test(String(model || ""));
 }
 function anthropicThinkingBudget(effort) {
-  return ({ low: 1024, medium: 4096, high: 8192 })[effort] || 0;
+  return ({ low: 1024, medium: 4096, high: 8192, xhigh: 16384, max: 32768 })[effort] || 0;
 }
 function applyGeminiThinkingControl(generationConfig, model, effort) {
   if (!generationConfig || effort === "auto") return;
+  // xhigh/max are Claude/OpenAI-family levels. Gemini routes use their highest
+  // compatible level instead of rejecting an otherwise valid chat request.
+  const geminiEffort = effort === "xhigh" || effort === "max" ? "high" : effort;
   if (/gemini[-_.\/]?2\.5/i.test(String(model || ""))) {
     generationConfig.thinkingConfig = {
-      thinkingBudget: effort === "off" ? 0 : anthropicThinkingBudget(effort),
+      thinkingBudget: geminiEffort === "off" ? 0 : anthropicThinkingBudget(geminiEffort),
     };
     return;
   }
   generationConfig.thinkingConfig = {
     // Gemini 3.7/3.8 Flash do not accept "minimal"; "low" is their
     // least-thought option. Other Gemini 3 variants may use "minimal".
-    thinkingLevel: effort === "off"
+    thinkingLevel: geminiEffort === "off"
       ? (/gemini[-_.\/]?3\.(?:7|8)/i.test(String(model || "")) ? "low" : "minimal")
-      : effort,
+      : geminiEffort,
   };
 }
 function hasReasoningControl(body) {
@@ -8311,9 +8318,15 @@ async function streamChat(onDelta, onReasoning) {
     if (reasoningEffort === "off") {
       body.thinking = { type: "disabled" };
     } else if (isThinking) {
+      const adaptiveEffort = reasoningEffort === "xhigh" || reasoningEffort === "max";
       const thinkBudget = reasoningEffort === "auto" ? 8000 : anthropicThinkingBudget(reasoningEffort);
-      body.thinking = { type: "enabled", budget_tokens: thinkBudget };
-      body.max_tokens = Math.max(body.max_tokens, thinkBudget + 2048); // ensure room for output
+      if (adaptiveEffort) {
+        body.thinking = { type: "adaptive" };
+        body.output_config = { effort: reasoningEffort };
+      } else {
+        body.thinking = { type: "enabled", budget_tokens: thinkBudget };
+      }
+      body.max_tokens = Math.max(body.max_tokens, thinkBudget + 2048); // ensure room for thinking and output
     }
     if (systemText) body.system = systemText;
   } else if (isGemini) {
@@ -12288,7 +12301,7 @@ function renderModelQuick() {
   if (quickLabel) quickLabel.textContent = getModelDisplayLabel(cur) || cur || "选择模型";
   const effort = conversationReasoningEffort();
   const effortLabel = $("model-config-effort");
-  if (effortLabel) effortLabel.textContent = ({ auto: "自动", off: "关闭", low: "低", medium: "中", high: "高" })[effort];
+  if (effortLabel) effortLabel.textContent = ({ auto: "自动", off: "关闭", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最高" })[effort];
   if ($("reasoning-quick")) $("reasoning-quick").value = effort;
   fitModelQuickWidth();
 }
@@ -12322,7 +12335,7 @@ function setQuickReasoningEffort(value, announce = true) {
   saveSettings();
   if (conv) saveConversations();
   renderModelQuick();
-  if (announce) showToast("这个窗口的思考强度已设为「" + ({ auto: "自动", off: "关闭", low: "低", medium: "中", high: "高" })[effort] + "」");
+  if (announce) showToast("这个窗口的思考强度已设为「" + ({ auto: "自动", off: "关闭", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最高" })[effort] + "」");
 }
 
 // ---------- Settings UI ----------
