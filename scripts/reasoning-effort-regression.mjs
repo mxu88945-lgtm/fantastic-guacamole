@@ -9,6 +9,15 @@ const ok = (condition, message) => {
 };
 
 ok(html.includes('id="reasoningEffort"'), "reasoning effort selector is missing");
+ok(html.includes('id="model-config-btn"') && html.includes('id="model-config-overlay"'),
+  "composer model configuration sheet is missing");
+ok(html.includes('id="reasoning-quick"'), "composer reasoning selector is missing");
+ok(html.includes('function openModelConfig()') && html.includes('function closeModelConfig()'),
+  "composer configuration sheet cannot open and close");
+ok(html.includes('if (conv) conv.reasoningEffort = effort;'),
+  "composer reasoning selection is not saved to the current conversation");
+ok(html.includes('setQuickReasoningEffort("auto", false);'),
+  "composer configuration reset does not restore automatic reasoning");
 for (const value of ["auto", "off", "low", "medium", "high"])
   ok(html.includes(`value="${value}"`), `reasoning option ${value} is missing`);
 ok(html.includes('reasoningEffort: normalizeReasoningEffort(settings.reasoningEffort)'),

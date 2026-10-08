@@ -549,6 +549,57 @@
   }
   /* glass themes: a soft frosted bubble (not transparent), so the picker reads as a pill like Claude's */
   html[data-glass="1"] .model-quick { background: rgba(255,255,255,.42); border-color: rgba(255,255,255,.5); }
+  .model-config-trigger {
+    display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+    font-family: inherit; line-height: 1.2;
+  }
+  .model-config-trigger-label {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .model-config-trigger-effort {
+    flex: 0 0 auto; color: var(--text-dim); font-size: 10px;
+  }
+  .model-config-trigger-chevron { flex: 0 0 auto; color: var(--text-dim); font-size: 11px; }
+  .model-config-overlay {
+    position: fixed; inset: 0; z-index: 90; display: none; align-items: flex-end; justify-content: center;
+    padding: 18px; padding-bottom: max(18px, env(safe-area-inset-bottom));
+    background: rgba(20,20,24,.28); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
+  }
+  body.model-config-open { overflow: hidden; }
+  .model-config-overlay.open { display: flex; }
+  .model-config-sheet {
+    width: min(520px, 100%); padding: 8px 18px 18px; border: 1px solid rgba(255,255,255,.7);
+    border-radius: 32px; background: color-mix(in srgb, var(--bg-soft) 88%, transparent);
+    box-shadow: 0 24px 70px rgba(0,0,0,.2);
+    backdrop-filter: blur(26px) saturate(1.35); -webkit-backdrop-filter: blur(26px) saturate(1.35);
+  }
+  .model-config-handle {
+    width: 46px; height: 5px; margin: 1px auto 18px; border-radius: 99px;
+    background: color-mix(in srgb, var(--text-dim) 48%, transparent);
+  }
+  .model-config-title { margin: 0 0 18px; text-align: center; font-size: 20px; }
+  .model-config-list {
+    overflow: hidden; border-radius: 22px; background: color-mix(in srgb, var(--item-active) 82%, transparent);
+  }
+  .model-config-row {
+    min-height: 64px; display: flex; align-items: center; gap: 16px; padding: 0 17px;
+    border-bottom: 1px solid var(--border); font-size: 15px;
+  }
+  .model-config-row:last-child { border-bottom: 0; }
+  .model-config-row label { flex: 0 0 auto; font-weight: 600; }
+  .model-config-row select {
+    flex: 1; min-width: 0; border: 0; padding: 10px 24px 10px 8px; text-align: right;
+    background: transparent; color: var(--text); font: inherit; outline: none;
+  }
+  .model-config-reset, .model-config-done {
+    width: 100%; min-height: 54px; margin-top: 18px; border: 0; border-radius: 19px;
+    font-family: inherit; font-size: 16px; font-weight: 650; line-height: 1; cursor: pointer;
+  }
+  .model-config-reset { background: color-mix(in srgb, var(--item-active) 90%, transparent); color: var(--accent); }
+  .model-config-done { background: var(--text); color: var(--bg); }
+  @media (min-width: 700px) {
+    .model-config-overlay { align-items: center; }
+  }
 
   /* Settings — full-screen overlay page */
   .settings {
@@ -3326,7 +3377,11 @@
           <button class="attach-btn" id="plus-btn" title="更多">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
-          <select class="model-quick" id="model-quick" title="切换当前窗口模型"></select>
+          <button class="model-quick model-config-trigger" id="model-config-btn" type="button" title="模型与思考设置" aria-haspopup="dialog" aria-controls="model-config-overlay" aria-expanded="false">
+            <span class="model-config-trigger-label" id="model-config-label"></span>
+            <span class="model-config-trigger-effort" id="model-config-effort"></span>
+            <span class="model-config-trigger-chevron" aria-hidden="true">⌄</span>
+          </button>
           <span class="spacer"></span>
           <button class="voice-input-btn" id="voice-input-btn" type="button" title="语音输入" aria-label="语音输入">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>
@@ -3337,6 +3392,30 @@
         </div>
       </div>
       <div class="composer-hint">所有数据仅保存在你本地浏览器，API Key 不会上传到任何第三方服务器。</div>
+    </div>
+    <div class="model-config-overlay" id="model-config-overlay" aria-hidden="true">
+      <section class="model-config-sheet" role="dialog" aria-modal="true" aria-labelledby="model-config-title">
+        <div class="model-config-handle" aria-hidden="true"></div>
+        <h2 class="model-config-title" id="model-config-title">配置</h2>
+        <div class="model-config-list">
+          <div class="model-config-row">
+            <label for="model-quick">模型</label>
+            <select id="model-quick" title="切换当前窗口模型"></select>
+          </div>
+          <div class="model-config-row">
+            <label for="reasoning-quick">思考强度</label>
+            <select id="reasoning-quick">
+              <option value="auto">自动</option>
+              <option value="off">关闭</option>
+              <option value="low">低</option>
+              <option value="medium">中</option>
+              <option value="high">高</option>
+            </select>
+          </div>
+        </div>
+        <button class="model-config-reset" id="model-config-reset" type="button">重置为默认设置</button>
+        <button class="model-config-done" id="model-config-done" type="button">完成</button>
+      </section>
     </div>
   </div>
 </div>
@@ -12205,14 +12284,20 @@ function renderModelQuick() {
   };
   fill($("model-quick"), false);
   fill($("model-select"), true);
+  const quickLabel = $("model-config-label");
+  if (quickLabel) quickLabel.textContent = getModelDisplayLabel(cur) || cur || "选择模型";
+  const effort = conversationReasoningEffort();
+  const effortLabel = $("model-config-effort");
+  if (effortLabel) effortLabel.textContent = ({ auto: "自动", off: "关闭", low: "低", medium: "中", high: "高" })[effort];
+  if ($("reasoning-quick")) $("reasoning-quick").value = effort;
   fitModelQuickWidth();
 }
 // A <select> with width:auto sizes to its LONGEST option, not the selected one — so the pill
 // looked huge. Measure the currently-selected label and set the width to hug just that.
 function fitModelQuickWidth() {
-  const sel = $("model-quick");
+  const sel = $("model-config-btn");
   if (!sel) return;
-  const label = (sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].textContent) || sel.value || "";
+  const label = $("model-config-label")?.textContent || "";
   const meas = document.createElement("span");
   meas.style.cssText = "position:absolute;visibility:hidden;white-space:nowrap;font-size:12px;font-family:inherit;font-weight:400;padding:0;";
   meas.textContent = label;
@@ -12220,8 +12305,34 @@ function fitModelQuickWidth() {
   const textW = meas.offsetWidth;
   meas.remove();
   // text + horizontal padding (14*2) + a little breathing room; capped so it never fills the bar
-  const w = Math.min(textW + 34, Math.round(window.innerWidth * 0.66));
+  const w = Math.min(textW + 72, Math.round(window.innerWidth * 0.66));
   sel.style.width = w + "px";
+}
+function openModelConfig() {
+  renderModelQuick();
+  const overlay = $("model-config-overlay");
+  overlay.classList.add("open");
+  overlay.setAttribute("aria-hidden", "false");
+  $("model-config-btn").setAttribute("aria-expanded", "true");
+  document.body.classList.add("model-config-open");
+}
+function closeModelConfig() {
+  const overlay = $("model-config-overlay");
+  overlay.classList.remove("open");
+  overlay.setAttribute("aria-hidden", "true");
+  $("model-config-btn").setAttribute("aria-expanded", "false");
+  document.body.classList.remove("model-config-open");
+}
+function setQuickReasoningEffort(value, announce = true) {
+  const effort = normalizeReasoningEffort(value);
+  settings.reasoningEffort = effort;
+  const conv = currentConv();
+  if (conv) conv.reasoningEffort = effort;
+  if ($("reasoningEffort")) $("reasoningEffort").value = effort;
+  saveSettings();
+  if (conv) saveConversations();
+  renderModelQuick();
+  if (announce) showToast("这个窗口的思考强度已设为「" + ({ auto: "自动", off: "关闭", low: "低", medium: "中", high: "高" })[effort] + "」");
 }
 
 // ---------- Settings UI ----------
@@ -13313,6 +13424,22 @@ async function init() {
   };
   $("model-quick").addEventListener("change", () => pickModel($("model-quick").value));
   $("model-select").addEventListener("change", () => pickModel($("model-select").value));
+  $("model-config-btn").onclick = openModelConfig;
+  $("model-config-done").onclick = closeModelConfig;
+  $("model-config-overlay").onclick = (event) => {
+    if (event.target === $("model-config-overlay")) closeModelConfig();
+  };
+  $("reasoning-quick").addEventListener("change", () => setQuickReasoningEffort($("reasoning-quick").value));
+  $("model-config-reset").onclick = () => {
+    const profile = conversationProvider();
+    const fallbackModel = DEFAULTS[profile?.provider || settings.provider]?.model || profile?.model || "";
+    if (fallbackModel) pickModel(fallbackModel);
+    setQuickReasoningEffort("auto", false);
+    showToast("已恢复当前接口的默认模型与自动思考");
+  };
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && $("model-config-overlay").classList.contains("open")) closeModelConfig();
+  });
 
   $("input").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && !isMobile()) { e.preventDefault(); send(); }
