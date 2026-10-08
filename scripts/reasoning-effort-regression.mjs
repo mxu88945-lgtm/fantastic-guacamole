@@ -18,6 +18,8 @@ ok(html.includes('if (conv) conv.reasoningEffort = effort;'),
   "composer reasoning selection is not saved to the current conversation");
 ok(html.includes('setQuickReasoningEffort("auto", false);'),
   "composer configuration reset does not restore automatic reasoning");
+ok(html.includes('trigger.style.removeProperty("width")'),
+  "composer model control should size itself to its visible contents");
 for (const value of ["auto", "off", "low", "medium", "high"])
   ok(html.includes(`value="${value}"`), `reasoning option ${value} is missing`);
 ok(html.includes('reasoningEffort: normalizeReasoningEffort(settings.reasoningEffort)'),
