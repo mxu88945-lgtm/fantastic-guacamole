@@ -2917,6 +2917,17 @@
           </div>
         </div>
         <div class="field">
+          <label>当前窗口思考强度</label>
+          <select id="reasoningEffort">
+            <option value="auto">自动（跟随模型）</option>
+            <option value="off">关闭（尽量不思考）</option>
+            <option value="low">低（更快）</option>
+            <option value="medium">中（均衡）</option>
+            <option value="high">高（更仔细）</option>
+          </select>
+          <span class="hint">只影响当前聊天窗口；模型或接口不支持时会自动按默认方式重试。</span>
+        </div>
+        <div class="field">
           <label>最大输出 tokens</label>
           <input id="maxTokens" type="number" placeholder="2048" />
         </div>
@@ -3858,6 +3869,7 @@ let settings = {
   apiKey: "",
   model: "",
   temperature: 0.7,
+  reasoningEffort: "auto", // new windows default to provider/model-controlled reasoning
   maxTokens: 2048,
   systemPrompt: "",
   systemInstruction: "",
@@ -4693,6 +4705,7 @@ function newConversation() {
     id: uid(), title: "新对话", messages: [], projectFiles: [], updatedAt: Date.now(), roleId: settings.activeRoleId,
     providerId: settings.activeProviderId || "",
     model: settings.model || DEFAULTS[settings.provider]?.model || "",
+    reasoningEffort: normalizeReasoningEffort(settings.reasoningEffort),
   };
 }
 function currentConv() { return conversations.find(c => c.id === currentId); }
@@ -4704,6 +4717,13 @@ function conversationModel(conv) {
   conv = conv || currentConv();
   const profile = conversationProvider(conv);
   return conv?.model || profile?.model || DEFAULTS[profile?.provider || settings.provider]?.model || "";
+}
+function normalizeReasoningEffort(value) {
+  return ["auto", "off", "low", "medium", "high"].includes(value) ? value : "auto";
+}
+function conversationReasoningEffort(conv) {
+  conv = conv || currentConv();
+  return normalizeReasoningEffort(conv?.reasoningEffort || settings.reasoningEffort);
 }
 // Entering a conversation restores only its provider profile. The model remains
 // on the conversation itself, so two windows can share one API key while using
@@ -7864,6 +7884,49 @@ function compatibleTemperature(model, requested) {
 function shouldRequestStructuredReasoning(model) {
   return /(?:claude|opus|sonnet|haiku)/i.test(String(model || ""));
 }
+function anthropicThinkingBudget(effort) {
+  return ({ low: 1024, medium: 4096, high: 8192 })[effort] || 0;
+}
+function applyGeminiThinkingControl(generationConfig, model, effort) {
+  if (!generationConfig || effort === "auto") return;
+  if (/gemini[-_.\/]?2\.5/i.test(String(model || ""))) {
+    generationConfig.thinkingConfig = {
+      thinkingBudget: effort === "off" ? 0 : anthropicThinkingBudget(effort),
+    };
+    return;
+  }
+  generationConfig.thinkingConfig = {
+    // Gemini 3.7/3.8 Flash do not accept "minimal"; "low" is their
+    // least-thought option. Other Gemini 3 variants may use "minimal".
+    thinkingLevel: effort === "off"
+      ? (/gemini[-_.\/]?3\.(?:7|8)/i.test(String(model || "")) ? "low" : "minimal")
+      : effort,
+  };
+}
+function hasReasoningControl(body) {
+  return !!(body && (
+    Object.prototype.hasOwnProperty.call(body, "reasoning")
+    || Object.prototype.hasOwnProperty.call(body, "reasoning_effort")
+    || Object.prototype.hasOwnProperty.call(body, "thinking")
+    || Object.prototype.hasOwnProperty.call(body, "output_config")
+    || Object.prototype.hasOwnProperty.call(body.generationConfig || {}, "thinkingConfig")
+  ));
+}
+function removeReasoningControl(body, headers) {
+  if (!body) return;
+  delete body.reasoning;
+  delete body.reasoning_effort;
+  delete body.thinking;
+  delete body.output_config;
+  if (body.generationConfig) delete body.generationConfig.thinkingConfig;
+  if (headers) delete headers["anthropic-beta"];
+}
+function reasoningControlUnsupported(detail) {
+  const control = "(?:reasoning(?:_effort)?|thinking(?:Config|Level|Budget)?|effort)";
+  const rejection = "(?:unsupported|not supported|unknown|unrecognized|not allowed|invalid|extra inputs|not permitted|must be|does not support)";
+  return new RegExp(control + "[\\s\\S]{0,220}" + rejection + "|" + rejection + "[\\s\\S]{0,220}" + control, "i")
+    .test(String(detail || ""));
+}
 function temperatureIsDeprecated(detail) {
   return /temperature[\s\S]{0,120}(?:deprecated|not supported|unsupported|not allowed)/i
     .test(String(detail || ""));
@@ -8019,6 +8082,7 @@ async function streamChat(onDelta, onReasoning) {
   const isGemini = settings.provider === "gemini";
   const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
   const model = conversationModel();
+  const reasoningEffort = conversationReasoningEffort();
   const historyWindow = buildApiHistoryWindow();
   abortController = new AbortController();
   const callStartedAt = performance.now();
@@ -8149,7 +8213,7 @@ async function streamChat(onDelta, onReasoning) {
   let url, headers, body;
   if (isAnthropic) {
     url = base + "/messages";
-    const isThinking = /thinking/i.test(model);
+    const isThinking = reasoningEffort === "auto" ? /thinking/i.test(model) : reasoningEffort !== "off";
     headers = {
       "content-type": "application/json",
       "x-api-key": settings.apiKey,
@@ -8165,8 +8229,10 @@ async function streamChat(onDelta, onReasoning) {
       stream: true,
       messages: apiMessagesFor(true, historyWindow.messages),
     };
-    if (isThinking) {
-      const thinkBudget = 8000;
+    if (reasoningEffort === "off") {
+      body.thinking = { type: "disabled" };
+    } else if (isThinking) {
+      const thinkBudget = reasoningEffort === "auto" ? 8000 : anthropicThinkingBudget(reasoningEffort);
       body.thinking = { type: "enabled", budget_tokens: thinkBudget };
       body.max_tokens = Math.max(body.max_tokens, thinkBudget + 2048); // ensure room for output
     }
@@ -8184,6 +8250,7 @@ async function streamChat(onDelta, onReasoning) {
         maxOutputTokens: settings.maxTokens || 2048,
       },
     };
+    applyGeminiThinkingControl(body.generationConfig, model, reasoningEffort);
     if (systemText) body.systemInstruction = { parts: [{ text: systemText }] };
   } else {
     url = base + "/chat/completions";
@@ -8202,7 +8269,13 @@ async function streamChat(onDelta, onReasoning) {
       messages: msgs,
       stream_options: { include_usage: true },   // ask for token usage in the final chunk
     };
-    if (shouldRequestStructuredReasoning(model)) {
+    if (reasoningEffort !== "auto") {
+      if (/openrouter\.ai/i.test(base) || shouldRequestStructuredReasoning(model)) {
+        body.reasoning = reasoningEffort === "off" ? { enabled: false } : { effort: reasoningEffort };
+      } else {
+        body.reasoning_effort = reasoningEffort === "off" ? "none" : reasoningEffort;
+      }
+    } else if (shouldRequestStructuredReasoning(model)) {
       body.reasoning = { effort: "medium" };
     }
     if (/openrouter\.ai/i.test(base)) body.usage = { include: true };  // OpenRouter: also return cost
@@ -8230,6 +8303,7 @@ async function streamChat(onDelta, onReasoning) {
     timeZone: injectedTimeZone,
     specialDays: !!specialDayClaim?.text,
     projectFiles: conversationProjectFiles().length,
+    reasoningEffort,
   };
 
   // Transient errors (502/503/504 overloaded, 429 rate-limited) are common with
@@ -8249,10 +8323,11 @@ async function streamChat(onDelta, onReasoning) {
     // implement the reasoning option. Retry once without it; successful Claude
     // routes keep the structured split, unrelated channels remain unaffected.
     if (resp.status === 400 && !omittedUnsupportedReasoning
-        && Object.prototype.hasOwnProperty.call(body, "reasoning")
-        && /reasoning[\s\S]{0,180}(?:unsupported|not supported|unknown|unrecognized|not allowed|invalid|extra inputs|not permitted)/i.test(lastDetail)) {
+        && hasReasoningControl(body) && reasoningControlUnsupported(lastDetail)) {
       omittedUnsupportedReasoning = true;
-      delete body.reasoning;
+      removeReasoningControl(body, headers);
+      if (isAnthropic) body.temperature = settings.temperature;
+      showToast("当前接口不支持这个思考强度，已按模型默认设置重试", 3000);
       continue;
     }
     // Some Claude Code / reasoning routes reject temperature entirely. Retry
@@ -12157,6 +12232,7 @@ function syncSettingsToUI() {
   $("model").value = conversationModel();
   $("temperature").value = settings.temperature;
   $("tempVal").textContent = settings.temperature;
+  $("reasoningEffort").value = conversationReasoningEffort();
   $("maxTokens").value = settings.maxTokens;
   $("modelList").value = settings.modelList;
   $("visionModel").value = settings.visionModel || "";
@@ -12354,6 +12430,8 @@ function readSettingsFromUI() {
   }
   mirrorActiveToFlat();
   settings.temperature = parseFloat($("temperature").value);
+  settings.reasoningEffort = normalizeReasoningEffort($("reasoningEffort").value);
+  if (conv) conv.reasoningEffort = settings.reasoningEffort;
   settings.maxTokens = parseInt($("maxTokens").value) || 2048;
   settings.visionModel = $("visionModel").value.trim();
   settings.visionBaseUrl = $("visionBaseUrl").value.trim();
@@ -13241,7 +13319,7 @@ async function init() {
   });
   $("input").addEventListener("input", autoResize);
 
-  ["provider","baseUrl","apiKey","model","maxTokens","modelList","memory","sbUrl","sbKey"].forEach(id => {
+  ["provider","baseUrl","apiKey","model","reasoningEffort","maxTokens","modelList","memory","sbUrl","sbKey"].forEach(id => {
     $(id).addEventListener("change", () => { readSettingsFromUI(); updateProviderHint(); });
   });
   $("systemPrompt").addEventListener("input", queueSystemPromptSave);
