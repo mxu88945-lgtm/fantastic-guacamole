@@ -22,7 +22,7 @@ requireText('await addConversationProjectFile(file)', "selected project files ar
 requireText('const conversationProjectText = buildConversationProjectText();', "project files are not injected into chat requests");
 requireText('projectFiles: conversationProjectFiles().length', "prompt audit does not report project files");
 requireText('只绑定当前对话', "the UI does not explain conversation isolation");
-if (!sw.includes('const CACHE = "role-chat-cache-v184";')) throw new Error("service worker cache was not bumped");
+if (!sw.includes('const CACHE = "role-chat-cache-v185";')) throw new Error("service worker cache was not bumped");
 
 const start = html.indexOf("function conversationProjectFiles(");
 const end = html.indexOf("function filePromptText(", start);
