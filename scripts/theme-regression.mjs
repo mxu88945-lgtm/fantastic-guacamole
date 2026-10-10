@@ -171,12 +171,12 @@ ok(html.includes('var bg = localStorage.getItem("jyc_themebg");')
 ok(html.includes('html { height: 100%; background: var(--app-gradient, var(--bg)); }'),
   'root notch background fallback was changed')
 ok(html.includes('document.querySelectorAll(\'meta[name="theme-color"]\').forEach((el) => el.remove());')
-  && html.includes('tc.setAttribute("content", t.vars.bg);'),
+  && html.includes('tc.setAttribute("content", color);') && html.includes('setStatusBarColor(t.vars.bg);'),
   'runtime theme-color refresh was changed')
 ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v186";'), 'service worker cache was not bumped for the lilac frosted theme')
+ok(sw.includes('const CACHE = "role-chat-cache-v187";'), 'service worker cache was not bumped for the lilac frosted theme')
 
 console.log(`theme regression: ${checks} checks passed`)

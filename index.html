@@ -23,7 +23,8 @@
     if (bg) {
       document.documentElement.style.setProperty("--bg", bg);
       var themeMeta = document.querySelector('meta[name="theme-color"]');
-      if (themeMeta) themeMeta.setAttribute("content", bg);
+      var statusBg = localStorage.getItem("jyc_statusbg");
+      if (themeMeta) themeMeta.setAttribute("content", statusBg || bg);
     }
     /* Pre-paint sidebar state: this page is one big inline file, so iOS standalone
        PWAs paint the raw HTML (sidebar open) before the bottom script runs and
@@ -11857,11 +11858,7 @@ function applyTheme() {
     // iOS standalone snapshots the status-bar color at launch and usually won't refresh it
     // live, but swapping the element out for a fresh one nudges some iOS versions to re-read
     // it on a theme switch (best-effort — may still need a relaunch to fully update).
-    document.querySelectorAll('meta[name="theme-color"]').forEach((el) => el.remove());
-    const tc = document.createElement("meta");
-    tc.setAttribute("name", "theme-color");
-    tc.setAttribute("content", t.vars.bg);
-    document.head.appendChild(tc);
+    setStatusBarColor(t.vars.bg);
     // Persist for the pre-paint priming script (so next launch starts on this color,
     // not the hardcoded dark theme → no black status-bar strip on cold open).
     try {
@@ -11959,6 +11956,54 @@ function highlightLayoutButtons() {
   $("layout-flat").classList.toggle("primary", flat);
   $("layout-bubble").classList.toggle("primary", !flat);
 }
+function setStatusBarColor(color) {
+  if (!color) return;
+  const current = document.querySelector('meta[name="theme-color"]');
+  if (current && current.getAttribute("content") === color) return;
+  document.querySelectorAll('meta[name="theme-color"]').forEach((el) => el.remove());
+  const tc = document.createElement("meta");
+  tc.setAttribute("name", "theme-color");
+  tc.setAttribute("content", color);
+  document.head.appendChild(tc);
+}
+// iOS "default" status bar can only be a solid color, never an image, so with a wallpaper
+// we tint it with the wallpaper's own top-edge color (after the dim overlay). Persisted in
+// jyc_statusbg so the pre-paint script starts the next launch on the same tint.
+let statusBarSampleRevision = 0;
+function syncStatusBarToWallpaper(imageUrl, dark, dim) {
+  const revision = ++statusBarSampleRevision;
+  if (!imageUrl) {
+    try { localStorage.removeItem("jyc_statusbg"); } catch (_) {}
+    setStatusBarColor(currentTheme().vars.bg);
+    return;
+  }
+  const img = new Image();
+  img.onload = () => {
+    if (revision !== statusBarSampleRevision) return;
+    try {
+      const w = 32, h = 32;
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      // background-size: cover, centered: crop to the screen's aspect before sampling the top edge.
+      const screenRatio = (window.innerWidth || 390) / (window.innerHeight || 844);
+      let sw = img.naturalWidth, sh = img.naturalHeight, sx = 0, sy = 0;
+      if (!sw || !sh) return;
+      if (sw / sh > screenRatio) { const cw = sh * screenRatio; sx = (sw - cw) / 2; sw = cw; }
+      else { const ch = sw / screenRatio; sy = (sh - ch) / 2; sh = ch; }
+      ctx.drawImage(img, sx, sy, sw, sh * 0.06, 0, 0, w, h);
+      const data = ctx.getImageData(0, 0, w, h).data;
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < data.length; i += 4) { r += data[i]; g += data[i + 1]; b += data[i + 2]; n++; }
+      const o = dark ? [8, 10, 15] : [255, 255, 255];
+      const mix = (c, k) => Math.round((c / n) * (1 - dim) + o[k] * dim);
+      const hex = "#" + [mix(r, 0), mix(g, 1), mix(b, 2)].map(v => v.toString(16).padStart(2, "0")).join("");
+      setStatusBarColor(hex);
+      try { localStorage.setItem("jyc_statusbg", hex); } catch (_) {}
+    } catch (_) { /* tainted or unreadable image: keep the theme color */ }
+  };
+  img.src = imageUrl;
+}
 function applyChatBg() {
   const bg = $("chat-bg");
   if (!bg) return;
@@ -11971,9 +12016,11 @@ function applyChatBg() {
     bg.style.backgroundImage = `linear-gradient(${overlay}, ${overlay}), url("${imageUrl}")`;
     bg.style.filter = `blur(${settings.chatBgBlur ?? 6}px)`;
     bg.style.display = "block";
+    syncStatusBarToWallpaper(imageUrl, dark, d);
   } else {
     bg.style.display = "none";
     bg.style.backgroundImage = "none";
+    syncStatusBarToWallpaper("", false, 0);
   }
 }
 
