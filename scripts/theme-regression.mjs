@@ -163,12 +163,12 @@ ok(html.includes('-webkit-backdrop-filter: blur(22px) saturate(1.10);'),
 
 // CC's iOS standalone status-bar chain is protected: default status-bar mode,
 // pre-paint local restoration, root background fallback and runtime meta refresh.
-ok(html.includes('<meta name="apple-mobile-web-app-status-bar-style" content="default" />'),
+ok(html.includes('<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />'),
   'iOS opaque status-bar mode was changed')
 ok(html.includes('var bg = localStorage.getItem("jyc_themebg");')
   && html.includes('var dark = localStorage.getItem("jyc_themedark");'),
   'pre-paint notch colors are no longer restored')
-ok(html.includes('html { height: 100%; background: var(--app-gradient, var(--bg)); }'),
+ok(html.includes('html { height: 100vh; background: var(--app-gradient, var(--bg)); }'),
   'root notch background fallback was changed')
 ok(html.includes('document.querySelectorAll(\'meta[name="theme-color"]\').forEach((el) => el.remove());')
   && html.includes('tc.setAttribute("content", color);') && html.includes('setStatusBarColor(t.vars.bg);'),

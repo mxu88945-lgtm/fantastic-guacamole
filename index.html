@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Role Chat" />
 <meta name="theme-color" content="#f8f8f6" />
 <script>
@@ -97,7 +97,7 @@
      background. Without this it falls back to the system canvas (black in Dark Mode),
      showing an ugly black bar above a light theme. Tie it to the theme bg so the strip
      always matches the current theme (applyTheme sets --bg on <html>). */
-  html { height: 100%; background: var(--app-gradient, var(--bg)); }
+  html { height: 100vh; background: var(--app-gradient, var(--bg)); }
   /* With a wallpaper, newer iOS standalone tints the status bar from the page's own
      background rather than theme-color, so paint html with the wallpaper's top-edge color. */
   html[data-chat-bg="1"] { background: var(--wall-top, var(--app-gradient, var(--bg))); }
@@ -107,14 +107,16 @@
     background: var(--app-gradient, var(--bg));
     color: var(--text);
     background-attachment: fixed;
-    min-height: 100%;
+    min-height: 100vh;
     margin: 0;
     /* Lock the viewport so only the chat list scrolls — keeps the top bar pinned
        (fixes iOS standalone where the whole page could scroll the header off-screen). */
-    position: fixed; inset: 0; height: 100%;
+    /* 100vh, not 100%/inset:0/100dvh: in iOS standalone those stop at WebKit's visible
+       area and leave the home-indicator strip unpainted under black-translucent. */
+    position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
     overflow: hidden; overscroll-behavior: none;
   }
-  .app { display: flex; height: 100%; }
+  .app { display: flex; height: 100vh; }
 
   /* Sidebar */
   .sidebar {
