@@ -1266,7 +1266,8 @@
   html[data-theme-key="tidalpearl"] .main > header,
   html[data-theme-key="tidalharbor"] .main > header {
     min-height: 0;
-    padding: 0;
+    /* full-bleed PWA: content now starts under the notch, so keep the controls below it */
+    padding: calc(4px + env(safe-area-inset-top)) 17px 0;
     border-bottom: 0;
     background: transparent;
     -webkit-backdrop-filter: none;
