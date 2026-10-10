@@ -1351,6 +1351,11 @@
     white-space: pre-wrap; line-height: 1.55; font-size: 12.5px;
     -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
   }
+  .summary-divider {
+    display: block; margin: 14px auto; padding: 6px 14px; border: 0; border-radius: 999px;
+    color: var(--text-dim, var(--accent)); background: var(--bg-panel); opacity: .78;
+    font: inherit; font-size: 12px; cursor: pointer;
+  }
   .summary-source-toggle {
     width: 100%; margin-top: 12px; padding: 8px 10px; border: 1px solid var(--border);
     border-radius: 10px; color: var(--accent); background: var(--bg-panel);
@@ -4125,7 +4130,7 @@ const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
-const expandedSummaryIds = new Set(); // runtime-only: user may temporarily reveal archived raw turns
+const expandedSummaryIds = new Set(); // runtime-only: continuity summaries the user opened from their divider
 // Async cloud restore must never steal a conversation the user selected while
 // the restore request was in flight.
 let chatNavigationRevision = 0;
@@ -5286,14 +5291,7 @@ function runSearch(q) {
         visited.add(target.id);
         target = conv.messages.find(m => m.id === target._compactedBy);
       }
-      if (target && target._summary && target.id) {
-        expandedSummaryIds.add(target.id);
-        renderMessages();
-      }
-      setTimeout(() => {
-        flashMessage(targetId);
-        if (visited.size) showToast("已从连续性档案里展开这条旧原文", 3600);
-      }, 250);
+      setTimeout(() => flashMessage(targetId), 250);
     };
     box.appendChild(el);
   }
@@ -5701,7 +5699,8 @@ function renderMarkdown(text) {
   text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   text = text.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
-  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // URL may not carry quotes, whitespace or brackets, so it can never break out of href.
+  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s"'<>`]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   const lines = text.split("\n");
   let html = "", inUl = false;
   for (let line of lines) {
@@ -5835,15 +5834,28 @@ function renderMessages() {
   box.innerHTML = "";
   const revealedArchivedIds = new Set();
   const conv = currentConv();
-  for (const summaryId of expandedSummaryIds) {
-    const summary = messages.find(m => m && m.id === summaryId && m._summary && !m._compactedBy);
-    if (!summary) { expandedSummaryIds.delete(summaryId); continue; }
+  // Compaction runs in the background: archived originals stay in the chat view as-is,
+  // and the continuity summary only shows as a slim divider unless the user opens it.
+  for (const summary of messages.filter(m => m && m._summary && !m._compactedBy)) {
     archivedMessagesForSummary(conv, summary).forEach(m => { if (m.id) revealedArchivedIds.add(m.id); });
+  }
+  for (const summaryId of expandedSummaryIds) {
+    if (!messages.some(m => m && m.id === summaryId && m._summary && !m._compactedBy)) expandedSummaryIds.delete(summaryId);
   }
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
     if (m._event || (m._compactedBy && !revealedArchivedIds.has(m.id))) continue;
     if (m.role === "reminder") { box.appendChild(reminderCardEl(m)); continue; }   // countdown / done card
+    if (m._summary && !expandedSummaryIds.has(m.id)) {
+      const archivedCount = archivedMessagesForSummary(conv, m).length || m._summaryCount || 0;
+      const divider = document.createElement("button");
+      divider.type = "button"; divider.className = "summary-divider";
+      if (m.id) divider.dataset.mid = m.id;
+      divider.textContent = "· 以上" + (archivedCount ? " " + archivedCount + " 条" : "") + "已在后台整理进连续性档案 · 查看档案 ·";
+      divider.onclick = () => { expandedSummaryIds.add(m.id); renderMessages(); setTimeout(() => flashMessage(m.id), 80); };
+      box.appendChild(divider);
+      continue;
+    }
     const isLast = i === messages.length - 1;
     const el = makeMsgEl(m.role, m.content, {
       actions: true, isLast, reasoning: m.reasoning, traces: m.traces,
@@ -5855,21 +5867,15 @@ function renderMessages() {
     if (m._summary && el.querySelector(".bubble")) {
       const bubble = el.querySelector(".bubble");
       bubble.classList.add("summary");
-      const archived = archivedMessagesForSummary(conv, m);
-      if (archived.length) {
-        const expanded = expandedSummaryIds.has(m.id);
-        const toggle = document.createElement("button");
-        toggle.type = "button"; toggle.className = "summary-source-toggle";
-        toggle.textContent = expanded ? "收起旧原文" : "展开 " + archived.length + " 条旧原文";
-        toggle.onclick = (e) => {
-          e.stopPropagation();
-          if (expanded) expandedSummaryIds.delete(m.id); else expandedSummaryIds.add(m.id);
-          renderMessages();
-          const focusId = expanded ? m.id : (archived[0]?.id || m.id);
-          setTimeout(() => flashMessage(focusId), 80);
-        };
-        bubble.appendChild(toggle);
-      }
+      const toggle = document.createElement("button");
+      toggle.type = "button"; toggle.className = "summary-source-toggle";
+      toggle.textContent = "收起档案";
+      toggle.onclick = (e) => {
+        e.stopPropagation();
+        expandedSummaryIds.delete(m.id);
+        renderMessages();
+      };
+      bubble.appendChild(toggle);
     }
     box.appendChild(el);
   }
