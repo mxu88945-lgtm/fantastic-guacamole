@@ -418,6 +418,27 @@
     background: transparent; border: 0;
     pointer-events: none;
   }
+  /* GPT-style progressive frosted top: text scrolling up under the notch/header blurs and
+     fades out gradually instead of staying sharp under the clock. */
+  .main > header::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; z-index: -1;
+    height: calc(64px + env(safe-area-inset-top));
+    pointer-events: none;
+    background: linear-gradient(to bottom,
+      color-mix(in srgb, var(--bg) 62%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 28%, transparent) 60%,
+      transparent 100%);
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    backdrop-filter: blur(14px) saturate(1.15);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 45%, rgba(0,0,0,.55) 72%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 45%, rgba(0,0,0,.55) 72%, transparent 100%);
+  }
+  html[data-theme="dark"] .main > header::before {
+    background: linear-gradient(to bottom,
+      color-mix(in srgb, var(--bg) 70%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 32%, transparent) 60%,
+      transparent 100%);
+  }
   .main > .chat { padding-top: calc(70px + env(safe-area-inset-top)); }
   /* composer-wrap's padding-box reaches the physical bottom (incl. the home-indicator safe area);
      fading its background to the gradient's bottom color fills that strip — no white edge, no fixed-position guesswork. */
