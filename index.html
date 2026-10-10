@@ -1425,7 +1425,7 @@
     display: grid; place-items: center; width: 26px; height: 26px;
   }
   .msg-act svg { width: 16px; height: 16px; }
-  .msg-act:hover { color: var(--accent); background: var(--item-active); }
+  @media (hover: hover) { .msg-act:hover { color: var(--accent); background: var(--item-active); } }
   .msg-tokens, .msg-latency { align-self: center; font-size: 11px; color: var(--text-dim); white-space: nowrap; margin-left: 2px; }
   .msg-latency { cursor: pointer; }
   .msg-act.playing { color: var(--accent); }
@@ -1671,7 +1671,7 @@
     border-radius: 50%; cursor: pointer; display: grid; place-items: center;
     flex-shrink: 0; transition: .15s;
   }
-  .send-btn:hover { filter: brightness(1.1); }
+  @media (hover: hover) { .send-btn:hover { filter: brightness(1.1); } }
   .send-btn.stop { background: #111; color: #fff; }
   .send-btn.staging { opacity: .6; cursor: progress; animation: sendPulse 1s ease-in-out infinite; }
   @keyframes sendPulse { 0%,100% { opacity: .45; } 50% { opacity: .85; } }
@@ -13878,5 +13878,38 @@ if ("serviceWorker" in navigator) {
 <script type="module" src="./src/music.js"></script>
 <script type="module" src="./src/game-room.js"></script>
 <script type="module" src="./src/dashboard.js"></script>
+<script>
+/* iOS PWA "needs two taps" fix for send / regenerate / message actions:
+   fire on a clean touch tap (pointerup) and swallow the late native click. */
+(function () {
+  const SEL = "#send-btn, .msg-act";
+  let start = null, suppressEl = null, suppressUntil = 0, synth = false;
+  const hit = (e) => e.target && e.target.closest ? e.target.closest(SEL) : null;
+  document.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse") { start = null; return; }
+    const el = hit(e);
+    start = el ? { el, x: e.clientX, y: e.clientY, t: Date.now() } : null;
+  }, { capture: true, passive: true });
+  document.addEventListener("pointercancel", () => { start = null; }, true);
+  document.addEventListener("pointerup", (e) => {
+    if (!start || e.pointerType === "mouse") return;
+    const s = start; start = null;
+    const el = hit(e);
+    if (el !== s.el || el.disabled) return;
+    if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > 12 || Date.now() - s.t > 700) return;
+    suppressEl = el; suppressUntil = Date.now() + 800;
+    synth = true;
+    try { el.click(); } finally { synth = false; }
+  }, true);
+  document.addEventListener("click", (e) => {
+    if (synth || !suppressEl) return;
+    if (Date.now() > suppressUntil) { suppressEl = null; return; }
+    if (hit(e) === suppressEl) {
+      e.preventDefault(); e.stopImmediatePropagation();
+      suppressEl = null;
+    }
+  }, true);
+})();
+</script>
 </body>
 </html>
