@@ -26,6 +26,11 @@
       var statusBg = localStorage.getItem("jyc_statusbg");
       if (themeMeta) themeMeta.setAttribute("content", statusBg || bg);
     }
+    var wallTop = localStorage.getItem("jyc_statusbg");
+    if (wallTop) {
+      document.documentElement.style.setProperty("--wall-top", wallTop);
+      document.documentElement.setAttribute("data-chat-bg", "1");
+    }
     /* Pre-paint sidebar state: this page is one big inline file, so iOS standalone
        PWAs paint the raw HTML (sidebar open) before the bottom script runs and
        tucks it away — the user sees the sidebar flash over the chat on every launch.
@@ -93,6 +98,9 @@
      showing an ugly black bar above a light theme. Tie it to the theme bg so the strip
      always matches the current theme (applyTheme sets --bg on <html>). */
   html { height: 100%; background: var(--app-gradient, var(--bg)); }
+  /* With a wallpaper, newer iOS standalone tints the status bar from the page's own
+     background rather than theme-color, so paint html with the wallpaper's top-edge color. */
+  html[data-chat-bg="1"] { background: var(--wall-top, var(--app-gradient, var(--bg))); }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
       "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
@@ -11974,6 +11982,7 @@ function syncStatusBarToWallpaper(imageUrl, dark, dim) {
   const revision = ++statusBarSampleRevision;
   if (!imageUrl) {
     try { localStorage.removeItem("jyc_statusbg"); } catch (_) {}
+    document.documentElement.style.removeProperty("--wall-top");
     setStatusBarColor(currentTheme().vars.bg);
     return;
   }
@@ -11998,6 +12007,7 @@ function syncStatusBarToWallpaper(imageUrl, dark, dim) {
       const o = dark ? [8, 10, 15] : [255, 255, 255];
       const mix = (c, k) => Math.round((c / n) * (1 - dim) + o[k] * dim);
       const hex = "#" + [mix(r, 0), mix(g, 1), mix(b, 2)].map(v => v.toString(16).padStart(2, "0")).join("");
+      document.documentElement.style.setProperty("--wall-top", hex);
       setStatusBarColor(hex);
       try { localStorage.setItem("jyc_statusbg", hex); } catch (_) {}
     } catch (_) { /* tainted or unreadable image: keep the theme color */ }
