@@ -26,6 +26,19 @@
       var statusBg = localStorage.getItem("jyc_statusbg");
       if (themeMeta) themeMeta.setAttribute("content", statusBg || bg);
     }
+    /* iOS standalone (black-translucent): neither 100% nor 100vh matches the glass —
+       100% stops above the home indicator, 100vh overshoots it. Pin the shell to the
+       physical screen height instead; browsers outside standalone keep 100%. */
+    if (navigator.standalone) {
+      var setAppH = function () {
+        var portrait = window.matchMedia("(orientation: portrait)").matches;
+        var h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+        document.documentElement.style.setProperty("--app-h", h + "px");
+      };
+      setAppH();
+      window.addEventListener("orientationchange", function () { setTimeout(setAppH, 150); });
+      window.addEventListener("resize", setAppH);
+    }
     var wallTop = localStorage.getItem("jyc_statusbg");
     if (wallTop) {
       document.documentElement.style.setProperty("--wall-top", wallTop);
@@ -97,7 +110,7 @@
      background. Without this it falls back to the system canvas (black in Dark Mode),
      showing an ugly black bar above a light theme. Tie it to the theme bg so the strip
      always matches the current theme (applyTheme sets --bg on <html>). */
-  html { height: 100vh; background: var(--app-gradient, var(--bg)); }
+  html { height: var(--app-h, 100%); background: var(--app-gradient, var(--bg)); }
   /* With a wallpaper, newer iOS standalone tints the status bar from the page's own
      background rather than theme-color, so paint html with the wallpaper's top-edge color. */
   html[data-chat-bg="1"] { background: var(--wall-top, var(--app-gradient, var(--bg))); }
@@ -107,16 +120,16 @@
     background: var(--app-gradient, var(--bg));
     color: var(--text);
     background-attachment: fixed;
-    min-height: 100vh;
+    min-height: var(--app-h, 100%);
     margin: 0;
     /* Lock the viewport so only the chat list scrolls — keeps the top bar pinned
        (fixes iOS standalone where the whole page could scroll the header off-screen). */
     /* 100vh, not 100%/inset:0/100dvh: in iOS standalone those stop at WebKit's visible
        area and leave the home-indicator strip unpainted under black-translucent. */
-    position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+    position: fixed; top: 0; left: 0; width: 100%; height: var(--app-h, 100%);
     overflow: hidden; overscroll-behavior: none;
   }
-  .app { display: flex; height: 100vh; }
+  .app { display: flex; height: var(--app-h, 100%); }
 
   /* Sidebar */
   .sidebar {

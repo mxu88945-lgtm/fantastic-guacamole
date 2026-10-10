@@ -168,7 +168,7 @@ ok(html.includes('<meta name="apple-mobile-web-app-status-bar-style" content="bl
 ok(html.includes('var bg = localStorage.getItem("jyc_themebg");')
   && html.includes('var dark = localStorage.getItem("jyc_themedark");'),
   'pre-paint notch colors are no longer restored')
-ok(html.includes('html { height: 100vh; background: var(--app-gradient, var(--bg)); }'),
+ok(html.includes('html { height: var(--app-h, 100%); background: var(--app-gradient, var(--bg)); }'),
   'root notch background fallback was changed')
 ok(html.includes('document.querySelectorAll(\'meta[name="theme-color"]\').forEach((el) => el.remove());')
   && html.includes('tc.setAttribute("content", color);') && html.includes('setStatusBarColor(t.vars.bg);'),
