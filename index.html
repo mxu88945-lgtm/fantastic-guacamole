@@ -5257,6 +5257,7 @@ function deriveTitle(msgs) {
 // ---------- Conversation management ----------
 function switchConversation(id, openChatView) {
   if (abortController) abortController.abort();
+  renderLimit = RENDER_WINDOW;
   const target = conversations.find(c => c.id === id);
   // A sidebar item can become stale if cloud data is replaced between rendering
   // the list and the tap. Do not leave currentId pointing at a missing chat.
@@ -5873,6 +5874,18 @@ function renderReplyVariantNav(box) {
   nav.append(previous, count, next);
   anchor.insertAdjacentElement("afterend", nav);
 }
+// Long chats only draw the most recent rows; older ones load on demand. Display only:
+// what the model receives is decided by the prompt builder, not by this window.
+const RENDER_WINDOW = 60;
+let renderLimit = RENDER_WINDOW;
+function loadEarlierMessages() {
+  const chat = $("chat");
+  const before = chat.scrollHeight, top = chat.scrollTop;
+  renderLimit += 80;
+  stickBottom = false;
+  renderMessages();
+  chat.scrollTop = top + (chat.scrollHeight - before);
+}
 function renderMessages() {
   const box = $("messages");
   if (messages.length === 0) {
@@ -5896,6 +5909,14 @@ function renderMessages() {
     return;
   }
   box.innerHTML = "";
+  const renderFrom = Math.max(0, messages.length - renderLimit);
+  if (renderFrom > 0) {
+    const more = document.createElement("button");
+    more.type = "button"; more.className = "summary-divider load-earlier";
+    more.textContent = "· 加载更早的消息（还有 " + renderFrom + " 条）·";
+    more.onclick = loadEarlierMessages;
+    box.appendChild(more);
+  }
   const revealedArchivedIds = new Set();
   const conv = currentConv();
   // Compaction runs in the background: archived originals stay in the chat view as-is,
@@ -5906,7 +5927,7 @@ function renderMessages() {
   for (const summaryId of expandedSummaryIds) {
     if (!messages.some(m => m && m.id === summaryId && m._summary && !m._compactedBy)) expandedSummaryIds.delete(summaryId);
   }
-  for (let i = 0; i < messages.length; i++) {
+  for (let i = renderFrom; i < messages.length; i++) {
     const m = messages[i];
     if (m._event || (m._compactedBy && !revealedArchivedIds.has(m.id))) continue;
     if (m.role === "reminder") { box.appendChild(reminderCardEl(m)); continue; }   // countdown / done card
@@ -5948,8 +5969,15 @@ function renderMessages() {
   requestAnimationFrame(updateScrollControls);
 }
 function flashMessage(mid) {
-  const el = $("messages").querySelector(`.msg[data-mid="${mid}"]`);
-  if (!el) return;
+  let el = $("messages").querySelector(`.msg[data-mid="${mid}"]`);
+  if (!el) {
+    const idx = messages.findIndex(m => m && m.id === mid);
+    if (idx < 0) return;
+    renderLimit = Math.max(renderLimit, messages.length - idx + 20);
+    renderMessages();
+    el = $("messages").querySelector(`.msg[data-mid="${mid}"]`);
+    if (!el) return;
+  }
   el.scrollIntoView({ block: "center", behavior: "smooth" });
   el.classList.add("flash");
   setTimeout(() => el.classList.remove("flash"), 1700);
