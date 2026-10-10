@@ -4637,14 +4637,27 @@ function saveSettings() {
   if (!applyingCloud) localStorage.setItem("jyc_dataAt", String(Date.now()));  // mark local as freshly changed
   schedulePush();
 }
-function saveConversations() {
+// Cloning every conversation is heavy on long chats. Coalesce saves and run the clone
+// after the next paint so taps (发送 / 重新生成) get instant visual feedback.
+let convSavePending = false, convSaveTimer = 0;
+function flushConversationSave() {
+  if (!convSavePending) return;
+  convSavePending = false; clearTimeout(convSaveTimer);
   conversations.forEach(pruneReplyVariantsForConversation);
-  localStorage.setItem("jyc_current", currentId);
   const snapshot = (typeof structuredClone === "function") ? structuredClone(conversations) : JSON.parse(JSON.stringify(conversations));
   queueConversationWrite(snapshot, currentId);
+}
+function saveConversations() {
+  localStorage.setItem("jyc_current", currentId);
   if (!applyingCloud) localStorage.setItem("jyc_dataAt", String(Date.now()));  // mark local as freshly changed
+  if (!convSavePending) {
+    convSavePending = true;
+    convSaveTimer = setTimeout(flushConversationSave, 150);
+  }
   schedulePush();
 }
+window.addEventListener("pagehide", flushConversationSave);
+document.addEventListener("visibilitychange", () => { if (document.hidden) flushConversationSave(); });
 
 // ---------- Cloud sync (Supabase) ----------
 let sbLib = null;
@@ -10741,7 +10754,7 @@ async function send() {
   messages.push({ id: uid(), role: "user", content: userContent, ts: Date.now() });
   pendingAttachments = []; renderAttachPreview();
   input.value = ""; autoResize();
-  renderMessages();
+  if (!appendLastMessageFast()) renderMessages();
   touchConversation();
   pinToBottom();
   markSeen();
@@ -11501,8 +11514,9 @@ function onAppActive() {
 }
 
 // Generate an assistant reply for the current messages (which must end with a user turn).
+let replyBooting = false;
 async function generateReply() {
-  if (abortController) return;
+  if (abortController || replyBooting) return;
   clearError();
   markSeen();
   const assistantMsg = {
@@ -11516,6 +11530,10 @@ async function generateReply() {
   bubble.innerHTML = TYPING_HTML;
   pinToBottom();               // follow iOS keyboard/composer reflow as the reply starts
   setSending(true);
+  // Let the typing bubble and stop button paint before prompt building blocks the thread.
+  replyBooting = true;
+  try { await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); }
+  finally { replyBooting = false; }
   let paintFrame = null;
   const paint = () => {
     if (paintFrame !== null) return;
@@ -11774,8 +11792,36 @@ function switchReplyVariant(direction) {
 
 // Re-answer the last user turn without destroying the previous answer. Every
 // successful result becomes a left/right-switchable candidate for this turn.
+// Fast DOM paths for 发送 / 重新生成: touch only the changed rows instead of
+// rebuilding the whole (possibly very long) chat before the reply starts.
+function appendLastMessageFast() {
+  try {
+    const box = $("messages"), i = messages.length - 1;
+    if (i < 1 || !box.querySelector(`:scope > [data-idx="${i - 1}"]`)) return false;
+    box.querySelectorAll('.msg-act[aria-label="重新生成回复"]').forEach(b => b.remove());
+    const m = messages[i];
+    const el = makeMsgEl(m.role, m.content, { actions: true, isLast: true, ts: m.ts });
+    el.dataset.idx = i;
+    if (m.id) el.dataset.mid = m.id;
+    box.appendChild(el);
+    return true;
+  } catch (e) { console.warn("fast append failed", e); return false; }
+}
+function removeRenderedFrom(start) {
+  try {
+    const box = $("messages");
+    if (!box.querySelector(`:scope > [data-idx="${start - 1}"]`)) return false;
+    let past = false;
+    for (const el of Array.from(box.children)) {
+      if (el.dataset && el.dataset.idx === String(start - 1)) { past = true; continue; }
+      if (past) el.remove();
+    }
+    return true;
+  } catch (e) { console.warn("fast trim failed", e); return false; }
+}
+
 async function regenerate() {
-  if (abortController) return;
+  if (abortController || replyBooting) return;
   const turn = latestReplyTurn();
   if (!turn) { showToast("没有可重新生成的内容"); return; }
   if (!settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
@@ -11784,7 +11830,8 @@ async function regenerate() {
   const previousIndex = state.active;
   invalidateDerivedForRemovedMessages(turn.tail, "reply-variant-switch");
   messages.splice(turn.userIndex + 1);
-  saveConversations(); renderMessages();
+  saveConversations();
+  if (!removeRenderedFrom(turn.userIndex + 1)) renderMessages();
   await generateReply();
   const generated = latestReplyTurn();
   if (!generated || !generated.tail.some(m => m?.role === "assistant")) {
