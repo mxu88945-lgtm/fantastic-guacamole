@@ -9,6 +9,28 @@
 <meta name="apple-mobile-web-app-title" content="Role Chat" />
 <meta name="theme-color" content="#f8f8f6" />
 <script>
+  /* Visible error banner (2026-10-11): on the iPhone home-screen app there is no console, so a
+     startup or tap error that leaves the UI dead must show itself for a screenshot. */
+  (function () {
+    var shown = 0;
+    function show(msg) {
+      if (shown >= 3) return; shown++;
+      var put = function () {
+        var b = document.createElement("div");
+        b.className = "jyc-error-banner";
+        b.style.cssText = "position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:99999;padding:10px 12px;border-radius:12px;background:rgba(140,20,30,.92);color:#fff;font:12px/1.45 -apple-system,sans-serif;white-space:pre-wrap;word-break:break-all;";
+        b.textContent = "出错了（截图发给顾屿）：\n" + String(msg).slice(0, 400);
+        b.onclick = function () { b.remove(); };
+        document.body.appendChild(b);
+      };
+      if (document.body) put(); else document.addEventListener("DOMContentLoaded", put);
+    }
+    window.addEventListener("error", function (e) {
+      if (!e || !e.message) return;
+      show(e.message + (e.filename ? "\n@" + String(e.filename).split("/").pop() + ":" + e.lineno + ":" + e.colno : ""));
+    });
+  })();
+
 /* Pre-paint theme priming: iOS standalone snapshots the status-bar color at
    launch, so restore the last-applied theme BEFORE the first paint. applyTheme
    persists both values whenever the user switches themes. */
