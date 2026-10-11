@@ -28,4 +28,5 @@ check(html.includes('if (h !== lastAppH)') && html.includes('if (kb !== lastKb)'
 check(html.includes('html[data-kb][data-theme-key="claude"] .main > .composer-wrap { padding-bottom: 8px; }'), 'composer keeps the home-indicator inset while the keyboard is open')
 check(html.includes('html[data-kb] #chat-bg { bottom: auto; height: var(--app-full-h, 100%); }'), 'wallpaper rescales while the keyboard is open')
 check(html.includes('.main > header::before {') && html.includes('backdrop-filter: blur(10px) saturate(1.1);'), 'progressive frosted top is missing')
+check(html.includes('html[data-kb] #editor-modal { bottom: auto; height: var(--app-h, 100%); }') && html.includes('el.closest(".settings-inner")'), 'settings sheet and big editor must shrink above the keyboard and reveal the focused field')
 console.log(`statusbar wallpaper regression: ${checks} checks passed`)

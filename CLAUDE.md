@@ -2,6 +2,12 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-10-11｜设置页/全屏编辑器键盘弹出时不再被挡（sw v193）
+
+- 问题：设置页（`.settings`）和全屏编辑器（`#editor-modal`）是 `position:fixed; inset:0`，iOS 主屏 PWA 键盘弹出后仍是整屏高，预绘制脚本又会撤销 iOS 自己的页面上推，所以靠下的输入框（如新加的全局预设）被键盘盖住，看起来"弹不出来"。
+- 修复：`html[data-kb]` 时这两个层 `bottom:auto; height: var(--app-h)`，编辑器盒子填满可见区；设置页内输入框 focus 后 320/650ms 自动 `scrollIntoView` 居中。新增预设后不再自动选中名称（避免没点就弹键盘）。
+- 回归：`statusbar-wallpaper-regression.mjs` 新增检查。
+
 ## 2026-10-11｜全局预设：添加按钮一次点击生效、内容框全宽 + 全屏编辑（sw v192）
 
 - 问题：iPhone 主屏 PWA 里「＋ 添加」点了没反应；预设内容框只有半宽小窗口，没有全屏编辑键。

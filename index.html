@@ -2028,6 +2028,13 @@
   html[data-kb] .main > .composer-wrap,
   html[data-kb][data-theme-key="claude"] .main > .composer-wrap { padding-bottom: 8px; }
   html[data-kb] #chat-bg { bottom: auto; height: var(--app-full-h, 100%); }
+  /* Keyboard open: full-screen sheets (settings, big editor) are position:fixed inset:0, which on
+     iOS stays screen-tall under the keyboard, and the pre-paint script undoes iOS's own pan, so a
+     focused field low on the page ends up hidden. Shrink them to the visible area too. */
+  html[data-kb] .settings,
+  html[data-kb] #editor-modal { bottom: auto; height: var(--app-h, 100%); }
+  html[data-kb] #editor-modal { place-items: start center; padding-top: calc(env(safe-area-inset-top) + 8px); padding-bottom: 8px; }
+  html[data-kb] .editor-box { height: 100%; max-height: none; }
   html[data-theme-key="claude"] .composer {
     max-width: 720px; gap: 7px; padding: 12px 14px 11px;
     border: 1px solid #deddd8; border-radius: 28px;
@@ -13036,7 +13043,6 @@ function addGlobalPromptPreset() {
   const cards = $("global-prompt-presets")?.children;
   const last = cards?.[cards.length - 1];
   last?.scrollIntoView({ block: "center", behavior: "smooth" });
-  last?.querySelector('input[type="text"]')?.select?.();
 }
 function updateSystemPromptUI() {
   const input = $("systemPrompt");
@@ -14060,6 +14066,23 @@ if ("serviceWorker" in navigator) {
 <script type="module" src="./src/music.js"></script>
 <script type="module" src="./src/game-room.js"></script>
 <script type="module" src="./src/dashboard.js"></script>
+<script>
+/* iOS standalone: keep a focused settings field visible once the keyboard has shrunk the sheet
+   (the pre-paint script cancels iOS's own page pan, so nothing else scrolls it into view). */
+(function () {
+  if (!navigator.standalone) return;
+  let timer = 0;
+  document.addEventListener("focusin", (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement)) return;
+    if (!el.closest || !el.closest(".settings-inner")) return;
+    clearTimeout(timer);
+    const reveal = () => { if (document.activeElement === el) el.scrollIntoView({ block: "center", behavior: "smooth" }); };
+    timer = setTimeout(reveal, 320);
+    setTimeout(reveal, 650);
+  }, true);
+})();
+</script>
 <script>
 /* iOS PWA "needs two taps" fix for send / regenerate / message actions:
    fire on a clean touch tap (pointerup) and swallow the late native click. */
