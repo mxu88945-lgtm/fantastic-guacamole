@@ -26,8 +26,11 @@ if (readStoredJson("valid")?.name !== "顾祁砚") throw new Error("valid stored
 if (readStoredJson("broken") !== null) throw new Error("invalid stored JSON did not fail closed");
 if (warnings.length !== 1) throw new Error("invalid stored JSON was not reported once");
 
-if (!html.includes('const s = readStoredJson("jyc_settings");')) {
+if (!html.includes('let s = readStoredJson("jyc_settings");')) {
   throw new Error("settings still bypass the safe storage reader");
+}
+if (!html.includes('writeSettingsLocal(json)') || !html.includes('compactUsageLog();') || !html.includes('dbPut("settingsOverflow"')) {
+  throw new Error("settings writes must survive a full localStorage (QuotaExceededError aborted startup)");
 }
 if (!html.includes('const cs = readStoredJson("jyc_conversations");')) {
   throw new Error("legacy conversations still bypass the safe storage reader");

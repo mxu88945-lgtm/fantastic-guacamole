@@ -2,6 +2,12 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-10-11｜localStorage 满导致启动中断修复（sw v195）
+
+- 根因（红色报错条截到）：`QuotaExceededError` 发生在 `saveSettings()` 的 `localStorage.setItem("jyc_settings")`。用量日志 `jyc_usage` 保留 1000 条、每条带完整 promptAudit，把 iOS 约 5 MB 的 localStorage 撑满；设置写不进去时异常未捕获，启动流程中断：停在空白新对话页、左上菜单等按钮没有绑定。
+- 修复：`compactUsageLog()` 启动时压缩用量日志（保留 300 条，只有最近 30 条留完整 promptAudit，其余只留预估数字）；`logUsage` 上限 1000→300。`saveSettings()` 不再抛错：写失败先压缩日志重试，再清空用量日志重试，仍失败则整份设置存进 IndexedDB `settingsOverflow` 并在 localStorage 记 `jyc_settings_overflow_at`，`loadState()` 优先读回。IndexedDB 已有对话时顺手删掉遗留的 `jyc_conversations`。
+- 回归：`persistence-regression.mjs` 新增检查；无头 Chromium 用 5 MB 用量日志复现并验证启动正常、日志压到约 145 KB。
+
 ## 2026-10-11｜可见的错误提示条（sw v194）
 
 - 她反馈回到聊天停在空白新对话页、左上角菜单点不开；无头浏览器复现不了。iPhone 主屏 App 没有控制台，所以在最早的 `<script>` 里加 window error 监听，出错时在底部显示红色提示条（最多 3 条，点一下关闭），方便截图定位。

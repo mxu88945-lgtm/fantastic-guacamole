@@ -4380,7 +4380,14 @@ function readStoredJson(key) {
   }
 }
 async function loadState() {
-  const s = readStoredJson("jyc_settings");
+  compactUsageLog();
+  let s = readStoredJson("jyc_settings");
+  if (readStoredText("jyc_settings_overflow_at")) {
+    try {
+      const o = await dbGet("settingsOverflow");
+      if (o && o.json) s = JSON.parse(o.json);
+    } catch (e) { console.warn("settings overflow load failed", e); }
+  }
   if (s) settings = { ...settings, ...s };
   // migrate old dark/light flag to the named-theme system
   if (s && !s.themeName) settings.themeName = (s.theme === "light") ? "white" : "gold";
@@ -4405,6 +4412,8 @@ async function loadState() {
   try { stored = await dbGet("conversations"); } catch (e) { console.warn("IndexedDB load failed", e); }
   if (Array.isArray(stored)) {
     conversations = stored;
+    // IndexedDB copy is canonical; a leftover legacy copy only eats the 5 MB localStorage.
+    try { localStorage.removeItem("jyc_conversations"); } catch (_) {}
     try { currentId = (await dbGet("currentId")) || legacyCurrent; } catch (_) { currentId = legacyCurrent; }
   } else {
     const cs = readStoredJson("jyc_conversations");
@@ -4702,10 +4711,51 @@ function mirrorActiveToFlat() {
   settings.provider = p.provider; settings.baseUrl = p.baseUrl;
   settings.apiKey = p.apiKey; settings.model = p.model; settings.modelList = p.modelList;
 }
+// localStorage is ~5 MB on iOS. The usage log (with a prompt audit per call) used to grow until
+// jyc_settings could no longer be written, and the uncaught QuotaExceededError aborted startup
+// (dead sidebar, stuck on the empty chat). Trim the log and never let a settings write throw.
+function compactUsageLog(keep = 300, auditKeep = 30) {
+  try {
+    const raw = localStorage.getItem("jyc_usage");
+    if (!raw) return 0;
+    let arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) { localStorage.removeItem("jyc_usage"); return raw.length; }
+    if (arr.length > keep) arr = arr.slice(arr.length - keep);
+    const cut = arr.length - auditKeep;
+    arr.forEach((e, i) => { if (i < cut && e && e.promptAudit) {
+      const a = e.promptAudit;
+      e.promptAudit = a && a.estimatedTotal ? { estimatedTotal: a.estimatedTotal, system: a.system, history: a.history, omittedMessages: a.omittedMessages } : null;
+    } });
+    const next = JSON.stringify(arr);
+    localStorage.setItem("jyc_usage", next);
+    return raw.length - next.length;
+  } catch (_) { return 0; }
+}
+let settingsQuotaWarned = false;
+function writeSettingsLocal(json) {
+  try { localStorage.setItem("jyc_settings", json); return true; }
+  catch (err) {
+    compactUsageLog(120, 10);
+    try { localStorage.setItem("jyc_settings", json); return true; }
+    catch (_) {
+      try { localStorage.removeItem("jyc_usage"); localStorage.setItem("jyc_settings", json); return true; }
+      catch (_) { return false; }
+    }
+  }
+}
 function saveSettings() {
   mirrorActiveRole();
-  localStorage.setItem("jyc_settings", JSON.stringify(settings));
-  if (!applyingCloud) localStorage.setItem("jyc_dataAt", String(Date.now()));  // mark local as freshly changed
+  const json = JSON.stringify(settings);
+  const now = Date.now();
+  if (writeSettingsLocal(json)) {
+    try { localStorage.removeItem("jyc_settings_overflow_at"); } catch (_) {}
+  } else {
+    // Still too big for localStorage: keep the full copy in IndexedDB so nothing is lost.
+    try { localStorage.setItem("jyc_settings_overflow_at", String(now)); } catch (_) {}
+    dbPut("settingsOverflow", { at: now, json }).catch(e => console.warn("settings overflow save failed", e));
+    if (!settingsQuotaWarned) { settingsQuotaWarned = true; try { showToast("本机小存储已满，设置已改存到大容量存储", 3200); } catch (_) {} }
+  }
+  if (!applyingCloud) { try { localStorage.setItem("jyc_dataAt", String(now)); } catch (_) {} }  // mark local as freshly changed
   schedulePush();
 }
 // Cloning every conversation is heavy on long chats. Coalesce saves and run the clone
@@ -8792,9 +8842,10 @@ function logUsage(entry) {
   try {
     const arr = JSON.parse(localStorage.getItem("jyc_usage") || "[]");
     arr.push(entry);
-    if (arr.length > 1000) arr.splice(0, arr.length - 1000);   // keep last 1000
+    if (arr.length > 300) arr.splice(0, arr.length - 300);   // keep last 300 (localStorage is ~5 MB on iOS)
     localStorage.setItem("jyc_usage", JSON.stringify(arr));
-  } catch (_) {}
+    if (arr.length % 25 === 0) compactUsageLog();
+  } catch (_) { compactUsageLog(120, 10); }
 }
 function fmtTok(n) { n = n || 0; return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "K" : String(n); }
 function fmtCost(c) { return typeof c !== "number" ? "—" : "$" + (c < 0.01 ? c.toFixed(4) : c.toFixed(3)); }
