@@ -3011,7 +3011,7 @@
               <input id="chatBgDim" type="range" min="0" max="85" step="5" value="35" style="width:100%;" />
             </div>
           </div>
-          <span class="hint">背景图存在本地（不上云）。调高「雾化/蒙版」能让文字更清楚。</span>
+          <span class="hint">每套主题有自己的背景图和雾化/蒙版，切换主题会一起换过去。背景图存在本地（不上云）。</span>
         </div>
         <div class="field" id="pet-settings-card" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <div class="pet-settings-head">
@@ -4286,7 +4286,10 @@ function buildGlobalPromptPresetText() {
 const DB_NAME = "jyc_role_chat";
 const DB_VERSION = 1;
 const DB_STORE = "app";
-const CHAT_BG_DB_KEY = "chatBackgroundV1";
+const CHAT_BG_DB_KEY = "chatBackgroundV1"; // legacy single wallpaper (before per-theme wallpapers)
+// Each theme owns its own wallpaper (+ blur/dim), so switching themes switches the whole look.
+const chatBgKeyFor = theme => CHAT_BG_DB_KEY + ":theme:" + (theme || "claude");
+let chatBgTheme = "";
 let appDb = null;
 let dbWriteQueue = Promise.resolve();
 let chatBgWriteQueue = Promise.resolve();
@@ -12174,7 +12177,9 @@ function applyTheme() {
   }
   applyAccent();
   applySystemTextColor();
-  applyChatBg();
+  // A theme switch (here or from cloud sync) brings that theme's own wallpaper.
+  if (chatBgTheme && chatBgTheme !== (settings.themeName || "claude")) loadThemeBackground();
+  else applyChatBg();
   applyBubbleStyle();
   applyFont();
   updateSilentUI();
@@ -12467,6 +12472,34 @@ async function dataUrlToBlob(dataUrl) {
   if (!response.ok) throw new Error("旧背景迁移失败");
   return response.blob();
 }
+function themeBgPrefs(theme) {
+  const all = settings.chatBgThemes && typeof settings.chatBgThemes === "object" ? settings.chatBgThemes : {};
+  const p = all[theme] || {};
+  return { blur: Number.isFinite(p.blur) ? p.blur : 6, dim: Number.isFinite(p.dim) ? p.dim : 35 };
+}
+function saveThemeBgPrefs() {
+  const theme = settings.themeName || "claude";
+  settings.chatBgThemes = { ...(settings.chatBgThemes || {}), [theme]: { blur: settings.chatBgBlur ?? 6, dim: settings.chatBgDim ?? 35 } };
+}
+function syncBgSliders() {
+  if (!$("chatBgBlur")) return;
+  $("chatBgBlur").value = settings.chatBgBlur; $("bgBlurVal").textContent = settings.chatBgBlur;
+  $("chatBgDim").value = settings.chatBgDim; $("bgDimVal").textContent = settings.chatBgDim;
+}
+// Loads the current theme's wallpaper; called at startup and whenever the theme changes.
+async function loadThemeBackground() {
+  const theme = settings.themeName || "claude";
+  chatBgTheme = theme;
+  const revision = ++chatBgLoadRevision;
+  const prefs = themeBgPrefs(theme);
+  settings.chatBgBlur = prefs.blur; settings.chatBgDim = prefs.dim;
+  syncBgSliders();
+  let blob = null;
+  try { blob = await dbGet(chatBgKeyFor(theme)); } catch (error) { console.warn("Theme background load failed", error); }
+  if (revision !== chatBgLoadRevision) return;
+  replaceChatBgObjectUrl(blob instanceof Blob ? blob : null);
+  applyChatBg();
+}
 async function restoreChatBackground() {
   try {
     let blob = await dbGet(CHAT_BG_DB_KEY);
@@ -12474,13 +12507,17 @@ async function restoreChatBackground() {
       blob = await dataUrlToBlob(settings.chatBg);
       await dbPut(CHAT_BG_DB_KEY, blob);
     }
-    if (blob instanceof Blob) {
-      replaceChatBgObjectUrl(blob);
-      if (settings.chatBg) {
-        settings.chatBg = "";
-        saveSettings();
-      }
+    if (settings.chatBg) { settings.chatBg = ""; saveSettings(); }
+    // One-time move to per-theme wallpapers: the theme in use keeps the wallpaper she has now.
+    if (!settings.chatBgThemedV1) {
+      const theme = settings.themeName || "claude";
+      if (blob instanceof Blob && !(await dbGet(chatBgKeyFor(theme)))) await dbPut(chatBgKeyFor(theme), blob);
+      settings.chatBgThemes = { ...(settings.chatBgThemes || {}), [theme]: { blur: settings.chatBgBlur ?? 6, dim: settings.chatBgDim ?? 35 } };
+      settings.chatBgThemedV1 = true;
+      saveSettings();
+      if (blob instanceof Blob) { try { await dbDelete(CHAT_BG_DB_KEY); } catch (_) {} }
     }
+    await loadThemeBackground();
   } catch (error) {
     // Keep the legacy data URL usable if IndexedDB is unavailable; replacing it
     // later will retry the migration without losing the currently visible image.
@@ -12493,6 +12530,7 @@ async function setChatBgFile(file) {
     return;
   }
   const revision = ++chatBgLoadRevision;
+  const theme = settings.themeName || "claude";
   showToast("正在处理背景…");
   try {
     const img = await readImageFile(file);
@@ -12511,7 +12549,7 @@ async function setChatBgFile(file) {
     if (revision !== chatBgLoadRevision) return;
     const committed = await (chatBgWriteQueue = chatBgWriteQueue.catch(() => {}).then(async () => {
       if (revision !== chatBgLoadRevision) return false;
-      await dbPut(CHAT_BG_DB_KEY, blob);
+      await dbPut(chatBgKeyFor(theme), blob);
       return revision === chatBgLoadRevision;
     }));
     if (!committed) return;
@@ -12520,7 +12558,7 @@ async function setChatBgFile(file) {
     saveSettings();
     applyChatBg();
     refreshStorageStatus();
-    showToast("🖼️ 背景已更换");
+    showToast("🖼️ 这套主题的背景已更换");
   } catch (error) {
     if (revision !== chatBgLoadRevision) return;
     console.warn("Background replacement failed", error);
@@ -12529,14 +12567,14 @@ async function setChatBgFile(file) {
 }
 async function clearChatBackground() {
   ++chatBgLoadRevision;
-  try { await dbDelete(CHAT_BG_DB_KEY); }
+  try { await dbDelete(chatBgKeyFor(settings.themeName || "claude")); }
   catch (error) { console.warn("Background delete deferred", error); }
   replaceChatBgObjectUrl(null);
   settings.chatBg = "";
   saveSettings();
   applyChatBg();
   refreshStorageStatus();
-  showToast("已清除背景");
+  showToast("已清除这套主题的背景");
 }
 function applyAccent() {
   document.documentElement.style.setProperty("--accent", settings.accent || currentTheme().vars.accent);
@@ -13768,12 +13806,12 @@ async function init() {
   $("chatBgBlur").addEventListener("input", () => {
     settings.chatBgBlur = parseInt($("chatBgBlur").value);
     $("bgBlurVal").textContent = settings.chatBgBlur;
-    saveSettings(); applyChatBg();
+    saveThemeBgPrefs(); saveSettings(); applyChatBg();
   });
   $("chatBgDim").addEventListener("input", () => {
     settings.chatBgDim = parseInt($("chatBgDim").value);
     $("bgDimVal").textContent = settings.chatBgDim;
-    saveSettings(); applyChatBg();
+    saveThemeBgPrefs(); saveSettings(); applyChatBg();
   });
 
   // Chat layout + bubble opacity

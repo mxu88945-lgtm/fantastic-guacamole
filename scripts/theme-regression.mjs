@@ -177,6 +177,15 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v196";'), 'service worker cache was not bumped for the lilac frosted theme')
+ok(sw.includes('const CACHE = "role-chat-cache-v197";'), 'service worker cache was not bumped for the lilac frosted theme')
 
 console.log(`theme regression: ${checks} checks passed`)
+
+// Per-theme wallpapers (sw v197)
+{
+  const fs = await import('node:fs');
+  const h = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const must = ['const chatBgKeyFor = theme =>', 'async function loadThemeBackground()', 'settings.chatBgThemedV1', 'await dbPut(chatBgKeyFor(theme), blob);', 'dbDelete(chatBgKeyFor(settings.themeName', 'saveThemeBgPrefs(); saveSettings(); applyChatBg();', 'chatBgTheme !== (settings.themeName || "claude")) loadThemeBackground()'];
+  for (const m of must) if (!h.includes(m)) { console.error('per-theme wallpaper missing:', m); process.exit(1); }
+  console.log('✓ per-theme wallpapers wired');
+}

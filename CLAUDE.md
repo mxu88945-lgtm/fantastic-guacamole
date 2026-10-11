@@ -2,6 +2,13 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-10-11｜壁纸跟随主题（sw v197）
+
+- 她希望每套主题是一套独立的外观：切主题时壁纸也跟着换，不用每次重设。
+- 壁纸 Blob 存 IndexedDB `chatBackgroundV1:theme:<themeName>`，雾化/蒙版存 `settings.chatBgThemes[theme]`，`settings.chatBgBlur/Dim` 只是当前主题的镜像。`applyTheme()` 发现主题变了（含云同步）就调用 `loadThemeBackground()`。
+- 一次性迁移（`chatBgThemedV1`）：旧的单张壁纸 `chatBackgroundV1` 归当前主题，然后删除旧键；其他主题起初无壁纸。
+- 回归：`theme-regression.mjs` 新增检查；无头测试验证迁移、切换、回切、重载。
+
 ## 2026-10-11｜localStorage 满导致启动中断修复（sw v195）
 
 - 根因（红色报错条截到）：`QuotaExceededError` 发生在 `saveSettings()` 的 `localStorage.setItem("jyc_settings")`。用量日志 `jyc_usage` 保留 1000 条、每条带完整 promptAudit，把 iOS 约 5 MB 的 localStorage 撑满；设置写不进去时异常未捕获，启动流程中断：停在空白新对话页、左上菜单等按钮没有绑定。
