@@ -2,6 +2,14 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-10-11｜手机发送后自动收起键盘（sw v189）
+
+- 原因：iPhone 上发完消息键盘不收，要再点键盘上的 ✓ 才能看到完整聊天。
+- 修复：`send()` 在消息成功入列、清空输入框后调用 `dismissComposerKeyboard(input)`：仅在触屏设备（`navigator.standalone` 或 `(pointer: coarse)`）且输入框正聚焦时 `blur()`；桌面端保持焦点不变。发送键的 pointerup 快速点按（ebf9edd）不阻止焦点，blur 在 `el.click()` → `send()` 内同步执行，之后被吞掉的原生 click 不会重新聚焦。
+- 收起后在 120/360/700ms 调用预绘制脚本暴露的 `window.__jycSyncAppH` 再量一次，防止 iOS 漏发最后一次 visualViewport resize 导致 `data-kb` 残留、`--app-h` 不恢复全屏高度（b2a1c60）。
+- 重新生成、编辑重发、回退仍按原样聚焦输入框，不收键盘。回车发送本来就只在宽屏（>720px）启用；iPad 等宽屏触屏设备回车发送也会收起键盘。
+- 回归：`send-scroll-regression.mjs` 新增键盘收起检查。
+
 ## 2026-10-11｜iOS 主屏 PWA 键盘弹出时输入框贴住键盘（sw v188）
 
 - 原因：standalone 模式把 html/body/.app 的高度用 `--app-h` 钉在物理屏幕高度（962fd3f、8350fcd），键盘弹出时整页不缩，输入框（模型胶囊、麦克风、停止键）被压在键盘和上方工具条底下。

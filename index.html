@@ -60,6 +60,9 @@
         appHFrame = requestAnimationFrame(function () { appHFrame = 0; measureAppH(); });
       };
       measureAppH();
+      /* Exposed so send() can re-measure after it blurs the composer: iOS sometimes
+         skips the last visualViewport resize when the keyboard closes. */
+      window.__jycSyncAppH = setAppH;
       window.addEventListener("orientationchange", function () { setTimeout(setAppH, 150); });
       window.addEventListener("resize", setAppH);
       if (window.visualViewport) {
@@ -10769,6 +10772,19 @@ function showToast(msg, ms) {
   toastTimer = setTimeout(() => t.classList.remove("show"), ms || 2600);
 }
 
+// Touch devices (iPhone PWA): hide the keyboard after a successful composer send so
+// she doesn't have to tap the keyboard's Done key. Desktop keeps focus in the box.
+// Only send() calls this — regenerate / edit-resend / rewind keep their own focus.
+const isTouchComposer = () =>
+  navigator.standalone === true || !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+function dismissComposerKeyboard(input) {
+  if (!input || !isTouchComposer() || document.activeElement !== input) return;
+  input.blur();
+  // Once the keyboard is gone, make sure data-kb is dropped and --app-h is back to full height.
+  const sync = window.__jycSyncAppH;
+  if (typeof sync === "function") [120, 360, 700].forEach(ms => setTimeout(sync, ms));
+}
+
 async function send() {
   if (abortController) return;
   const input = $("input");
@@ -10816,6 +10832,7 @@ async function send() {
   messages.push({ id: uid(), role: "user", content: userContent, ts: Date.now() });
   pendingAttachments = []; renderAttachPreview();
   input.value = ""; autoResize();
+  dismissComposerKeyboard(input);
   if (!appendLastMessageFast()) renderMessages();
   touchConversation();
   pinToBottom();

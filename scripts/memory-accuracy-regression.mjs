@@ -186,6 +186,6 @@ entries[1].status = 'active'
 const superseded = invalidationContext.invalidationHelpers.supersedeMemoryEntries(['m2'], 'm3')
 ok(superseded === 1 && entries[1].supersededBy === 'm3', 'old fact version was not archived')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v188";'), 'service worker cache was not bumped to v166')
+ok(sw.includes('const CACHE = "role-chat-cache-v189";'), 'service worker cache was not bumped to v166')
 
 console.log(`memory accuracy regression: ${checks} checks passed`)
