@@ -3292,10 +3292,10 @@
         </div>
 
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
-          <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <span style="font-weight:600;">全局预设 <span class="hint" style="font-weight:400;">· 所有角色共用</span></span>
             <button class="mini-btn" id="global-prompt-add" type="button">＋ 添加</button>
-          </label>
+          </div>
           <span class="hint" style="display:block;margin-top:5px;">启用的条目会和当前角色人设一起发送给模型；顺序就是注入顺序。关闭后内容会保留，但不会发送。</span>
           <div id="global-prompt-summary" class="hint" style="margin-top:8px;"></div>
           <div id="global-prompt-presets" style="display:grid;gap:9px;margin-top:10px;"></div>
@@ -13011,11 +13011,19 @@ function renderGlobalPromptPresets() {
       settings.globalPromptPresets = presets.filter(item => item.id !== preset.id);
       saveSettings(); renderGlobalPromptPresets(); renderSettingsHome();
     };
-    top.append(reorder, name, toggle, del);
     const content = document.createElement("textarea");
+    content.id = `global-preset-content-${preset.id}`;
     content.value = preset.content; content.placeholder = "填写要发送给模型的全局指令…"; content.spellcheck = false;
-    content.style.cssText = "margin-top:8px;min-height:94px;font-size:13px;line-height:1.55;";
+    content.style.cssText = "display:block;width:100%;box-sizing:border-box;margin-top:8px;min-height:120px;font-size:13px;line-height:1.55;";
     content.oninput = () => { preset.content = content.value; queueGlobalPromptPresetSave(); };
+    // the full-screen editor writes back and dispatches "change"
+    content.onchange = () => { preset.content = content.value; queueGlobalPromptPresetSave(); };
+    const expand = document.createElement("button");
+    expand.className = "mini-btn global-preset-expand"; expand.type = "button"; expand.title = "全屏编辑";
+    expand.style.cssText = "padding:5px 8px;line-height:0;flex:0 0 auto;";
+    expand.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+    expand.onclick = () => openBigEditor(content.id, preset.name || "全局预设");
+    top.append(reorder, name, toggle, expand, del);
     card.append(top, content);
     list.appendChild(card);
   });
@@ -13025,8 +13033,10 @@ function addGlobalPromptPreset() {
   presets.push({ id: uid(), name: "新预设", enabled: true, content: "" });
   settings.globalPromptPresets = presets;
   saveSettings(); renderGlobalPromptPresets(); renderSettingsHome();
-  const inputs = $("global-prompt-presets")?.querySelectorAll('input[type="text"]');
-  inputs?.[inputs.length - 1]?.focus();
+  const cards = $("global-prompt-presets")?.children;
+  const last = cards?.[cards.length - 1];
+  last?.scrollIntoView({ block: "center", behavior: "smooth" });
+  last?.querySelector('input[type="text"]')?.select?.();
 }
 function updateSystemPromptUI() {
   const input = $("systemPrompt");
@@ -14054,7 +14064,7 @@ if ("serviceWorker" in navigator) {
 /* iOS PWA "needs two taps" fix for send / regenerate / message actions:
    fire on a clean touch tap (pointerup) and swallow the late native click. */
 (function () {
-  const SEL = "#send-btn, .msg-act";
+  const SEL = "#send-btn, .msg-act, #global-prompt-add";
   let start = null, suppressEl = null, suppressUntil = 0, synth = false;
   const hit = (e) => e.target && e.target.closest ? e.target.closest(SEL) : null;
   document.addEventListener("pointerdown", (e) => {

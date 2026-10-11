@@ -2,6 +2,17 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-10-11｜全局预设：添加按钮一次点击生效、内容框全宽 + 全屏编辑（sw v192）
+
+- 问题：iPhone 主屏 PWA 里「＋ 添加」点了没反应；预设内容框只有半宽小窗口，没有全屏编辑键。
+- 修复：添加按钮移出 `<label>`，并加入 iOS 一次点击修复（pointerup 触发 + 吞掉迟到的原生 click，SEL 加 `#global-prompt-add`）；新增后把新卡片滚到可见处并选中名称，不再强行 focus 弹键盘。
+- 预设内容 textarea 改为 `display:block;width:100%`，min-height 120px；每条预设加全屏编辑键（复用 `openBigEditor`，textarea id `global-preset-content-<id>`，写回时 change 事件保存）。
+- 回归：`settings-regression.mjs` 新增两项检查。
+
+## 2026-10-11｜顶部磨砂改薄（sw v191）
+
+- 她觉得顶部太厚：`.main > header::before` 高度 64px→40px+安全区，浅色渐变 90/78/38%→86/66/22%，blur 18→10px；深色 blur 14→8px。
+
 ## 2026-10-11｜键盘弹出时聊天停在最底部（sw v190）
 
 - 原因：iPhone 主屏 PWA 点输入框弹出键盘时，预绘制脚本（b2a1c60）给 html 加 `data-kb`、把 `--app-h` 缩到可见区高度，`#chat` 变矮但 `scrollTop` 不变，最新消息被输入框/键盘挡住，要手动往下划。容器变矮本身不触发 scroll 事件，原有的 `stickBottom` / `pinToBottom()` 都只在发送和流式输出时介入。

@@ -46,6 +46,10 @@ ok(html.includes('id="global-prompt-presets"') && html.includes('id="global-prom
   "global prompt preset editor is missing from system prompt settings");
 ok(html.includes('function renderGlobalPromptPresets()') && html.includes('function addGlobalPromptPreset()'),
   "global prompt presets cannot be rendered or added");
+ok(html.includes('expand.onclick = () => openBigEditor(content.id, preset.name || "全局预设");') && html.includes('display:block;width:100%;box-sizing:border-box;margin-top:8px;min-height:120px;'),
+  'global presets need a full-width editor and a full-screen expand button')
+ok(html.includes('#global-prompt-add";') && !html.includes('<button class="mini-btn" id="global-prompt-add" type="button">＋ 添加</button>\n          </label>'),
+  'global preset add button must fire on one iOS tap and not sit inside a label')
 ok(html.includes('"globalPromptPresets"') && html.includes('buildGlobalPromptPresetText()'),
   "global prompt presets are not persisted and injected into model requests");
 ok(html.includes('【全局预设 · ${item.name.trim() || "未命名预设"}】'),
@@ -64,7 +68,7 @@ ok(html.includes('e.target.value = "";\n    await setChatBgFile(file);'),
 ok(html.includes('await restoreChatBackground();'), "legacy or IndexedDB background is not restored during startup");
 ok(html.includes('$("bg-clear").onclick = clearChatBackground;'), "background clear does not remove IndexedDB state");
 
-ok(sw.includes('const CACHE = "role-chat-cache-v191";'), "service worker cache was not bumped for reasoning effort controls");
+ok(sw.includes('const CACHE = "role-chat-cache-v192";'), "service worker cache was not bumped for reasoning effort controls");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "settings redesign introduced duplicate DOM ids");
