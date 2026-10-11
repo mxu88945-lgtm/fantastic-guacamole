@@ -2,6 +2,14 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-10-11｜键盘弹出时聊天停在最底部（sw v190）
+
+- 原因：iPhone 主屏 PWA 点输入框弹出键盘时，预绘制脚本（b2a1c60）给 html 加 `data-kb`、把 `--app-h` 缩到可见区高度，`#chat` 变矮但 `scrollTop` 不变，最新消息被输入框/键盘挡住，要手动往下划。容器变矮本身不触发 scroll 事件，原有的 `stickBottom` / `pinToBottom()` 都只在发送和流式输出时介入。
+- 修复：scroll 监听记录 `chatWasAtBottom`（距底部 < `CHAT_RESIZE_PIN_SLACK` = 120px）；`watchChatResizePin()` 用 `ResizeObserver` 盯 `#chat`，高度变化时若之前在底部就立即 `scrollToBottom()`，并在 120/360ms 再补两次，覆盖键盘动画期间的连续缩放；键盘收起、输入框多行增高同样适用。只改宽度（侧栏）不处理，首次 observe 不处理。
+- 往上翻看历史时（之前不在底部）不拉回；触摸聊天区（pointerdown）会让还没执行的补滚作废。没有 `ResizeObserver` 的环境退回监听预绘制脚本新派发的 `jyc-app-h` 事件（`--app-h` 变化时）和 window resize。
+- 流式自动跟随、60 条窗口 / 加载更早、上下滚动按钮、发送后收键盘（`dismissComposerKeyboard`）逻辑不变。
+- 回归：`send-scroll-regression.mjs` 新增键盘缩放保持底部检查。
+
 ## 2026-10-11｜手机发送后自动收起键盘（sw v189）
 
 - 原因：iPhone 上发完消息键盘不收，要再点键盘上的 ✓ 才能看到完整聊天。

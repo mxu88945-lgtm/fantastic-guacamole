@@ -38,7 +38,11 @@
       var applyAppH = function (h, full, kb) {
         if (kb !== lastKb) { if (kb) appRoot.setAttribute("data-kb", ""); else appRoot.removeAttribute("data-kb"); lastKb = kb; }
         if (full !== lastFullH) { appRoot.style.setProperty("--app-full-h", full + "px"); lastFullH = full; }
-        if (h !== lastAppH) { appRoot.style.setProperty("--app-h", h + "px"); lastAppH = h; }
+        if (h !== lastAppH) {
+          appRoot.style.setProperty("--app-h", h + "px"); lastAppH = h;
+          /* Lets the chat keep its bottom pin where ResizeObserver is missing. */
+          try { window.dispatchEvent(new Event("jyc-app-h")); } catch (e) {}
+        }
       };
       var measureAppH = function () {
         var portrait = window.matchMedia("(orientation: portrait)").matches;
@@ -6694,6 +6698,44 @@ function pinToBottom(duration = 800) {
       if (Date.now() <= bottomPinUntil + 40) scrollToBottom();
     }, delay);
   });
+}
+// iPhone PWA keyboard: the pre-paint visualViewport sync sets data-kb and shrinks
+// --app-h, so #chat gets shorter while scrollTop stays put and the newest message
+// slides under the composer/keyboard. Remember whether she was at the bottom before
+// the resize (the shrink itself fires no scroll event) and keep her there while the
+// height animates, on open and on close. Scrolled up reading history: leave it.
+const CHAT_RESIZE_PIN_SLACK = 120;
+let chatWasAtBottom = true, chatResizePinToken = 0, chatLastHeight = 0;
+function repinChatAfterResize() {
+  const c = $("chat");
+  if (!c) return;
+  const h = c.clientHeight;
+  if (h === chatLastHeight) return;     // width-only changes (sidebar etc.) don't matter
+  const first = chatLastHeight === 0;
+  chatLastHeight = h;
+  if (first) return;                    // initial observe: opening a chat scrolls itself
+  if (!chatWasAtBottom) {
+    chatWasAtBottom = c.scrollHeight - c.scrollTop - h < CHAT_RESIZE_PIN_SLACK;
+    updateScrollControls();
+    return;
+  }
+  const token = ++chatResizePinToken;
+  stickBottom = true;
+  scrollToBottom();
+  [120, 360].forEach(ms => setTimeout(() => {
+    if (token === chatResizePinToken && chatWasAtBottom) scrollToBottom();
+  }, ms));
+}
+function watchChatResizePin() {
+  const c = $("chat");
+  if (!c) return;
+  chatLastHeight = c.clientHeight;
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(() => repinChatAfterResize()).observe(c);
+  } else {
+    window.addEventListener("jyc-app-h", () => requestAnimationFrame(repinChatAfterResize));
+    window.addEventListener("resize", () => requestAnimationFrame(repinChatAfterResize));
+  }
 }
 // Robust jump-to-bottom for opening a conversation: content height keeps changing
 // as images/avatars load, so re-scroll a few times and whenever an image finishes.
@@ -13555,6 +13597,7 @@ async function init() {
   const wakeNav = () => wakeScrollControls();
   $("chat").addEventListener("pointerdown", () => {
     bottomPinUntil = 0;        // an intentional touch always wins over auto-follow
+    chatResizePinToken++;      // ...including a keyboard-resize re-pin still in flight
     wakeNav();
   }, { passive: true });
   $("chat").addEventListener("wheel", wakeNav, { passive: true });
@@ -13564,8 +13607,10 @@ async function init() {
     const c = $("chat");
     const fromBottom = c.scrollHeight - c.scrollTop - c.clientHeight;
     stickBottom = Date.now() < bottomPinUntil || fromBottom < 140;
+    chatWasAtBottom = fromBottom < CHAT_RESIZE_PIN_SLACK;
     updateScrollControls();
   }, { passive: true });
+  watchChatResizePin();
 
   // Message actions are explicit icon buttons. Suppress the old long-press menu,
   // while still allowing native selection inside code blocks and the reasoning panel.
