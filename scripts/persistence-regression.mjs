@@ -32,6 +32,7 @@ if (!html.includes('let s = readStoredJson("jyc_settings");')) {
 if (!html.includes('writeSettingsLocal(json)') || !html.includes('compactUsageLog();') || !html.includes('dbPut("settingsOverflow"')) {
   throw new Error("settings writes must survive a full localStorage (QuotaExceededError aborted startup)");
 }
+if (!html.includes('settings.stickersPurgedV1 = true')) throw new Error("one-time sticker purge missing");
 if (!html.includes('const cs = readStoredJson("jyc_conversations");')) {
   throw new Error("legacy conversations still bypass the safe storage reader");
 }

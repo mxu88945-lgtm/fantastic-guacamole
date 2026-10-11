@@ -4389,6 +4389,13 @@ async function loadState() {
     } catch (e) { console.warn("settings overflow load failed", e); }
   }
   if (s) settings = { ...settings, ...s };
+  // 2026-10-11: she no longer uses image stickers; their base64 PNGs filled the ~5 MB localStorage.
+  // One-time purge (stickers are local-only, not cloud-synced). New stickers can still be added later.
+  if (!settings.stickersPurgedV1) {
+    const had = Array.isArray(settings.stickers) && settings.stickers.length;
+    settings.stickers = []; settings.stickersPurgedV1 = true;
+    if (had) { try { writeSettingsLocal(JSON.stringify(settings)); } catch (_) {} }
+  }
   // migrate old dark/light flag to the named-theme system
   if (s && !s.themeName) settings.themeName = (s.theme === "light") ? "white" : "gold";
   // 主题精简：删掉的旧主题 → 迁移到相近的保留主题，避免白屏

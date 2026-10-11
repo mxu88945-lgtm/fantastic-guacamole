@@ -6,6 +6,7 @@
 
 - 根因（红色报错条截到）：`QuotaExceededError` 发生在 `saveSettings()` 的 `localStorage.setItem("jyc_settings")`。用量日志 `jyc_usage` 保留 1000 条、每条带完整 promptAudit，把 iOS 约 5 MB 的 localStorage 撑满；设置写不进去时异常未捕获，启动流程中断：停在空白新对话页、左上菜单等按钮没有绑定。
 - 修复：`compactUsageLog()` 启动时压缩用量日志（保留 300 条，只有最近 30 条留完整 promptAudit，其余只留预估数字）；`logUsage` 上限 1000→300。`saveSettings()` 不再抛错：写失败先压缩日志重试，再清空用量日志重试，仍失败则整份设置存进 IndexedDB `settingsOverflow` 并在 localStorage 记 `jyc_settings_overflow_at`，`loadState()` 优先读回。IndexedDB 已有对话时顺手删掉遗留的 `jyc_conversations`。
+- 表情包：她已不用，按她要求一次性清空 `settings.stickers`（标记 `stickersPurgedV1`，sw v196）；表情包不参与云同步，功能保留可再加。
 - 回归：`persistence-regression.mjs` 新增检查；无头 Chromium 用 5 MB 用量日志复现并验证启动正常、日志压到约 145 KB。
 
 ## 2026-10-11｜可见的错误提示条（sw v194）
