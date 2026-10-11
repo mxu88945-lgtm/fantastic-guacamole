@@ -30,14 +30,42 @@
        100% stops above the home indicator, 100vh overshoots it. Pin the shell to the
        physical screen height instead; browsers outside standalone keep 100%. */
     if (navigator.standalone) {
-      var setAppH = function () {
+      var appRoot = document.documentElement;
+      /* Write only when the value changes: every --app-h / data-kb write relayouts
+         the whole chat, and iOS fires visualViewport resize/scroll on every frame of
+         the keyboard animation. */
+      var lastAppH = null, lastFullH = null, lastKb = null;
+      var applyAppH = function (h, full, kb) {
+        if (kb !== lastKb) { if (kb) appRoot.setAttribute("data-kb", ""); else appRoot.removeAttribute("data-kb"); lastKb = kb; }
+        if (full !== lastFullH) { appRoot.style.setProperty("--app-full-h", full + "px"); lastFullH = full; }
+        if (h !== lastAppH) { appRoot.style.setProperty("--app-h", h + "px"); lastAppH = h; }
+      };
+      var measureAppH = function () {
         var portrait = window.matchMedia("(orientation: portrait)").matches;
         var h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-        document.documentElement.style.setProperty("--app-h", h + "px");
+        /* Keyboard open: the screen-height shell would sit under the keyboard and its
+           accessory bar. Shrink the app to the visible area so the composer rests right
+           on top of the keyboard, and undo iOS panning the whole page up. */
+        var vv = window.visualViewport;
+        if (vv && vv.height < h - 120) {
+          applyAppH(Math.round(vv.height), h, true);
+          if (window.scrollY || vv.offsetTop) window.scrollTo(0, 0);
+        } else {
+          applyAppH(h, h, false);
+        }
       };
-      setAppH();
+      var appHFrame = 0;
+      var setAppH = function () {
+        if (appHFrame) return;
+        appHFrame = requestAnimationFrame(function () { appHFrame = 0; measureAppH(); });
+      };
+      measureAppH();
       window.addEventListener("orientationchange", function () { setTimeout(setAppH, 150); });
       window.addEventListener("resize", setAppH);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", setAppH);
+        window.visualViewport.addEventListener("scroll", setAppH);
+      }
     }
     var wallTop = localStorage.getItem("jyc_statusbg");
     if (wallTop) {
@@ -1986,6 +2014,12 @@
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
     background: linear-gradient(to bottom, rgba(248,248,246,0), #f8f8f6 24%);
   }
+  /* iOS standalone keyboard open (pre-paint script sets data-kb and shrinks --app-h to
+     the visible area): the home-indicator inset is under the keyboard, so drop it from the
+     composer, and keep the wallpaper at full-screen size so it doesn't rescale. */
+  html[data-kb] .main > .composer-wrap,
+  html[data-kb][data-theme-key="claude"] .main > .composer-wrap { padding-bottom: 8px; }
+  html[data-kb] #chat-bg { bottom: auto; height: var(--app-full-h, 100%); }
   html[data-theme-key="claude"] .composer {
     max-width: 720px; gap: 7px; padding: 12px 14px 11px;
     border: 1px solid #deddd8; border-radius: 28px;

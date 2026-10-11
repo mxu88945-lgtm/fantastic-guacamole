@@ -2,6 +2,13 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-10-11｜iOS 主屏 PWA 键盘弹出时输入框贴住键盘（sw v188）
+
+- 原因：standalone 模式把 html/body/.app 的高度用 `--app-h` 钉在物理屏幕高度（962fd3f、8350fcd），键盘弹出时整页不缩，输入框（模型胶囊、麦克风、停止键）被压在键盘和上方工具条底下。
+- 修复（同惟境 899c381 / d6dcb89 的做法）：预绘制脚本监听 `visualViewport` 的 resize/scroll，每帧最多测量一次、值不变不写；`visualViewport.height` 明显小于屏幕高度时给 html 加 `data-kb`，把 `--app-h` 设为可见区高度，并把 iOS 推上去的页面滚回 0；键盘收起后恢复全屏高度。
+- `data-kb` 期间去掉输入区底部的 Home 条安全区留白；聊天壁纸 `#chat-bg` 保持全屏高度（`--app-full-h`），不随键盘缩放。浏览器（非 standalone）模式不受影响。
+- 回归：`statusbar-wallpaper-regression.mjs` 新增键盘处理检查。
+
 ## 2026-10-10｜刘海状态栏跟随壁纸取色（sw v187）
 
 - iOS 的 `default` 状态栏只能是纯色、不能透出图片，所以设置聊天壁纸后，会取壁纸（按 cover 裁切后）顶部约 6% 的平均色，叠加壁纸遮罩浓度后写进 `theme-color`，并存到 `jyc_statusbg`，下次冷启动的预绘制脚本直接用它。
