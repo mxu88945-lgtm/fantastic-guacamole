@@ -91,7 +91,7 @@ async function wxFetch() {
   const latitude = pos.coords.latitude, longitude = pos.coords.longitude;
   const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + latitude.toFixed(3)
     + '&longitude=' + longitude.toFixed(3)
-    + '&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1';
+    + '&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto&forecast_days=2';
   const resp = await fetch(url);
   if (!resp.ok) throw new Error('wx ' + resp.status);
   const data = await resp.json();
@@ -102,6 +102,13 @@ async function wxFetch() {
     low: Math.round(data.daily.temperature_2m_min[0]),
     at: Date.now()
   };
+  if (data.daily.temperature_2m_max.length > 1) {
+    next.tomorrow = {
+      high: Math.round(data.daily.temperature_2m_max[1]),
+      low: Math.round(data.daily.temperature_2m_min[1]),
+      code: data.daily.weather_code ? data.daily.weather_code[1] : 0
+    };
+  }
   try { localStorage.setItem(WX_CACHE_KEY, JSON.stringify(next)); } catch (_) {}
   return next;
 }
@@ -169,12 +176,28 @@ function wxElapsedNote() {
   return '距离你们上次说话已经过去了' + h + '小时' + (m ? m + '分钟' : '') + '。可以按你的人设自然反应（比如问她刚才去哪了、撒娇抱怨她不理你），不用每条都提。';
 }
 
+function wxTomorrowNote(w) {
+  if (!w || !w.tomorrow) return '';
+  const label = wxLabel(w.tomorrow.code);
+  let note = '明天天气：' + label[0] + '，' + w.tomorrow.low + '～' + w.tomorrow.high + '°C。';
+  const tips = [];
+  if (w.tomorrow.code >= 51 && w.tomorrow.code <= 82) tips.push('明天下雨，记得提醒她带伞');
+  if (w.tomorrow.code >= 95) tips.push('明天有雷雨，提醒她注意安全');
+  if ((w.tomorrow.code >= 71 && w.tomorrow.code <= 77) || w.tomorrow.code === 85 || w.tomorrow.code === 86) tips.push('明天下雪，提醒她注意保暖');
+  if (w.tomorrow.high < w.high - 4) tips.push('明天降温' + (w.high - w.tomorrow.high) + '°C，提醒她加衣服');
+  if (tips.length) note += tips.join('；') + '。';
+  else note += '天气不错，不用特别提醒。';
+  return note;
+}
+
 function buildWxPromptNote() {
   const parts = [];
   const w = wxReadCache();
   if (w && Date.now() - w.at < WX_MAX_AGE) {
     const label = wxLabel(w.code);
     parts.push('用户所在地天气：' + label[0] + '，' + w.temp + '°C，今天 ' + w.low + '～' + w.high + '°C。聊天时可以自然地顺着天气（比如很晚了催睡、下雨提醒带伞），不用每条都提。');
+    const tomorrow = wxTomorrowNote(w);
+    if (tomorrow) parts.push(tomorrow);
   }
   const elapsed = wxElapsedNote();
   if (elapsed) parts.push(elapsed);
