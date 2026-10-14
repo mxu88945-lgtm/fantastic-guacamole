@@ -8,7 +8,8 @@
     "test": "node scripts/run-regressions.mjs",
     "build": "vite build && node scripts/copy-static.mjs",
     "check": "npm test && npm run build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prebuild": "python3 scripts/inject-char-lock.py index.html"
   },
   "devDependencies": {
     "vite": "^5.4.8"
