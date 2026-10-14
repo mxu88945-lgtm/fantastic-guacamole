@@ -9,7 +9,7 @@
     "build": "vite build && node scripts/copy-static.mjs",
     "check": "npm test && npm run build",
     "preview": "vite preview",
-    "prebuild": "python3 scripts/inject-char-lock.py index.html"
+    "prebuild": "python3 scripts/inject-char-lock.py index.html && python3 scripts/inject-weather-time.py index.html"
   },
   "devDependencies": {
     "vite": "^5.4.8"
