@@ -74,17 +74,41 @@ function wxEnsurePill() {
 }
 
 let wxRefreshing = false;
+function wxToast(msg) {
+  let el = document.getElementById('wx-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'wx-toast';
+    el.style.cssText = 'position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:99999;max-width:80%;text-align:center;';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(function () { el.style.display = 'none'; }, 4000);
+}
 async function wxRefresh(force) {
   if (wxRefreshing) return;
   const cached = wxReadCache();
   if (cached && Date.now() - cached.at < WX_TTL && !force) { wxPaint(cached); return; }
   if (!cached && !force) { wxPaint(null); return; }
-  if (cached) wxPaint(cached);
+  const icon = document.getElementById('wx-icon');
+  const temp = document.getElementById('wx-temp');
+  if (icon) icon.textContent = '⏳';
+  if (temp) temp.textContent = '';
   wxRefreshing = true;
   try {
     const w = await wxFetch();
     wxPaint(w);
   } catch (e) {
+    const code = e && e.code;
+    if (code === 1) {
+      wxToast('定位被拒绝了：去 iPhone 设置 → 隐私与安全性 → 定位服务 → Safari（或你用的浏览器）打开定位');
+    } else if (e && e.message === 'no-geo') {
+      wxToast('这台设备/浏览器不支持定位，换 Safari 试试');
+    } else {
+      wxToast('天气获取失败，点一下 pill 重试');
+    }
     wxPaint(cached);
   } finally {
     wxRefreshing = false;
