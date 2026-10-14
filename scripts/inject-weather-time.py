@@ -14,7 +14,7 @@ HOOK = (
 
 WIRING = (
     "  // 天气小组件 + 整点时间提醒（移植自惟境小手机）" + chr(10)
-    + "  try { wxEnsurePill(); wxRefresh(false); } catch (_) {}" + chr(10)
+    + "  try { wxEnsureWidget(); wxRefresh(false); } catch (_) {}" + chr(10)
     + "  try { setInterval(function () { wxRefresh(false); }, 30 * 60 * 1000); } catch (_) {}"
 )
 
@@ -25,7 +25,7 @@ ANCHOR_HOOK = (
     + "  }"
 )
 ANCHOR_INIT = "  lockApp();"
-MARKER = "wx-pill"
+MARKER = "wx-widget"
 
 
 def main():
