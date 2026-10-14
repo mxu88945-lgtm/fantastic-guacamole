@@ -1,7 +1,15 @@
-// ---------- Weather widget + elapsed-time note (ported from 惟境 phone) ----------
+// ---------- Weather + clock widget (ported from 惟境 phone status) ----------
 const WX_CACHE_KEY = 'jyc_weather';
 const WX_TTL = 30 * 60 * 1000;
 const WX_MAX_AGE = 3 * 60 * 60 * 1000;
+const WX_CSS = '.wx-widget{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-radius:22px;background:linear-gradient(135deg,#f4f1ff 0%,#e8e2ff 100%);margin:2px 0 12px;position:relative;z-index:5;box-shadow:0 2px 12px rgba(120,100,200,.08)}'
++ '.wx-time strong{display:block;font-size:30px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;color:#2b2b3a;letter-spacing:1px}'
++ '.wx-time small{color:#8a87a0;font-size:13px}'
++ '.wx-weather{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.75);border:none;border-radius:16px;padding:8px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent}'
++ '.wx-weather:active{transform:scale(.97)}'
++ '.wx-icon{font-size:30px;line-height:1}'
++ '.wx-temp{font-size:20px;font-weight:700;color:#2b2b3a;font-variant-numeric:tabular-nums}'
++ '.wx-desc{display:block;font-size:12px;color:#8a87a0;font-weight:400}';
 
 function wxLabel(code) {
   if (code === 0) return ['晴', '☀️'];
@@ -20,6 +28,60 @@ function wxReadCache() {
     const v = JSON.parse(localStorage.getItem(WX_CACHE_KEY) || 'null');
     return v && typeof v.temp === 'number' ? v : null;
   } catch (_) { return null; }
+}
+function wxTickClock() {
+  const clock = document.getElementById('wx-clock');
+  const date = document.getElementById('wx-date');
+  if (!clock || !date) return;
+  const now = new Date();
+  const pad = function (n) { return String(n).padStart(2, '0'); };
+  clock.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes());
+  const wk = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
+  date.textContent = (now.getMonth() + 1) + '月' + now.getDate() + '日 星期' + wk;
+}
+
+function wxPaint(w) {
+  const icon = document.getElementById('wx-icon');
+  const temp = document.getElementById('wx-temp');
+  const desc = document.getElementById('wx-desc');
+  if (!icon || !temp || !desc) return;
+  if (!w) {
+    icon.textContent = '📍';
+    temp.textContent = '';
+    desc.textContent = '连接天气';
+    return;
+  }
+  const label = wxLabel(w.code);
+  icon.textContent = label[1];
+  temp.textContent = w.temp + '°';
+  desc.textContent = label[0] + ' ' + w.low + '°/' + w.high + '°';
+}
+
+function wxEnsureWidget() {
+  if (document.getElementById('wx-widget')) return;
+  const style = document.createElement('style');
+  style.textContent = WX_CSS;
+  document.head.appendChild(style);
+  const section = document.createElement('section');
+  section.id = 'wx-widget';
+  section.className = 'wx-widget';
+  section.setAttribute('aria-label', '本地时间与天气');
+  section.innerHTML = '<div class="wx-time"><strong id="wx-clock">--:--</strong><small id="wx-date"></small></div>'
+    + '<button type="button" class="wx-weather" id="wx-weather-btn" aria-label="天气，点击刷新">'
+    + '<span class="wx-icon" id="wx-icon">📍</span>'
+    + '<span><span class="wx-temp" id="wx-temp"></span><span class="wx-desc" id="wx-desc">连接天气</span></span>'
+    + '</button>';
+  const shell = document.querySelector('#home-dashboard .dashboard-shell');
+  if (shell && shell.firstChild) {
+    shell.insertBefore(section, shell.firstChild);
+  } else if (shell) {
+    shell.appendChild(section);
+  } else {
+    return;
+  }
+  wxTickClock();
+  setInterval(wxTickClock, 1000);
+  document.getElementById('wx-weather-btn').addEventListener('click', function () { wxRefresh(true); });
 }
 async function wxFetch() {
   const pos = await new Promise(function (resolve, reject) {
@@ -44,42 +106,13 @@ async function wxFetch() {
   return next;
 }
 
-function wxPaint(w) {
-  const icon = document.getElementById('wx-icon');
-  const temp = document.getElementById('wx-temp');
-  const pill = document.getElementById('wx-pill');
-  if (!icon || !temp) return;
-  if (!w) { icon.textContent = '📍'; temp.textContent = ''; if (pill) pill.title = '点击连接天气'; return; }
-  const label = wxLabel(w.code);
-  icon.textContent = label[1];
-  temp.textContent = w.temp + '°';
-  if (pill) pill.title = label[0] + ' ' + w.temp + '°（' + w.low + '～' + w.high + '°）';
-}
-function wxEnsurePill() {
-  if (document.getElementById('wx-pill')) return;
-  const style = document.createElement('style');
-  style.textContent = '.wx-pill{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:999px;background:var(--bg-panel);border:1px solid var(--border);color:var(--text);font-size:13px;cursor:pointer;flex:none}#wx-temp{font-variant-numeric:tabular-nums;font-weight:600}';
-  document.head.appendChild(style);
-  const pill = document.createElement('button');
-  pill.type = 'button';
-  pill.id = 'wx-pill';
-  pill.className = 'wx-pill';
-  pill.setAttribute('aria-label', '天气，点击刷新');
-  pill.innerHTML = '<span id="wx-icon">📍</span><span id="wx-temp"></span>';
-  pill.addEventListener('click', function () { wxRefresh(true); });
-  const header = document.querySelector('header');
-  const spacer = header && header.querySelector('.spacer');
-  if (header && spacer) header.insertBefore(pill, spacer);
-  else if (header) header.appendChild(pill);
-}
-
 let wxRefreshing = false;
 function wxToast(msg) {
   let el = document.getElementById('wx-toast');
   if (!el) {
     el = document.createElement('div');
     el.id = 'wx-toast';
-    el.style.cssText = 'position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:99999;max-width:80%;text-align:center;';
+    el.style.cssText = 'position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:99999;max-width:80%;text-align:center;';
     document.body.appendChild(el);
   }
   el.textContent = msg;
@@ -87,15 +120,16 @@ function wxToast(msg) {
   clearTimeout(el._t);
   el._t = setTimeout(function () { el.style.display = 'none'; }, 4000);
 }
+
 async function wxRefresh(force) {
   if (wxRefreshing) return;
   const cached = wxReadCache();
   if (cached && Date.now() - cached.at < WX_TTL && !force) { wxPaint(cached); return; }
   if (!cached && !force) { wxPaint(null); return; }
   const icon = document.getElementById('wx-icon');
-  const temp = document.getElementById('wx-temp');
   if (icon) icon.textContent = '⏳';
-  if (temp) temp.textContent = '';
+  const desc = document.getElementById('wx-desc');
+  if (desc) desc.textContent = '获取中';
   wxRefreshing = true;
   try {
     const w = await wxFetch();
@@ -107,7 +141,7 @@ async function wxRefresh(force) {
     } else if (e && e.message === 'no-geo') {
       wxToast('这台设备/浏览器不支持定位，换 Safari 试试');
     } else {
-      wxToast('天气获取失败，点一下 pill 重试');
+      wxToast('天气获取失败，点一下卡片右侧重试');
     }
     wxPaint(cached);
   } finally {
@@ -115,34 +149,36 @@ async function wxRefresh(force) {
   }
 }
 function wxElapsedNote() {
-let lastTs = 0;
-try {
-const list = (typeof messages!== 'undefined' && messages) || [];
-let end = list.length;
-const last = list[list.length - 1];
-if (last && last.role === 'user' && typeof last.ts === 'number' && Date.now() - last.ts < 5 * 60 * 1000) {
-end = list.length - 1;
-}
-for (let i = end - 1; i >= 0; i--) {
-const ts = list[i] && list[i].ts;
-if (typeof ts === 'number' && ts > 0) { lastTs = ts; break;}
-}
-} catch (_) {}
-if (!lastTs) return '';
-const mins = Math.floor((Date.now() - lastTs) / 60000);
-if (mins < 60) return '';
-const h = Math.floor(mins / 60), m = mins % 60;
-return '距离你们上次说话已经过去了' + h + '小时' + (m? m + '分钟': '') + '。可以按你的人设自然反应（比如问她刚才去哪了、撒娇抱怨她不理你），不用每条都提。';
+  let lastTs = 0;
+  try {
+    const list = (typeof messages !== 'undefined' && messages) || [];
+    let end = list.length;
+    const last = list[list.length - 1];
+    if (last && last.role === 'user' && typeof last.ts === 'number' && Date.now() - last.ts < 5 * 60 * 1000) {
+      end = list.length - 1;
+    }
+    for (let i = end - 1; i >= 0; i--) {
+      const ts = list[i] && list[i].ts;
+      if (typeof ts === 'number' && ts > 0) { lastTs = ts; break; }
+    }
+  } catch (_) {}
+  if (!lastTs) return '';
+  const mins = Math.floor((Date.now() - lastTs) / 60000);
+  if (mins < 60) return '';
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return '距离你们上次说话已经过去了' + h + '小时' + (m ? m + '分钟' : '') + '。可以按你的人设自然反应（比如问她刚才去哪了、撒娇抱怨她不理你），不用每条都提。';
 }
 
 function buildWxPromptNote() {
-const parts = [];
-const w = wxReadCache();
-if (w && Date.now() - w.at < WX_MAX_AGE) {
-const label = wxLabel(w.code);
-parts.push('用户所在地天气：' + label[0] + '，' + w.temp + '°C，今天 ' + w.low + '～' + w.high + '°C。聊天时可以自然地顺着天气（比如很晚了催睡、下雨提醒带伞），不用每条都提。');
-}
-const elapsed = wxElapsedNote();
-if (elapsed) parts.push(elapsed);
-return parts.length ? '[天气与时间]' + String.fromCharCode(10) + parts.join(String.fromCharCode(10)) : '';
+  const parts = [];
+  const w = wxReadCache();
+  if (w && Date.now() - w.at < WX_MAX_AGE) {
+    const label = wxLabel(w.code);
+    parts.push('用户所在地天气：' + label[0] + '，' + w.temp + '°C，今天 ' + w.low + '～' + w.high + '°C。聊天时可以自然地顺着天气（比如很晚了催睡、下雨提醒带伞），不用每条都提。');
+  }
+  const elapsed = wxElapsedNote();
+  if (elapsed) parts.push(elapsed);
+  if (!parts.length) return '';
+  const NL = String.fromCharCode(10);
+  return '[天气与时间]' + NL + parts.join(NL);
 }
