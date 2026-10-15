@@ -1719,6 +1719,48 @@
   }
   .file-card-meta { color: var(--text-dim); font-size: 11px; }
   .msg-media .file-card { padding-right: 10px; }
+  /* 位置卡片（微信同款）：地名 + 地址行 + 样式化小地图，点开高德 */
+  .loc-card {
+    display: block; width: min(250px, 68vw); overflow: hidden; border: 1px solid var(--border);
+    border-radius: 12px; background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
+    box-shadow: 0 2px 8px rgba(0,0,0,.05); color: var(--text); text-decoration: none;
+    text-align: left; -webkit-tap-highlight-color: transparent;
+  }
+  .loc-card:active { transform: scale(.98); }
+  .loc-card-copy { padding: 9px 12px 8px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .loc-card-name {
+    color: var(--text); font-size: 14px; font-weight: 650;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .loc-card-addr {
+    color: var(--text-dim); font-size: 11px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .loc-card-map {
+    display: block; position: relative; height: 92px; border-top: 1px solid var(--border);
+    background-color: color-mix(in srgb, var(--bg-panel) 55%, #e4ead9);
+    background-image:
+      radial-gradient(ellipse 34% 30% at 18% 72%, rgba(140,190,120,.32) 0 98%, transparent 100%),
+      linear-gradient(162deg, transparent 0 64%, rgba(120,170,220,.28) 64% 74%, transparent 74%),
+      linear-gradient(28deg, transparent 0 47%, rgba(255,255,255,.9) 47% 53%, transparent 53%),
+      linear-gradient(90deg, transparent 0 61%, rgba(255,255,255,.85) 61% 65%, transparent 65%),
+      linear-gradient(0deg, transparent 0 38%, rgba(255,255,255,.8) 38% 42%, transparent 42%),
+      repeating-linear-gradient(0deg, rgba(0,0,0,.035) 0 1px, transparent 1px 18px),
+      repeating-linear-gradient(90deg, rgba(0,0,0,.035) 0 1px, transparent 1px 18px);
+  }
+  .loc-card-pin {
+    display: block; position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; margin: -22px 0 0 -10px;
+    border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--accent);
+    box-shadow: 0 2px 6px rgba(0,0,0,.22);
+  }
+  .loc-card-pin::after {
+    content: ""; position: absolute; left: 6px; top: 6px; width: 8px; height: 8px;
+    border-radius: 50%; background: #fff;
+  }
+  .loc-card-map::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 14px; height: 5px; margin: 0 0 0 -7px;
+    border-radius: 50%; background: rgba(0,0,0,.18);
+  }
   .attach-thumb .rm {
     position: absolute; top: -6px; right: -6px; width: 18px; height: 18px;
     border-radius: 50%; background: var(--danger); color: #fff; border: none;
@@ -3048,6 +3090,9 @@
           <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-top:8px; cursor:pointer;">
             <input type="checkbox" id="timeAware" style="width:auto;" /> 让 AI 感知当前时间（会道早安/催睡觉）
           </label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-top:8px; cursor:pointer;">
+            <input type="checkbox" id="locationAware" style="width:auto;" /> 📍 让 AI 感知我所在的城市和天气（约 30 分钟更新）
+          </label>
           <div style="margin-top:12px;">
             <div class="hint">字体大小</div>
             <div style="display:flex; gap:8px; margin-top:6px;">
@@ -3515,6 +3560,7 @@
       <div id="plus-menu">
         <button data-act="image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>图片</button>
         <button data-act="file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>文件</button>
+        <button data-act="location" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>位置</button>
         <button data-act="draw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2.5 2.5 0 0 0 2.5-2.5c0-.6-.2-1.1-.6-1.5-.4-.4-.6-.9-.6-1.5A2.5 2.5 0 0 1 15.8 14H18a4 4 0 0 0 4-4 8 8 0 0 0-10-8Z"/></svg>生成图片</button>
       </div>
       <div class="composer">
@@ -4147,6 +4193,7 @@ let settings = {
   bubbleOpacity: 100,     // bubble background opacity (%)
   showTime: true,         // show message timestamps
   timeAware: true,        // tell the model the current local time
+  locationAware: true,    // after she grants permission: city/district + weather as a hidden prompt note
   fontSize: "medium",     // small | medium | large
   fontFamily: "default",  // default | kai | song
   stickers: [],           // [{id, name, dataUrl}] image stickers / 表情包
@@ -4245,7 +4292,7 @@ let voiceInputBaseText = "";
 let voicePointerStopHandled = false;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","systemInstruction","globalPromptPresets","emojiStyle","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","crossChat","crossSearch","historyRecallScope","historyRecallAliases","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
-  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleStyle","bubbleOpacity","favorites","showTime","timeAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
+  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleStyle","bubbleOpacity","favorites","showTime","timeAware","locationAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "sttEnabled","sttEngine","sttBaseUrl","sttModel","sttLanguage",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
   "reminderEnabled","companionFeaturesV1"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
@@ -6504,9 +6551,9 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState) 
   return stickerParts + thinkHtml + textHtml;
 }
 function messageContentHtml(role, content, reasoning, traces, responseState) {
-  const media = imagePartsHtml(content) + filePartsHtml(content);
+  const media = imagePartsHtml(content) + filePartsHtml(content) + locationPartsHtml(content);
   if (!media) return `<div class="bubble">${bubbleHtml(role, content, reasoning, false, traces, responseState)}</div>`;
-  const rest = content.filter(p => p.type !== "image" && p.type !== "file");
+  const rest = content.filter(p => p.type !== "image" && p.type !== "file" && !isLocationPart(p));
   const hasTextOrSticker = rest.some(p => p.type === "sticker" || (p.type === "text" && (p.text || "").trim()));
   const hasReasoning = role === "assistant" && (!!(reasoning || "").trim() || (Array.isArray(traces) && traces.length));
   return `<div class="msg-media">${media}</div>` +
@@ -10433,6 +10480,131 @@ function openComposerFilePicker(inputId) {
   requestAnimationFrame(() => $("plus-menu").classList.remove("show"));
 }
 
+// ---------- Location / 位置（位置卡片 + 后台位置感知共用） ----------
+// BigDataCloud sometimes answers in traditional characters ("湘橋區"); map the
+// common place-name characters to simplified (same table as 惟境 phoneGroup.ts).
+const PLACE_SIMPLIFY = { 區: "区", 縣: "县", 橋: "桥", 灣: "湾", 門: "门", 東: "东", 廣: "广", 陽: "阳", 雲: "云", 嶺: "岭", 龍: "龙", 華: "华", 興: "兴", 爾: "尔", 寧: "宁", 豐: "丰", 鄉: "乡", 鎮: "镇", 臺: "台", 漢: "汉", 濱: "滨", 莊: "庄", 頭: "头", 島: "岛", 圍: "围", 寶: "宝", 鳳: "凤", 長: "长", 開: "开", 關: "关", 嶼: "屿", 營: "营", 隴: "陇", 黃: "黄", 遼: "辽", 蘇: "苏", 貴: "贵", 雙: "双", 灘: "滩", 澤: "泽", 慶: "庆", 鄭: "郑", 樂: "乐", 歸: "归", 蘭: "兰", 綏: "绥", 齊: "齐", 錦: "锦", 撫: "抚", 鶴: "鹤", 嶽: "岳", 濟: "济", 魯: "鲁", 張: "张", 灤: "滦", 潯: "浔", 陳: "陈", 衛: "卫", 劉: "刘", 鄧: "邓", 曉: "晓", 學: "学", 場: "场", 園: "园", 號: "号", 業: "业", 達: "达", 廠: "厂", 嶗: "崂", 滬: "沪", 閩: "闽", 贛: "赣", 瀋: "沈", 濰: "潍", 檯: "台" };
+function simplifyPlace(text) {
+  return String(text || "").replace(/[\u3400-\u9fff]/g, (ch) => PLACE_SIMPLIFY[ch] || ch);
+}
+// 省 / 市 / 区 joined once each ("北京市北京市" → "北京市").
+function joinPlace(parts) {
+  const out = [];
+  for (const part of parts || []) {
+    const value = simplifyPlace(part).trim();
+    if (value && !out.includes(value)) out.push(value);
+  }
+  return out.join("");
+}
+function jycGetPosition(options) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) { reject(new Error("no-geo")); return; }
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
+  });
+}
+// Reverse-geocode without a key. Resolves null on any failure (8s cap); never throws.
+async function jycReverseGeocode(lat, lng) {
+  let timer = 0;
+  try {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const url = "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=" + Number(lat).toFixed(4)
+      + "&longitude=" + Number(lng).toFixed(4) + "&localityLanguage=zh";
+    const timeout = new Promise((resolve) => {
+      timer = setTimeout(() => { try { controller && controller.abort(); } catch (_) {} resolve(null); }, 8000);
+    });
+    const resp = await Promise.race([fetch(url, controller ? { signal: controller.signal } : undefined), timeout]);
+    if (!resp || !resp.ok) return null;
+    const data = await Promise.race([resp.json(), timeout]);
+    if (!data || typeof data !== "object") return null;
+    const admin = (data.localityInfo && Array.isArray(data.localityInfo.administrative))
+      ? data.localityInfo.administrative.filter(a => a && a.name) : [];
+    const level = (n) => { const a = admin.filter(x => Number(x.adminLevel) === n).pop(); return a ? simplifyPlace(a.name).trim() : ""; };
+    const province = simplifyPlace(data.principalSubdivision).trim();
+    const city = simplifyPlace(data.city).trim() || level(5);
+    const locality = simplifyPlace(data.locality).trim();
+    const district = level(6) || locality;
+    const deeper = admin.filter(x => Number(x.adminLevel) >= 7).pop();
+    let street = deeper ? simplifyPlace(deeper.name).trim() : "";
+    if (!street && locality && locality !== district && locality !== city) street = locality;
+    if (street === district || street === city) street = "";
+    const place = joinPlace([province, city, district]);
+    if (!place && !street) return null;
+    return { province, city, district, street, place };
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function locationErrorText(e) {
+  if (e && e.code === 1) return "定位被拒绝了：去 iPhone 设置 → 隐私与安全性 → 定位服务 → Safari 网站，改成「使用 App 期间」再试";
+  if (e && e.message === "no-geo") return "这台设备/浏览器不支持定位";
+  return "没拿到位置，靠近窗边或稍后再点一次「位置」";
+}
+function isLocationPart(p) {
+  return !!(p && p.type === "text" && p.location && typeof p.location === "object"
+    && Number.isFinite(Number(p.location.lat)) && Number.isFinite(Number(p.location.lng)));
+}
+function locationMapUrl(loc) {
+  const lat = Number(loc.lat), lng = Number(loc.lng);
+  return "https://uri.amap.com/marker?position=" + lng.toFixed(6) + "," + lat.toFixed(6)
+    + "&name=" + encodeURIComponent(String(loc.name || "我的位置")) + "&coordinate=wgs84&callnative=1&src=guqiyan";
+}
+function locationCardHtml(loc) {
+  const name = String(loc.name || "我的位置");
+  const addr = String(loc.address || "");
+  return `<a class="loc-card" href="${escapeHtml(locationMapUrl(loc))}" target="_blank" rel="noopener noreferrer" aria-label="位置：${escapeHtml(name)}">`
+    + `<span class="loc-card-copy"><span class="loc-card-name">${escapeHtml(name)}</span>`
+    + (addr ? `<span class="loc-card-addr">${escapeHtml(addr)}</span>` : "")
+    + `</span><span class="loc-card-map" aria-hidden="true"><span class="loc-card-pin"></span></span></a>`;
+}
+function locationPartsHtml(content) {
+  if (!Array.isArray(content)) return "";
+  return content.filter(isLocationPart).map(p => locationCardHtml(p.location)).join("");
+}
+// The card is a normal text part, so every model / search / export path reads
+// 「【位置】…分享了位置：…」; only the UI swaps it for the card.
+function buildLocationPart(lat, lng, geo) {
+  const who = (settings.userName && settings.userName !== "你") ? settings.userName : "用户";
+  const name = geo ? (geo.street || geo.district || geo.city || geo.place) : "我的位置";
+  const address = geo ? (geo.street ? geo.place + geo.street : geo.place) : "";
+  const text = "【位置】" + who + "分享了位置：" + (address
+    || ("北纬" + Number(lat).toFixed(3) + "°，东经" + Number(lng).toFixed(3) + "°（地名没取到）"));
+  return {
+    type: "text", text,
+    location: { lat: Number(Number(lat).toFixed(6)), lng: Number(Number(lng).toFixed(6)), name, address: geo ? geo.place : "", at: Date.now() },
+  };
+}
+let locationSharing = false;
+async function shareLocation() {
+  if (locationSharing) return;
+  if (abortController) { showToast("TA 还在回复，等一下再发位置"); return; }
+  locationSharing = true;
+  try {
+    showToast("📍 正在获取当前位置…", 9000);
+    let pos;
+    try {
+      pos = await jycGetPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+    } catch (e) {
+      showToast(locationErrorText(e), 5200);
+      return;
+    }
+    const lat = pos.coords.latitude, lng = pos.coords.longitude;
+    const geo = await jycReverseGeocode(lat, lng);
+    // Permission is granted now: start background awareness if it has no data yet.
+    if (settings.locationAware !== false && typeof wxRefresh === "function" && typeof wxReadCache === "function") {
+      try { if (!wxReadCache()) setTimeout(() => { try { wxRefresh(true); } catch (_) {} }, 1500); } catch (_) {}
+    }
+    showToast("📍 位置已发送", 1400);
+    await send({ parts: [buildLocationPart(lat, lng, geo)] });
+  } catch (e) {
+    console.warn("shareLocation failed", e);
+    showToast("位置没发出去：" + String((e && e.message) || e).slice(0, 60));
+  } finally {
+    locationSharing = false;
+  }
+}
+
 // ---------- Stickers / 表情包 ----------
 function addStickerFile(file) {
   if (!file || !file.type.startsWith("image/")) return;
@@ -10918,20 +11090,23 @@ function dismissComposerKeyboard(input) {
   if (typeof sync === "function") [120, 360, 700].forEach(ms => setTimeout(sync, ms));
 }
 
-async function send() {
+// opts.parts: send exactly these parts as one user message (e.g. a 位置 card)
+// without touching the draft or staged attachments.
+async function send(opts) {
   if (abortController) return;
   const input = $("input");
-  const text = input.value.trim();
+  const directParts = opts && Array.isArray(opts.parts) && opts.parts.length ? opts.parts : null;
+  const text = directParts ? "" : input.value.trim();
   // iOS PWA fix: image staging (FileReader → decode → canvas) is async. If the
   // user taps 发送 before it finishes, pendingAttachments is still empty and we'd
   // silently bail. Wait for any in-flight image processing to settle first.
-  if (attachmentStaging.length) {
+  if (!directParts && attachmentStaging.length) {
     const btn = $("send-btn");
     btn.disabled = true; btn.classList.add("staging");
     try { await Promise.all(attachmentStaging); } catch (_) {}
     btn.disabled = false; btn.classList.remove("staging");
   }
-  if (!text && pendingAttachments.length === 0) return;
+  if (!directParts && !text && pendingAttachments.length === 0) return;
   const silent = !!settings.silentMode;
   if (!silent && !settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
   clearError();
@@ -10939,7 +11114,9 @@ async function send() {
   // Build user message: plain string when no attachments, else a parts array
   // (attachments may be images or stickers, and can ride along with text).
   let userContent;
-  if (pendingAttachments.length) {
+  if (directParts) {
+    userContent = directParts.map(p => ({ ...p }));
+  } else if (pendingAttachments.length) {
     userContent = [];
     if (text) userContent.push({ type: "text", text });
     for (const a of pendingAttachments) userContent.push({ ...a });
@@ -10963,9 +11140,11 @@ async function send() {
     messages.push({ id: uid(), role: "assistant", content: "（无回复）", ts: Date.now() });
   }
   messages.push({ id: uid(), role: "user", content: userContent, ts: Date.now() });
-  pendingAttachments = []; renderAttachPreview();
-  input.value = ""; autoResize();
-  dismissComposerKeyboard(input);
+  if (!directParts) {
+    pendingAttachments = []; renderAttachPreview();
+    input.value = ""; autoResize();
+    dismissComposerKeyboard(input);
+  }
   if (!appendLastMessageFast()) renderMessages();
   touchConversation();
   pinToBottom();
@@ -12815,6 +12994,7 @@ function syncSettingsToUI() {
   highlightBubbleStyleButtons();
   $("showTime").checked = settings.showTime;
   $("timeAware").checked = settings.timeAware;
+  $("locationAware").checked = settings.locationAware !== false;
   $("sttEnabled").checked = settings.sttEnabled !== false;
   $("sttEngine").value = settings.sttEngine || "auto";
   $("sttBaseUrl").value = settings.sttBaseUrl || "";
@@ -13713,6 +13893,7 @@ async function init() {
       else if (act === "compact") compactConversation();
       else if (act === "export") openExportDialog();
       else if (act === "draw") drawImage();
+      else if (act === "location") shareLocation();
       if (act !== "image" && act !== "file") $("plus-menu").classList.remove("show");
     };
   });
@@ -13833,6 +14014,12 @@ async function init() {
   });
   $("showTime").addEventListener("change", () => { settings.showTime = $("showTime").checked; saveSettings(); renderMessages(); });
   $("timeAware").addEventListener("change", () => { settings.timeAware = $("timeAware").checked; saveSettings(); });
+  $("locationAware").addEventListener("change", () => {
+    settings.locationAware = $("locationAware").checked;
+    saveSettings();
+    // Turning it on asks for permission once and fills the cache; never blocks anything.
+    if (settings.locationAware && typeof wxRefresh === "function") { try { wxRefresh(true); } catch (_) {} }
+  });
 
   // Local backup / restore
   $("export-btn").onclick = exportBackup;
@@ -14205,7 +14392,7 @@ if ("serviceWorker" in navigator) {
 /* iOS PWA "needs two taps" fix for send / regenerate / message actions:
    fire on a clean touch tap (pointerup) and swallow the late native click. */
 (function () {
-  const SEL = "#send-btn, .msg-act, #global-prompt-add";
+  const SEL = "#send-btn, .msg-act, #plus-menu button[data-act=\"location\"], #global-prompt-add";
   let start = null, suppressEl = null, suppressUntil = 0, synth = false;
   const hit = (e) => e.target && e.target.closest ? e.target.closest(SEL) : null;
   document.addEventListener("pointerdown", (e) => {

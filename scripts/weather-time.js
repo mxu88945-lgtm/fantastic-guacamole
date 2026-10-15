@@ -92,9 +92,12 @@ async function wxFetch() {
   const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + latitude.toFixed(3)
     + '&longitude=' + longitude.toFixed(3)
     + '&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto&forecast_days=2';
+  // Place name (BigDataCloud, 8s cap) runs alongside the weather and can never fail it.
+  const placeP = (typeof jycReverseGeocode === 'function') ? jycReverseGeocode(latitude, longitude).catch(function () { return null; }) : Promise.resolve(null);
   const resp = await fetch(url);
   if (!resp.ok) throw new Error('wx ' + resp.status);
   const data = await resp.json();
+  const geo = await placeP;
   const next = {
     temp: Math.round(data.current.temperature_2m),
     code: data.current.weather_code,
@@ -102,6 +105,19 @@ async function wxFetch() {
     low: Math.round(data.daily.temperature_2m_min[0]),
     at: Date.now()
   };
+  // Keep the cache tiny: ~1 km rounded spot only to reuse the last place name when
+  // reverse-geocoding fails at the same spot; never sent to the model.
+  next.spot = latitude.toFixed(2) + ',' + longitude.toFixed(2);
+  if (geo && geo.place) {
+    next.place = geo.place;
+    if (geo.street) next.street = geo.street;
+  } else {
+    const prev = wxReadCache();
+    if (prev && prev.place && prev.spot === next.spot) {
+      next.place = prev.place;
+      if (prev.street) next.street = prev.street;
+    }
+  }
   if (data.daily.temperature_2m_max.length > 1) {
     next.tomorrow = {
       high: Math.round(data.daily.temperature_2m_max[1]),
@@ -133,6 +149,8 @@ async function wxRefresh(force) {
   const cached = wxReadCache();
   if (cached && Date.now() - cached.at < WX_TTL && !force) { wxPaint(cached); return; }
   if (!cached && !force) { wxPaint(null); return; }
+  // 位置感知关掉时不在后台定位，只有她点天气卡片才刷新。
+  if (!force && typeof settings !== 'undefined' && settings && settings.locationAware === false) { wxPaint(cached); return; }
   const icon = document.getElementById('wx-icon');
   if (icon) icon.textContent = '⏳';
   const desc = document.getElementById('wx-desc');
@@ -190,14 +208,26 @@ function wxTomorrowNote(w) {
   return note;
 }
 
+function wxLocalTimeText(now) {
+  const pad = function (n) { return String(n).padStart(2, '0'); };
+  const h = now.getHours();
+  const period = h < 5 ? '深夜' : h < 9 ? '早上' : h < 11 ? '上午' : h < 13 ? '中午' : h < 18 ? '下午' : h < 23 ? '晚上' : '深夜';
+  const wk = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
+  return (now.getMonth() + 1) + '月' + now.getDate() + '日 星期' + wk + ' ' + pad(h) + ':' + pad(now.getMinutes()) + '（' + period + '）';
+}
+
 function buildWxPromptNote() {
   const parts = [];
-  const w = wxReadCache();
+  const aware = !(typeof settings !== 'undefined' && settings && settings.locationAware === false);
+  const w = aware ? wxReadCache() : null;
   if (w && Date.now() - w.at < WX_MAX_AGE) {
     const label = wxLabel(w.code);
+    const place = (typeof simplifyPlace === 'function') ? simplifyPlace(w.place || '') : String(w.place || '');
+    if (place) parts.push('她现在在：' + place + '。当地时间 ' + wxLocalTimeText(new Date()) + '。');
     parts.push('用户所在地天气：' + label[0] + '，' + w.temp + '°C，今天 ' + w.low + '～' + w.high + '°C。聊天时可以自然地顺着天气（比如很晚了催睡、下雨提醒带伞），不用每条都提。');
     const tomorrow = wxTomorrowNote(w);
     if (tomorrow) parts.push(tomorrow);
+    parts.push('以上是她那边的真实情况，你心里知道就好：自然地用来关心和闲聊，不要复述坐标或精确地址，不要提“定位”“系统”“提示”这类字眼，也不要编造别的地点或天气。');
   }
   const elapsed = wxElapsedNote();
   if (elapsed) parts.push(elapsed);

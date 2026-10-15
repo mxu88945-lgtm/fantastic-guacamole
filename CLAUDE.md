@@ -2,6 +2,15 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-10-16｜位置：后台位置感知 + 微信同款位置卡片（sw v198）
+
+- 她要两样：① 顾祁砚像惟境小手机一样知道她在哪个城市/区、天气和当地时间；② 输入框「＋」菜单里能发微信那样的位置卡片。
+- 共用定位助手在 index.html「Location / 位置」段：`jycGetPosition`、`jycReverseGeocode`（BigDataCloud `reverse-geocode-client`，免 key，8 秒超时，失败返回 null 不抛错）、`simplifyPlace`/`PLACE_SIMPLIFY`（湘橋區→湘桥区，表来自惟境 phoneGroup.ts）、`joinPlace`。
+- 后台感知：仍走构建时注入的 `scripts/weather-time.js`（`wxFetch` 现在顺带反查地名，`jyc_weather` 缓存加 `place`/`street`/约 1 km 的 `spot`，反查失败且位置没变就沿用旧地名；坐标从不进提示词）。设置 → 外观与聊天里新开关（在「让 AI 感知当前时间」下面） `locationAware`（默认开，已加入 SYNCED_KEYS）：关掉后不在后台定位、不注入地点天气。开着时她第一次点主页天气卡片 / 打开开关 / 发一次位置后（授权），之后每 30 分钟后台刷新。`buildWxPromptNote()` 写「她现在在：…。当地时间 …」+ 天气，叮嘱自然关心、不复述坐标、不提“定位/系统”。注入点改成 try/catch（`inject-weather-time.py` 的 HOOK），出错也不影响回复。
+- 位置卡片：「＋」菜单新增「位置」（`data-act="location"`，加入 iOS pointerup 一次点击选择器，不在 label 里）→ `shareLocation()` 定位 + 反查后直接 `send({ parts })` 发出一条用户消息，不动草稿和已选附件。消息内容是普通 text part：`【位置】周惟惟分享了位置：广东省潮州市湘桥区` + `location:{lat,lng,name,address,at}`，所有模型/搜索/导出路径都读到文字；界面上 `locationPartsHtml` 渲染成 `.loc-card`（地名 + 地址行 + CSS 画的小地图和图钉），点开 `uri.amap.com/marker`（wgs84，callnative=1 会唤起高德）。反查失败时卡片标题为「我的位置」，文字写经纬度并注明地名没取到。
+- `send(opts)`：`opts.parts` 时直接发这些 part；按钮/回车调用 `send()` 不受影响。
+- 回归：新增 `location-regression.mjs`（含 vm 里跑地名转换、卡片 HTML、提示词注入和开关）；`send-scroll-regression.mjs` 跟着缩进调整。Playwright WebKit（iPhone 视口、模拟定位与接口）验证：点「＋」→「位置」一次就发出卡片，模型请求里有【位置】文字和隐藏地点天气说明、无坐标；地名/天气接口都失败时回复照常、卡片退回「我的位置」。
+
 ## 2026-10-11｜壁纸跟随主题（sw v197）
 
 - 她希望每套主题是一套独立的外观：切主题时壁纸也跟着换，不用每次重设。

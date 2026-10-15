@@ -7,7 +7,8 @@ import sys
 BS = chr(92)  # 反斜杠，避开转义问题
 
 HOOK = (
-    "  const wxNote = buildWxPromptNote();" + chr(10)
+    "  let wxNote = \"\";" + chr(10)
+    + "  try { wxNote = buildWxPromptNote(); } catch (_) { wxNote = \"\"; }" + chr(10)
     + "  if (wxNote) systemText = systemText ? systemText + "
     + chr(34) + BS + "n" + BS + "n" + chr(34) + " + wxNote : wxNote;"
 )
