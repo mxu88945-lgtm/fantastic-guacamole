@@ -28,8 +28,15 @@ requireText(
   'file action does not use the iOS-safe picker path',
 )
 
-if (!sw.includes('const CACHE = "role-chat-cache-v199";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v200";')) {
   throw new Error('service worker cache was not bumped for the image fixes')
 }
 
 console.log('image attachment regression: 6 checks passed')
+
+{
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  if (!src.includes('thumbImg.onclick = (event) => { event.stopPropagation(); openImageLightbox(part.dataUrl); };'))
+    throw new Error("pending image thumbnails cannot be opened before sending");
+}

@@ -294,6 +294,9 @@
 
 ## 🧭 当前进度 / 待办（给接手这个仓库的我）
 
+### 2026-10-16｜待发送图片可点开看大图（sw v200）
+- 输入栏上方的待发送图片缩略图点一下用 openImageLightbox 全屏查看，✕ 仍是移除。
+
 ### 2026-10-16｜模型胶囊可自定义显示名（sw v199）
 - 模型配置面板新增「显示名称」：存 settings.modelAliases[modelId]，只改界面，请求仍用原 id/原渠道；清空恢复默认。
 - getModelDisplayLabel 把 `】]）)` 也当渠道前缀边界，`KE【vertex/按量】gemini-4-argon-high` 自动显示为 `Gemini-4-argon-high`。

@@ -10475,6 +10475,12 @@ function renderAttachPreview() {
       : `<img src="${part.dataUrl}" alt="">`)
       + `<button class="rm" title="移除">✕</button>`;
     d.querySelector(".rm").onclick = () => { pendingAttachments.splice(i, 1); renderAttachPreview(); };
+    // 发送前点缩略图看大图，确认没选错。
+    const thumbImg = part.type === "file" ? null : d.querySelector("img");
+    if (thumbImg) {
+      thumbImg.style.cursor = "zoom-in";
+      thumbImg.onclick = (event) => { event.stopPropagation(); openImageLightbox(part.dataUrl); };
+    }
     box.appendChild(d);
   });
 }
