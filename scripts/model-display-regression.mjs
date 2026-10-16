@@ -50,3 +50,10 @@ ok(html.includes('${getModelDisplayLabel(d.model) || d.model}'),
   "provider defaults bypass the shared display formatter");
 
 console.log("model display regression passed");
+
+ok(getModelDisplayLabel("KE【vertex/按量】gemini-4-argon-high") === "Gemini-4-argon-high",
+  "a 【channel】 wrapper leaked into the model label");
+ok(html.includes('id="model-alias-input"') && html.includes("function modelShownName(id)"),
+  "users cannot rename the model pill");
+ok(html.includes("flex: 0 1 auto; width: auto; min-width: 0; max-width: 72vw"),
+  "the model pill can push the send button off the composer");

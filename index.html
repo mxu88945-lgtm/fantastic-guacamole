@@ -694,6 +694,10 @@
     border-bottom: 1px solid var(--border); font-size: 15px;
   }
   .model-config-row:last-child { border-bottom: 0; }
+  .model-config-row input {
+    flex: 1; min-width: 0; border: 0; padding: 10px 8px; text-align: right;
+    background: transparent; color: var(--text); font: inherit; font-size: 16px; outline: none;
+  }
   .model-config-row label { flex: 0 0 auto; font-weight: 600; }
   .model-config-row select {
     flex: 1; min-width: 0; border: 0; padding: 10px 24px 10px 8px; text-align: right;
@@ -1616,7 +1620,7 @@
   .composer-row { display: flex; align-items: center; gap: 8px; }
   /* pill hugs its text (won't stretch across the bar); caps wide enough for long names, ellipsis past that */
   .composer-row .model-quick {
-    flex: 0 0 auto; width: auto; min-width: 0; max-width: 72vw; padding: 6px 14px;
+    flex: 0 1 auto; width: auto; min-width: 0; max-width: 72vw; padding: 6px 14px;
     text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .composer-row .spacer { flex: 1; }
@@ -3607,6 +3611,10 @@
               <option value="max">最高</option>
             </select>
           </div>
+          <div class="model-config-row">
+            <label for="model-alias-input">显示名称</label>
+            <input id="model-alias-input" type="text" maxlength="24" autocomplete="off" enterkeyhint="done" placeholder="显示名称" title="只改这里显示的名字，不影响实际调用的模型和渠道">
+          </div>
         </div>
         <button class="model-config-reset" id="model-config-reset" type="button">重置为默认设置</button>
         <button class="model-config-done" id="model-config-done" type="button">完成</button>
@@ -4175,6 +4183,7 @@ let settings = {
   petX: 0.84,
   petY: 0.68,
   modelList: "",
+  modelAliases: {},     // { modelId: 用户起的显示名 } 只影响界面
   sidebarCollapsed: false,
   supabaseUrl: "",
   supabaseKey: "",
@@ -12826,7 +12835,7 @@ function renderAccentSwatches() {
   // Find the first known model family instead of maintaining a brittle list of
   // every possible channel prefix. Unknown/custom model ids remain untouched.
   const familyMatch = label.match(
-    /(?:^|[\/|:>@\s])((?:claude|gpt|gemini|deepseek|qwen|llama|mistral|kimi|glm|minimax|doubao|command|o[134])(?=[-_.\s\d]|$))/i
+    /(?:^|[\/|:>@\s】\]）)])((?:claude|gpt|gemini|deepseek|qwen|llama|mistral|kimi|glm|minimax|doubao|command|o[134])(?=[-_.\s\d]|$))/i
   );
   if (familyMatch) {
     const familyOffset = familyMatch[0].lastIndexOf(familyMatch[1]);
@@ -12851,6 +12860,11 @@ function renderAccentSwatches() {
   return label || original;
 }
 
+// 用户自己给模型起的显示名：只改界面，请求仍用原模型 id 和原渠道。
+function modelShownName(id) {
+  const alias = (settings.modelAliases || {})[id];
+  return (alias && String(alias).trim()) || getModelDisplayLabel(id) || id;
+}
 function parseModelLine(line) {
    const i = (line || "").indexOf("|");
    if (i > 0) { const id = line.slice(0, i).trim(), label = line.slice(i + 1).trim(); if (id && label) return { id, label }; }
@@ -12871,7 +12885,8 @@ function renderModelQuick() {
     if (!sel) return;
     sel.innerHTML = "";
     for (const raw of list) {
-      const { id, label } = parseModelLine(raw);
+      const { id } = parseModelLine(raw);
+      const label = (settings.modelAliases || {})[id] || parseModelLine(raw).label;
       const opt = document.createElement("option");
       opt.value = id; opt.textContent = label;
       if (id === cur) opt.selected = true;
@@ -12895,7 +12910,9 @@ function renderModelQuick() {
   fill($("model-quick"), false);
   fill($("model-select"), true);
   const quickLabel = $("model-config-label");
-  if (quickLabel) quickLabel.textContent = getModelDisplayLabel(cur) || cur || "选择模型";
+  if (quickLabel) quickLabel.textContent = (cur && modelShownName(cur)) || "选择模型";
+  const aliasInput = $("model-alias-input");
+  if (aliasInput && document.activeElement !== aliasInput) { aliasInput.value = (settings.modelAliases || {})[cur] || ""; aliasInput.placeholder = getModelDisplayLabel(cur) || cur || "显示名称"; }
   const effort = conversationReasoningEffort();
   const effortLabel = $("model-config-effort");
   if (effortLabel) effortLabel.textContent = ({ auto: "自动", off: "关闭", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最高" })[effort];
@@ -14050,6 +14067,15 @@ async function init() {
     if (event.target === $("model-config-overlay")) closeModelConfig();
   };
   $("reasoning-quick").addEventListener("change", () => setQuickReasoningEffort($("reasoning-quick").value));
+  $("model-alias-input").addEventListener("change", () => {
+    const id = conversationModel();
+    if (!id) return;
+    const name = $("model-alias-input").value.trim();
+    settings.modelAliases = { ...(settings.modelAliases || {}) };
+    if (name) settings.modelAliases[id] = name; else delete settings.modelAliases[id];
+    saveSettings(); renderModelQuick();
+    showToast(name ? "显示名称已改为 " + name + "（实际模型不变）" : "已恢复默认显示名称");
+  });
   $("model-config-reset").onclick = () => {
     const profile = conversationProvider();
     const fallbackModel = DEFAULTS[profile?.provider || settings.provider]?.model || profile?.model || "";
