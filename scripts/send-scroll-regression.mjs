@@ -31,7 +31,7 @@ requireText('if (h === chatLastHeight) return;', 'width-only resizes re-pin the 
 requireText('window.dispatchEvent(new Event("jyc-app-h"));', 'pre-paint viewport sync does not announce --app-h changes')
 requireText('  watchChatResizePin();\n', 'keyboard resize watcher is never started')
 
-if (!sw.includes('const CACHE = "role-chat-cache-v204";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v205";')) {
   throw new Error('service worker cache was not bumped for the scroll fix')
 }
 
