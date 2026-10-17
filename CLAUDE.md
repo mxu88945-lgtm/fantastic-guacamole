@@ -294,6 +294,9 @@
 
 ## 🧭 当前进度 / 待办（给接手这个仓库的我）
 
+### 2026-10-17｜修复天气时间卡消失（sw v206）
+- 原因：暖光琥珀 CSS 里出现了 `wx-widget` 字样，inject-weather-time.py 以它作 MARKER 判定“已注入”而跳过，导致线上没有天气卡。MARKER 改为 `function wxEnsureWidget`。以后 index.html 源码里可以写 wx-* 选择器，但不要写这个函数名。
+
 ### 2026-10-17｜暖光琥珀跟随气泡透明度滑杆（sw v205）
 - 她觉得 v204 看不出差别：底再降到 .12–.20，blur 降到 3px（模糊才是“磨砂感”来源），并让底色乘以设置里的气泡透明度滑杆（--bubble-alpha = bubbleOpacity/100）。
 

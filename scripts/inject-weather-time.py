@@ -26,7 +26,7 @@ ANCHOR_HOOK = (
     + "  }"
 )
 ANCHOR_INIT = "  lockApp();"
-MARKER = "wx-widget"
+MARKER = "function wxEnsureWidget"
 
 
 def main():
