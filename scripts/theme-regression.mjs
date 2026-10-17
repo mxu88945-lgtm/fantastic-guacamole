@@ -177,7 +177,7 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v201";'), 'service worker cache was not bumped for the lilac frosted theme')
+ok(sw.includes('const CACHE = "role-chat-cache-v202";'), 'service worker cache was not bumped for the lilac frosted theme')
 
 console.log(`theme regression: ${checks} checks passed`)
 
@@ -195,3 +195,5 @@ ok(html.includes('{ key: "amberglow", name: "暖光琥珀", dark: true'), "amber
 ok(html.includes('html[data-theme-key="amberglow"] .composer textarea::placeholder { color: transparent; }'), "amberglow hides composer placeholder");
 ok(html.includes('html[data-theme-key="amberglow"] .msg-tokens,'), "amberglow meta text uses accent");
 ok(html.includes('t.dark ? (t.textColor || "#f2f2f2")'), "dark themes may set their own warm text color");
+ok(html.includes('const readable = (c) => (c && theme.dark && textLuminance(c) < 0.35) ? "" : c;'), "dark themes ignore dark custom text colors");
+ok(html.includes('html[data-theme-key="amberglow"] .wx-widget {'), "amberglow warms the home clock card");

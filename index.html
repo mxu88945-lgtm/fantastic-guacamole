@@ -1352,15 +1352,13 @@
   }
   html[data-theme-key="amberglow"] .msg.assistant .bubble {
     background: linear-gradient(160deg,
-      color-mix(in srgb, rgba(96,66,44,.66) var(--bubble-pct, 100%), transparent),
-      color-mix(in srgb, rgba(58,38,26,.62) var(--bubble-pct, 100%), transparent));
+      rgba(96,66,44,.78), rgba(58,38,26,.74));
   }
   html[data-theme-key="amberglow"] .msg.user .bubble {
     border-top-right-radius: 6px;
     color: #f8ead8;
     background: linear-gradient(160deg,
-      color-mix(in srgb, rgba(150,102,64,.58) var(--bubble-pct, 100%), transparent),
-      color-mix(in srgb, rgba(96,62,38,.56) var(--bubble-pct, 100%), transparent));
+      rgba(150,102,64,.72), rgba(96,62,38,.70));
   }
   html[data-theme-key="amberglow"] .msg.flat.assistant { width: 100%; }
   html[data-theme-key="amberglow"] .msg.flat.assistant .bubble {
@@ -1404,9 +1402,25 @@
   }
   html[data-theme-key="amberglow"] .remind-card,
   html[data-theme-key="amberglow"] .pin-card {
-    background: linear-gradient(145deg, rgba(92,62,40,.72), rgba(52,35,24,.68));
+    background: linear-gradient(145deg, rgba(86,58,38,.96), rgba(50,34,23,.95));
     border-color: rgba(240,196,140,.3);
+    color: #f6e7d4;
   }
+  html[data-theme-key="amberglow"] .msg .bubble { color: #f6e7d4; }
+  html[data-theme-key="amberglow"] .msg .bubble :not(pre) > code {
+    background: rgba(20,12,6,.38); color: #f0b877; border-radius: 6px; padding: 1px 5px;
+  }
+  /* 首页时间天气卡跟着变暖色（原本是淡紫白） */
+  html[data-theme-key="amberglow"] .wx-widget {
+    background: linear-gradient(135deg, rgba(96,66,44,.92), rgba(58,38,26,.90));
+    border: 1px solid rgba(240,196,140,.28);
+    box-shadow: 0 10px 24px rgba(18,9,3,.4), inset 0 1px 0 rgba(255,226,186,.2);
+  }
+  html[data-theme-key="amberglow"] .wx-time strong,
+  html[data-theme-key="amberglow"] .wx-temp { color: #f6e7d4; }
+  html[data-theme-key="amberglow"] .wx-time small,
+  html[data-theme-key="amberglow"] .wx-desc { color: #e8a35a; }
+  html[data-theme-key="amberglow"] .wx-weather { background: rgba(30,18,10,.32); }
 
   /* Tidal Echo · 珍珠潮汐 / 海港
      Borrow the quiet 1:1-channel language—paper-like background, restrained
@@ -12493,12 +12507,19 @@ function syncTextStyleControl(prefix, custom, fallback, opacity, follows) {
   if (range) range.value = opacity;
   if (pct) pct.textContent = opacity + "%";
 }
+function textLuminance(hex) {
+  const n = parseInt(String(hex).slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
 function applySystemTextColor() {
   const theme = currentTheme();
   const themeColor = theme.dark ? (theme.textColor || "#f2f2f2") : (theme.textColor || "#111111");
-  const system = validTextColor(settings.systemTextColor);
-  const narration = validTextColor(settings.narrationTextColor);
-  const quote = validTextColor(settings.quoteTextColor);
+  // 深色主题下，之前为浅色主题设的深色字（比如黑色）会糊进背景，这里先忽略它们。
+  const readable = (c) => (c && theme.dark && textLuminance(c) < 0.35) ? "" : c;
+  const system = readable(validTextColor(settings.systemTextColor));
+  const narration = readable(validTextColor(settings.narrationTextColor));
+  const quote = readable(validTextColor(settings.quoteTextColor));
   const systemBase = system || themeColor;
   const systemOpacity = clampTextOpacity(settings.systemTextOpacity);
   const narrationOpacity = clampTextOpacity(settings.narrationTextOpacity);
