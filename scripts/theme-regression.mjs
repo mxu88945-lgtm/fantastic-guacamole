@@ -177,7 +177,7 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v200";'), 'service worker cache was not bumped for the lilac frosted theme')
+ok(sw.includes('const CACHE = "role-chat-cache-v201";'), 'service worker cache was not bumped for the lilac frosted theme')
 
 console.log(`theme regression: ${checks} checks passed`)
 
@@ -189,3 +189,9 @@ console.log(`theme regression: ${checks} checks passed`)
   for (const m of must) if (!h.includes(m)) { console.error('per-theme wallpaper missing:', m); process.exit(1); }
   console.log('✓ per-theme wallpapers wired');
 }
+
+// v201 暖光琥珀
+ok(html.includes('{ key: "amberglow", name: "暖光琥珀", dark: true'), "amberglow theme registered");
+ok(html.includes('html[data-theme-key="amberglow"] .composer textarea::placeholder { color: transparent; }'), "amberglow hides composer placeholder");
+ok(html.includes('html[data-theme-key="amberglow"] .msg-tokens,'), "amberglow meta text uses accent");
+ok(html.includes('t.dark ? (t.textColor || "#f2f2f2")'), "dark themes may set their own warm text color");

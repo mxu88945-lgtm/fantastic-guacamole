@@ -1317,6 +1317,97 @@
     backdrop-filter: none;
   }
 
+  /* 暖光琥珀：参考她发来的暖光楼梯间截图。深琥珀半透明气泡 + 立体阴影，
+     辅助文字（时间、tokens、工具、思考）统一橘金色，输入框不显示占位字。
+     气泡不用 backdrop-filter（iOS 每条消息一层模糊会卡），用更实的暖色填充代替。 */
+  html[data-theme-key="amberglow"] header > #toggle-sidebar,
+  html[data-theme-key="amberglow"] .header-actions,
+  html[data-theme-key="amberglow"] .composer,
+  html[data-theme-key="amberglow"] .starter-card,
+  html[data-theme-key="amberglow"] .header-menu,
+  html[data-theme-key="amberglow"] #plus-menu,
+  html[data-theme-key="amberglow"] #msg-menu {
+    background: linear-gradient(145deg, rgba(92,62,40,.46), rgba(48,32,22,.40));
+    border-color: rgba(240,190,130,.30);
+    -webkit-backdrop-filter: blur(12px) saturate(1.15);
+    backdrop-filter: blur(12px) saturate(1.15);
+    box-shadow:
+      0 10px 26px rgba(20,10,4,.34),
+      inset 0 1px 0 rgba(255,222,180,.20),
+      inset 0 -1px 0 rgba(0,0,0,.18);
+    color: #f6e7d4;
+  }
+  html[data-theme-key="amberglow"] .msg.assistant .bubble,
+  html[data-theme-key="amberglow"] .msg.user .bubble {
+    border-radius: 20px;
+    padding: 12px 16px;
+    border: 1px solid rgba(240,196,140,.30);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow:
+      0 10px 24px rgba(18,9,3,.42),
+      0 2px 6px rgba(18,9,3,.28),
+      inset 0 1px 0 rgba(255,226,186,.22),
+      inset 0 -10px 20px rgba(0,0,0,.10);
+  }
+  html[data-theme-key="amberglow"] .msg.assistant .bubble {
+    background: linear-gradient(160deg,
+      color-mix(in srgb, rgba(96,66,44,.66) var(--bubble-pct, 100%), transparent),
+      color-mix(in srgb, rgba(58,38,26,.62) var(--bubble-pct, 100%), transparent));
+  }
+  html[data-theme-key="amberglow"] .msg.user .bubble {
+    border-top-right-radius: 6px;
+    color: #f8ead8;
+    background: linear-gradient(160deg,
+      color-mix(in srgb, rgba(150,102,64,.58) var(--bubble-pct, 100%), transparent),
+      color-mix(in srgb, rgba(96,62,38,.56) var(--bubble-pct, 100%), transparent));
+  }
+  html[data-theme-key="amberglow"] .msg.flat.assistant { width: 100%; }
+  html[data-theme-key="amberglow"] .msg.flat.assistant .bubble {
+    width: 100%; max-width: 100%; padding: 14px 17px; line-height: 1.78;
+  }
+  html[data-theme-key="amberglow"] .msg.flat.user .bubble { width: fit-content; max-width: min(88%, 720px); }
+  html[data-theme-key="amberglow"] .msg .name,
+  html[data-theme-key="amberglow"] .msg-time,
+  html[data-theme-key="amberglow"] .msg-tokens,
+  html[data-theme-key="amberglow"] .msg-latency,
+  html[data-theme-key="amberglow"] .msg-actions,
+  html[data-theme-key="amberglow"] .think > summary,
+  html[data-theme-key="amberglow"] .trace-step-title,
+  html[data-theme-key="amberglow"] .trace-step-detail {
+    color: #e8a35a;
+    text-shadow: 0 1px 2px rgba(20,10,4,.55);
+  }
+  html[data-theme-key="amberglow"] .msg-actions { opacity: .85; }
+  html[data-theme-key="amberglow"] .think,
+  html[data-theme-key="amberglow"] .trace-reasoning { border-left-color: rgba(232,163,90,.45); }
+  html[data-theme-key="amberglow"] .msg .avatar {
+    border-color: rgba(240,196,140,.5);
+    box-shadow: 0 4px 12px rgba(18,9,3,.4);
+  }
+  html[data-theme-key="amberglow"] .composer textarea { color: #f6e7d4; }
+  html[data-theme-key="amberglow"] .composer textarea::placeholder { color: transparent; }
+  html[data-theme-key="amberglow"] .model-quick,
+  html[data-theme-key="amberglow"] .attach-btn,
+  html[data-theme-key="amberglow"] .voice-input-btn {
+    background: rgba(70,46,30,.42);
+    border-color: rgba(232,163,90,.55);
+    color: #e8a35a;
+    box-shadow: inset 0 1px 0 rgba(255,222,180,.16);
+  }
+  html[data-theme-key="amberglow"] .sidebar {
+    background: linear-gradient(180deg, #2c1e15 0%, #24180f 60%, #1d140d 100%);
+    border-right-color: rgba(232,163,90,.2);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    isolation: isolate;
+  }
+  html[data-theme-key="amberglow"] .remind-card,
+  html[data-theme-key="amberglow"] .pin-card {
+    background: linear-gradient(145deg, rgba(92,62,40,.72), rgba(52,35,24,.68));
+    border-color: rgba(240,196,140,.3);
+  }
+
   /* Tidal Echo · 珍珠潮汐 / 海港
      Borrow the quiet 1:1-channel language—paper-like background, restrained
      blue-grey bubbles, fine hairlines and Song-style display copy—without
@@ -12311,6 +12402,13 @@ const THEMES = [
     bg:"#0e0e0f", "bg-soft":"#161617", "bg-panel":"#1d1d1f", border:"#343438", text:"#f2f2f2",
     "text-dim":"#ababaf", accent:"#b88918", "accent-soft":"#3a3320", "assistant-bubble":"#1d1d1f",
     "code-bg":"#0a0a0b", "err-bg":"#3a1f24", "err-text":"#ffb4b4", "item-active":"#29292c" } },
+  // 暖光琥珀 — 深夜暖光楼梯间：琥珀半透明气泡、立体阴影、橘金辅助字。配自己的壁纸最好看。
+  { key: "amberglow", name: "暖光琥珀", dark: true, textColor: "#f6e7d4", textDim: "#d9b48c",
+    gradient: "radial-gradient(circle at 30% 18%,rgba(214,150,92,.55) 0%,rgba(214,150,92,0) 42%),radial-gradient(circle at 78% 70%,rgba(150,92,52,.45) 0%,rgba(150,92,52,0) 46%),linear-gradient(165deg,#5a3c28 0%,#3a271b 55%,#241810 100%)",
+    vars: {
+    bg:"#3a271b", "bg-soft":"#432e20", "bg-panel":"#4a3324", border:"#6b4c35", text:"#f6e7d4",
+    "text-dim":"#d9b48c", accent:"#e8a35a", "accent-soft":"#5a3d26", "assistant-bubble":"#4a3324", "user-bubble":"#6a4a30",
+    "code-bg":"#2a1c13", "err-bg":"#4a2420", "err-text":"#ffb9a8", "item-active":"#563b28" } },
   // 黛绿 — 雾感灰绿 · 蓝灰
   { key: "mistgreen", name: "黛绿", dark: false, glass: true,
     gradient: "linear-gradient(180deg,#eef2ec 0%,#dde6dd 30%,#cdd8cf 56%,#c2cdc8 80%,#b6c4c2 100%)",
@@ -12341,8 +12439,8 @@ function applyTheme() {
   root.setAttribute("data-theme-key", t.key);
   for (const k in t.vars) root.style.setProperty("--" + k, t.vars[k]);
   // Keep readable copy neutral: black/grey on light themes, white/grey on true dark themes.
-  root.style.setProperty("--text", t.dark ? "#f2f2f2" : (t.textColor || "#111111"));
-  root.style.setProperty("--text-dim", t.dark ? "#ababaf" : (t.textDim || "#666666"));
+  root.style.setProperty("--text", t.dark ? (t.textColor || "#f2f2f2") : (t.textColor || "#111111"));
+  root.style.setProperty("--text-dim", t.dark ? (t.textDim || "#ababaf") : (t.textDim || "#666666"));
   // metallic gradient background + translucent glass bubbles (per-theme opt-in)
   if (t.gradient) root.style.setProperty("--app-gradient", t.gradient);
   else root.style.removeProperty("--app-gradient");
@@ -12397,7 +12495,7 @@ function syncTextStyleControl(prefix, custom, fallback, opacity, follows) {
 }
 function applySystemTextColor() {
   const theme = currentTheme();
-  const themeColor = theme.dark ? "#f2f2f2" : (theme.textColor || "#111111");
+  const themeColor = theme.dark ? (theme.textColor || "#f2f2f2") : (theme.textColor || "#111111");
   const system = validTextColor(settings.systemTextColor);
   const narration = validTextColor(settings.narrationTextColor);
   const quote = validTextColor(settings.quoteTextColor);
