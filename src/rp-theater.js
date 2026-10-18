@@ -283,6 +283,7 @@ if (!bridge) {
   document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("rp-theater-panel").hidden) close(); });
   window.addEventListener("jyc:role-changed", () => { if (!$("rp-theater-panel").hidden) showLibrary(); });
   window.addEventListener("jyc:roleplay-updated", () => { if (!$("rp-theater-panel").hidden && !$("rp-library-view").hidden) render(); });
+  window.addEventListener("jyc:roleplay-open", (event) => open(event.detail?.projectId || ""));
 
   window.JYCRoleplay = {
     open,

@@ -123,7 +123,12 @@ if (!bridge) {
     if (action === "reading") { await window.JYCReadingRoom?.ready; window.JYCReadingRoom?.open(); return; }
     if (action === "music") { await window.JYCMusic?.open?.(); return; }
     if (action === "game") { window.JYCGameRoom?.open?.(); return; }
-    if (action === "roleplay") { window.JYCRoleplay?.open?.(); return; }
+    if (action === "roleplay") {
+      // Use an event as the primary hand-off so the dashboard does not depend
+      // on the RP module's global being attached before this click runs.
+      window.dispatchEvent(new CustomEvent("jyc:roleplay-open"));
+      return;
+    }
     if (action === "days") { bridge.openSpecialDays(); return; }
     if (action === "workbench") { bridge.openWorkbench(); return; }
     if (action === "settings") bridge.openSettings();
