@@ -50,6 +50,9 @@ if (!bridge) {
 
     $("dashboard-chat-title").textContent = data.conversationTitle
       ? `继续和 ${roleName} 聊天` : `和 ${roleName} 开始聊天`;
+    $("dashboard-rp-meta").textContent = Number(data.roleplayCount || 0)
+      ? `${data.roleplayCount} 部戏正在等你 · ${roleName} 本人出演`
+      : `导入角色卡，让 ${roleName} 陪你入戏`;
 
     const unread = Number(data.unreadMail || 0);
     $("dashboard-mail-count").textContent = unread > 99 ? "99+" : String(unread);
@@ -120,6 +123,7 @@ if (!bridge) {
     if (action === "reading") { await window.JYCReadingRoom?.ready; window.JYCReadingRoom?.open(); return; }
     if (action === "music") { await window.JYCMusic?.open?.(); return; }
     if (action === "game") { window.JYCGameRoom?.open?.(); return; }
+    if (action === "roleplay") { window.JYCRoleplay?.open?.(); return; }
     if (action === "days") { bridge.openSpecialDays(); return; }
     if (action === "workbench") { bridge.openWorkbench(); return; }
     if (action === "settings") bridge.openSettings();
@@ -138,6 +142,7 @@ if (!bridge) {
   window.addEventListener("jyc:reading-updated", () => { if (open) render(); });
   window.addEventListener("jyc:music-updated", () => { if (open) render(); });
   window.addEventListener("jyc:game-room-updated", () => { if (open) render(); });
+  window.addEventListener("jyc:roleplay-updated", () => { if (open) render(); });
   window.addEventListener("jyc:dashboard-data-changed", () => { if (open) render(); });
   window.addEventListener("jyc:app-ready", () => { show(); });
 
