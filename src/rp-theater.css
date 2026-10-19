@@ -1,258 +1,159 @@
+/* RP剧场 - 惟镜风格 */
 .rp-theater-panel {
-  position: fixed; inset: 0; z-index: 72; color: var(--text);
-  background: color-mix(in srgb, var(--bg) 76%, transparent);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  position: fixed; inset: 0; z-index: 72;
+  background: #eef4fd;
+  background-image: radial-gradient(#dbe7f8 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
 }
 .rp-theater-panel[hidden] { display: none; }
-.rp-theater-shell { width: min(1120px, 100%); height: 100%; margin: 0 auto; background: var(--bg); box-shadow: 0 0 70px rgba(35,25,48,.16); }
+.rp-theater-shell { width: min(1120px, 100%); height: 100%; margin: 0 auto; background: transparent; display: flex; flex-direction: column; }
 .rp-theater-head {
-  height: calc(66px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 22px 0;
-  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
-  border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg-panel) 86%, transparent);
-  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  height: calc(66px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 16px 0;
+  display: flex; align-items: center; gap: 12px;
+  background: transparent;
 }
-.rp-theater-head > div strong, .rp-theater-head > div small { display: block; }
-.rp-theater-head > div strong { font: 600 20px/1.1 Georgia, "Songti SC", serif; }
-.rp-theater-head > div small { margin-top: 3px; color: var(--text-dim); font-size: 10px; }
-.rp-icon-button, .rp-head-action, .rp-section-title button, .rp-editor-heading button, .rp-files-card button, .rp-editor-actions button, .rp-empty button, .rp-greeting-head button {
-  border: 1px solid var(--border); color: var(--text); background: var(--bg-panel); cursor: pointer;
+.rp-theater-head > div { flex: 1; }
+.rp-theater-head > div strong { display: block; font-size: 20px; font-weight: 700; }
+.rp-theater-head > div small { display: block; margin-top: 2px; color: #888; font-size: 11px; }
+.rp-icon-button { width: 42px; height: 42px; border-radius: 50%; border: none; background: rgba(255,255,255,.8); font-size: 22px; cursor: pointer; }
+.rp-head-action { min-height: 40px; padding: 0 18px; border-radius: 999px; border: none; background: rgba(255,255,255,.8); color: #5b8def; font-weight: 600; font-size: 14px; cursor: pointer; }
+.rp-theater-body { flex: 1; overflow-y: auto; padding: 16px 16px calc(48px + env(safe-area-inset-bottom)); }
+
+/* 卡片通用 */
+.rp-card-block, .rp-detail-card3, .rp-wb-card {
+  background: rgba(255,255,255,.92);
+  border-radius: 20px;
+  padding: 18px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 12px rgba(91,141,239,.06);
 }
-.rp-icon-button { width: 42px; height: 42px; border-radius: 50%; font-size: 30px; line-height: 1; }
-.rp-head-action { min-height: 40px; padding: 0 16px; border-radius: 999px; color: var(--accent); font-weight: 700; }
-.rp-theater-body { height: calc(100% - 66px - env(safe-area-inset-top)); overflow-y: auto; padding: 30px clamp(18px, 5vw, 64px) calc(48px + env(safe-area-inset-bottom)); }
-.rp-theater-hero {
-  position: relative; overflow: hidden; padding: clamp(26px, 5vw, 52px); border: 1px solid var(--border); border-radius: 34px;
-  background: radial-gradient(circle at 84% 8%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 34%), linear-gradient(145deg, color-mix(in srgb, var(--bg-panel) 88%, transparent), color-mix(in srgb, var(--accent) 10%, var(--bg)));
-  box-shadow: 0 24px 70px rgba(55,45,70,.08);
-}
-.rp-hero-kicker { color: var(--text-dim); font-size: 10px; font-weight: 800; letter-spacing: 2px; }
-.rp-theater-hero h1 { margin: 12px 0 9px; font: 500 clamp(30px, 5vw, 52px)/1.08 Georgia, "Songti SC", serif; }
-.rp-theater-hero > p { max-width: 680px; margin: 0; color: var(--text-dim); font-size: 13px; line-height: 1.7; }
-.rp-memory-lanes { display: flex; align-items: center; gap: 12px; margin-top: 28px; }
-.rp-memory-lanes span { min-width: 130px; padding: 12px 15px; border: 1px solid color-mix(in srgb, var(--border) 78%, transparent); border-radius: 17px; background: color-mix(in srgb, var(--bg-panel) 74%, transparent); }
-.rp-memory-lanes b, .rp-memory-lanes em { display: block; font-style: normal; }
-.rp-memory-lanes b { font-size: 12px; }
-.rp-memory-lanes em { margin-top: 3px; color: var(--text-dim); font-size: 9px; }
-.rp-memory-lanes i { color: var(--accent); font-style: normal; }
-.rp-section-title { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 30px 4px 14px; }
-.rp-section-title strong, .rp-section-title small { display: block; }
+.rp-card-block-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.rp-card-block-head strong { font-size: 16px; font-weight: 700; }
+.rp-card-block-head small { display: block; margin-top: 2px; color: #999; font-size: 12px; font-weight: 400; }
+
+/* 剧本列表 */
+.rp-section-title { display: flex; align-items: center; justify-content: space-between; margin: 8px 4px 12px; }
 .rp-section-title strong { font-size: 17px; }
-.rp-section-title small { margin-top: 3px; color: var(--text-dim); font-size: 10px; }
-.rp-section-title button, .rp-editor-heading button, .rp-files-card button { padding: 9px 13px; border-radius: 13px; }
-.rp-project-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.rp-project-card { position: relative; min-width: 0; padding: 20px; display: grid; grid-template-columns: 52px minmax(0,1fr); gap: 14px; border: 1px solid var(--border); border-radius: 25px; background: var(--bg-panel); box-shadow: 0 12px 35px rgba(55,45,70,.05); }
-.rp-project-mark { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 18px; color: #fff; background: linear-gradient(145deg, var(--accent), #7867a7); font: 600 22px/1 Georgia, serif; }
-.rp-project-copy { min-width: 0; padding-right: 68px; }
-.rp-project-copy small, .rp-project-copy strong, .rp-project-copy p, .rp-project-copy em { display: block; overflow: hidden; text-overflow: ellipsis; }
-.rp-project-copy small { color: var(--text-dim); font-size: 8px; letter-spacing: 1px; white-space: nowrap; }
-.rp-project-copy strong { margin-top: 6px; font-size: 17px; white-space: nowrap; }
-.rp-project-copy p { margin: 5px 0 0; color: var(--text-dim); font-size: 11px; white-space: nowrap; }
-.rp-project-copy em { margin-top: 10px; color: var(--text-dim); font: normal 9px/1.4 inherit; }
-.rp-continue { position: absolute; right: 18px; top: 18px; padding: 7px 10px; border: 0; border-radius: 999px; color: #fff; background: var(--accent); font-size: 10px; cursor: pointer; }
-.rp-project-menu { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 7px; padding-top: 4px; }
-.rp-project-menu button { border: 0; border-radius: 9px; padding: 6px 9px; color: var(--text-dim); background: var(--bg-soft); cursor: pointer; font-size: 10px; }
-.rp-project-menu .danger { color: #c45c69; }
-.rp-empty { padding: 55px 20px; text-align: center; border: 1px dashed var(--border); border-radius: 28px; background: color-mix(in srgb, var(--bg-panel) 55%, transparent); }
-.rp-empty span, .rp-empty strong { display: block; }
-.rp-empty span { color: var(--accent); font-size: 35px; }.rp-empty strong { margin-top: 8px; }.rp-empty p { color: var(--text-dim); font-size: 11px; }.rp-empty button { padding: 10px 15px; border-radius: 999px; }
-.rp-editor-heading { display: flex; align-items: center; gap: 15px; margin: 0 0 20px; }
-.rp-editor-heading > div strong, .rp-editor-heading > div small { display: block; }
-.rp-editor-heading > div strong { font-size: 19px; }.rp-editor-heading > div small { margin-top: 3px; color: var(--text-dim); font-size: 10px; }
-.rp-editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.rp-editor-grid label { display: block; }.rp-editor-grid .rp-wide { grid-column: 1 / -1; }
-.rp-editor-grid label > span { display: block; margin: 0 3px 7px; color: var(--text-dim); font-size: 11px; font-weight: 700; }
-.rp-editor-grid input, .rp-editor-grid textarea { box-sizing: border-box; width: 100%; border: 1px solid var(--border); border-radius: 16px; padding: 13px 14px; color: var(--text); background: var(--bg-panel); font: 13px/1.6 inherit; outline: none; resize: vertical; }
-.rp-editor-grid input:focus, .rp-editor-grid textarea:focus { border-color: color-mix(in srgb, var(--accent) 62%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 11%, transparent); }
-.rp-editor-grid textarea { min-height: 168px; }
-#rp-field-character, #rp-field-world { min-height: 280px; }
-#rp-field-opening { min-height: 320px; font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 12px; }
-.rp-greeting-editor { padding: 18px; border: 1px solid var(--border); border-radius: 22px; background: color-mix(in srgb, var(--bg-panel) 90%, var(--accent) 3%); }
-.rp-greeting-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
-.rp-greeting-head > div:first-child strong, .rp-greeting-head > div:first-child small { display: block; }
-.rp-greeting-head > div:first-child strong { font-size: 14px; }
-.rp-greeting-head > div:first-child small { margin-top: 3px; color: var(--text-dim); font-size: 9px; }
-.rp-greeting-head > div:last-child { display: flex; gap: 7px; }
-.rp-greeting-head button { padding: 8px 11px; border-radius: 12px; font-size: 10px; }
-.rp-greeting-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 9px; margin: 0 0 14px; }
-.rp-greeting-card { position: relative; min-width: 0; border: 1px solid var(--border); border-radius: 15px; background: var(--bg); overflow: hidden; }
-.rp-greeting-card.selected { border-color: color-mix(in srgb, var(--accent) 72%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); }
-.rp-greeting-select { width: 100%; min-height: 82px; padding: 11px 34px 11px 12px; border: 0; color: var(--text); background: transparent; text-align: left; cursor: pointer; }
-.rp-greeting-select b, .rp-greeting-select span { display: block; }
-.rp-greeting-select b { color: var(--accent); font-size: 10px; }
-.rp-greeting-select span { margin-top: 7px; color: var(--text-dim); font-size: 10px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.rp-greeting-remove { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border: 0; border-radius: 50%; color: var(--text-dim); background: transparent; cursor: pointer; font-size: 17px; }
-.rp-greeting-editor > label > span { display: block; margin: 0 3px 7px; color: var(--text-dim); font-size: 11px; font-weight: 700; }
-.rp-greeting-preview { margin-top: 12px; border: 1px solid var(--border); border-radius: 17px; overflow: hidden; background: var(--bg); }
-.rp-greeting-preview summary { padding: 12px 14px; color: var(--accent); cursor: pointer; font-size: 11px; font-weight: 750; }
-#rp-greeting-preview-content { max-height: 620px; overflow: auto; border-top: 1px solid var(--border); }
-.rp-greeting-preview-frame { display: block; width: 100%; height: 520px; border: 0; background: #fff; }
-.rp-greeting-preview-text, .rp-greeting-preview-empty { padding: 18px; color: var(--text); font-size: 13px; line-height: 1.75; }
-.rp-files-card, .rp-identity-note { margin-top: 16px; border: 1px solid var(--border); border-radius: 20px; padding: 17px; background: var(--bg-panel); }
-.rp-files-card > div:first-child { display: inline-block; }.rp-files-card > div:first-child strong, .rp-files-card > div:first-child small { display: block; }.rp-files-card > div:first-child small { margin-top: 3px; color: var(--text-dim); font-size: 9px; }.rp-files-card > button { float: right; }
-.rp-files-list { clear: both; padding-top: 12px; }.rp-files-empty { color: var(--text-dim); font-size: 10px; }
-.rp-files-list > div { display: grid; grid-template-columns: 28px minmax(0,1fr) 32px; align-items: center; gap: 8px; padding: 8px; border-top: 1px solid var(--border); }.rp-files-list p { margin: 0; min-width: 0; }.rp-files-list strong, .rp-files-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.rp-files-list strong { font-size: 11px; }.rp-files-list small { color: var(--text-dim); font-size: 8px; }.rp-files-list button { border: 0; color: var(--text-dim); background: transparent; font-size: 18px; cursor: pointer; }
-.rp-identity-note { background: color-mix(in srgb, var(--accent) 7%, var(--bg-panel)); }.rp-identity-note strong { font-size: 12px; }.rp-identity-note p { margin: 6px 0 0; color: var(--text-dim); font-size: 10px; line-height: 1.6; }
-.rp-editor-actions { position: sticky; z-index: 3; bottom: -1px; display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding: 18px 0 calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, var(--bg) 28%); }
-.rp-editor-actions button { min-height: 42px; padding: 0 17px; border-radius: 14px; }.rp-editor-actions .primary { color: #fff; border-color: var(--accent); background: var(--accent); }
-#rp-chat-back { margin-left: 4px; font-size: 22px; }
-#rp-chat-identity { min-width: 0; max-width: min(42vw, 360px); border: 1px solid var(--border); border-radius: 999px; padding: 7px 12px; color: var(--text); background: color-mix(in srgb, var(--bg-panel) 80%, transparent); text-align: left; cursor: pointer; }
-#rp-chat-identity span, #rp-chat-identity small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#rp-chat-identity span { font-size: 11px; font-weight: 750; } #rp-chat-identity small { margin-top: 2px; color: var(--text-dim); font-size: 8px; }
-body.rp-theater-open { overflow: hidden; }
-body.rp-opening-picker-open { overflow: hidden; }
-.rp-opening-picker { position: fixed; inset: 0; z-index: 90; color: var(--text); background: var(--bg); }
-.rp-opening-picker[hidden] { display: none; }
-.rp-opening-shell { max-width: 920px; height: 100%; margin: 0 auto; display: flex; flex-direction: column; }
-.rp-opening-head { display: grid; grid-template-columns: 70px 1fr 70px; align-items: center; gap: 12px; flex-shrink: 0; padding: calc(18px + env(safe-area-inset-top)) 18px 18px; border-bottom: 1px solid var(--border); background: var(--bg-panel); }
-.rp-opening-head h2 { margin: 0; text-align: center; font-size: 20px; }
-.rp-opening-head button { min-height: 40px; border: 0; border-radius: 12px; background: transparent; color: var(--accent); cursor: pointer; font-size: 15px; font-weight: 700; }
-.rp-opening-head button:disabled { opacity: .4; cursor: default; }
-.rp-opening-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 24px 18px calc(36px + env(safe-area-inset-bottom)); }
-.rp-opening-actor { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 0; }
-.rp-opening-actor img, .rp-opening-actor > span, .rp-opening-option img, .rp-opening-option > span:first-child { width: 48px; height: 48px; flex-shrink: 0; object-fit: cover; border-radius: 16px; background: var(--bg-soft); display: grid; place-items: center; }
-.rp-opening-note { margin: 12px 0 24px; color: var(--text-dim); text-align: center; font-size: 12px; }
-.rp-opening-option { display: flex; align-items: center; gap: 16px; width: 100%; padding: 20px 18px; margin-bottom: 14px; border: 1px solid var(--border); border-radius: 24px; background: var(--bg-panel); color: var(--text); cursor: pointer; text-align: left; }
-.rp-opening-option.selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent); }
-.rp-opening-option > span { flex: 1; min-width: 0; }
-.rp-opening-option small { display: block; margin-bottom: 7px; font-size: 11px; color: var(--text-dim); }
-.rp-opening-option strong { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; line-height: 1.7; font-weight: 500; }
-.rp-opening-option i { font-style: normal; color: var(--accent); }
-.rp-opening-option:disabled { opacity: .5; cursor: default; }
-.rp-opening-full { margin-top: 28px; border: 1px solid var(--border); border-radius: 20px; overflow: hidden; background: var(--bg-panel); }
-.rp-opening-full h3 { margin: 0; padding: 16px 18px; border-bottom: 1px solid var(--border); font-size: 13px; }
-.roleplay-html-card { width: min(100%, 920px); overflow: hidden; border: 1px solid var(--border); border-radius: 20px; background: transparent; box-shadow: 0 14px 36px rgba(20,16,30,.1); }
-.roleplay-html-frame { display: block; width: 100%; min-height: 240px; height: 360px; border: 0; background: transparent; }
-.rp-opening-reset { display: block; width: 100%; padding: 10px 14px; border: 0; border-bottom: 1px solid var(--border); background: var(--bg-panel); color: var(--text-dim); text-align: right; cursor: pointer; font-size: 12px; }
-.msg.assistant .bubble:has(.roleplay-html-card) { width: min(100%, 920px); max-width: 100%; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; overflow: visible; }
-body.rp-chat-active .messages { max-width: 980px; padding-inline: 12px; }
-body.rp-chat-active .msg.roleplay-rich-message { width: 100%; gap: 0; }
-body.rp-chat-active .msg.roleplay-rich-message > .avatar,
-body.rp-chat-active .msg.roleplay-rich-message .body > .name,
-body.rp-chat-active .msg.roleplay-rich-message > .msg-head { display: none; }
-body.rp-chat-active .msg.roleplay-rich-message .body,
-body.rp-chat-active .msg.roleplay-rich-message .bubble,
-body.rp-chat-active .msg.roleplay-rich-message .roleplay-html-card { width: 100% !important; max-width: none !important; }
-body.rp-chat-active .brand-role-picker .role-chevron,
-body.rp-chat-active .brand-role-picker .role-quick { display: none; }
-body.rp-chat-active #sidebar-music,
-body.rp-chat-active #sidebar-mailbox,
-body.rp-chat-active #sidebar-album,
-body.rp-chat-active #sidebar-special-days,
-body.rp-chat-active #sidebar-workbench { display: none; }
-@media (max-width: 680px) {
-  .rp-theater-head { padding-left: 12px; padding-right: 12px; }.rp-head-action { padding: 0 12px; }
-  .rp-theater-body { padding: 16px 12px calc(30px + env(safe-area-inset-bottom)); }
-  .rp-theater-hero { padding: 24px 20px; border-radius: 27px; }.rp-theater-hero h1 { font-size: 31px; }
-  .rp-memory-lanes { gap: 6px; overflow-x: auto; }.rp-memory-lanes span { min-width: 108px; padding: 10px; }.rp-memory-lanes i { font-size: 10px; }
-  .rp-project-grid, .rp-editor-grid { grid-template-columns: 1fr; }.rp-editor-grid .rp-wide { grid-column: auto; }
-  .rp-editor-grid textarea { min-height: 190px; }
-  #rp-field-character, #rp-field-world, #rp-field-opening { min-height: 340px; }
-  .rp-greeting-editor { padding: 14px; border-radius: 19px; }
-  .rp-greeting-head { align-items: flex-start; flex-direction: column; }
-  .rp-greeting-list { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding: 3px; }
-  .rp-greeting-card { min-width: min(78vw, 290px); scroll-snap-align: start; }
-  .rp-greeting-preview-frame { height: 60vh; }
-  body.rp-chat-active .messages { padding-inline: 8px; }
-  .roleplay-html-card, .msg.assistant .bubble:has(.roleplay-html-card) { width: 100%; }
-  .rp-project-card { padding: 16px; border-radius: 22px; }.rp-project-copy { padding-right: 0; }.rp-continue { position: static; grid-column: 1 / -1; min-height: 40px; }
-  #rp-chat-identity { max-width: 48vw; }.rp-chat-active #header-search-btn, .rp-chat-active #header-new-btn { display: none; }
+.rp-section-title small { color: #999; font-size: 12px; }
+.rp-section-title button { padding: 10px 18px; border-radius: 999px; border: none; background: #5b8def; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+.rp-project-grid { display: flex; flex-direction: column; gap: 12px; }
+.rp-project-card { display: flex; align-items: center; gap: 14px; background: rgba(255,255,255,.92); border-radius: 20px; padding: 16px; box-shadow: 0 2px 12px rgba(91,141,239,.06); }
+.rp-project-mark { width: 52px; height: 52px; border-radius: 16px; background: linear-gradient(145deg, #8b7ed6, #5b8def); color: #fff; display: grid; place-items: center; font-size: 22px; font-weight: 700; flex-shrink: 0; }
+.rp-project-copy { flex: 1; min-width: 0; background: none; border: none; text-align: left; cursor: pointer; padding: 0; }
+.rp-project-copy small { display: block; color: #999; font-size: 10px; }
+.rp-project-copy strong { display: block; font-size: 16px; margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp-project-copy p { margin: 0; color: #888; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp-project-copy em { display: block; margin-top: 4px; color: #aaa; font-size: 11px; font-style: normal; }
+.rp-continue { padding: 10px 16px; border-radius: 999px; border: none; background: #eef2ff; color: #5b8def; font-size: 13px; font-weight: 600; cursor: pointer; flex-shrink: 0; }
+.rp-project-menu { display: flex; gap: 6px; }
+.rp-project-menu button { padding: 8px 12px; border-radius: 999px; border: none; background: #f5f7fb; color: #666; font-size: 12px; cursor: pointer; }
+.rp-project-menu button.danger { color: #e11d48; background: #ffe8e8; }
+
+/* 编辑器 */
+.rp-editor-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.rp-editor-heading button { background: none; border: none; color: #5b8def; font-size: 14px; cursor: pointer; }
+.rp-editor-heading div { flex: 1; text-align: center; }
+.rp-editor-heading strong { font-size: 17px; }
+.rp-editor-heading small { display: block; color: #999; font-size: 11px; margin-top: 2px; }
+.rp-editor-grid { display: flex; flex-direction: column; gap: 0; }
+.rp-editor-grid label { display: block; margin-bottom: 4px; }
+.rp-editor-grid label > span { display: block; font-size: 13px; color: #666; margin-bottom: 8px; font-weight: 600; }
+.rp-editor-grid input, .rp-editor-grid textarea, .rp-editor-grid select {
+  width: 100%; padding: 14px 16px; border: none; border-radius: 16px;
+  background: rgba(255,255,255,.92); font-size: 14px; line-height: 1.6;
+  box-shadow: 0 2px 12px rgba(91,141,239,.06);
 }
+.rp-editor-grid textarea { resize: vertical; }
+.rp-editor-grid label.rp-wide { margin-bottom: 12px; }
 
-/* === 开场白美化（对标惟镜角色卡） === */
-.rp-beauty { padding: 20px; font-size: 14px; line-height: 1.8; color: var(--text); }
-.rp-beauty-music { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; padding: 12px 16px; border-radius: 16px; background: color-mix(in srgb, var(--accent) 8%, var(--bg-panel)); }
-.rp-beauty-music-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: #fff; font-size: 18px; flex-shrink: 0; }
-.rp-beauty-music strong, .rp-beauty-music small { display: block; }
-.rp-beauty-music strong { font-size: 13px; }
-.rp-beauty-music small { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
-.rp-beauty-music audio { margin-left: auto; max-width: 200px; height: 32px; }
-.rp-beauty-scene { margin-bottom: 18px; padding: 16px 18px; border-left: 4px solid var(--accent); border-radius: 0 14px 14px 0; background: color-mix(in srgb, var(--text-dim) 6%, var(--bg-panel)); }
-.rp-beauty-scene-title { font-size: 10px; font-weight: 800; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 10px; }
-.rp-beauty-scene p { margin: 6px 0; font-size: 13px; }
-.rp-beauty-scene b { color: var(--text-dim); font-weight: 600; }
-.rp-beauty-narr { margin: 0 0 14px; }
-.rp-beauty-dialogue { display: inline-block; margin: 6px 0 14px; padding: 10px 16px; border-radius: 16px; background: color-mix(in srgb, var(--accent) 12%, var(--bg-panel)); color: var(--accent); font-size: 14px; line-height: 1.7; }
-.rp-beauty-world-h { margin: 18px 0 8px; font-size: 13px; color: var(--accent); font-weight: 700; }
-.rp-beauty-world-h:first-child { margin-top: 0; }
-
-/* === 角色卡块（对标惟镜）：简介/标签/世界书/正则 === */
-.rp-card-block { padding: 18px; border: 1px solid var(--border); border-radius: 22px; background: color-mix(in srgb, var(--bg-panel) 90%, var(--accent) 3%); }
-.rp-card-block[hidden] { display: none; }
-.rp-card-block-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
-.rp-card-block-head strong, .rp-card-block-head small { display: block; }
-.rp-card-block-head strong { font-size: 14px; }
-.rp-card-block-head small { margin-top: 3px; color: var(--text-dim); font-size: 10px; }
-.rp-card-block-head button { padding: 8px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-panel); color: var(--accent); font-size: 11px; font-weight: 700; cursor: pointer; }
-.rp-card-desc { margin: 0 0 12px; font-size: 13px; line-height: 1.7; color: var(--text-dim); }
-.rp-tags { display: flex; flex-wrap: wrap; gap: 8px; }
-.rp-tag { padding: 7px 14px; border-radius: 999px; background: color-mix(in srgb, var(--text-dim) 10%, var(--bg-panel)); color: var(--text-dim); font-size: 11px; }
-.rp-entry-list { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; }
-.rp-entry { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
-.rp-entry.off { opacity: .45; }
-.rp-entry-toggle { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-panel); color: var(--accent); font-size: 14px; cursor: pointer; }
-.rp-entry > div { min-width: 0; flex: 1; }
-.rp-entry strong, .rp-entry small { display: block; overflow: hidden; text-overflow: ellipsis; }
-.rp-entry strong { font-size: 12px; }
-.rp-entry small { margin-top: 4px; color: var(--text-dim); font-size: 10px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-
-/* 防止横溢 */
-.rp-card-desc { word-break: break-word; overflow-wrap: anywhere; white-space: normal; }
-.rp-card-block, .rp-entry, .rp-entry > div { min-width: 0; max-width: 100%; overflow: hidden; }
-.rp-theater-shell, .rp-theater-body, .rp-editor-grid { max-width: 100%; overflow-x: hidden; }
-.rp-editor-grid input, .rp-editor-grid textarea { max-width: 100%; }
-
-/* 世界书完整编辑器 */
-.rp-wb-card { border: 1px solid #e8e6f5; border-radius: 16px; margin-bottom: 10px; background: #fff; overflow: hidden; }
-.rp-wb-card.off { opacity: 0.6; }
-.rp-wb-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 16px; background: none; border: none; cursor: pointer; text-align: left; }
+/* 世界书 */
+.rp-wb-card { padding: 0; overflow: hidden; }
+.rp-wb-card.off { opacity: .55; }
+.rp-wb-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 16px 18px; background: none; border: none; cursor: pointer; text-align: left; }
 .rp-wb-dot { width: 12px; height: 12px; border-radius: 50%; background: #ddd; flex-shrink: 0; }
 .rp-wb-dot.on { background: #22c55e; }
-.rp-wb-title { font-weight: 700; font-size: 14px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-wb-title { font-weight: 700; font-size: 15px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-wb-head small { color: #999; font-size: 11px; flex-shrink: 0; }
 .rp-wb-head i { color: #999; font-style: normal; flex-shrink: 0; }
-.rp-wb-body { padding: 4px 16px 16px; border-top: 1px solid #f0eef8; }
-.rp-wb-body > label { display: block; margin: 12px 0; }
-.rp-wb-body > label > span { display: block; font-size: 12px; color: #888; margin-bottom: 6px; }
-.rp-wb-body input, .rp-wb-body textarea, .rp-wb-body select { width: 100%; padding: 10px 12px; border: 1px solid #e0ddf0; border-radius: 12px; font-size: 14px; background: #faf9fd; }
-.rp-wb-body textarea { resize: vertical; line-height: 1.6; }
-.rp-wb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
-.rp-wb-grid label > span { display: block; font-size: 12px; color: #888; margin-bottom: 6px; }
-.rp-wb-toggles { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-.rp-wb-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 20px; border: 1px solid #e0ddf0; background: #f5f3fa; font-size: 13px; cursor: pointer; }
-.rp-wb-toggle i { width: 32px; height: 20px; border-radius: 10px; background: #ccc; position: relative; transition: background 0.2s; }
-.rp-wb-toggle i::after { content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: left 0.2s; }
-.rp-wb-toggle.on { border-color: #7c6bd6; background: #f0edff; }
-.rp-wb-toggle.on i { background: #7c6bd6; }
-.rp-wb-toggle.on i::after { left: 14px; }
-.rp-wb-delete { width: 100%; padding: 12px; border: none; border-radius: 12px; background: #ffe8e8; color: #e11d48; font-size: 14px; cursor: pointer; margin-top: 8px; }
-.rp-wb-add { width: 100%; padding: 14px; border: 1px dashed #c4b5fd; border-radius: 16px; background: #faf8ff; color: #7c6bd6; font-size: 14px; cursor: pointer; margin-top: 4px; }
+.rp-wb-body { padding: 0 18px 18px; border-top: 1px solid #f0eef8; }
+.rp-wb-body > label { display: block; margin: 14px 0 0; }
+.rp-wb-body > label > span { display: block; font-size: 12px; color: #888; margin-bottom: 8px; }
+.rp-wb-body input, .rp-wb-body textarea, .rp-wb-body select {
+  width: 100%; padding: 12px 14px; border: none; border-radius: 14px;
+  background: #f5f7fb; font-size: 14px;
+}
+.rp-wb-body textarea { resize: vertical; line-height: 1.7; }
+.rp-wb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.rp-wb-grid label > span { display: block; font-size: 12px; color: #888; margin-bottom: 8px; }
+.rp-wb-toggles { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.rp-wb-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; border: none; background: #f0eef8; font-size: 13px; cursor: pointer; color: #666; }
+.rp-wb-toggle i { width: 34px; height: 20px; border-radius: 10px; background: #ccc; position: relative; transition: background .2s; }
+.rp-wb-toggle i::after { content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.rp-wb-toggle.on { background: #ede9fe; color: #7c6bd6; }
+.rp-wb-toggle.on i { background: #8b7ed6; }
+.rp-wb-toggle.on i::after { left: 16px; }
+.rp-wb-delete { width: 100%; padding: 14px; border: none; border-radius: 14px; background: #ffe8ec; color: #e11d48; font-size: 14px; cursor: pointer; margin-top: 14px; }
+.rp-wb-add { width: 100%; padding: 16px; border: 1.5px dashed #c4b5fd; border-radius: 18px; background: rgba(255,255,255,.6); color: #8b7ed6; font-size: 14px; cursor: pointer; margin-top: 8px; }
 
-/* 剧本世界观独立板块 */
-.rp-theater-world-desc { font-size: 12px; color: #888; line-height: 1.6; margin-bottom: 12px; padding: 10px 12px; background: #f8f7fc; border-radius: 10px; }
-#rp-theater-world-block textarea { width: 100%; padding: 12px; border: 1px solid #e0ddf0; border-radius: 12px; font-size: 14px; line-height: 1.7; background: #faf9fd; resize: vertical; }
+/* 正则 */
+.rp-entry-list { display: flex; flex-direction: column; gap: 8px; }
+.rp-entry { display: flex; align-items: center; gap: 10px; background: #f8f9fc; border-radius: 14px; padding: 12px 14px; }
+.rp-entry.off { opacity: .5; }
+.rp-entry-toggle { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #ddd; background: #fff; cursor: pointer; flex-shrink: 0; font-size: 14px; }
+.rp-entry > div { flex: 1; min-width: 0; }
+.rp-entry strong { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp-entry small { display: block; color: #999; font-size: 11px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* 角色详情页（对标惟镜） */
+/* 标签 */
+.rp-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.rp-tag { padding: 8px 16px; border-radius: 999px; background: #f0eef8; color: #666; font-size: 13px; }
+
+/* 详情页 */
 .rp-detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-.rp-detail-head button { background: none; border: none; color: #7c6bd6; font-size: 14px; cursor: pointer; }
+.rp-detail-head button { background: none; border: none; color: #5b8def; font-size: 14px; cursor: pointer; }
 .rp-detail-head div { flex: 1; text-align: center; }
 .rp-detail-head strong { font-size: 17px; }
-.rp-detail-card3 { background: #f6f1f8; border-radius: 20px; padding: 18px; margin-bottom: 12px; }
-.rp-detail-card3 .rp-detail-avatar { width: 84px; height: 84px; border-radius: 20px; background: #e8e4f5; display: grid; place-items: center; font-size: 36px; flex-shrink: 0; }
+.rp-detail-card3 { display: block; }
 .rp-detail-card3:first-of-type { display: flex; gap: 16px; align-items: flex-start; }
+.rp-detail-avatar { width: 84px; height: 84px; border-radius: 20px; background: #e8e4f5; display: grid; place-items: center; font-size: 36px; flex-shrink: 0; }
 .rp-detail-meta { flex: 1; min-width: 0; }
 .rp-card30 { font-size: 11px; letter-spacing: 2px; color: #8b7ed6; font-weight: 700; }
 .rp-detail-meta strong { display: block; font-size: 20px; margin: 4px 0 8px; }
 .rp-detail-meta p { font-size: 13px; color: #666; line-height: 1.6; margin: 0; }
-.rp-detail-desc-full .rp-card-desc { font-size: 13px; color: #555; line-height: 1.7; margin: 8px 0 12px; }
-.rp-detail-link { display: flex; align-items: center; justify-content: space-between; width: 100%; background: #f6f1f8; border: none; border-radius: 20px; padding: 18px; margin-bottom: 12px; cursor: pointer; text-align: left; }
+.rp-detail-link { display: flex; align-items: center; justify-content: space-between; width: 100%; background: rgba(255,255,255,.92); border: none; border-radius: 20px; padding: 18px; margin-bottom: 12px; cursor: pointer; text-align: left; box-shadow: 0 2px 12px rgba(91,141,239,.06); }
 .rp-detail-link strong { display: block; font-size: 15px; margin-bottom: 4px; }
 .rp-detail-link small { color: #999; font-size: 12px; }
 .rp-detail-link i { color: #8b7ed6; font-size: 20px; font-style: normal; }
-.rp-detail-opening { border-top: 1px solid #eee; padding: 12px 0; }
+.rp-detail-opening { border-top: 1px solid #f0f0f5; padding: 12px 0; }
 .rp-detail-opening:first-child { border-top: none; }
 .rp-detail-opening small { color: #999; font-size: 11px; }
 .rp-detail-opening p { font-size: 13px; color: #444; line-height: 1.6; margin: 6px 0 0; }
-.rp-detail-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; position: sticky; bottom: 0; padding: 12px 0; background: linear-gradient(transparent, #fff 30%); }
+.rp-detail-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
 .rp-btn-primary { background: #5b8def; color: #fff; border: none; border-radius: 16px; padding: 16px; font-size: 15px; font-weight: 600; cursor: pointer; }
-.rp-btn-secondary { background: #f0edf8; color: #666; border: none; border-radius: 16px; padding: 14px; font-size: 14px; cursor: pointer; }
-.rp-project-copy { background: none; border: none; text-align: left; cursor: pointer; flex: 1; min-width: 0; }
+.rp-btn-secondary { background: rgba(255,255,255,.92); color: #666; border: none; border-radius: 16px; padding: 14px; font-size: 14px; cursor: pointer; }
+
+/* 开场白 */
+.rp-greeting-editor { background: rgba(255,255,255,.92); border-radius: 20px; padding: 18px; margin-bottom: 12px; }
+.rp-greeting-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.rp-greeting-head strong { font-size: 15px; }
+.rp-greeting-head small { color: #999; font-size: 12px; }
+.rp-greeting-head button { padding: 8px 14px; border-radius: 999px; border: none; background: #f0eef8; color: #7c6bd6; font-size: 13px; cursor: pointer; margin-left: 6px; }
+
+/* 按钮 */
+.rp-editor-actions { display: flex; gap: 10px; margin-top: 16px; position: sticky; bottom: 0; padding: 12px 0; }
+.rp-editor-actions button { flex: 1; padding: 16px; border-radius: 16px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; }
+.rp-editor-actions button:first-child { background: rgba(255,255,255,.92); color: #666; }
+.rp-editor-actions button:last-child { background: #5b8def; color: #fff; }
+
+/* 空状态 */
+.rp-empty { text-align: center; padding: 40px 20px; color: #999; }
+.rp-empty span { font-size: 36px; display: block; margin-bottom: 12px; }
+.rp-empty button { margin-top: 16px; padding: 12px 24px; border-radius: 999px; border: none; background: #5b8def; color: #fff; font-size: 14px; cursor: pointer; }
+
+/* 剧本世界观 */
+.rp-theater-world-desc { font-size: 12px; color: #888; line-height: 1.6; margin-bottom: 12px; padding: 12px 14px; background: #f8f7fc; border-radius: 12px; }
+
+/* 美化预览 */
+.rp-greeting-preview { margin-top: 12px; }
+.rp-greeting-preview summary { cursor: pointer; color: #8b7ed6; font-size: 13px; padding: 8px 0; }
+.rp-beauty-music { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px 16px; border-radius: 16px; background: #f0edf8; }
