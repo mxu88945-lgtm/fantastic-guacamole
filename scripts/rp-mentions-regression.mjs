@@ -36,16 +36,16 @@ const context = vm.createContext({ document, window, Event: TestEvent, console }
 const pickerSource = readFileSync(new URL("../src/rp-mentions.js", import.meta.url), "utf8").replace("export function mentionQuery", "function mentionQuery");
 vm.runInContext(pickerSource, context);
 const tools = root.query(".rp-mention-tools"), list = root.query(".rp-mention-options");
-assert.equal(tools.hidden, false);
+assert.equal(tools.hidden, true, "the picker must stay out of the layout until @ is typed");
 input.value = "@"; input.selectionStart = 1; input.dispatchEvent(new TestEvent("input"));
 assert.equal(list.hidden, false, "typing @ must actually open a member picker");
 assert.equal(list.children.length, 3);
 const guest = list.children.find(option => option.dataset.mentionId === "guest");
 const click = new TestEvent("click"); click.target = guest.children[1]; list.dispatchEvent(click);
-assert.equal(input.value, "", "selection tokens are separate from the visible user dialogue");
+assert.equal(input.value, "@江屹琛 ", "the picker must insert the selected @ target back into the composer");
 assert.equal(window.JYCRoleplayMentions.selectedIds().join(","), "guest");
-assert.equal(root.query(".rp-mention-tags").children[0].textContent, "@江屹琛 ×");
 assert.equal(list.hidden, true);
+assert.equal(input.placeholder, "输入 @ 选择回答的角色……");
 
 // Drive send() after selecting the guest: metadata must survive clearing the UI.
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -63,7 +63,7 @@ context.renderMessages = () => { throw Error("unnecessary chat redraw"); };
 context.generateReply = async () => { context.sentSelection = [...context.messages.at(-1).rpReplyMemberIds]; };
 vm.runInContext(source("function normalizedRoleplayProject(", "function addRoleplayMemory("), context);
 vm.runInContext(source("async function send(opts)", "// Show/hide a password input"), context);
-input.value = "我在这里。";
+input.value += "我在这里。";
 await context.send();
 assert.equal(context.messages[0].content, "我在这里。");
 assert.equal(context.messages[0].rpReplyMemberIds.join(","), "guest");
@@ -71,8 +71,10 @@ assert.equal(context.sentSelection.join(","), "guest", "the API dispatcher must 
 assert.equal(window.JYCRoleplayMentions.selectedIds().length, 0, "@ targets are only for one user turn");
 const project = context.normalizedRoleplayProject(scene.rpProject, scene);
 assert.equal(context.roleplayReplyMembers(project, context.messages[0].content, context.messages[0].rpReplyMemberIds).map(member => member.name).join(","), "江屹琛");
+input.value = context.messages[0].content;
 window.JYCRoleplayMentions.restore(context.messages[0].rpReplyMemberIds);
 assert.equal(window.JYCRoleplayMentions.selectedIds().join(","), "guest", "editing and resending must restore the original recipient");
+assert.equal(input.value, "@江屹琛 我在这里。", "editing must restore the inline @ target too");
 window.JYCRoleplayMentions.clear();
 
 // Keyboard selection and window changes must not send or retain an old target.

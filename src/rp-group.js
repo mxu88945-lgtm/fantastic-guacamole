@@ -19,6 +19,17 @@ if (bridge) {
 
   const channels = () => bridge.channels();
   const memberId = () => globalThis.crypto?.randomUUID?.() || `cast-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  function cardRegexRules(card) {
+    const raw = card?.extensions?.regex_scripts || card?.extensions?.regexScripts || card?.regex_scripts || card?.regexScripts || [];
+    return (Array.isArray(raw) ? raw : []).filter(Boolean).slice(0, 100).map((rule, index) => ({
+      id: String(rule.id || rule.script_name || `member-regex-${index}`).slice(0, 120),
+      name: String(rule.name || rule.scriptName || rule.script_name || `规则 ${index + 1}`).slice(0, 120),
+      findRegex: String(rule.findRegex || rule.find_regex || "").slice(0, 20000),
+      replaceString: String(rule.replaceString || rule.replace_string || "").slice(0, 50000),
+      placement: Array.isArray(rule.placement) ? rule.placement : [2],
+      disabled: Boolean(rule.disabled), promptOnly: Boolean(rule.promptOnly || rule.prompt_only),
+    })).filter(rule => rule.findRegex);
+  }
   function collect() {
     if (!draft) return;
     draft.groupEnabled = panel.querySelector("#rp-group-enabled").checked;
@@ -150,7 +161,7 @@ if (bridge) {
     const names = new Set([draft.actorName, ...draft.members.map(member => member.name)]);
     let name = baseName, suffix = 2;
     while (names.has(name)) name = `${baseName} ${suffix++}`;
-    draft.members.push({ id: memberId(), name, kind, playedByOwner: false, prompt: card.prompt || (kind === "director" ? "负责环境、转场与未加入群聊的 NPC，承接现有剧情，不替用户或其他共演角色发言。" : ""), avatar: /^(https?:\/\/|data:image\/)/.test(card.avatar || "") ? card.avatar : "", enabled: true, providerId: "", model: "", newMember: true });
+    draft.members.push({ id: memberId(), name, kind, playedByOwner: false, prompt: card.prompt || (kind === "director" ? "负责环境、转场与未加入群聊的 NPC，承接现有剧情，不替用户或其他共演角色发言。" : ""), greeting: card.greeting || "", beautificationProtocol: card.beautificationProtocol || "", regexRules: Array.isArray(card.regexRules) ? card.regexRules : [], avatar: /^(https?:\/\/|data:image\/)/.test(card.avatar || "") ? card.avatar : "", enabled: true, providerId: "", model: "", newMember: true });
     draft.groupEnabled = true; panel.querySelector("#rp-group-enabled").checked = true;
     markDirty(); renderMembers();
   }
@@ -191,9 +202,10 @@ if (bridge) {
         const text = await file.text();
         if (/\.json$/i.test(file.name)) {
           const raw = JSON.parse(text), card = raw.data || raw;
-          const prompt = [card.description, card.personality, card.scenario, card.mes_example].filter(value => typeof value === "string").join("\n\n");
+          const beautificationProtocol = card.extensions?.beautification_protocol || card.beautificationProtocol || "";
+          const prompt = [card.description, card.personality, card.scenario, card.mes_example, card.post_history_instructions, beautificationProtocol].filter(value => typeof value === "string").join("\n\n");
           if (!card.name || !prompt) throw new Error("文件中没有人物名字或角色资料");
-          addMember("actor", { name: String(card.name), prompt, avatar: card.avatar });
+          addMember("actor", { name: String(card.name), prompt, avatar: card.avatar, greeting: card.first_mes || card.greeting || "", beautificationProtocol, regexRules: cardRegexRules(card) });
         } else addMember("actor", { name: file.name.replace(/\.[^.]+$/, ""), prompt: text });
       } catch (error) { bridge.toast(error.message || "角色卡读取失败"); }
       event.target.value = "";

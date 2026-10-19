@@ -40,6 +40,10 @@ assert.match(prompt, /只由|仅由「导演」发言/);
 assert.match(prompt, /不替用户决定|不要替用户决定/);
 assert.match(prompt, /保持节奏/);
 assert.match(prompt, /后台共享不等于人物全知/);
+assert.match(prompt, /<director_status>[\s\S]*<\/director_status>/, "director replies must keep a stable status protocol");
+const actorWithStatus = { id: "guest", name: "江屹琛", kind: "actor", prompt: "结尾输出 <gts_status>状态</gts_status>" };
+assert.equal(context.roleplayStatusTag(actorWithStatus, project), "gts_status");
+assert.match(context.ensureRoleplayStatusOutput("<scene>深夜｜休息室</scene>\n他抬眼。", actorWithStatus, project), /<gts_status>[\s\S]*<\/gts_status>$/);
 const legacy = context.normalizedRoleplayProject({ actorName: "旧角色" }, { title: "旧场次" });
 assert.equal(legacy.groupEnabled, false);
 assert.equal(context.roleplayMembers(legacy).length, 1);
@@ -241,6 +245,7 @@ const completion = vm.createContext({
   currentConv: () => ({ id: "scene", space: "roleplay", rpProject: project, messages: completion.messages }),
   normalizedRoleplayProject: context.normalizedRoleplayProject,
   roleplayMembers: context.roleplayMembers,
+  ensureRoleplayStatusOutput: text => text,
   roleplayTemporaryPlotFor: () => null,
   stripIndependentRoleplayControls: context.stripIndependentRoleplayControls,
   isRoleplayConversation: () => true, uid: () => "independent-response",

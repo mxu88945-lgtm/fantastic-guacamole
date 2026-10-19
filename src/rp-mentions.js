@@ -12,27 +12,19 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
   const input = document.getElementById("input");
   const composer = input?.closest(".composer");
   if (input && composer) {
+    const defaultPlaceholder = input.placeholder || "写点什么…";
     const tools = document.createElement("div");
     tools.className = "rp-mention-tools";
     tools.hidden = true;
-    const tags = document.createElement("div");
-    tags.className = "rp-mention-tags";
-    tags.setAttribute("aria-live", "polite");
-    const trigger = document.createElement("button");
-    trigger.type = "button";
-    trigger.className = "rp-mention-trigger";
-    trigger.textContent = "@ 选择回复角色";
     const list = document.createElement("div");
     list.className = "rp-mention-options";
     list.id = "rp-mention-options";
     list.hidden = true;
     list.setAttribute("role", "listbox");
     list.setAttribute("aria-label", "选择本轮发言成员");
-    trigger.setAttribute("aria-controls", list.id);
-    trigger.setAttribute("aria-expanded", "false");
-    tools.append(tags, trigger, list);
+    tools.append(list);
     composer.before(tools);
-    let ids = [], selectedSceneId = "", query = null, offered = [], activeIndex = 0, explicitOpen = false, composing = false;
+    let ids = [], selectedSceneId = "", query = null, offered = [], activeIndex = 0, composing = false;
 
     function currentScene() {
       try { const scene = bridge.current(); return scene?.rpProject?.groupEnabled ? scene : null; }
@@ -43,36 +35,33 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
       return [{ id: "lead", name: p.actorName || "舞台主角", avatar: p.actorAvatar || "", kind: "actor" }, ...(p.members || [])];
     }
     function hide() {
-      list.hidden = true; explicitOpen = false;
-      trigger.setAttribute("aria-expanded", "false");
+      list.hidden = true;
+      tools.hidden = true;
       input.setAttribute("aria-expanded", "false");
       input.removeAttribute("aria-activedescendant");
     }
-    function renderTags(cast) {
-      tags.replaceChildren();
-      for (const id of ids) {
-        const member = cast.find(item => item.id === id);
-        if (!member) continue;
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "rp-mention-tag";
-        chip.textContent = `@${member.name} ×`;
-        chip.setAttribute("aria-label", `取消本轮选择 ${member.name}`);
-        chip.onclick = () => { ids = ids.filter(value => value !== id); refresh(); };
-        tags.append(chip);
+    function selectedFromText(cast) {
+      const selected = [];
+      for (const match of input.value.matchAll(/[@＠]/gu)) {
+        const start = (match.index || 0) + match[0].length;
+        const member = cast.filter(item => input.value.startsWith(item.name, start)).sort((a, b) => b.name.length - a.name.length)[0];
+        if (member && !selected.includes(member.id)) selected.push(member.id);
       }
+      return selected;
     }
     function refresh() {
       const scene = currentScene();
-      tools.hidden = !scene;
+      input.placeholder = scene ? "输入 @ 选择回答的角色……" : defaultPlaceholder;
       if (!scene) { ids = []; selectedSceneId = ""; hide(); return; }
-      if (selectedSceneId !== scene.id) { ids = []; selectedSceneId = scene.id; explicitOpen = false; }
       const cast = members(scene);
-      ids = ids.filter(id => cast.some(member => member.id === id));
-      renderTags(cast);
+      if (selectedSceneId && selectedSceneId !== scene.id) {
+        for (const member of cast) input.value = input.value.replace(new RegExp(`[@＠]${member.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`, "gu"), "");
+      }
+      if (selectedSceneId !== scene.id) { ids = []; selectedSceneId = scene.id; }
+      ids = selectedFromText(cast);
       query = mentionQuery(input.value, input.selectionStart ?? input.value.length);
-      if ((!query && !explicitOpen) || composing) { hide(); return; }
-      offered = cast.filter(member => !ids.includes(member.id) && (!query?.query || member.name.toLowerCase().includes(query.query.toLowerCase())));
+      if (!query || composing) { hide(); return; }
+      offered = cast.filter(member => !query.query || member.name.toLowerCase().includes(query.query.toLowerCase()));
       activeIndex = Math.min(activeIndex, Math.max(0, offered.length - 1));
       list.replaceChildren();
       if (!offered.length) {
@@ -90,8 +79,8 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
         option.append(portrait, name, hint);
         list.append(option);
       });
+      tools.hidden = false;
       list.hidden = false;
-      trigger.setAttribute("aria-expanded", "true");
       input.setAttribute("aria-controls", list.id);
       input.setAttribute("aria-expanded", "true");
       input.setAttribute("aria-activedescendant", `rp-mention-option-${activeIndex}`);
@@ -100,17 +89,18 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
       const scene = currentScene();
       if (!scene || !members(scene).some(member => member.id === id)) return;
       const range = mentionQuery(input.value, input.selectionStart ?? input.value.length);
-      if (!ids.includes(id)) ids.push(id);
+      const member = members(scene).find(item => item.id === id);
       if (range) {
-        input.value = input.value.slice(0, range.start) + input.value.slice(range.end);
-        input.setSelectionRange(range.start, range.start);
+        const token = `@${member.name} `;
+        input.value = input.value.slice(0, range.start) + token + input.value.slice(range.end);
+        const cursor = range.start + token.length;
+        input.setSelectionRange(cursor, cursor);
       }
       hide();
       input.focus();
       input.dispatchEvent(new Event("input", { bubbles: true }));
       refresh();
     }
-    trigger.onclick = () => { explicitOpen = list.hidden; activeIndex = 0; refresh(); };
     list.addEventListener("pointerdown", event => event.preventDefault());
     list.addEventListener("click", event => { const option = event.target.closest("[data-mention-id]"); if (option) choose(option.dataset.mentionId); });
     input.addEventListener("input", () => { activeIndex = 0; refresh(); });
@@ -133,11 +123,14 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
     for (const event of ["jyc:app-ready", "jyc:chat-opened", "jyc:role-changed", "jyc:roleplay-updated"]) window.addEventListener(event, refresh);
     window.JYCRoleplayMentions = { selectedIds: () => {
       const scene = currentScene();
-      return scene?.id === selectedSceneId ? ids.filter(id => members(scene).some(member => member.id === id)) : [];
+      return scene?.id === selectedSceneId ? selectedFromText(members(scene)) : [];
     }, clear, restore: values => {
       const scene = currentScene();
       selectedSceneId = scene?.id || "";
-      ids = Array.isArray(values) ? [...new Set(values)] : [];
+      const cast = scene ? members(scene) : [];
+      ids = Array.isArray(values) ? [...new Set(values)].filter(id => cast.some(member => member.id === id)) : [];
+      const prefix = ids.map(id => `@${cast.find(member => member.id === id).name}`).join(" ");
+      if (prefix) input.value = `${prefix} ${input.value}`.trimStart();
       hide(); refresh();
     } };
     refresh();

@@ -98,10 +98,12 @@ const pristine = { id: 'pristine', space: 'roleplay', title: '刚导入', messag
 ok(sceneContext.roleplaySceneFromGreeting(pristine, 1).id === 'pristine' && pristine.messages[0].content === '正文开场', 'selecting an untouched opening should replace its assistant turn in place');
 const clickAction = html.slice(html.indexOf('function enterRoleplayCardAction('), html.indexOf('if (typeof window !== "undefined") window.addEventListener("message"', html.indexOf('function enterRoleplayCardAction(')));
 ok(!clickAction.includes('send()') && !clickAction.includes('input.value'), 'card choices must never send a user-authored message or call the model');
-const sourceContext = { uid: () => 'test-id' };
+const sourceContext = { uid: () => 'test-id', escapeHtml: value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), renderMarkdown: value => `<p>${value}</p>` };
 vm.createContext(sourceContext);
 vm.runInContext(html.slice(html.indexOf('function roleplayRichSource('), html.indexOf('function looksLikeRoleplayRichHtml(')), sourceContext);
 ok(sourceContext.roleplayRichSource('```html\r\n<html><body>cover</body></html>\r\n```\r\n\r\n[播放: test]') === '<html><body>cover</body></html>', 'a card fence followed by an audio tag must still unwrap to its HTML document');
+const semantic = sourceContext.roleplaySemanticDisplay('<scene>深夜｜休息室</scene>正文<director_status>【当前场景】休息室\n【待回应钩子】等她回应</director_status>');
+ok(semantic.includes('rp-scene-strip') && semantic.includes('rp-status-card') && semantic.includes('待回应钩子') && !semantic.includes('&lt;scene&gt;'), 'unmatched scene/status tags must render as native cards');
 vm.runInContext(html.slice(html.indexOf('function normalizedRoleplayProject('), html.indexOf('function addRoleplayMemory(')), sourceContext);
 const normalized = sourceContext.normalizedRoleplayProject({ greetings: ['cover', 'first opening', '', 'third opening'], openingIndex: 3 }, {title:'test'});
 ok(normalized.greetings.length === 4 && normalized.opening === 'third opening', 'blank swipe slots must not shift card button indexes');
