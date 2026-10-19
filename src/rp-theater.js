@@ -277,8 +277,12 @@ function plainPreviewWithMedia(value) {
                 <div class="rp-card-block-head"><div><strong>角色正则与美化</strong><small id="rp-regex-count"></small></div></div>
                 <div class="rp-entry-list" id="rp-regex-list"></div>
               </section>
-              <label class="rp-wide"><span>世界观与长期剧情背景</span><textarea id="rp-field-world" rows="7" placeholder="时代、地点、组织、人物关系、已经发生的事实……"></textarea></label>
-              <details class="rp-wide rp-greeting-preview" id="rp-world-preview"><summary>世界观呈现预览</summary><div id="rp-world-preview-content"></div></details>
+              <section class="rp-wide rp-card-block" id="rp-theater-world-block">
+                <div class="rp-card-block-head"><div><strong>剧本世界观</strong><small>本剧场所有角色与 NPC 共用 · 对标惟镜长剧情</small></div></div>
+                <div class="rp-theater-world-desc">这份设定只属于这个剧本。开场后本剧场里的所有角色和 NPC 都会读取；切换到其他剧本时不会带过去。角色各自的人设、世界书与正则仍会叠加生效。</div>
+                <textarea id="rp-field-world" rows="10" placeholder="填写本剧场的时代与地点、公共背景、人物关系、共同经历、势力结构和所有成员必须知道的事实……"></textarea>
+                <details class="rp-greeting-preview" id="rp-world-preview"><summary>世界观呈现预览</summary><div id="rp-world-preview-content"></div></details>
+              </section>
               <label class="rp-wide"><span>当前场景</span><textarea id="rp-field-scenario" rows="5" placeholder="现在的时间、地点、在场人物和关系阶段。这里是本场唯一有效的现在时锚点。"></textarea></label>
               <label class="rp-wide"><span>临时剧情推进</span><textarea id="rp-field-temporary" rows="4" placeholder="可随时修改或清空；只代表接下来想推进的方向，不算已经发生。"></textarea></label>
               <section class="rp-wide rp-greeting-editor">
@@ -320,16 +324,17 @@ function plainPreviewWithMedia(value) {
 
   function currentDraft() {
     commitGreetingDraft();
-    // 世界观文本与结构化条目同步：有条目时用启用的条目拼
-    const wbText = state.worldEntries.length
-      ? state.worldEntries.filter((e) => e.enabled && e.content).map((e) => e.content).join("\n\n")
-      : $("rp-field-world").value.trim();
+    // 角色世界书：启用的条目拼成 world
+    const wbText = state.worldEntries.filter((e) => e.enabled && e.content).map((e) => e.content).join("\n\n");
+    // 剧本世界观：独立字段，对标惟镜长剧情的 theaterWorldBackground
+    const theaterWorld = $("rp-field-world") ? $("rp-field-world").value.trim() : "";
     return {
       title: $("rp-field-title").value.trim(),
       actorName: $("rp-field-actor").value.trim(),
       userRole: $("rp-field-user-role").value.trim(),
       characterPrompt: $("rp-field-character").value.trim(),
       world: wbText,
+      theaterWorldBackground: theaterWorld,
       scenario: $("rp-field-scenario").value.trim(),
       temporaryPlot: $("rp-field-temporary").value.trim(),
       opening: (state.greetings[state.selectedGreeting] || "").trim(),
@@ -353,7 +358,7 @@ function plainPreviewWithMedia(value) {
     $("rp-field-actor").value = safeText(data.actorName || "", 80);
     $("rp-field-user-role").value = safeText(data.userRole || "", 240);
     $("rp-field-character").value = safeText(data.characterPrompt);
-    $("rp-field-world").value = safeText(data.world);
+    $("rp-field-world").value = safeText(data.theaterWorldBackground || data.world);
     $("rp-field-scenario").value = safeText(data.scenario);
     $("rp-field-temporary").value = safeText(data.temporaryPlot);
     state.tags = Array.isArray(data.tags) ? data.tags.map((t) => safeText(t, 40)).filter(Boolean).slice(0, 24) : [];
