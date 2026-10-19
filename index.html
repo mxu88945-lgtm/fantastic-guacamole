@@ -6782,6 +6782,30 @@ function roleplayRichSource(value) {
   const fenced = source.match(/^```(?:html)?[^\S\r\n]*\r?\n([\s\S]*?)\r?\n```(?:\s|$)/i);
   return fenced ? fenced[1].trim() : source;
 }
+// 惟镜同款：角色卡正则只在显示时跑（存储和发给模型的仍是原文），产出 HTML（音乐播放器等）就整段进 iframe。
+function roleplayRegexDisplay(answer) {
+  const text = String(answer || "");
+  if (!text.trim() || !isRoleplayConversation()) return text;
+  const rules = normalizedRoleplayProject(currentConv()?.rpProject, currentConv()).regexRules || [];
+  if (!rules.length) return text;
+  let out = text;
+  for (const rule of rules) {
+    if (!rule || rule.disabled || !rule.findRegex || rule.promptOnly) continue;
+    if (Array.isArray(rule.placement) && rule.placement.length && !rule.placement.includes(2)) continue;
+    try {
+      const src = String(rule.findRegex).trim();
+      let re;
+      const m = src.match(/^\/([\s\S]+)\/([a-z]*)$/);
+      if (m) re = new RegExp(m[1], m[2].includes("g") ? m[2] : m[2] + "g"); else re = new RegExp(src, "g");
+      out = out.replace(re, String(rule.replaceString || "").replace(/\{\{match\}\}/gi, "$$&"));
+    } catch (_) {}
+  }
+  if (out === text) return text;
+  out = out.replace(/```(?:html)?[^\S\r\n]*\r?\n?/gi, "");
+  if (looksLikeRoleplayRichHtml(out)) return out;
+  if (/<(?:div|span|audio|img|section|table|details|p)\b/i.test(out)) return `<!doctype html><html><body style="font:15px/1.8 -apple-system,sans-serif;white-space:pre-wrap">${out}</body></html>`;
+  return out;
+}
 function looksLikeRoleplayRichHtml(value) {
   return /<!doctype\s+html|<html\b|<head\b|<body\b|<style\b|<script\b/i.test(roleplayRichSource(value));
 }
@@ -6869,6 +6893,7 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState) 
       !!streaming && (!!reason.trim() || hasRunningTrace) && !answer.trim(),
       traces, responseState, streaming);
   }
+  if (role === "assistant" && !streaming && isRoleplayConversation() && !looksLikeRoleplayRichHtml(answer)) answer = roleplayRegexDisplay(answer);
   const useRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && looksLikeRoleplayRichHtml(answer);
   let textHtml = answer
     ? (useRoleplayHtml ? roleplayRichFrameHtml(answer) : (role === "assistant" ? renderMarkdown(answer) : escapeHtml(answer).replace(/\n/g, "<br>")))
@@ -6962,7 +6987,7 @@ function makeMsgEl(role, content, opts) {
   const flat = settings.chatLayout === "flat";
   const el = document.createElement("div");
   const stickerOnly = Array.isArray(content) && content.length > 0 && content.every(p => p.type === "sticker");
-  const richRoleplay = role === "assistant" && isRoleplayConversation() && typeof content === "string" && looksLikeRoleplayRichHtml(content);
+  const richRoleplay = role === "assistant" && isRoleplayConversation() && typeof content === "string" && looksLikeRoleplayRichHtml(roleplayRegexDisplay(content));
   el.className = "msg " + role + (flat ? " flat" : "") + (stickerOnly ? " sticker-only" : "") + (richRoleplay ? " roleplay-rich-message" : "");
   const timeHtml = (settings.showTime && opts.ts) ? `<span class="msg-time">${formatTime(opts.ts)}</span>` : "";
   const nameHtml = escapeHtml(nameFor(role)) + timeHtml;
