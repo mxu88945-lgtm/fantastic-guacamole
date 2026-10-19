@@ -55,6 +55,29 @@ function parseSceneContext(text) {
   }
   return { scene, rest: rest.join('\n').trim() };
 }
+function parseRuleRegex(source) {
+  const trimmed = String(source || "").trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("/")) {
+    const lastSlash = trimmed.lastIndexOf("/");
+    if (lastSlash > 0) {
+      try { return new RegExp(trimmed.slice(1, lastSlash), trimmed.slice(lastSlash + 1).includes("g") ? trimmed.slice(lastSlash + 1) : trimmed.slice(lastSlash + 1) + "g"); } catch (_) { return null; }
+    }
+  }
+  try { return new RegExp(trimmed, "g"); } catch (_) { return null; }
+}
+function applyRegexRules(text, rules) {
+  let output = String(text || "");
+  for (const rule of rules || []) {
+    if (rule.disabled || !rule.findRegex) continue;
+    try {
+      const regex = parseRuleRegex(rule.findRegex);
+      if (!regex) continue;
+      output = output.replace(regex, rule.replaceString || "");
+    } catch (_) {}
+  }
+  return output;
+}
 function beautifyOpeningHTML(value) {
   const raw = safeText(value, 300000).trim();
   if (!raw) return '';
@@ -158,7 +181,8 @@ function plainPreviewWithMedia(value) {
       holder.innerHTML = '<iframe class="rp-greeting-preview-frame" title="开场白美化预览" sandbox="allow-scripts"></iframe>';
       holder.querySelector("iframe").srcdoc = greetingPreviewDocument(value);
     } else {
-      holder.innerHTML = beautifyOpeningHTML(value) || '<div class="rp-greeting-preview-empty">这里还没有内容。</div>';
+      const regexed = applyRegexRules(value, state.regexRules);
+      holder.innerHTML = beautifyOpeningHTML(regexed) || '<div class="rp-greeting-preview-empty">这里还没有内容。</div>';
     }
   }
 
@@ -642,18 +666,22 @@ function plainPreviewWithMedia(value) {
     $("rp-import-file").click();
   });
   $("rp-opening-confirm").addEventListener("click", () => {
-    // 开场白里有 [播放：] 标记时，转成带播放器的 HTML 再开场，聊天里才能显示音乐
+    // 选开场时：先跑角色卡自带的正则美化规则（对标惟境显示时 applyRegexScripts），再转 HTML，聊天里才能看到美化效果
     const project = bridge.get(openingState.projectId);
     if (project) {
       const greetings = greetingList(project.rpProject);
       const raw = greetings[openingState.index] || "";
-      if (/\[播放[:：]/.test(raw) && !looksLikeRichGreeting(raw)) {
-        const html = beautifyOpeningHTML(raw);
-        if (html) {
-          const updated = greetings.slice();
-          updated[openingState.index] = html;
-          bridge.update(openingState.projectId, { ...project.rpProject, greetings: updated, opening: updated[openingState.index] });
-        }
+      const rules = Array.isArray(project.rpProject.regexRules) ? project.rpProject.regexRules : [];
+      const regexed = applyRegexRules(raw, rules);
+      const html = beautifyOpeningHTML(regexed);
+      if (html && html !== `<div class="rp-beauty"><p class="rp-beauty-narr">${escapeHtml(raw).replace(/\n/g, "<br>")}</p></div>`) {
+        const updated = greetings.slice();
+        updated[openingState.index] = html;
+        bridge.update(openingState.projectId, { ...project.rpProject, greetings: updated, opening: updated[openingState.index] });
+      } else if (regexed !== raw) {
+        const updated = greetings.slice();
+        updated[openingState.index] = regexed;
+        bridge.update(openingState.projectId, { ...project.rpProject, greetings: updated, opening: updated[openingState.index] });
       }
     }
     const started = bridge.startWithGreeting(openingState.projectId, openingState.index, openingState.forceNew);
