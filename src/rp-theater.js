@@ -81,6 +81,7 @@ function applyRegexRules(text, rules) {
 function beautifyOpeningHTML(value) {
   const raw = safeText(value, 300000).trim();
   if (!raw) return '';
+  // 标记为富文本，让 looksLikeRichGreeting 能识别
   const media = parseOpeningMedia(raw);
   let body = stripOpeningMedia(raw);
   const { scene, rest } = parseSceneContext(body);
@@ -113,7 +114,7 @@ function beautifyOpeningHTML(value) {
       }
     }
   }
-  return `<div class="rp-beauty">${html}</div>`;
+  return `<style>.rp-beauty{padding:20px;font-size:14px;line-height:1.8}.rp-beauty-music{display:flex;align-items:center;gap:12px;margin-bottom:18px;padding:12px 16px;border-radius:16px;background:#f0edf8}.rp-beauty-music-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:50%;background:#7c6bd6;color:#fff;font-size:18px;flex-shrink:0}.rp-beauty-music strong,.rp-beauty-music small{display:block}.rp-beauty-music strong{font-size:13px}.rp-beauty-music small{color:#888;font-size:11px;margin-top:2px}.rp-beauty-music audio{margin-left:auto;max-width:200px;height:32px}.rp-beauty-scene{margin-bottom:18px;padding:16px 18px;border-left:4px solid #7c6bd6;border-radius:0 14px 14px 0;background:#f6f6f8}.rp-beauty-scene-title{font-size:10px;font-weight:800;letter-spacing:2px;color:#888;margin-bottom:10px}.rp-beauty-scene p{margin:6px 0;font-size:13px}.rp-beauty-narr{margin:0 0 14px}.rp-beauty-dialogue{display:inline-block;margin:6px 0 14px;padding:10px 16px;border-radius:16px;background:#e8e4f8;color:#5a4fc4;font-size:14px;line-height:1.7}</style><div class="rp-beauty">${html}</div>`;
 }
 function beautifyWorldHTML(value) {
   const raw = safeText(value, 100000).trim();
@@ -532,6 +533,24 @@ function plainPreviewWithMedia(value) {
   function chooseOpening(projectId, forceNew = true) {
     const project = bridge.get(projectId);
     if (!project) return;
+    // 预处理开场白：跑正则美化，转 HTML，聊天里才能显示播放器和气泡
+    const rp = project.rpProject || {};
+    const rawGreetings = greetingList(rp);
+    const rules = Array.isArray(rp.regexRules) ? rp.regexRules : [];
+    let changed = false;
+    const processed = rawGreetings.map((g) => {
+      if (!g || looksLikeRichGreeting(g)) return g;
+      const regexed = applyRegexRules(g, rules);
+      // 只有含 [播放：] 或引号对话时才转 HTML，避免无意义转换
+      if (/\[播放[:：]/.test(regexed) || /[“"「][^”"」]{2,}[”"」]/.test(regexed)) {
+        const html = beautifyOpeningHTML(regexed);
+        if (html) { changed = true; return html; }
+      } else if (regexed !== g) { changed = true; return regexed; }
+      return g;
+    });
+    if (changed) {
+      bridge.update(projectId, { ...rp, greetings: processed });
+    }
     openingState.projectId = projectId;
     openingState.index = Math.max(0, Number(project.rpProject?.openingIndex) || 0);
     const greetings = greetingList(project.rpProject);
@@ -666,23 +685,12 @@ function plainPreviewWithMedia(value) {
     $("rp-import-file").click();
   });
   $("rp-opening-confirm").addEventListener("click", () => {
-    // 选开场时：先跑角色卡自带的正则美化规则（对标惟境显示时 applyRegexScripts），再转 HTML，聊天里才能看到美化效果
     const project = bridge.get(openingState.projectId);
-    if (project) {
-      const greetings = greetingList(project.rpProject);
-      const raw = greetings[openingState.index] || "";
-      const rules = Array.isArray(project.rpProject.regexRules) ? project.rpProject.regexRules : [];
-      const regexed = applyRegexRules(raw, rules);
-      const html = beautifyOpeningHTML(regexed);
-      if (html && html !== `<div class="rp-beauty"><p class="rp-beauty-narr">${escapeHtml(raw).replace(/\n/g, "<br>")}</p></div>`) {
-        const updated = greetings.slice();
-        updated[openingState.index] = html;
-        bridge.update(openingState.projectId, { ...project.rpProject, greetings: updated, opening: updated[openingState.index] });
-      } else if (regexed !== raw) {
-        const updated = greetings.slice();
-        updated[openingState.index] = regexed;
-        bridge.update(openingState.projectId, { ...project.rpProject, greetings: updated, opening: updated[openingState.index] });
-      }
+    // 非强制新建、且该剧本已有正文时，直接打开现有对话，不再重复建卡
+    if (project && !openingState.forceNew && (project.messageCount || 0) > 0) {
+      closeOpeningPicker();
+      enter(project.id);
+      return;
     }
     const started = bridge.startWithGreeting(openingState.projectId, openingState.index, openingState.forceNew);
     if (!started) return;
