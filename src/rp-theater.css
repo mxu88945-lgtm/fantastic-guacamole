@@ -200,3 +200,29 @@ body.rp-chat-active #sidebar-workbench { display: none; }
 .rp-card-block, .rp-entry, .rp-entry > div { min-width: 0; max-width: 100%; overflow: hidden; }
 .rp-theater-shell, .rp-theater-body, .rp-editor-grid { max-width: 100%; overflow-x: hidden; }
 .rp-editor-grid input, .rp-editor-grid textarea { max-width: 100%; }
+
+/* 世界书完整编辑器 */
+.rp-wb-card { border: 1px solid #e8e6f5; border-radius: 16px; margin-bottom: 10px; background: #fff; overflow: hidden; }
+.rp-wb-card.off { opacity: 0.6; }
+.rp-wb-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 16px; background: none; border: none; cursor: pointer; text-align: left; }
+.rp-wb-dot { width: 12px; height: 12px; border-radius: 50%; background: #ddd; flex-shrink: 0; }
+.rp-wb-dot.on { background: #22c55e; }
+.rp-wb-title { font-weight: 700; font-size: 14px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-wb-head small { color: #999; font-size: 11px; flex-shrink: 0; }
+.rp-wb-head i { color: #999; font-style: normal; flex-shrink: 0; }
+.rp-wb-body { padding: 4px 16px 16px; border-top: 1px solid #f0eef8; }
+.rp-wb-body > label { display: block; margin: 12px 0; }
+.rp-wb-body > label > span { display: block; font-size: 12px; color: #888; margin-bottom: 6px; }
+.rp-wb-body input, .rp-wb-body textarea, .rp-wb-body select { width: 100%; padding: 10px 12px; border: 1px solid #e0ddf0; border-radius: 12px; font-size: 14px; background: #faf9fd; }
+.rp-wb-body textarea { resize: vertical; line-height: 1.6; }
+.rp-wb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+.rp-wb-grid label > span { display: block; font-size: 12px; color: #888; margin-bottom: 6px; }
+.rp-wb-toggles { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.rp-wb-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 20px; border: 1px solid #e0ddf0; background: #f5f3fa; font-size: 13px; cursor: pointer; }
+.rp-wb-toggle i { width: 32px; height: 20px; border-radius: 10px; background: #ccc; position: relative; transition: background 0.2s; }
+.rp-wb-toggle i::after { content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: left 0.2s; }
+.rp-wb-toggle.on { border-color: #7c6bd6; background: #f0edff; }
+.rp-wb-toggle.on i { background: #7c6bd6; }
+.rp-wb-toggle.on i::after { left: 14px; }
+.rp-wb-delete { width: 100%; padding: 12px; border: none; border-radius: 12px; background: #ffe8e8; color: #e11d48; font-size: 14px; cursor: pointer; margin-top: 8px; }
+.rp-wb-add { width: 100%; padding: 14px; border: 1px dashed #c4b5fd; border-radius: 16px; background: #faf8ff; color: #7c6bd6; font-size: 14px; cursor: pointer; margin-top: 4px; }

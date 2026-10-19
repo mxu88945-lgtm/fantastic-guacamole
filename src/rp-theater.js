@@ -339,7 +339,7 @@ function plainPreviewWithMedia(value) {
       memory: $("rp-field-memory").value.trim(),
       projectFiles: state.files.map((file) => ({ ...file })),
       tags: [...state.tags],
-      worldEntries: state.worldEntries.map((e) => ({ ...e })),
+      worldEntries: state.worldEntries.map(({ expanded, ...e }) => e),
       regexRules: state.regexRules.map((r) => ({ ...r })),
       description: safeText($("rp-field-description").dataset.full || "", 20000),
     };
@@ -357,7 +357,7 @@ function plainPreviewWithMedia(value) {
     $("rp-field-scenario").value = safeText(data.scenario);
     $("rp-field-temporary").value = safeText(data.temporaryPlot);
     state.tags = Array.isArray(data.tags) ? data.tags.map((t) => safeText(t, 40)).filter(Boolean).slice(0, 24) : [];
-    state.worldEntries = Array.isArray(data.worldEntries) ? data.worldEntries.map((e) => ({ id: safeText(e.id || "", 80), title: safeText(e.title || "条目", 80), content: safeText(e.content || "", 50000), enabled: e.enabled !== false, position: safeText(e.position || "before_char", 20) })) : [];
+    state.worldEntries = Array.isArray(data.worldEntries) ? data.worldEntries.map((e) => ({ id: safeText(e.id || "", 80), title: safeText(e.title || "条目", 80), keys: Array.isArray(e.keys) ? e.keys : [], secondaryKeys: Array.isArray(e.secondaryKeys) ? e.secondaryKeys : [], content: safeText(e.content || "", 50000), enabled: e.enabled !== false, constant: Boolean(e.constant), selective: Boolean(e.selective), useRegex: e.useRegex !== false, position: safeText(e.position || "before_char", 30), insertionOrder: Number(e.insertionOrder ?? 100) || 100, depth: Number(e.depth ?? 4) || 4, probability: Number(e.probability ?? 100) || 100, expanded: false })) : [];
     state.regexRules = Array.isArray(data.regexRules) ? data.regexRules.map((r) => ({ id: safeText(r.id || "", 80), name: safeText(r.name || "规则", 120), findRegex: safeText(r.findRegex || "", 20000), replaceString: safeText(r.replaceString || "", 50000), disabled: Boolean(r.disabled) })) : [];
     $("rp-field-description").dataset.full = safeText(data.description || "", 20000);
     renderCardBlocks();
@@ -402,20 +402,69 @@ function plainPreviewWithMedia(value) {
     }
     $("rp-tags-count").textContent = hasTags ? `${state.tags.length} 个标签` : "";
     $("rp-tags-list").innerHTML = state.tags.map((t) => `<span class="rp-tag">${escapeHtml(t)}</span>`).join("");
-    // 世界书
-    $("rp-worldbook-block").hidden = state.worldEntries.length === 0;
+    // 世界书（完整编辑器，对标惟镜）
+    $("rp-worldbook-block").hidden = false;
     const enabledWb = state.worldEntries.filter((e) => e.enabled).length;
-    $("rp-worldbook-count").textContent = `${state.worldEntries.length} 条 · ${enabledWb} 条启用 · 可启停`;
+    $("rp-worldbook-count").textContent = `${state.worldEntries.length} 条 · ${enabledWb} 条启用`;
+    const posName = (p) => ({ before_char: "角色定义之前", after_char: "角色定义之后", before_scenario: "场景之前", after_scenario: "场景之后" }[p] || p);
     $("rp-worldbook-list").innerHTML = state.worldEntries.map((entry, idx) => `
-      <div class="rp-entry${entry.enabled ? "" : " off"}">
-        <button type="button" class="rp-entry-toggle" data-wb-toggle="${idx}" aria-pressed="${entry.enabled}">${entry.enabled ? "✓" : "○"}</button>
-        <div><strong>${escapeHtml(entry.title)}</strong><small>${escapeHtml(entry.content.slice(0, 80))}${entry.content.length > 80 ? "…" : ""}</small></div>
-      </div>`).join("");
-    $("rp-worldbook-list").querySelectorAll("[data-wb-toggle]").forEach((btn) => btn.addEventListener("click", () => {
-      const i = Number(btn.dataset.wbToggle);
-      state.worldEntries[i].enabled = !state.worldEntries[i].enabled;
+      <div class="rp-wb-card${entry.enabled ? "" : " off"}">
+        <button type="button" class="rp-wb-head" data-wb-expand="${idx}">
+          <span class="rp-wb-dot${entry.enabled ? " on" : ""}"></span>
+          <span class="rp-wb-title">${escapeHtml(entry.title) || "未命名条目"}</span>
+          <small>${entry.constant ? "常驻" : ""}${entry.constant && entry.selective ? " · " : ""}${entry.selective ? "选择性" : ""} · 深度 ${entry.depth}</small>
+          <i>${entry.expanded ? "︿" : "﹀"}</i>
+        </button>
+        ${entry.expanded ? `
+        <div class="rp-wb-body">
+          <label><span>标题</span><input data-wb-field="title" data-wb-idx="${idx}" value="${escapeHtml(entry.title)}" maxlength="80" /></label>
+          <label><span>主关键词（逗号分隔）</span><input data-wb-field="keys" data-wb-idx="${idx}" value="${escapeHtml(entry.keys.join(", "))}" placeholder="关键词1, 关键词2" /></label>
+          <label><span>辅助关键词（逗号分隔）</span><input data-wb-field="secondaryKeys" data-wb-idx="${idx}" value="${escapeHtml(entry.secondaryKeys.join(", "))}" /></label>
+          <label><span>正文</span><textarea data-wb-field="content" data-wb-idx="${idx}" rows="6">${escapeHtml(entry.content)}</textarea></label>
+          <div class="rp-wb-grid">
+            <label><span>插入位置</span><select data-wb-field="position" data-wb-idx="${idx}">
+              ${["before_char", "after_char", "before_scenario", "after_scenario"].map((p) => `<option value="${p}"${entry.position === p ? " selected" : ""}>${posName(p)}</option>`).join("")}
+            </select></label>
+            <label><span>插入顺序</span><input type="number" data-wb-field="insertionOrder" data-wb-idx="${idx}" value="${entry.insertionOrder}" /></label>
+            <label><span>深度</span><input type="number" data-wb-field="depth" data-wb-idx="${idx}" value="${entry.depth}" min="0" max="99" /></label>
+            <label><span>概率</span><input type="number" data-wb-field="probability" data-wb-idx="${idx}" value="${entry.probability}" min="0" max="100" /></label>
+          </div>
+          <div class="rp-wb-toggles">
+            ${[["enabled", "启用"], ["constant", "常驻"], ["selective", "选择性触发"], ["useRegex", "关键词按正则"]].map(([f, label]) => `
+              <button type="button" class="rp-wb-toggle${entry[f] ? " on" : ""}" data-wb-switch="${f}" data-wb-idx="${idx}" aria-pressed="${entry[f]}"><i></i>${label}</button>`).join("")}
+          </div>
+          <button type="button" class="rp-wb-delete" data-wb-delete="${idx}">删除这条世界书</button>
+        </div>` : ""}
+      </div>`).join("") + `<button type="button" class="rp-wb-add" id="rp-wb-add">＋ 添加世界书条目</button>`;
+    $("rp-worldbook-list").querySelectorAll("[data-wb-expand]").forEach((btn) => btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.wbExpand);
+      state.worldEntries[i].expanded = !state.worldEntries[i].expanded;
       renderCardBlocks();
     }));
+    $("rp-worldbook-list").querySelectorAll("[data-wb-switch]").forEach((btn) => btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.wbIdx);
+      state.worldEntries[i][btn.dataset.wbSwitch] = !state.worldEntries[i][btn.dataset.wbSwitch];
+      renderCardBlocks();
+    }));
+    $("rp-worldbook-list").querySelectorAll("[data-wb-field]").forEach((input) => input.addEventListener("change", () => {
+      const i = Number(input.dataset.wbIdx);
+      const f = input.dataset.wbField;
+      const entry = state.worldEntries[i];
+      if (f === "keys" || f === "secondaryKeys") entry[f] = input.value.split(/[,，]/).map((s) => s.trim()).filter(Boolean).slice(0, 20);
+      else if (f === "insertionOrder" || f === "depth" || f === "probability") entry[f] = Number(input.value) || 0;
+      else entry[f] = input.value;
+      if (f === "title") renderCardBlocks();
+    }));
+    $("rp-worldbook-list").querySelectorAll("[data-wb-delete]").forEach((btn) => btn.addEventListener("click", () => {
+      if (!confirm("删除这条世界书？")) return;
+      state.worldEntries.splice(Number(btn.dataset.wbDelete), 1);
+      renderCardBlocks();
+    }));
+    const wbAdd = $("rp-wb-add");
+    if (wbAdd) wbAdd.addEventListener("click", () => {
+      state.worldEntries.push({ id: `wb-${Date.now()}`, title: "新条目", keys: [], secondaryKeys: [], content: "", enabled: true, constant: false, selective: false, useRegex: true, position: "before_char", insertionOrder: 100, depth: 4, probability: 100, expanded: true });
+      renderCardBlocks();
+    });
     // 正则与美化
     $("rp-regex-block").hidden = state.regexRules.length === 0;
     const enabledRx = state.regexRules.filter((r) => !r.disabled).length;
@@ -629,13 +678,25 @@ function plainPreviewWithMedia(value) {
     // 结构化：世界书条目（保留 enabled 开关）
     const rawBook = data.character_book || parsed.character_book || {};
     const rawEntries = Array.isArray(rawBook.entries) ? rawBook.entries : Object.values(rawBook.entries || {});
-    const worldEntries = rawEntries.map((entry, idx) => ({
-      id: safeText(entry.id || `wb-${idx}`, 80),
-      title: safeText(entry.comment || (entry.content || "").split("\n")[0].replace(/^[#\s]+/, "").slice(0, 40) || `条目 ${idx + 1}`, 80),
-      content: safeText(entry.content || "", 50000),
-      enabled: entry.enabled !== false,
-      position: safeText(entry.position || "before_char", 20),
-    })).filter((e) => e.content);
+    const worldEntries = rawEntries.map((entry, idx) => {
+      const ext = entry.extensions && typeof entry.extensions === "object" ? entry.extensions : {};
+      return {
+        id: safeText(entry.id || `wb-${idx}`, 80),
+        title: safeText(entry.comment || (entry.content || "").split("\n")[0].replace(/^[#\s]+/, "").slice(0, 40) || `条目 ${idx + 1}`, 80),
+        keys: Array.isArray(entry.keys) ? entry.keys.map((k) => safeText(k, 60)).filter(Boolean) : [],
+        secondaryKeys: Array.isArray(entry.secondary_keys) ? entry.secondary_keys.map((k) => safeText(k, 60)).filter(Boolean) : [],
+        content: safeText(entry.content || "", 50000),
+        enabled: entry.enabled !== false,
+        constant: Boolean(entry.constant),
+        selective: Boolean(entry.selective),
+        useRegex: entry.use_regex !== false,
+        position: safeText(entry.position || "before_char", 30),
+        insertionOrder: Number(entry.insertion_order ?? 100) || 100,
+        depth: Number(ext.depth ?? 4) || 4,
+        probability: Number(ext.probability ?? 100) || 100,
+        expanded: false,
+      };
+    }).filter((e) => e.content);
     // 结构化：正则与美化
     const rawRegex = data.extensions?.regex_scripts || parsed.extensions?.regex_scripts || data.extensions?.regexScripts || [];
     const regexRules = (Array.isArray(rawRegex) ? rawRegex : []).map((rule, idx) => ({
