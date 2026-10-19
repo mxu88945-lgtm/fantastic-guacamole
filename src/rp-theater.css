@@ -157,3 +157,20 @@ body.rp-chat-active #sidebar-workbench { display: none; }
   .rp-project-card { padding: 16px; border-radius: 22px; }.rp-project-copy { padding-right: 0; }.rp-continue { position: static; grid-column: 1 / -1; min-height: 40px; }
   #rp-chat-identity { max-width: 48vw; }.rp-chat-active #header-search-btn, .rp-chat-active #header-new-btn { display: none; }
 }
+
+/* === 开场白美化（对标惟镜角色卡） === */
+.rp-beauty { padding: 20px; font-size: 14px; line-height: 1.8; color: var(--text); }
+.rp-beauty-music { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; padding: 12px 16px; border-radius: 16px; background: color-mix(in srgb, var(--accent) 8%, var(--bg-panel)); }
+.rp-beauty-music-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: #fff; font-size: 18px; flex-shrink: 0; }
+.rp-beauty-music strong, .rp-beauty-music small { display: block; }
+.rp-beauty-music strong { font-size: 13px; }
+.rp-beauty-music small { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
+.rp-beauty-music audio { margin-left: auto; max-width: 200px; height: 32px; }
+.rp-beauty-scene { margin-bottom: 18px; padding: 16px 18px; border-left: 4px solid var(--accent); border-radius: 0 14px 14px 0; background: color-mix(in srgb, var(--text-dim) 6%, var(--bg-panel)); }
+.rp-beauty-scene-title { font-size: 10px; font-weight: 800; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 10px; }
+.rp-beauty-scene p { margin: 6px 0; font-size: 13px; }
+.rp-beauty-scene b { color: var(--text-dim); font-weight: 600; }
+.rp-beauty-narr { margin: 0 0 14px; }
+.rp-beauty-dialogue { display: inline-block; margin: 6px 0 14px; padding: 10px 16px; border-radius: 16px; background: color-mix(in srgb, var(--accent) 12%, var(--bg-panel)); color: var(--accent); font-size: 14px; line-height: 1.7; }
+.rp-beauty-world-h { margin: 18px 0 8px; font-size: 13px; color: var(--accent); font-weight: 700; }
+.rp-beauty-world-h:first-child { margin-top: 0; }

@@ -33,6 +33,88 @@ if (!bridge) {
       .replace(/\s+/g, " ").trim();
   }
 
+// === 开场白美化：解析 [播放：] / SCENE CONTEXT / 对话气泡 ===
+function parseOpeningMedia(text) {
+  // [播放：歌名|歌手|URL|0] 或 [播放: 歌名 | 歌手 | URL | 0]
+  const m = safeText(text).match(/\[播放[:：]\s*([^|\]]+)\|([^|\]]+)\|([^|\]]+)(?:\|[^\]]*)?\]/);
+  if (!m) return null;
+  return { title: m[1].trim(), artist: m[2].trim(), url: m[3].trim() };
+}
+function stripOpeningMedia(text) {
+  return safeText(text).replace(/\[播放[:：][^\]]+\]/g, '').trim();
+}
+function parseSceneContext(text) {
+  const lines = safeText(text).split(/\r?\n/);
+  const scene = {};
+  const rest = [];
+  const keys = { '时间': 'time', '地点': 'place', '在场人物': 'cast', '氛围': 'mood' };
+  for (const line of lines) {
+    const m = line.match(/^\s*(时间|地点|在场人物|氛围)[:：]\s*(.+?)\s*$/);
+    if (m && !scene[keys[m[1]]]) { scene[keys[m[1]]] = m[2]; }
+    else rest.push(line);
+  }
+  return { scene, rest: rest.join('\n').trim() };
+}
+function beautifyOpeningHTML(value) {
+  const raw = safeText(value, 300000).trim();
+  if (!raw) return '';
+  const media = parseOpeningMedia(raw);
+  let body = stripOpeningMedia(raw);
+  const { scene, rest } = parseSceneContext(body);
+  body = rest;
+  let html = '';
+  if (media) {
+    html += `<div class="rp-beauty-music"><span class="rp-beauty-music-icon">♪</span><div><strong>${escapeHtml(media.title)}</strong><small>${escapeHtml(media.artist)}</small></div>${/^https?:\/\//.test(media.url) ? `<audio controls preload="none" src="${escapeHtml(media.url)}"></audio>` : ''}</div>`;
+  }
+  const sceneKeys = [['time', '时间'], ['place', '地点'], ['cast', '在场人物'], ['mood', '氛围']];
+  if (sceneKeys.some(([k]) => scene[k])) {
+    html += `<div class="rp-beauty-scene"><div class="rp-beauty-scene-title">SCENE CONTEXT</div>${sceneKeys.filter(([k]) => scene[k]).map(([k, label]) => `<p><b>${label}：</b>${escapeHtml(scene[k])}</p>`).join('')}</div>`;
+  }
+  // 按段落切分："…" 引号包裹的算对话气泡，其余算旁白
+  const paras = body.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+  for (const para of paras) {
+    const dm = para.match(/^[“"「]([\s\S]+)[”"」]$/);
+    if (dm) {
+      html += `<div class="rp-beauty-dialogue">${escapeHtml(dm[1].trim())}</div>`;
+    } else {
+      // 段落内夹杂的引号对话也抽出来
+      const parts = para.split(/([“"「][^”"」]+[”"」])/g).filter(s => s.trim());
+      if (parts.length > 1) {
+        for (const part of parts) {
+          const qm = part.match(/^[“"「]([\s\S]+)[”"」]$/);
+          if (qm) html += `<div class="rp-beauty-dialogue">${escapeHtml(qm[1].trim())}</div>`;
+          else html += `<p class="rp-beauty-narr">${escapeHtml(part.trim()).replace(/\n/g, '<br>')}</p>`;
+        }
+      } else {
+        html += `<p class="rp-beauty-narr">${escapeHtml(para).replace(/\n/g, '<br>')}</p>`;
+      }
+    }
+  }
+  return `<div class="rp-beauty">${html}</div>`;
+}
+function beautifyWorldHTML(value) {
+  const raw = safeText(value, 100000).trim();
+  if (!raw) return '';
+  const paras = raw.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+  let html = '';
+  for (const para of paras) {
+    // 以【】或「」开头的算小标题
+    const hm = para.match(/^[【「]([^】」]+)[】」]\s*([\s\S]*)$/);
+    if (hm) {
+      html += `<h4 class="rp-beauty-world-h">${escapeHtml(hm[1].trim())}</h4>`;
+      if (hm[2].trim()) html += `<p class="rp-beauty-narr">${escapeHtml(hm[2].trim()).replace(/\n/g, '<br>')}</p>`;
+    } else {
+      html += `<p class="rp-beauty-narr">${escapeHtml(para).replace(/\n/g, '<br>')}</p>`;
+    }
+  }
+  return `<div class="rp-beauty">${html}</div>`;
+}
+function plainPreviewWithMedia(value) {
+  const media = parseOpeningMedia(value);
+  const text = plainPreview(stripOpeningMedia(value));
+  return (media ? `♪ ${media.title} - ${media.artist} ` : '') + text;
+}
+
   function richGreetingSource(value) {
     const source = safeText(value, 300000).trim();
     const fenced = source.match(/^```(?:html)?[^\S\r\n]*\r?\n([\s\S]*?)\r?\n```(?:\s|$)/i);
@@ -61,6 +143,11 @@ if (!bridge) {
     state.greetings[state.selectedGreeting] = safeText(field.value, 300000);
   }
 
+  function renderWorldPreview() {
+    const holder = $("rp-world-preview-content");
+    const value = $("rp-field-world") ? $("rp-field-world").value : "";
+    holder.innerHTML = beautifyWorldHTML(value) || '<div class="rp-greeting-preview-empty">还没有写世界观。</div>';
+  }
   function renderGreetingPreview() {
     commitGreetingDraft();
     const holder = $("rp-greeting-preview-content");
@@ -71,7 +158,7 @@ if (!bridge) {
       holder.innerHTML = '<iframe class="rp-greeting-preview-frame" title="开场白美化预览" sandbox="allow-scripts"></iframe>';
       holder.querySelector("iframe").srcdoc = greetingPreviewDocument(value);
     } else {
-      holder.innerHTML = `<div class="rp-greeting-preview-text">${escapeHtml(value).replace(/\n/g, "<br>")}</div>`;
+      holder.innerHTML = beautifyOpeningHTML(value) || '<div class="rp-greeting-preview-empty">这里还没有内容。</div>';
     }
   }
 
@@ -86,7 +173,7 @@ if (!bridge) {
     const list = $("rp-greeting-list");
     $("rp-greeting-count").textContent = `${state.greetings.length} 条开场白 · 已选第 ${state.selectedGreeting + 1} 条`;
     list.innerHTML = state.greetings.map((value, index) => {
-      const preview = plainPreview(value) || "空白开场，可直接在下方编辑";
+      const preview = plainPreviewWithMedia(value) || "空白开场，可直接在下方编辑";
       return `<article class="rp-greeting-card${index === state.selectedGreeting ? " selected" : ""}" data-rp-greeting="${index}">
         <button type="button" class="rp-greeting-select" data-rp-greeting-select="${index}"><b>开场 ${index + 1}</b><span>${escapeHtml(preview.slice(0, 108))}</span></button>
         ${state.greetings.length > 1 ? `<button type="button" class="rp-greeting-remove" data-rp-greeting-remove="${index}" aria-label="删除第 ${index + 1} 条开场白">×</button>` : ""}
@@ -153,6 +240,7 @@ if (!bridge) {
               <label class="rp-wide"><span>你在戏里的身份</span><input id="rp-field-user-role" maxlength="240" placeholder="例如：宁梦曦；留空也可以在开场时说明" /></label>
               <label class="rp-wide"><span>角色卡 / 人物设定</span><textarea id="rp-field-character" rows="9" placeholder="身份、性格、经历、行为逻辑、关系边界、说话方式……"></textarea></label>
               <label class="rp-wide"><span>世界观与长期剧情背景</span><textarea id="rp-field-world" rows="7" placeholder="时代、地点、组织、人物关系、已经发生的事实……"></textarea></label>
+              <details class="rp-wide rp-greeting-preview" id="rp-world-preview"><summary>世界观呈现预览</summary><div id="rp-world-preview-content"></div></details>
               <label class="rp-wide"><span>当前场景</span><textarea id="rp-field-scenario" rows="5" placeholder="现在的时间、地点、在场人物和关系阶段。这里是本场唯一有效的现在时锚点。"></textarea></label>
               <label class="rp-wide"><span>临时剧情推进</span><textarea id="rp-field-temporary" rows="4" placeholder="可随时修改或清空；只代表接下来想推进的方向，不算已经发生。"></textarea></label>
               <section class="rp-wide rp-greeting-editor">
@@ -329,7 +417,7 @@ if (!bridge) {
     const portrait = /^(https?:\/\/|data:image\/)/.test(avatar || "")
       ? `<img src="${escapeHtml(avatar)}" alt="" />` : `<span>${escapeHtml([...actor][0] || "剧")}</span>`;
     $("rp-opening-actor").innerHTML = `${portrait}<strong>${escapeHtml(actor)}</strong>`;
-    $("rp-opening-options").innerHTML = choices.map(({ value, index }) => `<button type="button" class="rp-opening-option${index === openingState.index ? " selected" : ""}" data-opening-index="${index}" aria-pressed="${index === openingState.index}" ${value.trim() ? "" : "disabled"}>${portrait}<span><small>${escapeHtml(actor)} · 开场 ${hasMenu ? index : index + 1}</small><strong>${escapeHtml(plainPreview(value).slice(0, 160) || "原卡中的空白开场")}</strong></span><i>${index === openingState.index ? "✓" : "›"}</i></button>`).join("");
+    $("rp-opening-options").innerHTML = choices.map(({ value, index }) => `<button type="button" class="rp-opening-option${index === openingState.index ? " selected" : ""}" data-opening-index="${index}" aria-pressed="${index === openingState.index}" ${value.trim() ? "" : "disabled"}>${portrait}<span><small>${escapeHtml(actor)} · 开场 ${hasMenu ? index : index + 1}</small><strong>${escapeHtml(plainPreviewWithMedia(value).slice(0, 160) || "原卡中的空白开场")}</strong></span><i>${index === openingState.index ? "✓" : "›"}</i></button>`).join("");
     $("rp-opening-options").querySelectorAll("[data-opening-index]").forEach(button => button.addEventListener("click", () => {
       openingState.index = Number(button.dataset.openingIndex);
       renderOpeningPicker();
@@ -341,7 +429,7 @@ if (!bridge) {
       holder.innerHTML = '<iframe class="rp-greeting-preview-frame" title="所选开场白完整预览" sandbox="allow-scripts"></iframe>';
       holder.querySelector("iframe").srcdoc = greetingPreviewDocument(value);
     } else {
-      holder.innerHTML = `<div class="rp-greeting-preview-text">${escapeHtml(value).replace(/\n/g, "<br>")}</div>`;
+      holder.innerHTML = beautifyOpeningHTML(value) || `<div class="rp-greeting-preview-text">${escapeHtml(value).replace(/\n/g, "<br>")}</div>`;
     }
   }
 
@@ -480,6 +568,9 @@ if (!bridge) {
     renderGreetingPreview();
     $("rp-greeting-preview").open = true;
     $("rp-greeting-preview").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+  $("rp-world-preview").addEventListener("toggle", () => {
+    if ($("rp-world-preview").open) renderWorldPreview();
   });
   $("rp-field-opening").addEventListener("input", () => {
     state.greetings[state.selectedGreeting] = safeText($("rp-field-opening").value, 300000);
