@@ -824,13 +824,29 @@ function plainPreviewWithMedia(value) {
   });
   $("rp-opening-confirm").addEventListener("click", () => {
     const project = bridge.get(openingState.projectId);
-    // 非强制新建、且该剧本已有正文时，直接打开现有对话，不再重复建卡
     if (project && !openingState.forceNew && (project.messageCount || 0) > 0) {
       closeOpeningPicker();
       enter(project.id);
       return;
     }
+    let needRestore = null;
+    if (project) {
+      const rp = project.rpProject || {};
+      const greetings = greetingList(rp);
+      const raw = greetings[openingState.index] || "";
+      const rules = Array.isArray(rp.regexRules) ? rp.regexRules : [];
+      if (raw && !looksLikeRichGreeting(raw) && /\[播放[:：]/.test(raw)) {
+        const html = beautifyOpeningHTML(applyRegexRules(raw, rules));
+        if (html) {
+          needRestore = { rp, greetings };
+          const updated = greetings.slice();
+          updated[openingState.index] = html;
+          bridge.update(openingState.projectId, { ...rp, greetings: updated });
+        }
+      }
+    }
     const started = bridge.startWithGreeting(openingState.projectId, openingState.index, openingState.forceNew);
+    if (needRestore) bridge.update(openingState.projectId, { ...needRestore.rp, greetings: needRestore.greetings });
     if (!started) return;
     closeOpeningPicker();
     enter(started.id);
