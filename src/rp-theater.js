@@ -391,7 +391,10 @@ if (!bridge) {
       const targetId = state.repairTargetId;
       state.repairTargetId = "";
       const repaired = bridge.repairGreetings(targetId, raw);
-      if (repaired) chooseOpening(targetId, true);
+      if (repaired) {
+        if (state.editingId === targetId) fillEditor(repaired);
+        chooseOpening(targetId, true);
+      }
       return;
     }
     let parsed = null;
