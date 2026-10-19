@@ -31,6 +31,10 @@
 .rp-group-drawer label { display: block; font-size: 13px; line-height: 1.6; margin: 12px 0; }
 .rp-group-drawer input:not([type="checkbox"]), .rp-group-drawer textarea, .rp-group-drawer select { width: 100%; max-width: 100%; display: block; margin-top: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--bg); color: var(--text); font: inherit; font-size: 16px; line-height: 1.65; }
 .rp-group-drawer textarea { resize: vertical; min-height: 90px; }
+.rp-group-drawer [hidden] { display: none !important; }
+.rp-plot-recipients { margin: 16px 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 16px; }
+.rp-plot-recipients legend { padding: 0 7px; color: var(--text); font-size: 13px; font-weight: 700; }
+.rp-plot-recipients input:disabled + * { opacity: .55; }
 .rp-group-drawer .rp-cast-check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 8px 0; }
 .rp-cast-check input { accent-color: var(--accent); width: 18px; height: 18px; }
 .rp-cast-member { margin: 12px 0; border: 1px solid var(--border); border-radius: 18px; background: var(--bg); overflow: hidden; }

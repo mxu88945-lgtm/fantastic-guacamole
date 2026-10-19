@@ -3,6 +3,7 @@ import vm from "node:vm";
 import assert from "node:assert/strict";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const groupUi = readFileSync(new URL("../src/rp-group.js", import.meta.url), "utf8");
 const source = (start, end) => html.slice(html.indexOf(start), html.indexOf(end, html.indexOf(start)));
 let id = 0;
 const context = vm.createContext({
@@ -49,6 +50,18 @@ const mentionDefault = context.normalizedRoleplayProject({ ...project, replyMode
 assert.equal(mentionDefault.replyMode, "mention");
 assert.equal(context.roleplayReplyMembers(mentionDefault, "继续").map(member => member.id).join(","), "lead", "new and existing groups must not invite every member by default");
 assert.equal(context.roleplayReplyMembers(mentionDefault, "@江屿你来").map(member => member.id).join(","), "guest");
+const privatePlot = context.normalizedRoleplayProject({ actorName: "周竞尧", groupEnabled: true, temporaryPlot: { text: "让电话响起", mode: "counted", remainingUses: 2, recipientIds: ["director"] }, userRole: "宁梦曦", userIdentity: "A市资产管理人" }, { title: "临时剧情" });
+assert.equal(privatePlot.temporaryPlot, "让电话响起");
+assert.equal(privatePlot.temporaryPlotMode, "counted");
+assert.equal(privatePlot.temporaryPlotRemainingUses, 2);
+assert.deepEqual(Array.from(privatePlot.temporaryPlotRecipientIds), ["director"]);
+assert.match(context.roleplayUserIdentityBlock(privatePlot), /宁梦曦[\s\S]*A市资产管理人/);
+const plotUserMessage = { role: "user", content: "继续", rpReplyMemberIds: ["director"] };
+assert.equal(context.roleplayTemporaryPlotFor(privatePlot, { id: "lead" }, plotUserMessage), null, "unselected members must not receive private plot directions");
+assert.match(context.roleplayTemporaryPlotFor(privatePlot, { id: "director" }, plotUserMessage).text, /电话/);
+assert.ok(groupUi.includes('id="rp-temporary-section"') && groupUi.includes('data-plot-recipient'), "right drawer temporary plot editor is missing");
+assert.ok(groupUi.includes('id="rp-user-profile"') && groupUi.includes('id="rp-user-identity"'), "right drawer user identity editor is missing");
+assert.ok(groupUi.includes("data-export-scene") && groupUi.includes("data-import-scene"), "right drawer TXT export/import actions are missing");
 
 const profiles = { base: { id: "base", provider: "openai", baseUrl: "https://base.test/v1", apiKey: "base-key", model: "profile-model" },
   other: { id: "other", provider: "gemini", baseUrl: "https://other.test/v1beta", apiKey: "other-key", model: "other-model" } };
@@ -154,7 +167,9 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
   director.playedByOwner = false;
   await assert.rejects(() => context.streamChat(() => {}, () => {}, config, director), /captured-request/);
   let system = requestSystem(captured.at(-1));
-  assert.doesNotMatch(system, /OWNER_|顾祁砚|LEAD_CARD_ONLY/, "independent members must not receive owner persona, private context or the lead's identity card");
+  for (const privateText of ["OWNER_PERSONA_ONLY", "OWNER_EXTRA_INSTRUCTION", "OWNER_PRIVATE_MEMORY_AND_DIARY", "OWNER_RECENT_LIFE", "OWNER_LOCK_SCREEN", "OWNER_PRIVATE_READING", "顾祁砚", "LEAD_CARD_ONLY"])
+    assert.ok(!system.includes(privateText), `independent member received owner-only context: ${privateText}`);
+  assert.ok(system.includes("OWNER_GLOBAL_PRESET"), "independent members must still receive enabled global writing presets");
   for (const text of ["导演", "保持节奏", "现世背景", "已经签字", "已离婚", "较早摘要：签字后离开", "SCENE_REFERENCE_ONLY"]) assert.ok(system.includes(text), `missing shared stage input: ${text}`);
   assert.equal(context.lastPromptAudit.memory.scope, "scene-only");
   director.playedByOwner = true;
@@ -163,12 +178,17 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
   for (const text of ["OWNER_PERSONA_ONLY", "OWNER_EXTRA_INSTRUCTION", "OWNER_PRIVATE_MEMORY_AND_DIARY", "OWNER_GLOBAL_PRESET", "顾祁砚"]) assert.ok(system.includes(text), `owner switch on must restore: ${text}`);
   director.playedByOwner = false;
   await assert.rejects(() => context.streamChat(() => {}, () => {}, config, director), /captured-request/);
-  assert.doesNotMatch(requestSystem(captured.at(-1)), /OWNER_|顾祁砚/);
+  system = requestSystem(captured.at(-1));
+  assert.ok(system.includes("OWNER_GLOBAL_PRESET"));
+  for (const privateText of ["OWNER_PERSONA_ONLY", "OWNER_EXTRA_INSTRUCTION", "OWNER_PRIVATE_MEMORY_AND_DIARY", "OWNER_RECENT_LIFE", "OWNER_LOCK_SCREEN", "OWNER_PRIVATE_READING", "顾祁砚"])
+    assert.ok(!system.includes(privateText), `switching owner off leaked: ${privateText}`);
   project.leadChannel.playedByOwner = false;
   await assert.rejects(() => context.streamChat(() => {}, () => {}, config), /captured-request/);
   system = requestSystem(captured.at(-1));
   assert.ok(system.includes("LEAD_CARD_ONLY"), "switching the solo lead off must keep its own character card");
-  assert.doesNotMatch(system, /OWNER_|顾祁砚/, "the lead switch must also work outside group dispatch");
+  assert.ok(system.includes("OWNER_GLOBAL_PRESET"), "the independent lead keeps shared writing presets");
+  for (const privateText of ["OWNER_PERSONA_ONLY", "OWNER_EXTRA_INSTRUCTION", "OWNER_PRIVATE_MEMORY_AND_DIARY", "OWNER_RECENT_LIFE", "OWNER_LOCK_SCREEN", "OWNER_PRIVATE_READING", "顾祁砚"])
+    assert.ok(!system.includes(privateText), `the independent lead received owner-only context: ${privateText}`);
   project.leadChannel.playedByOwner = true;
 }
 context.conv.space = "private";
@@ -218,6 +238,10 @@ const completion = vm.createContext({
   abortController: null, replyBooting: false, roleplayGroupRun: null, stickBottom: false,
   TYPING_HTML: "typing", lastPromptAudit: null, lastCallUsage: null,
   roleplayIndependentSpeaker: context.roleplayIndependentSpeaker,
+  currentConv: () => ({ id: "scene", space: "roleplay", rpProject: project, messages: completion.messages }),
+  normalizedRoleplayProject: context.normalizedRoleplayProject,
+  roleplayMembers: context.roleplayMembers,
+  roleplayTemporaryPlotFor: () => null,
   stripIndependentRoleplayControls: context.stripIndependentRoleplayControls,
   isRoleplayConversation: () => true, uid: () => "independent-response",
   requestAnimationFrame: fn => { fn(); return 1; }, cancelAnimationFrame() {}, setTimeout,
