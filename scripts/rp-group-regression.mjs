@@ -66,6 +66,10 @@ assert.match(context.roleplayTemporaryPlotFor(privatePlot, { id: "director" }, p
 assert.ok(groupUi.includes('id="rp-temporary-section"') && groupUi.includes('data-plot-recipient'), "right drawer temporary plot editor is missing");
 assert.ok(groupUi.includes('id="rp-user-profile"') && groupUi.includes('id="rp-user-identity"'), "right drawer user identity editor is missing");
 assert.ok(groupUi.includes("data-export-scene") && groupUi.includes("data-import-scene"), "right drawer TXT export/import actions are missing");
+assert.ok(groupUi.includes('<select data-field="model">') && !groupUi.includes("<datalist"), "member models must use a real mobile-friendly select");
+assert.ok(groupUi.includes("data-fetch-models") && groupUi.includes("pullChannelModels"), "member channels cannot fetch their own model lists");
+assert.ok(groupUi.includes("!profile.hasModelList") && groupUi.includes("refreshMemberModels(id, true)"), "changing to an uncached interface must pull models automatically");
+assert.ok(html.includes("async function pullProviderModels(profile)") && html.includes("async pullChannelModels(profileId)"), "the RP drawer is not wired to the main provider model loader");
 
 const profiles = { base: { id: "base", provider: "openai", baseUrl: "https://base.test/v1", apiKey: "base-key", model: "profile-model" },
   other: { id: "other", provider: "gemini", baseUrl: "https://other.test/v1beta", apiKey: "other-key", model: "other-model" } };

@@ -2,6 +2,7 @@ import fs from 'node:fs'
 
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')
 const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8')
+const roleplayCss = fs.readFileSync(new URL('../src/rp-theater.css', import.meta.url), 'utf8')
 
 const requireText = (text, message) => {
   if (!html.includes(text)) throw new Error(message)
@@ -30,8 +31,13 @@ requireText('chatResizePinToken++;      // ...including a keyboard-resize re-pin
 requireText('if (h === chatLastHeight) return;', 'width-only resizes re-pin the chat')
 requireText('window.dispatchEvent(new Event("jyc-app-h"));', 'pre-paint viewport sync does not announce --app-h changes')
 requireText('  watchChatResizePin();\n', 'keyboard resize watcher is never started')
+requireText('$("chat").addEventListener("touchmove", wakeNav, { passive: true });', 'touch scrolling does not wake the shared chat navigation')
+if (!roleplayCss.includes('body.rp-chat-active .scroll-nav { display: flex !important;')
+    || !roleplayCss.includes('html[data-theme-key="claude"] body.rp-chat-active #scroll-top-btn { display: grid; }')) {
+  throw new Error('RP chat does not expose the same two-way scroll controls as the main chat')
+}
 
-if (!sw.includes('const CACHE = "role-chat-cache-v217";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v218";')) {
   throw new Error('service worker cache was not bumped for the scroll fix')
 }
 

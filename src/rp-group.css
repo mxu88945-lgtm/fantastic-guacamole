@@ -8,10 +8,10 @@
 .rp-mention-portrait { width: 32px; height: 32px; flex-shrink: 0; display: grid; place-items: center; overflow: hidden; border-radius: 10px; color: var(--accent); background: var(--accent-soft); }
 .rp-mention-portrait img { width: 100%; height: 100%; object-fit: cover; }
 .rp-scene-strip { margin: 0 0 14px; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--accent-soft) 42%, transparent); color: var(--text-dim); font-size: .9em; line-height: 1.65; }
-.rp-story-body + .rp-status-card { margin-top: 18px; }
-.rp-status-card { width: 100%; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border)); border-radius: 18px; background: color-mix(in srgb, var(--bg-panel) 74%, transparent); box-shadow: 0 8px 24px rgba(0,0,0,.05); }
-.rp-status-card header { margin-bottom: 9px; color: var(--accent); font-size: 12px; font-weight: 750; letter-spacing: .08em; }
-.rp-status-row { display: grid; grid-template-columns: minmax(72px, auto) 1fr; gap: 10px; align-items: start; padding: 7px 0; border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent); font-size: .9em; line-height: 1.55; }
+.rp-story-body + .rp-status-card { margin-top: 16px; }
+.rp-status-card { box-sizing: border-box; display: block; width: 100%; height: auto; min-height: 0; margin-block: 12px 0; padding: 11px 13px; border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border)); border-left: 3px solid color-mix(in srgb, var(--accent) 62%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--bg-panel) 48%, transparent); box-shadow: none; overflow: visible; }
+.rp-status-card header { margin: 0 0 5px; color: var(--accent); font-size: 11px; font-weight: 750; letter-spacing: .08em; }
+.rp-status-row { display: grid; grid-template-columns: minmax(92px, max-content) minmax(0, 1fr); gap: 9px; align-items: start; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--border) 64%, transparent); font-size: .86em; line-height: 1.5; }
 .rp-status-row:first-of-type { border-top: 0; }
 .rp-status-row strong { color: var(--text-dim); font-size: .92em; }
 .rp-status-row span { min-width: 0; }
@@ -53,6 +53,9 @@
 .rp-cast-expand { margin-left: auto; color: var(--text-dim); }
 .rp-cast-fields { padding: 0 14px 16px; }
 .rp-cast-add { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.rp-model-tools { display: flex; align-items: center; gap: 10px; margin: -3px 0 13px; }
+.rp-model-tools button { flex: 0 0 auto; padding: 8px 11px; font-size: 12px; }
+.rp-model-tools small { min-width: 0; color: var(--text-dim); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
 .rp-group-drawer .rp-cast-remove { color: var(--err-text); margin-top: 12px; }
 #rp-scene-memory details { margin: 18px 0; }
 #rp-scene-memory summary { cursor: pointer; font-size: 14px; font-weight: 600; }
@@ -66,4 +69,4 @@
 .rp-group-drawer footer small { font-size: 11px; line-height: 1.5; color: var(--text-dim); }
 .rp-group-drawer footer button { flex-shrink: 0; background: var(--accent); color: var(--bg); border-color: var(--accent); }
 .rp-group-drawer :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (max-width: 480px) { .rp-group-drawer { width: 94vw; } .rp-group-scroll { padding: 16px 12px; } .rp-group-scroll > section { padding: 16px; } .rp-group-drawer header { padding-left: 20px; padding-right: 16px; } }
+@media (max-width: 480px) { .rp-group-drawer { width: 94vw; } .rp-group-scroll { padding: 16px 12px; } .rp-group-scroll > section { padding: 16px; } .rp-group-drawer header { padding-left: 20px; padding-right: 16px; } .rp-status-row { grid-template-columns: 1fr; gap: 2px; } .rp-status-row strong { font-size: 11px; } }

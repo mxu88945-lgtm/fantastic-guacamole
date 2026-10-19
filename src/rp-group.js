@@ -79,10 +79,14 @@ if (bridge) {
   }
   function channelFields(member, index) {
     const profiles = channels();
-    const selected = profiles.find(profile => profile.id === member.providerId);
+    const effectiveId = member.providerId || bridge.currentChannelId?.() || "";
+    const selected = profiles.find(profile => profile.id === effectiveId);
     const missing = member.providerId && !selected;
-    return `<label>接口<select data-field="providerId"><option value="">沿用本窗口接口</option>${missing ? `<option selected value="${escape(member.providerId)}">原接口已移除，请重新选择</option>` : ""}${profiles.map(profile => `<option value="${escape(profile.id)}" ${profile.id === member.providerId ? "selected" : ""}>${escape(profile.name)}</option>`).join("")}</select></label>
-      <label>模型<input data-field="model" list="rp-cast-models-${index}" value="${escape(member.model)}" placeholder="留空沿用所选接口模型"><datalist id="rp-cast-models-${index}">${[...new Set(profiles.flatMap(profile => profile.models))].map(model => `<option value="${escape(model)}"></option>`).join("")}</datalist></label>`;
+    const models = [...new Set(selected?.models || [])];
+    const custom = member.model && !models.includes(member.model) ? `<option value="${escape(member.model)}" selected>${escape(member.model)}（当前）</option>` : "";
+    return `<label>接口<select data-field="providerId"><option value="">沿用本窗口接口${selected ? ` · ${escape(selected.name)}` : ""}</option>${missing ? `<option selected value="${escape(member.providerId)}">原接口已移除，请重新选择</option>` : ""}${profiles.map(profile => `<option value="${escape(profile.id)}" ${profile.id === member.providerId ? "selected" : ""}>${escape(profile.name)}</option>`).join("")}</select></label>
+      <label>模型<select data-field="model"><option value="">沿用所选接口模型${selected?.model ? ` · ${escape(selected.model)}` : ""}</option>${custom}${models.map(model => `<option value="${escape(model)}" ${model === member.model ? "selected" : ""}>${escape(model)}</option>`).join("")}</select></label>
+      <div class="rp-model-tools"><button type="button" data-fetch-models="${escape(member.id)}">↻ 拉取 / 刷新模型</button><small data-model-status="${escape(member.id)}">${selected ? selected.hasModelList ? `已读取 ${models.length} 个模型` : "切换接口后会自动拉取" : "请先选择可用接口"}</small></div>`;
   }
   function memberHtml(member, index) {
     const lead = member.id === "lead";
@@ -153,6 +157,7 @@ if (bridge) {
     panel.querySelector("[data-home]").textContent = `回到${bridge.role().roleName}本体主页 ›`;
     renderMembers(); renderMemory(); updateTemporaryPlotMode();
     panel.querySelector(".rp-group-drawer").focus();
+    queueMicrotask(autoRefreshMissingModels);
   }
   function addMember(kind, card = {}) {
     collect();
@@ -166,11 +171,59 @@ if (bridge) {
     markDirty(); renderMembers();
   }
   function markDirty() { dirty = true; panel.querySelector("#rp-group-save-state").textContent = "成员设置有修改，关闭时也会保存"; }
+  async function refreshMemberModels(id, automatic = false) {
+    collect();
+    const member = id === "lead" ? draft.leadChannel : draft.members.find(item => item.id === id);
+    if (!member) return;
+    const profileId = member.providerId || bridge.currentChannelId?.() || "";
+    const profile = channels().find(item => item.id === profileId);
+    if (!profile) { if (!automatic) bridge.toast("先给这位成员选择一个接口"); return; }
+    const revision = draftRevision;
+    const button = panel.querySelector(`[data-fetch-models="${CSS.escape(id)}"]`);
+    const status = panel.querySelector(`[data-model-status="${CSS.escape(id)}"]`);
+    if (button) button.disabled = true;
+    if (status) status.textContent = "正在读取模型…";
+    try {
+      const result = await bridge.pullChannelModels(profileId);
+      if (revision !== draftRevision || panel.hidden) return;
+      renderMembers();
+      bridge.toast(`已从「${result.name}」读取 ${result.models.length} 个模型`);
+    } catch (error) {
+      if (revision !== draftRevision || panel.hidden) return;
+      const nextStatus = panel.querySelector(`[data-model-status="${CSS.escape(id)}"]`);
+      if (nextStatus) nextStatus.textContent = `拉取失败 · ${error.message || error}`;
+      if (!automatic) bridge.toast(error.message || "模型拉取失败");
+    } finally {
+      const nextButton = panel.querySelector(`[data-fetch-models="${CSS.escape(id)}"]`);
+      if (nextButton) nextButton.disabled = false;
+    }
+  }
+  async function autoRefreshMissingModels() {
+    const seen = new Set();
+    const members = [{ id: "lead", ...draft.leadChannel }, ...draft.members];
+    for (const member of members) {
+      if (panel.hidden) return;
+      const profileId = member.providerId || bridge.currentChannelId?.() || "";
+      const profile = channels().find(item => item.id === profileId);
+      if (!profile || profile.hasModelList || seen.has(profileId)) continue;
+      seen.add(profileId);
+      await refreshMemberModels(member.id, true);
+    }
+  }
   panel.addEventListener("input", event => {
     if (event.target.closest("[data-member]") || event.target.closest("#rp-user-profile") || event.target.closest("#rp-temporary-section")) markDirty();
   });
   panel.addEventListener("change", async event => {
     if (["rp-group-enabled", "rp-group-reply-mode"].includes(event.target.id) || event.target.closest("[data-member]") || event.target.closest("#rp-user-profile") || event.target.closest("#rp-temporary-section")) markDirty();
+    if (event.target.matches('[data-field="providerId"]')) {
+      const id = event.target.closest("[data-member]")?.dataset.member;
+      collect(); renderMembers();
+      const member = id === "lead" ? draft.leadChannel : draft.members.find(item => item.id === id);
+      const profileId = member?.providerId || bridge.currentChannelId?.() || "";
+      const profile = channels().find(item => item.id === profileId);
+      if (id && profile && !profile.hasModelList) await refreshMemberModels(id, true);
+      return;
+    }
     if (event.target.id === "rp-temporary-mode") updateTemporaryPlotMode();
     if (event.target.id === "rp-plot-any-mentioned") {
       panel.querySelectorAll("[data-plot-recipient]").forEach(input => { input.disabled = event.target.checked; });
@@ -236,6 +289,7 @@ if (bridge) {
       else { const member = draft.members.find(item => item.id === id); if (member) member.avatar = ""; }
       markDirty(); renderMembers();
     }
+    else if (button.hasAttribute("data-fetch-models")) refreshMemberModels(button.dataset.fetchModels);
     else if (button.hasAttribute("data-remove")) { collect(); draft.members = draft.members.filter(member => member.id !== button.dataset.remove); markDirty(); renderMembers(); }
     else if (button.hasAttribute("data-clear-plot")) {
       draft.temporaryPlot = ""; draft.temporaryPlotMode = "once"; draft.temporaryPlotRemainingUses = 3; draft.temporaryPlotRecipientIds = null;

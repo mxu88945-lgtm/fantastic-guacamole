@@ -3,6 +3,7 @@ import vm from "node:vm";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../src/rp-theater.css", import.meta.url), "utf8");
+const groupCss = readFileSync(new URL("../src/rp-group.css", import.meta.url), "utf8");
 const js = readFileSync(new URL("../src/rp-theater.js", import.meta.url), "utf8");
 const dashboard = readFileSync(new URL("../src/dashboard.js", import.meta.url), "utf8");
 
@@ -32,6 +33,7 @@ ok(js.includes("alternate_greetings") && js.includes("rp-greeting-list"), "alter
 ok(js.includes("rp-preview-greeting") && js.includes("greetingPreviewDocument"), "opening preview is missing");
 ok(js.includes("bridge.startWithGreeting") && js.includes("选择开场白"), "new scenes must start through the opening picker");
 ok(css.includes(".rp-theater-panel") && css.includes("@media (max-width: 680px)"), "RP theater responsive layout is missing");
+ok(css.includes("body.rp-chat-active #model-config-btn { display: none; }"), "RP composer still shows the redundant model pill");
 ok(css.includes("#rp-field-opening") && css.includes(".rp-greeting-card.selected"), "mobile-friendly opening editor is missing");
 ok(html.includes("roleplayRichFrameHtml") && html.includes('sandbox="allow-scripts"'), "rich HTML openings are not sandbox-rendered");
 ok(html.includes("jyc-rp-frame-height") && html.includes("Content-Security-Policy"), "rich opening isolation or auto-sizing is missing");
@@ -104,6 +106,7 @@ vm.runInContext(html.slice(html.indexOf('function roleplayRichSource('), html.in
 ok(sourceContext.roleplayRichSource('```html\r\n<html><body>cover</body></html>\r\n```\r\n\r\n[播放: test]') === '<html><body>cover</body></html>', 'a card fence followed by an audio tag must still unwrap to its HTML document');
 const semantic = sourceContext.roleplaySemanticDisplay('<scene>深夜｜休息室</scene>正文<director_status>【当前场景】休息室\n【待回应钩子】等她回应</director_status>');
 ok(semantic.includes('rp-scene-strip') && semantic.includes('rp-status-card') && semantic.includes('待回应钩子') && !semantic.includes('&lt;scene&gt;'), 'unmatched scene/status tags must render as native cards');
+ok(groupCss.includes('height: auto; min-height: 0;') && groupCss.includes('border-left: 3px solid'), 'native RP status must render as a compact tail instead of an oversized card');
 vm.runInContext(html.slice(html.indexOf('function normalizedRoleplayProject('), html.indexOf('function addRoleplayMemory(')), sourceContext);
 const normalized = sourceContext.normalizedRoleplayProject({ greetings: ['cover', 'first opening', '', 'third opening'], openingIndex: 3 }, {title:'test'});
 ok(normalized.greetings.length === 4 && normalized.opening === 'third opening', 'blank swipe slots must not shift card button indexes');

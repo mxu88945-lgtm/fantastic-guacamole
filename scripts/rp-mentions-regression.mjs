@@ -77,6 +77,19 @@ assert.equal(window.JYCRoleplayMentions.selectedIds().join(","), "guest", "editi
 assert.equal(input.value, "@江屹琛 我在这里。", "editing must restore the inline @ target too");
 window.JYCRoleplayMentions.clear();
 
+// A mention-only turn routes the reply without leaving a visible @ bubble in the chat.
+context.messages.length = 0;
+input.value = "@"; input.selectionStart = 1; input.dispatchEvent(new TestEvent("input"));
+const guestAgain = list.children.find(option => option.dataset.mentionId === "guest");
+const secondClick = new TestEvent("click"); secondClick.target = guestAgain.children[1]; list.dispatchEvent(secondClick);
+await context.send();
+assert.equal(context.messages[0].rpMentionOnly, true);
+assert.equal(context.messages[0].content, "@江屹琛");
+assert.equal(context.isHiddenRoleplayMentionMessage(context.messages[0]), true, "mention-only routing turns must stay out of the visible transcript");
+assert.equal(context.sentSelection.join(","), "guest");
+assert.ok(html.includes("if (isHiddenRoleplayMentionMessage(m)) continue;"), "full chat rendering does not hide mention-only routing turns");
+assert.ok(html.includes("if (isHiddenRoleplayMentionMessage(m)) return true;"), "fast append still paints mention-only routing turns");
+
 // Keyboard selection and window changes must not send or retain an old target.
 input.value = "@导演"; input.selectionStart = input.value.length; input.dispatchEvent(new TestEvent("input"));
 const enter = new TestEvent("keydown"); enter.key = "Enter"; input.dispatchEvent(enter);

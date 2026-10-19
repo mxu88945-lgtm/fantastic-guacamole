@@ -143,6 +143,9 @@ body.rp-chat-active .msg.roleplay-rich-message .bubble,
 body.rp-chat-active .msg.roleplay-rich-message .roleplay-html-card { width: 100% !important; max-width: none !important; }
 body.rp-chat-active .brand-role-picker .role-chevron,
 body.rp-chat-active .brand-role-picker .role-quick { display: none; }
+body.rp-chat-active #model-config-btn { display: none; }
+body.rp-chat-active .scroll-nav { display: flex !important; right: 18px !important; bottom: calc(108px + env(safe-area-inset-bottom)); transform: none !important; z-index: 12; }
+html[data-theme-key="claude"] body.rp-chat-active #scroll-top-btn { display: grid; }
 body.rp-chat-active #sidebar-music,
 body.rp-chat-active #sidebar-mailbox,
 body.rp-chat-active #sidebar-album,
