@@ -4,7 +4,7 @@ if (!bridge) {
   console.error("RP theater bridge is unavailable");
 } else {
   const $ = (id) => document.getElementById(id);
-  const state = { editingId: "", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "" };
+  const state = { editingId: "", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [] };
   const openingState = { projectId: "", index: 0, forceNew: true };
 
   function safeText(value, max = 200000) {
@@ -238,7 +238,20 @@ function plainPreviewWithMedia(value) {
               <label><span>剧目名称</span><input id="rp-field-title" maxlength="80" placeholder="例如：镜澜湾三号院" /></label>
               <label><span>TA 在戏里扮演谁</span><input id="rp-field-actor" maxlength="80" placeholder="例如：虞山行" /></label>
               <label class="rp-wide"><span>你在戏里的身份</span><input id="rp-field-user-role" maxlength="240" placeholder="例如：宁梦曦；留空也可以在开场时说明" /></label>
+              <section class="rp-wide rp-card-block" id="rp-desc-block" hidden>
+                <div class="rp-card-block-head"><div><strong>角色简介</strong><small id="rp-tags-count"></small></div><button type="button" id="rp-tags-toggle">展开</button></div>
+                <p class="rp-card-desc" id="rp-field-description"></p>
+                <div class="rp-tags" id="rp-tags-list"></div>
+              </section>
               <label class="rp-wide"><span>角色卡 / 人物设定</span><textarea id="rp-field-character" rows="9" placeholder="身份、性格、经历、行为逻辑、关系边界、说话方式……"></textarea></label>
+              <section class="rp-wide rp-card-block" id="rp-worldbook-block" hidden>
+                <div class="rp-card-block-head"><div><strong>角色世界书</strong><small id="rp-worldbook-count"></small></div></div>
+                <div class="rp-entry-list" id="rp-worldbook-list"></div>
+              </section>
+              <section class="rp-wide rp-card-block" id="rp-regex-block" hidden>
+                <div class="rp-card-block-head"><div><strong>角色正则与美化</strong><small id="rp-regex-count"></small></div></div>
+                <div class="rp-entry-list" id="rp-regex-list"></div>
+              </section>
               <label class="rp-wide"><span>世界观与长期剧情背景</span><textarea id="rp-field-world" rows="7" placeholder="时代、地点、组织、人物关系、已经发生的事实……"></textarea></label>
               <details class="rp-wide rp-greeting-preview" id="rp-world-preview"><summary>世界观呈现预览</summary><div id="rp-world-preview-content"></div></details>
               <label class="rp-wide"><span>当前场景</span><textarea id="rp-field-scenario" rows="5" placeholder="现在的时间、地点、在场人物和关系阶段。这里是本场唯一有效的现在时锚点。"></textarea></label>
@@ -282,12 +295,16 @@ function plainPreviewWithMedia(value) {
 
   function currentDraft() {
     commitGreetingDraft();
+    // 世界观文本与结构化条目同步：有条目时用启用的条目拼
+    const wbText = state.worldEntries.length
+      ? state.worldEntries.filter((e) => e.enabled && e.content).map((e) => e.content).join("\n\n")
+      : $("rp-field-world").value.trim();
     return {
       title: $("rp-field-title").value.trim(),
       actorName: $("rp-field-actor").value.trim(),
       userRole: $("rp-field-user-role").value.trim(),
       characterPrompt: $("rp-field-character").value.trim(),
-      world: $("rp-field-world").value.trim(),
+      world: wbText,
       scenario: $("rp-field-scenario").value.trim(),
       temporaryPlot: $("rp-field-temporary").value.trim(),
       opening: (state.greetings[state.selectedGreeting] || "").trim(),
@@ -296,6 +313,10 @@ function plainPreviewWithMedia(value) {
       alternateGreetings: state.greetings.filter((_, index) => index !== state.selectedGreeting),
       memory: $("rp-field-memory").value.trim(),
       projectFiles: state.files.map((file) => ({ ...file })),
+      tags: [...state.tags],
+      worldEntries: state.worldEntries.map((e) => ({ ...e })),
+      regexRules: state.regexRules.map((r) => ({ ...r })),
+      description: safeText($("rp-field-description").dataset.full || "", 20000),
     };
   }
 
@@ -310,6 +331,11 @@ function plainPreviewWithMedia(value) {
     $("rp-field-world").value = safeText(data.world);
     $("rp-field-scenario").value = safeText(data.scenario);
     $("rp-field-temporary").value = safeText(data.temporaryPlot);
+    state.tags = Array.isArray(data.tags) ? data.tags.map((t) => safeText(t, 40)).filter(Boolean).slice(0, 24) : [];
+    state.worldEntries = Array.isArray(data.worldEntries) ? data.worldEntries.map((e) => ({ id: safeText(e.id || "", 80), title: safeText(e.title || "条目", 80), content: safeText(e.content || "", 50000), enabled: e.enabled !== false, position: safeText(e.position || "before_char", 20) })) : [];
+    state.regexRules = Array.isArray(data.regexRules) ? data.regexRules.map((r) => ({ id: safeText(r.id || "", 80), name: safeText(r.name || "规则", 120), findRegex: safeText(r.findRegex || "", 20000), replaceString: safeText(r.replaceString || "", 50000), disabled: Boolean(r.disabled) })) : [];
+    $("rp-field-description").dataset.full = safeText(data.description || "", 20000);
+    renderCardBlocks();
     state.greetings = greetingList(data);
     state.selectedGreeting = Math.max(0, Math.min(Number(data.openingIndex) || 0, state.greetings.length - 1));
     $("rp-field-opening").value = state.greetings[state.selectedGreeting] || "";
@@ -328,11 +354,56 @@ function plainPreviewWithMedia(value) {
   }
 
   function showEditor(project) {
+    if (!project) { state.tags = []; state.worldEntries = []; state.regexRules = []; }
     fillEditor(project || null);
     $("rp-library-view").hidden = true;
     $("rp-editor-view").hidden = false;
     $("rp-theater-panel").querySelector(".rp-theater-body").scrollTop = 0;
     requestAnimationFrame(() => $("rp-field-title").focus());
+  }
+
+  function renderCardBlocks() {
+    // 角色简介 + 标签
+    const desc = safeText($("rp-field-description").dataset.full || "", 20000);
+    const hasDesc = desc.length > 0;
+    const hasTags = state.tags.length > 0;
+    $("rp-desc-block").hidden = !(hasDesc || hasTags);
+    if (hasDesc) {
+      const short = desc.slice(0, 220);
+      $("rp-field-description").textContent = desc.length > 220 ? short + "…" : desc;
+      $("rp-field-description").dataset.full = desc;
+      $("rp-field-description").dataset.expanded = "";
+    }
+    $("rp-tags-count").textContent = hasTags ? `${state.tags.length} 个标签` : "";
+    $("rp-tags-list").innerHTML = state.tags.map((t) => `<span class="rp-tag">${escapeHtml(t)}</span>`).join("");
+    // 世界书
+    $("rp-worldbook-block").hidden = state.worldEntries.length === 0;
+    const enabledWb = state.worldEntries.filter((e) => e.enabled).length;
+    $("rp-worldbook-count").textContent = `${state.worldEntries.length} 条 · ${enabledWb} 条启用 · 可启停`;
+    $("rp-worldbook-list").innerHTML = state.worldEntries.map((entry, idx) => `
+      <div class="rp-entry${entry.enabled ? "" : " off"}">
+        <button type="button" class="rp-entry-toggle" data-wb-toggle="${idx}" aria-pressed="${entry.enabled}">${entry.enabled ? "✓" : "○"}</button>
+        <div><strong>${escapeHtml(entry.title)}</strong><small>${escapeHtml(entry.content.slice(0, 80))}${entry.content.length > 80 ? "…" : ""}</small></div>
+      </div>`).join("");
+    $("rp-worldbook-list").querySelectorAll("[data-wb-toggle]").forEach((btn) => btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.wbToggle);
+      state.worldEntries[i].enabled = !state.worldEntries[i].enabled;
+      renderCardBlocks();
+    }));
+    // 正则与美化
+    $("rp-regex-block").hidden = state.regexRules.length === 0;
+    const enabledRx = state.regexRules.filter((r) => !r.disabled).length;
+    $("rp-regex-count").textContent = `${state.regexRules.length} 条 · ${enabledRx} 条启用`;
+    $("rp-regex-list").innerHTML = state.regexRules.map((rule, idx) => `
+      <div class="rp-entry${rule.disabled ? " off" : ""}">
+        <button type="button" class="rp-entry-toggle" data-rx-toggle="${idx}" aria-pressed="${!rule.disabled}">${rule.disabled ? "○" : "✓"}</button>
+        <div><strong>${escapeHtml(rule.name)}</strong><small>${escapeHtml(rule.findRegex.slice(0, 60))}${rule.findRegex.length > 60 ? "…" : ""}</small></div>
+      </div>`).join("");
+    $("rp-regex-list").querySelectorAll("[data-rx-toggle]").forEach((btn) => btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.rxToggle);
+      state.regexRules[i].disabled = !state.regexRules[i].disabled;
+      renderCardBlocks();
+    }));
   }
 
   function renderFiles() {
@@ -509,18 +580,43 @@ function plainPreviewWithMedia(value) {
       ...(parsed !== data && Array.isArray(parsed.alternate_greetings) ? parsed.alternate_greetings : []),
     ];
     const greetings = [firstGreeting, ...alternateGreetings].map((item) => safeText(item, 300000)).slice(0, 24);
+    // 结构化：标签
+    const tags = [...new Set([...(Array.isArray(data.tags) ? data.tags : []), ...(Array.isArray(parsed.tags) ? parsed.tags : [])].map((t) => safeText(t, 40)).filter(Boolean))].slice(0, 24);
+    // 结构化：世界书条目（保留 enabled 开关）
+    const rawBook = data.character_book || parsed.character_book || {};
+    const rawEntries = Array.isArray(rawBook.entries) ? rawBook.entries : Object.values(rawBook.entries || {});
+    const worldEntries = rawEntries.map((entry, idx) => ({
+      id: safeText(entry.id || `wb-${idx}`, 80),
+      title: safeText(entry.comment || (entry.content || "").split("\n")[0].replace(/^[#\s]+/, "").slice(0, 40) || `条目 ${idx + 1}`, 80),
+      content: safeText(entry.content || "", 50000),
+      enabled: entry.enabled !== false,
+      position: safeText(entry.position || "before_char", 20),
+    })).filter((e) => e.content);
+    // 结构化：正则与美化
+    const rawRegex = data.extensions?.regex_scripts || parsed.extensions?.regex_scripts || data.extensions?.regexScripts || [];
+    const regexRules = (Array.isArray(rawRegex) ? rawRegex : []).map((rule, idx) => ({
+      id: safeText(rule.id || `rx-${idx}`, 80),
+      name: safeText(rule.scriptName || rule.script_name || `规则 ${idx + 1}`, 120),
+      findRegex: safeText(rule.findRegex || rule.find_regex || "", 20000),
+      replaceString: safeText(rule.replaceString || rule.replace_string || "", 50000),
+      disabled: Boolean(rule.disabled),
+    })).filter((r) => r.findRegex);
     showEditor({ rpProject: {
       title: name ? `${name}的故事` : filename.replace(/\.[^.]+$/, ""),
       actorName: name,
       characterPrompt,
       world,
+      worldEntries,
+      tags,
+      regexRules,
+      description: safeText(data.description, 20000),
       scenario: safeText(data.scenario),
       opening: greetings[0] || "",
       greetings,
       openingIndex: 0,
       alternateGreetings: greetings.slice(1),
     }, projectFiles: [] });
-    bridge.toast(`已读取角色卡：${name || filename} · ${greetings.length} 条开场白`);
+    bridge.toast(`已读取角色卡：${name || filename} · ${greetings.length} 条开场白 · ${worldEntries.length} 条世界书 · ${regexRules.length} 条美化规则`);
   }
 
   async function readFiles(files, asImport) {
@@ -553,6 +649,13 @@ function plainPreviewWithMedia(value) {
   $("rp-home-exit").addEventListener("click", () => bridge.exitToHome());
   $("rp-new-project").addEventListener("click", () => showEditor());
   $("rp-empty-create").addEventListener("click", () => showEditor());
+  $("rp-tags-toggle").addEventListener("click", () => {
+    const el = $("rp-field-description");
+    const expanded = el.dataset.expanded === "1";
+    const full = el.dataset.full || "";
+    if (expanded) { el.textContent = full.length > 220 ? full.slice(0, 220) + "…" : full; el.dataset.expanded = ""; $("rp-tags-toggle").textContent = "展开"; }
+    else { el.textContent = full; el.dataset.expanded = "1"; $("rp-tags-toggle").textContent = "收起"; }
+  });
   $("rp-editor-back").addEventListener("click", showLibrary);
   $("rp-save-only").addEventListener("click", () => save(false));
   $("rp-save-enter").addEventListener("click", () => save(true));
