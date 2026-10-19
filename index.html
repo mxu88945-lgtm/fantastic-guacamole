@@ -6818,11 +6818,7 @@ function enterRoleplayCardAction(text, label) {
   const now = Date.now();
   if (lastRoleplayCardAction.text === value && now - lastRoleplayCardAction.at < 1200) return;
   lastRoleplayCardAction = { text: value, at: now };
-  const input = $("input");
-  input.value = `【选择开场】${value}`;
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  showToast(`已选择${label ? `「${String(label).slice(0, 28)}」` : "开场"}，正在进入剧情…`);
-  send();
+  window.JYCRoleplay?.chooseOpening?.(currentId);
 }
 if (typeof window !== "undefined") window.addEventListener("message", event => {
   const data = event.data;
@@ -6832,13 +6828,11 @@ if (typeof window !== "undefined") window.addEventListener("message", event => {
   if (data.type === "jyc-rp-select-greeting") {
     const index = Math.max(0, Math.floor(Number(data.index) || 0));
     const opening = normalizedRoleplayProject(currentConv()?.rpProject, currentConv()).greetings[index];
-    const messageId = frame.closest('.msg')?.dataset.mid;
-    const message = messages.find(item => item.id === messageId);
-    if (message && opening) {
-      message.rpSelectedOpening = opening;
-      saveConversations();
+    if (index === 0) { restoreRoleplayOpening(frame, index); return; }
+    if (opening) {
+      const project = window.JYCRoleplayBridge.startWithGreeting(currentId, index);
+      if (project) switchConversation(project.id, true);
     }
-    restoreRoleplayOpening(frame, index);
     return;
   }
   if (data.type === "jyc-rp-frame-height") {
@@ -14506,11 +14500,7 @@ async function init() {
 
   $("sidebar-new-chat").onclick = () => {
     if (isRoleplayConversation()) {
-      const copy = window.JYCRoleplayBridge?.duplicate?.(currentId);
-      if (copy) {
-        switchConversation(copy.id, true);
-        showToast(`已开启《${copy.title || "剧本"}》的新场次`);
-      }
+      window.JYCRoleplay?.chooseOpening?.(currentId, true);
     } else {
       createConversation();
     }
@@ -15170,7 +15160,43 @@ function roleplaySaveDraft(conv, draft) {
   window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
   return roleplayPublicProject(conv);
 }
+function roleplaySceneFromGreeting(source, index, forceNew = false) {
+  if (!source || !isRoleplayConversation(source)) return null;
+  const p = normalizedRoleplayProject(source.rpProject, source);
+  if (!Number.isInteger(index) || index < 0 || index >= p.greetings.length || !p.greetings[index].trim()) return null;
+  const pristine = !forceNew && (source.messages || []).length <= 1
+    && !(source.messages || []).some(m => m.role !== "assistant")
+    && !p.memory && !p.memories.length;
+  const conv = pristine ? source : newConversation("roleplay");
+  if (!pristine) {
+    conv.title = `${String(source.title || p.title || "未命名剧本").replace(/(?: · 新场次)+$/u, "")} · 新场次`;
+    conv.projectFiles = cloneChatData(conversationProjectFiles(source));
+    conv.providerId = source.providerId || conv.providerId;
+    conv.model = source.model || conv.model;
+    conv.reasoningEffort = source.reasoningEffort || conv.reasoningEffort;
+    conversations.unshift(conv);
+  }
+  conv.rpProject = normalizedRoleplayProject({ ...cloneChatData(p), title: conv.title, openingIndex: index, memory: "", memories: [] }, conv);
+  conv.messages = [{ id: uid(), role: "assistant", content: p.greetings[index], ts: Date.now(), rpOpening: true }];
+  conv.updatedAt = Date.now();
+  if (conv.id === currentId) {
+    messages = conv.messages;
+    // A chosen opening is a different first message; discard the previous card view.
+    $("messages").dataset.conversationId = "";
+    renderMessages();
+    jumpToBottom();
+  }
+  saveConversations();
+  window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: conv.id } }));
+  window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
+  return roleplayPublicProject(conv);
+}
 window.JYCRoleplayBridge = {
+  startWithGreeting(id, index, forceNew = false) {
+    if (abortController) { showToast("等当前回复结束后再选择开场"); return null; }
+    const source = conversations.find(conv => conv.id === id && conv.roleId === settings.activeRoleId);
+    return roleplaySceneFromGreeting(source, Number(index), forceNew);
+  },
   exitToHome() {
     window.JYCRoleplay?.close?.();
     const target = privateRoleConvs().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
@@ -15202,14 +15228,7 @@ window.JYCRoleplayBridge = {
     const source = conversations.find(item => item.id === id && isRoleplayConversation(item));
     if (!source) return null;
     const p = normalizedRoleplayProject(source.rpProject, source);
-    const copy = newConversation("roleplay");
-    copy.title = `${source.title || p.title || "未命名剧本"} · 新场次`;
-    copy.rpProject = normalizedRoleplayProject({ ...cloneChatData(p), title: copy.title, memories: [] }, copy);
-    copy.projectFiles = cloneChatData(conversationProjectFiles(source));
-    if (p.opening) copy.messages.push({ id: uid(), role: "assistant", content: p.opening, ts: Date.now() });
-    conversations.unshift(copy); saveConversations();
-    window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: copy.id } }));
-    return roleplayPublicProject(copy);
+    return roleplaySceneFromGreeting(source, p.openingIndex, true);
   },
   remove(id) {
     const conv = conversations.find(item => item.id === id && isRoleplayConversation(item));

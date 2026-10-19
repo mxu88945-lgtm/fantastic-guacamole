@@ -30,7 +30,7 @@ ok(html.includes("RP 剧情档案"), "cross-window RP source labeling is missing
 ok(js.includes("importCharacterCard") && js.includes("character_book"), "character-card import is incomplete");
 ok(js.includes("alternate_greetings") && js.includes("rp-greeting-list"), "alternate greeting import or picker is missing");
 ok(js.includes("rp-preview-greeting") && js.includes("greetingPreviewDocument"), "opening preview is missing");
-ok(js.includes("bridge.duplicate"), "new-scene duplication is missing");
+ok(js.includes("bridge.startWithGreeting") && js.includes("选择开场白"), "new scenes must start through the opening picker");
 ok(css.includes(".rp-theater-panel") && css.includes("@media (max-width: 680px)"), "RP theater responsive layout is missing");
 ok(css.includes("#rp-field-opening") && css.includes(".rp-greeting-card.selected"), "mobile-friendly opening editor is missing");
 ok(html.includes("roleplayRichFrameHtml") && html.includes('sandbox="allow-scripts"'), "rich HTML openings are not sandbox-rendered");
@@ -62,4 +62,27 @@ ok(context.buildSharedRoleplayExperienceText() === '', 'other RP projects must n
 ok(dashboard.includes('JYCRoleplayBridge?.exitToHome?.()') && js.includes('rp-home-exit'), 'RP must have a working backstage-home exit');
 ok(html.includes('box.dataset.conversationId === currentId') && html.includes('scroller.scrollTop = oldTop'), 'RP redraws must retain the current scroll position');
 ok(html.includes('window.getChatMessages=async') && html.includes('jyc-rp-select-greeting') && html.includes('重看原始开场'), 'original opening and Tavern swipe navigation must be recoverable');
+const sceneContext = {
+  conversations: [], currentId: 'other', messages: [],
+  normalizedRoleplayProject: (p, conv) => ({ ...p, opening: p.greetings[p.openingIndex || 0], title: p.title || conv.title }),
+  isRoleplayConversation: conv => conv?.space === 'roleplay',
+  newConversation: () => ({ id: 'new-scene', space: 'roleplay', messages: [], providerId: 'default', model: 'default' }),
+  cloneChatData: value => JSON.parse(JSON.stringify(value)),
+  conversationProjectFiles: conv => conv.projectFiles || [],
+  uid: () => 'opening-message', saveConversations: () => {},
+  roleplayPublicProject: conv => conv, window: { dispatchEvent() {} },
+  CustomEvent: class { constructor(type) { this.type = type; } },
+};
+vm.createContext(sceneContext);
+vm.runInContext(html.slice(html.indexOf('function roleplaySceneFromGreeting('), html.indexOf('window.JYCRoleplayBridge =')), sceneContext);
+const source = { id: 'old-scene', space: 'roleplay', title: '测试故事', providerId: 'chosen-provider', model: 'chosen-model', messages: [{ role: 'assistant', content: '旧开场' }, { role: 'user', content: '旧剧情' }], rpProject: { greetings: ['角色卡首页', '完整的第二开场正文'], openingIndex: 0, memory: '旧场次摘要', memories: [{ text: '旧剧情事实' }] } };
+const fresh = sceneContext.roleplaySceneFromGreeting(source, 1, true);
+ok(fresh.messages.length === 1 && fresh.messages[0].role === 'assistant' && fresh.messages[0].content === '完整的第二开场正文', 'selected opening must be the assistant first message without a user selection turn');
+ok(source.messages.length === 2 && source.rpProject.memory === '旧场次摘要', 'choosing a new opening must preserve the previous scene');
+ok(fresh.rpProject.memory === '' && fresh.rpProject.memories.length === 0 && fresh.model === 'chosen-model', 'a fresh opening must reset scene memory while retaining its channel');
+ok(sceneContext.roleplaySceneFromGreeting(source, 99, true) === null, 'invalid greeting indexes must not create conversations');
+const pristine = { id: 'pristine', space: 'roleplay', title: '刚导入', messages: [{ role: 'assistant', content: '首页' }], rpProject: { greetings: ['首页', '正文开场'], memory: '', memories: [] } };
+ok(sceneContext.roleplaySceneFromGreeting(pristine, 1).id === 'pristine' && pristine.messages[0].content === '正文开场', 'selecting an untouched opening should replace its assistant turn in place');
+const clickAction = html.slice(html.indexOf('function enterRoleplayCardAction('), html.indexOf('if (typeof window !== "undefined") window.addEventListener("message"', html.indexOf('function enterRoleplayCardAction(')));
+ok(!clickAction.includes('send()') && !clickAction.includes('input.value'), 'card choices must never send a user-authored message or call the model');
 console.log(`RP theater regression checks passed (${checks})`);

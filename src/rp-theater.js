@@ -5,6 +5,7 @@ if (!bridge) {
 } else {
   const $ = (id) => document.getElementById(id);
   const state = { editingId: "", files: [], greetings: [""], selectedGreeting: 0 };
+  const openingState = { projectId: "", index: 0, forceNew: true };
 
   function safeText(value, max = 200000) {
     return String(value || "").replace(/\u0000/g, "").slice(0, max);
@@ -166,11 +167,20 @@ if (!bridge) {
               <div id="rp-files-list" class="rp-files-list"></div>
             </section>
             <aside class="rp-identity-note"><strong>身份保护已锁定</strong><p id="rp-identity-copy">TA 始终知道自己是谁。入戏时完整扮演舞台角色；你说“暂停”“出戏”或“停止扮演”时，由 TA 本人接话。</p></aside>
-            <div class="rp-editor-actions"><button type="button" id="rp-save-only">保存剧本</button><button type="button" class="primary" id="rp-save-enter">保存并开始对戏</button></div>
+            <div class="rp-editor-actions"><button type="button" id="rp-save-only">保存剧本</button><button type="button" class="primary" id="rp-save-enter">选择开场并开始对戏</button></div>
           </section>
         </main>
       </div>`;
     document.body.appendChild(section);
+    const picker = document.createElement("section");
+    picker.id = "rp-opening-picker";
+    picker.className = "rp-opening-picker";
+    picker.hidden = true;
+    picker.setAttribute("role", "dialog");
+    picker.setAttribute("aria-modal", "true");
+    picker.setAttribute("aria-labelledby", "rp-opening-picker-title");
+    picker.innerHTML = `<div class="rp-opening-shell"><header class="rp-opening-head"><button type="button" id="rp-opening-cancel">取消</button><h2 id="rp-opening-picker-title">选择开场白</h2><button type="button" id="rp-opening-confirm">确定</button></header><div class="rp-opening-scroll"><div class="rp-opening-actor" id="rp-opening-actor"></div><p class="rp-opening-note">选择后以角色的第一条消息开始新场次</p><div id="rp-opening-options"></div><section class="rp-opening-full"><h3>完整开场预览</h3><div id="rp-opening-full-content"></div></section></div></div>`;
+    document.body.appendChild(picker);
   }
 
   panelMarkup();
@@ -263,15 +273,13 @@ if (!bridge) {
         <span class="rp-project-mark">${escapeHtml([...actor][0] || "剧")}</span>
         <div class="rp-project-copy"><small>RP PROJECT · ${escapeHtml(formatTime(project.updatedAt))}</small><strong>${escapeHtml(project.title || "未命名剧本")}</strong><p>${escapeHtml(info.roleName || "TA")} 演 ${escapeHtml(actor)} · ${escapeHtml(userRole)}</p><em>${project.messageCount || 0} 条正文 · ${project.memoryCount || 0} 条剧情记忆</em></div>
         <button type="button" class="rp-continue" data-rp-open="${escapeHtml(project.id)}">继续对戏</button>
-        <div class="rp-project-menu"><button type="button" data-rp-edit="${escapeHtml(project.id)}">编辑</button><button type="button" data-rp-duplicate="${escapeHtml(project.id)}">新场次</button><button type="button" class="danger" data-rp-delete="${escapeHtml(project.id)}">删除</button></div>
+        <div class="rp-project-menu"><button type="button" data-rp-edit="${escapeHtml(project.id)}">角色卡与开场白</button><button type="button" data-rp-duplicate="${escapeHtml(project.id)}">选择开场并新建对话</button><button type="button" class="danger" data-rp-delete="${escapeHtml(project.id)}">删除</button></div>
       </article>`;
     }).join("");
     list.querySelectorAll("[data-rp-open]").forEach((button) => button.addEventListener("click", () => enter(button.dataset.rpOpen)));
     list.querySelectorAll("[data-rp-edit]").forEach((button) => button.addEventListener("click", () => showEditor(bridge.get(button.dataset.rpEdit))));
     list.querySelectorAll("[data-rp-duplicate]").forEach((button) => button.addEventListener("click", () => {
-      const copy = bridge.duplicate(button.dataset.rpDuplicate);
-      render();
-      bridge.toast(`已为《${copy?.title || "剧本"}》开启新场次`);
+      chooseOpening(button.dataset.rpDuplicate, true);
     }));
     list.querySelectorAll("[data-rp-delete]").forEach((button) => button.addEventListener("click", () => {
       const project = bridge.get(button.dataset.rpDelete);
@@ -300,6 +308,48 @@ if (!bridge) {
     bridge.openConversation(id);
   }
 
+  function closeOpeningPicker() {
+    $("rp-opening-picker").hidden = true;
+    document.body.classList.remove("rp-opening-picker-open");
+  }
+
+  function renderOpeningPicker() {
+    const project = bridge.get(openingState.projectId);
+    if (!project) { closeOpeningPicker(); return; }
+    const greetings = greetingList(project.rpProject);
+    const actor = project.rpProject?.actorName || "角色";
+    const avatar = bridge.role().roleAvatar;
+    const portrait = /^(https?:\/\/|data:image\/)/.test(avatar || "")
+      ? `<img src="${escapeHtml(avatar)}" alt="" />` : `<span>${escapeHtml([...actor][0] || "剧")}</span>`;
+    $("rp-opening-actor").innerHTML = `${portrait}<strong>${escapeHtml(actor)}</strong>`;
+    $("rp-opening-options").innerHTML = greetings.map((value, index) => `<button type="button" class="rp-opening-option${index === openingState.index ? " selected" : ""}" data-opening-index="${index}" aria-pressed="${index === openingState.index}" ${value.trim() ? "" : "disabled"}>${portrait}<span><small>${escapeHtml(actor)} · 开场 ${index + 1}</small><strong>${escapeHtml(plainPreview(value).slice(0, 160) || "空白开场")}</strong></span><i>${index === openingState.index ? "✓" : "›"}</i></button>`).join("");
+    $("rp-opening-options").querySelectorAll("[data-opening-index]").forEach(button => button.addEventListener("click", () => {
+      openingState.index = Number(button.dataset.openingIndex);
+      renderOpeningPicker();
+    }));
+    const value = greetings[openingState.index] || "";
+    $("rp-opening-confirm").disabled = !value.trim();
+    const holder = $("rp-opening-full-content");
+    if (looksLikeRichGreeting(value)) {
+      holder.innerHTML = '<iframe class="rp-greeting-preview-frame" title="所选开场白完整预览" sandbox="allow-scripts"></iframe>';
+      holder.querySelector("iframe").srcdoc = greetingPreviewDocument(value);
+    } else {
+      holder.innerHTML = `<div class="rp-greeting-preview-text">${escapeHtml(value).replace(/\n/g, "<br>")}</div>`;
+    }
+  }
+
+  function chooseOpening(projectId, forceNew = true) {
+    const project = bridge.get(projectId);
+    if (!project) return;
+    openingState.projectId = projectId;
+    openingState.index = Math.max(0, Number(project.rpProject?.openingIndex) || 0);
+    openingState.forceNew = forceNew;
+    $("rp-opening-picker").hidden = false;
+    document.body.classList.add("rp-opening-picker-open");
+    renderOpeningPicker();
+    $("rp-opening-picker").querySelector(".rp-opening-scroll").scrollTop = 0;
+  }
+
   function validateDraft(draft) {
     if (!draft.title) { bridge.toast("先给这部戏起个名字"); $("rp-field-title").focus(); return false; }
     if (!draft.actorName) { bridge.toast(`写下 ${bridge.role().roleName || "TA"} 在戏里扮演谁`); $("rp-field-actor").focus(); return false; }
@@ -315,7 +365,7 @@ if (!bridge) {
     state.editingId = project.id;
     bridge.toast("剧本已保存");
     window.dispatchEvent(new CustomEvent("jyc:roleplay-updated"));
-    if (shouldEnter) enter(project.id); else showLibrary();
+    if (shouldEnter) chooseOpening(project.id, false); else showLibrary();
   }
 
   function worldBookText(book) {
@@ -379,6 +429,13 @@ if (!bridge) {
   }
 
   $("rp-theater-close").addEventListener("click", close);
+  $("rp-opening-cancel").addEventListener("click", closeOpeningPicker);
+  $("rp-opening-confirm").addEventListener("click", () => {
+    const project = bridge.startWithGreeting(openingState.projectId, openingState.index, openingState.forceNew);
+    if (!project) return;
+    closeOpeningPicker();
+    enter(project.id);
+  });
   $("rp-home-exit").addEventListener("click", () => bridge.exitToHome());
   $("rp-new-project").addEventListener("click", () => showEditor());
   $("rp-empty-create").addEventListener("click", () => showEditor());
@@ -414,6 +471,7 @@ if (!bridge) {
   window.JYCRoleplay = {
     open,
     close,
+    chooseOpening,
     editCurrent() {
       const current = bridge.current();
       open(current?.id || "");
