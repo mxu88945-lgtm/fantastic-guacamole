@@ -11778,7 +11778,7 @@ async function send(opts) {
     try { await Promise.all(attachmentStaging); } catch (_) {}
     btn.disabled = false; btn.classList.remove("staging");
   }
-  if (!directParts && !text && pendingAttachments.length === 0) return;
+  if (!directParts && !text && pendingAttachments.length === 0 && !rpReplyMemberIds.length) return;
   const silent = !!settings.silentMode;
   if (!silent && !settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
   clearError();
@@ -11792,6 +11792,9 @@ async function send(opts) {
     userContent = [];
     if (text) userContent.push({ type: "text", text });
     for (const a of pendingAttachments) userContent.push({ ...a });
+  } else if (!text && rpReplyMemberIds.length && rp) {
+    const replyNames = rpReplyMemberIds.map(id => roleplayMembers(rp).find(m => m.id === id)?.name).filter(Boolean);
+    userContent = replyNames.length ? replyNames.map(n => `@${n}`).join(" ") : text;
   } else {
     userContent = text;
   }
