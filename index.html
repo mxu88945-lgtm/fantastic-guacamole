@@ -6779,7 +6779,7 @@ function filePartsHtml(content) {
 }
 function roleplayRichSource(value) {
   const source = String(value || "").trim();
-  const fenced = source.match(/^```(?:html)?\s*([\s\S]*?)\s*```$/i);
+  const fenced = source.match(/^```(?:html)?[^\S\r\n]*\r?\n([\s\S]*?)\r?\n```(?:\s|$)/i);
   return fenced ? fenced[1].trim() : source;
 }
 function looksLikeRoleplayRichHtml(value) {
@@ -7784,7 +7784,7 @@ function normalizedRoleplayProject(value, conv) {
   const sourceGreetings = Array.isArray(raw.greetings)
     ? raw.greetings
     : [raw.opening, ...(Array.isArray(raw.alternateGreetings) ? raw.alternateGreetings : [])];
-  const greetings = sourceGreetings.map(item => String(item || "").replace(/\u0000/g, "").slice(0, 300000)).filter((item, index) => item.trim() || index === 0).slice(0, 24);
+  const greetings = sourceGreetings.map(item => String(item || "").replace(/\u0000/g, "").slice(0, 300000)).slice(0, 24);
   if (!greetings.length) greetings.push("");
   const openingIndex = Math.max(0, Math.min(Number(raw.openingIndex) || 0, greetings.length - 1));
   return {
@@ -15192,6 +15192,27 @@ function roleplaySceneFromGreeting(source, index, forceNew = false) {
   return roleplayPublicProject(conv);
 }
 window.JYCRoleplayBridge = {
+  repairGreetings(id, rawCard) {
+    const target = conversations.find(conv => conv.id === id && conv.roleId === settings.activeRoleId && isRoleplayConversation(conv));
+    if (!target) return null;
+    let raw;
+    try { raw = JSON.parse(String(rawCard)); } catch (_) { showToast("请选择原始 JSON 角色卡，封面 HTML 里没有完整开场正文"); return null; }
+    const data = raw?.data && typeof raw.data === "object" ? raw.data : raw;
+    const alternates = Array.isArray(data?.alternate_greetings) ? data.alternate_greetings : [];
+    if (!alternates.some(item => typeof item === "string" && item.trim())) { showToast("这份文件没有文字备选开场，请选择完整角色卡 JSON"); return null; }
+    const p = normalizedRoleplayProject(target.rpProject, target);
+    const name = String(data.name || "").trim();
+    if (name && name !== p.actorName && !confirm(`当前角色是「${p.actorName}」，文件角色是「${name}」。要用这份文件补全开场白吗？`)) return null;
+    const greetings = [String(data.first_mes || data.greeting || p.greetings[0] || ""), ...alternates].slice(0, 24);
+    roleConvs().filter(conv => isRoleplayConversation(conv) && (conv.id === id || (conv.rpProject?.actorName === p.actorName && normalizedRoleplayProject(conv.rpProject, conv).greetings[0] === p.greetings[0]))).forEach(conv => {
+      const existing = normalizedRoleplayProject(conv.rpProject, conv);
+      conv.rpProject = normalizedRoleplayProject({ ...existing, greetings, openingIndex: Math.min(existing.openingIndex, greetings.length - 1) }, conv);
+    });
+    saveConversations();
+    window.dispatchEvent(new CustomEvent("jyc:roleplay-updated"));
+    showToast(`已补全 ${alternates.filter(item => String(item || "").trim()).length} 条文字开场，聊天和记忆已保留`);
+    return roleplayPublicProject(target);
+  },
   startWithGreeting(id, index, forceNew = false) {
     if (abortController) { showToast("等当前回复结束后再选择开场"); return null; }
     const source = conversations.find(conv => conv.id === id && conv.roleId === settings.activeRoleId);

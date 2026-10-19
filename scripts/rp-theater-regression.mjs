@@ -85,4 +85,11 @@ const pristine = { id: 'pristine', space: 'roleplay', title: '刚导入', messag
 ok(sceneContext.roleplaySceneFromGreeting(pristine, 1).id === 'pristine' && pristine.messages[0].content === '正文开场', 'selecting an untouched opening should replace its assistant turn in place');
 const clickAction = html.slice(html.indexOf('function enterRoleplayCardAction('), html.indexOf('if (typeof window !== "undefined") window.addEventListener("message"', html.indexOf('function enterRoleplayCardAction(')));
 ok(!clickAction.includes('send()') && !clickAction.includes('input.value'), 'card choices must never send a user-authored message or call the model');
+const sourceContext = { uid: () => 'test-id' };
+vm.createContext(sourceContext);
+vm.runInContext(html.slice(html.indexOf('function roleplayRichSource('), html.indexOf('function looksLikeRoleplayRichHtml(')), sourceContext);
+ok(sourceContext.roleplayRichSource('```html\r\n<html><body>cover</body></html>\r\n```\r\n\r\n[播放: test]') === '<html><body>cover</body></html>', 'a card fence followed by an audio tag must still unwrap to its HTML document');
+vm.runInContext(html.slice(html.indexOf('function normalizedRoleplayProject('), html.indexOf('function addRoleplayMemory(')), sourceContext);
+const normalized = sourceContext.normalizedRoleplayProject({ greetings: ['cover', 'first opening', '', 'third opening'], openingIndex: 3 }, {title:'test'});
+ok(normalized.greetings.length === 4 && normalized.opening === 'third opening', 'blank swipe slots must not shift card button indexes');
 console.log(`RP theater regression checks passed (${checks})`);

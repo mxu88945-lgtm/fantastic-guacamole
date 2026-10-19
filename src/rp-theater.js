@@ -4,7 +4,7 @@ if (!bridge) {
   console.error("RP theater bridge is unavailable");
 } else {
   const $ = (id) => document.getElementById(id);
-  const state = { editingId: "", files: [], greetings: [""], selectedGreeting: 0 };
+  const state = { editingId: "", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "" };
   const openingState = { projectId: "", index: 0, forceNew: true };
 
   function safeText(value, max = 200000) {
@@ -19,7 +19,7 @@ if (!bridge) {
     const source = Array.isArray(data.greetings)
       ? data.greetings
       : [data.opening, ...(Array.isArray(data.alternateGreetings) ? data.alternateGreetings : [])];
-    const list = source.map((item) => safeText(item, 300000)).filter((item, index) => item.trim() || index === 0).slice(0, 24);
+    const list = source.map((item) => safeText(item, 300000)).slice(0, 24);
     return list.length ? list : [""];
   }
 
@@ -35,12 +35,15 @@ if (!bridge) {
 
   function richGreetingSource(value) {
     const source = safeText(value, 300000).trim();
-    const fenced = source.match(/^```(?:html)?\s*([\s\S]*?)\s*```$/i);
+    const fenced = source.match(/^```(?:html)?[^\S\r\n]*\r?\n([\s\S]*?)\r?\n```(?:\s|$)/i);
     return fenced ? fenced[1].trim() : source;
   }
 
   function looksLikeRichGreeting(value) {
     return /<!doctype\s+html|<html\b|<head\b|<body\b|<style\b|<script\b/i.test(richGreetingSource(value));
+  }
+  function isOpeningMenu(value) {
+    return /\bLOCAL_SCENES\b|\bfunction\s+jumpToScene\b|选择你的剧本/.test(String(value || ""));
   }
 
   function greetingPreviewDocument(value) {
@@ -179,7 +182,7 @@ if (!bridge) {
     picker.setAttribute("role", "dialog");
     picker.setAttribute("aria-modal", "true");
     picker.setAttribute("aria-labelledby", "rp-opening-picker-title");
-    picker.innerHTML = `<div class="rp-opening-shell"><header class="rp-opening-head"><button type="button" id="rp-opening-cancel">取消</button><h2 id="rp-opening-picker-title">选择开场白</h2><button type="button" id="rp-opening-confirm">确定</button></header><div class="rp-opening-scroll"><div class="rp-opening-actor" id="rp-opening-actor"></div><p class="rp-opening-note">选择后以角色的第一条消息开始新场次</p><div id="rp-opening-options"></div><section class="rp-opening-full"><h3>完整开场预览</h3><div id="rp-opening-full-content"></div></section></div></div>`;
+    picker.innerHTML = `<div class="rp-opening-shell"><header class="rp-opening-head"><button type="button" id="rp-opening-cancel">取消</button><h2 id="rp-opening-picker-title">选择开场白</h2><button type="button" id="rp-opening-confirm">确定</button></header><div class="rp-opening-scroll"><div class="rp-opening-actor" id="rp-opening-actor"></div><p class="rp-opening-note" id="rp-opening-note">选择后以角色的第一条消息开始新场次</p><button type="button" class="rp-head-action" id="rp-opening-repair">从原始 JSON 补全开场白</button><div id="rp-opening-options"></div><section class="rp-opening-full"><h3>完整开场预览</h3><div id="rp-opening-full-content"></div></section></div></div>`;
     document.body.appendChild(picker);
   }
 
@@ -317,18 +320,22 @@ if (!bridge) {
     const project = bridge.get(openingState.projectId);
     if (!project) { closeOpeningPicker(); return; }
     const greetings = greetingList(project.rpProject);
+    const hasMenu = isOpeningMenu(greetings[0]);
+    const choices = greetings.map((value, index) => ({ value, index })).filter(item => !hasMenu || item.index > 0);
+    const hasText = choices.some(item => item.value.trim());
+    $("rp-opening-note").textContent = hasText ? "选择后以角色的第一条消息开始新场次" : "旧剧本只保存了封面，缺少文字开场。请从完整角色卡 JSON 补全。";
     const actor = project.rpProject?.actorName || "角色";
     const avatar = bridge.role().roleAvatar;
     const portrait = /^(https?:\/\/|data:image\/)/.test(avatar || "")
       ? `<img src="${escapeHtml(avatar)}" alt="" />` : `<span>${escapeHtml([...actor][0] || "剧")}</span>`;
     $("rp-opening-actor").innerHTML = `${portrait}<strong>${escapeHtml(actor)}</strong>`;
-    $("rp-opening-options").innerHTML = greetings.map((value, index) => `<button type="button" class="rp-opening-option${index === openingState.index ? " selected" : ""}" data-opening-index="${index}" aria-pressed="${index === openingState.index}" ${value.trim() ? "" : "disabled"}>${portrait}<span><small>${escapeHtml(actor)} · 开场 ${index + 1}</small><strong>${escapeHtml(plainPreview(value).slice(0, 160) || "空白开场")}</strong></span><i>${index === openingState.index ? "✓" : "›"}</i></button>`).join("");
+    $("rp-opening-options").innerHTML = choices.map(({ value, index }) => `<button type="button" class="rp-opening-option${index === openingState.index ? " selected" : ""}" data-opening-index="${index}" aria-pressed="${index === openingState.index}" ${value.trim() ? "" : "disabled"}>${portrait}<span><small>${escapeHtml(actor)} · 开场 ${hasMenu ? index : index + 1}</small><strong>${escapeHtml(plainPreview(value).slice(0, 160) || "原卡中的空白开场")}</strong></span><i>${index === openingState.index ? "✓" : "›"}</i></button>`).join("");
     $("rp-opening-options").querySelectorAll("[data-opening-index]").forEach(button => button.addEventListener("click", () => {
       openingState.index = Number(button.dataset.openingIndex);
       renderOpeningPicker();
     }));
     const value = greetings[openingState.index] || "";
-    $("rp-opening-confirm").disabled = !value.trim();
+    $("rp-opening-confirm").disabled = !value.trim() || (hasMenu && openingState.index === 0);
     const holder = $("rp-opening-full-content");
     if (looksLikeRichGreeting(value)) {
       holder.innerHTML = '<iframe class="rp-greeting-preview-frame" title="所选开场白完整预览" sandbox="allow-scripts"></iframe>';
@@ -343,6 +350,11 @@ if (!bridge) {
     if (!project) return;
     openingState.projectId = projectId;
     openingState.index = Math.max(0, Number(project.rpProject?.openingIndex) || 0);
+    const greetings = greetingList(project.rpProject);
+    if (openingState.index === 0 && isOpeningMenu(greetings[0])) {
+      const index = greetings.findIndex((value, i) => i > 0 && value.trim());
+      if (index > 0) openingState.index = index;
+    }
     openingState.forceNew = forceNew;
     $("rp-opening-picker").hidden = false;
     document.body.classList.add("rp-opening-picker-open");
@@ -375,6 +387,13 @@ if (!bridge) {
   }
 
   function importCharacterCard(raw, filename) {
+    if (state.repairTargetId) {
+      const targetId = state.repairTargetId;
+      state.repairTargetId = "";
+      const repaired = bridge.repairGreetings(targetId, raw);
+      if (repaired) chooseOpening(targetId, true);
+      return;
+    }
     let parsed = null;
     try { parsed = JSON.parse(raw); } catch (_) {}
     if (!parsed || typeof parsed !== "object") {
@@ -396,9 +415,9 @@ if (!bridge) {
     const firstGreeting = data.first_mes || data.greeting || parsed.first_mes || parsed.greeting || "";
     const alternateGreetings = [
       ...(Array.isArray(data.alternate_greetings) ? data.alternate_greetings : []),
-      ...(Array.isArray(parsed.alternate_greetings) ? parsed.alternate_greetings : []),
+      ...(parsed !== data && Array.isArray(parsed.alternate_greetings) ? parsed.alternate_greetings : []),
     ];
-    const greetings = [firstGreeting, ...alternateGreetings].map((item) => safeText(item, 300000)).filter((item, index) => item.trim() || index === 0).slice(0, 24);
+    const greetings = [firstGreeting, ...alternateGreetings].map((item) => safeText(item, 300000)).slice(0, 24);
     showEditor({ rpProject: {
       title: name ? `${name}的故事` : filename.replace(/\.[^.]+$/, ""),
       actorName: name,
@@ -430,6 +449,10 @@ if (!bridge) {
 
   $("rp-theater-close").addEventListener("click", close);
   $("rp-opening-cancel").addEventListener("click", closeOpeningPicker);
+  $("rp-opening-repair").addEventListener("click", () => {
+    state.repairTargetId = openingState.projectId;
+    $("rp-import-file").click();
+  });
   $("rp-opening-confirm").addEventListener("click", () => {
     const project = bridge.startWithGreeting(openingState.projectId, openingState.index, openingState.forceNew);
     if (!project) return;
@@ -458,7 +481,7 @@ if (!bridge) {
   $("rp-field-opening").addEventListener("input", () => {
     state.greetings[state.selectedGreeting] = safeText($("rp-field-opening").value, 300000);
   });
-  $("rp-import-project").addEventListener("click", () => $("rp-import-file").click());
+  $("rp-import-project").addEventListener("click", () => { state.repairTargetId = ""; $("rp-import-file").click(); });
   $("rp-import-file").addEventListener("change", async (event) => { await readFiles(event.target.files, true); event.target.value = ""; });
   $("rp-add-files").addEventListener("click", () => $("rp-files-input").click());
   $("rp-files-input").addEventListener("change", async (event) => { await readFiles(event.target.files, false); event.target.value = ""; });
