@@ -616,3 +616,10 @@
 - 角色详情页四个入口改成各自独立的分区页（`showEditor(project, "main"|"world"|"regex"|"theater")`，CSS 按 `data-rp-sec` 隐藏其他部分），返回回到角色详情；非剧场列表页隐藏顶部大卡片。
 - 修 `closePanel` 未定义导致「继续共演」点击报错。
 - 已导入后保存过的旧剧本，世界书/正则已经丢了，需重新导入角色卡。
+
+## 2026-10-19 RP剧场开场白美化坏掉（sw v212，Hark）
+- 根因：`chooseOpening` 每次打开都把开场白「跑正则 → 再 beautifyOpeningHTML」并**永久写回存储**。角色卡正则产出的是整段 HTML（音乐播放器），beautify 把它转义成文字，还把 `lang="zh-CN"` 这类属性当成引号对白做成气泡 → 正文里显示一堆源码和紫色气泡。
+- 修：新增 `displayGreeting(raw, rules)`，惟镜同款「存原文、显示时才美化」：正则结果像 HTML 就整段进 iframe（去掉 ```html 围栏），否则才做引号气泡。编辑预览、开场选择预览、开场确认三处统一用它；确认时只临时替换后立刻还原。
+- 正则按 SillyTavern 语义：跳过 promptOnly、placement 不含 2（AI 输出）的规则，`{{match}}`→`$&`。
+- 「从原始 JSON 补全开场白」现在也会补回丢失的世界书/正则/标签/简介（v211 前保存丢掉的）。
+- 已存坏的开场白无法还原，开场选择页会提示用原始 JSON 补全。

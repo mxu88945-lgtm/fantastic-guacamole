@@ -42,6 +42,9 @@ ok(css.includes('.roleplay-rich-message > .msg-head'), "flat-layout rich opening
 ok(html.includes("greetings, openingIndex, alternateGreetings"), "opening selection is not persisted");
 ok(html.includes('worldEntries: Array.isArray(raw.worldEntries)') && html.includes('regexRules: Array.isArray(raw.regexRules)') && html.includes('theaterWorldBackground: text("theaterWorldBackground")'), "saving an RP project drops worldbook, regex, tags or theater world");
 ok(html.includes("【本剧本世界观（本剧场所有角色与 NPC 共用）】"), "theater world background never reaches the prompt");
+ok(js.includes("function displayGreeting(") && !js.includes("bridge.update(projectId, { ...rp, greetings: processed })"), "openings must be beautified only for display, never rewritten in storage");
+ok(js.includes("if (looksLikeRichGreeting(regexed)) return regexed"), "regex-produced HTML openings must render as HTML, not be re-bubbled");
+ok(js.includes("function cardStructure(") && js.includes("patch.regexRules = extra.regexRules"), "JSON repair must restore lost regex/worldbook");
 ok(!js.includes("closePanel("), "detail continue button calls an undefined closePanel");
 ok(js.includes('showEditor(project, "world")') && js.includes('showEditor(project, "regex")'), "detail rows must open their own section page like 惟镜");
 ok(css.includes('#rp-editor-view[data-section="world"] [data-rp-sec]:not([data-rp-sec="world"])'), "section pages must hide other editor parts");

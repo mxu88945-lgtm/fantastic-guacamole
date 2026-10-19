@@ -69,11 +69,12 @@ function parseRuleRegex(source) {
 function applyRegexRules(text, rules) {
   let output = String(text || "");
   for (const rule of rules || []) {
-    if (rule.disabled || !rule.findRegex) continue;
+    if (rule.disabled || !rule.findRegex || rule.promptOnly) continue;
+    if (Array.isArray(rule.placement) && rule.placement.length && !rule.placement.includes(2)) continue;
     try {
       const regex = parseRuleRegex(rule.findRegex);
       if (!regex) continue;
-      output = output.replace(regex, rule.replaceString || "");
+      output = output.replace(regex, String(rule.replaceString || "").replace(/\{\{match\}\}/gi, "$$&"));
     } catch (_) {}
   }
   return output;
@@ -148,6 +149,19 @@ function plainPreviewWithMedia(value) {
   function looksLikeRichGreeting(value) {
     return /<!doctype\s+html|<html\b|<head\b|<body\b|<style\b|<script\b/i.test(richGreetingSource(value));
   }
+  // 惟镜同款：存储里永远是原始开场白；显示时才跑角色卡正则。
+  // 正则产出的是 HTML（音乐播放器、状态栏等）就直接整段渲染，绝不再拿去做引号气泡（会把 HTML 属性当对白）。
+  function displayGreeting(value, rules) {
+    const raw = safeText(value, 300000);
+    if (!raw.trim() || looksLikeRichGreeting(raw)) return raw;
+    const regexed = applyRegexRules(raw, rules);
+    if (looksLikeRichGreeting(regexed)) return regexed.replace(/```(?:html)?[^\S\r\n]*\r?\n?/gi, "");
+    if (/\[播放[:：]/.test(regexed) || /[“"「][^”"」]{2,}[”"」]/.test(regexed)) return beautifyOpeningHTML(regexed) || regexed;
+    return regexed;
+  }
+  function isCorruptedGreeting(value) {
+    return /class="rp-beauty"/.test(value || "") && /&lt;(?:!doctype|html|div|style)/i.test(value || "");
+  }
   function isOpeningMenu(value) {
     return /\bLOCAL_SCENES\b|\bfunction\s+jumpToScene\b|选择你的剧本/.test(String(value || ""));
   }
@@ -178,12 +192,14 @@ function plainPreviewWithMedia(value) {
     const value = state.greetings[state.selectedGreeting] || "";
     if (!value.trim()) {
       holder.innerHTML = '<div class="rp-greeting-preview-empty">这里还没有内容。</div>';
-    } else if (looksLikeRichGreeting(value)) {
-      holder.innerHTML = '<iframe class="rp-greeting-preview-frame" title="开场白美化预览" sandbox="allow-scripts"></iframe>';
-      holder.querySelector("iframe").srcdoc = greetingPreviewDocument(value);
     } else {
-      const regexed = applyRegexRules(value, state.regexRules);
-      holder.innerHTML = beautifyOpeningHTML(regexed) || '<div class="rp-greeting-preview-empty">这里还没有内容。</div>';
+      const shown = displayGreeting(value, state.regexRules);
+      if (looksLikeRichGreeting(shown)) {
+        holder.innerHTML = '<iframe class="rp-greeting-preview-frame" title="开场白美化预览" sandbox="allow-scripts"></iframe>';
+        holder.querySelector("iframe").srcdoc = greetingPreviewDocument(shown);
+      } else {
+        holder.innerHTML = `<div class="rp-greeting-preview-text">${escapeHtml(shown).replace(/\n/g, "<br>")}</div>`;
+      }
     }
   }
 
@@ -670,35 +686,19 @@ function plainPreviewWithMedia(value) {
     const value = greetings[openingState.index] || "";
     $("rp-opening-confirm").disabled = !value.trim() || (hasMenu && openingState.index === 0);
     const holder = $("rp-opening-full-content");
-    if (looksLikeRichGreeting(value)) {
+    const shown = displayGreeting(value, project.rpProject?.regexRules || []);
+    if (looksLikeRichGreeting(shown)) {
       holder.innerHTML = '<iframe class="rp-greeting-preview-frame" title="所选开场白完整预览" sandbox="allow-scripts"></iframe>';
-      holder.querySelector("iframe").srcdoc = greetingPreviewDocument(value);
+      holder.querySelector("iframe").srcdoc = greetingPreviewDocument(shown);
     } else {
-      holder.innerHTML = beautifyOpeningHTML(value) || `<div class="rp-greeting-preview-text">${escapeHtml(value).replace(/\n/g, "<br>")}</div>`;
+      holder.innerHTML = `<div class="rp-greeting-preview-text">${escapeHtml(shown).replace(/\n/g, "<br>")}</div>`;
     }
+    if (greetings.some(isCorruptedGreeting)) $("rp-opening-note").textContent = "旧版本把开场白存坏了：请点「从原始 JSON 补全开场白」重新选一次角色卡 JSON。";
   }
 
   function chooseOpening(projectId, forceNew = true) {
     const project = bridge.get(projectId);
     if (!project) return;
-    // 预处理开场白：跑正则美化，转 HTML，聊天里才能显示播放器和气泡
-    const rp = project.rpProject || {};
-    const rawGreetings = greetingList(rp);
-    const rules = Array.isArray(rp.regexRules) ? rp.regexRules : [];
-    let changed = false;
-    const processed = rawGreetings.map((g) => {
-      if (!g || looksLikeRichGreeting(g)) return g;
-      const regexed = applyRegexRules(g, rules);
-      // 只有含 [播放：] 或引号对话时才转 HTML，避免无意义转换
-      if (/\[播放[:：]/.test(regexed) || /[“"「][^”"」]{2,}[”"」]/.test(regexed)) {
-        const html = beautifyOpeningHTML(regexed);
-        if (html) { changed = true; return html; }
-      } else if (regexed !== g) { changed = true; return regexed; }
-      return g;
-    });
-    if (changed) {
-      bridge.update(projectId, { ...rp, greetings: processed });
-    }
     openingState.projectId = projectId;
     openingState.index = Math.max(0, Number(project.rpProject?.openingIndex) || 0);
     const greetings = greetingList(project.rpProject);
@@ -741,8 +741,20 @@ function plainPreviewWithMedia(value) {
     if (state.repairTargetId) {
       const targetId = state.repairTargetId;
       state.repairTargetId = "";
-      const repaired = bridge.repairGreetings(targetId, raw);
+      let repaired = bridge.repairGreetings(targetId, raw);
       if (repaired) {
+        try {
+          const parsedCard = JSON.parse(raw);
+          const data = parsedCard?.data && typeof parsedCard.data === "object" ? parsedCard.data : parsedCard;
+          const extra = cardStructure(parsedCard);
+          const rp = repaired.rpProject || {};
+          const patch = { ...rp, greetings: greetingList(rp) };
+          if (extra.worldEntries.length && !(rp.worldEntries || []).length) patch.worldEntries = extra.worldEntries;
+          if (extra.regexRules.length && !(rp.regexRules || []).length) patch.regexRules = extra.regexRules;
+          if (!(rp.tags || []).length && Array.isArray(data?.tags)) patch.tags = data.tags.map((t) => safeText(t, 40)).filter(Boolean).slice(0, 24);
+          if (!rp.description && data?.description) patch.description = safeText(data.description, 20000);
+          repaired = bridge.update(targetId, patch) || repaired;
+        } catch (_) {}
         if (state.editingId === targetId) fillEditor(repaired);
         chooseOpening(targetId, true);
       }
@@ -774,6 +786,27 @@ function plainPreviewWithMedia(value) {
     const greetings = [firstGreeting, ...alternateGreetings].map((item) => safeText(item, 300000)).slice(0, 24);
     // 结构化：标签
     const tags = [...new Set([...(Array.isArray(data.tags) ? data.tags : []), ...(Array.isArray(parsed.tags) ? parsed.tags : [])].map((t) => safeText(t, 40)).filter(Boolean))].slice(0, 24);
+    const { worldEntries, regexRules } = cardStructure(parsed);
+    showEditor({ rpProject: {
+      title: name ? `${name}的故事` : filename.replace(/\.[^.]+$/, ""),
+      actorName: name,
+      characterPrompt,
+      world,
+      worldEntries,
+      tags,
+      regexRules,
+      description: safeText(data.description, 20000),
+      scenario: safeText(data.scenario),
+      opening: greetings[0] || "",
+      greetings,
+      openingIndex: 0,
+      alternateGreetings: greetings.slice(1),
+    }, projectFiles: [] });
+    bridge.toast(`已读取角色卡：${name || filename} · ${greetings.length} 条开场白 · ${worldEntries.length} 条世界书 · ${regexRules.length} 条美化规则`);
+  }
+
+  function cardStructure(parsed) {
+    const data = parsed?.data && typeof parsed.data === "object" ? parsed.data : parsed;
     // 结构化：世界书条目（保留 enabled 开关）
     const rawBook = data.character_book || parsed.character_book || {};
     const rawEntries = Array.isArray(rawBook.entries) ? rawBook.entries : Object.values(rawBook.entries || {});
@@ -804,23 +837,11 @@ function plainPreviewWithMedia(value) {
       findRegex: safeText(rule.findRegex || rule.find_regex || "", 20000),
       replaceString: safeText(rule.replaceString || rule.replace_string || "", 50000),
       disabled: Boolean(rule.disabled),
+      promptOnly: Boolean(rule.promptOnly || rule.prompt_only),
+      markdownOnly: Boolean(rule.markdownOnly || rule.markdown_only),
+      placement: Array.isArray(rule.placement) ? rule.placement.map(Number) : [],
     })).filter((r) => r.findRegex);
-    showEditor({ rpProject: {
-      title: name ? `${name}的故事` : filename.replace(/\.[^.]+$/, ""),
-      actorName: name,
-      characterPrompt,
-      world,
-      worldEntries,
-      tags,
-      regexRules,
-      description: safeText(data.description, 20000),
-      scenario: safeText(data.scenario),
-      opening: greetings[0] || "",
-      greetings,
-      openingIndex: 0,
-      alternateGreetings: greetings.slice(1),
-    }, projectFiles: [] });
-    bridge.toast(`已读取角色卡：${name || filename} · ${greetings.length} 条开场白 · ${worldEntries.length} 条世界书 · ${regexRules.length} 条美化规则`);
+    return { worldEntries, regexRules };
   }
 
   async function readFiles(files, asImport) {
@@ -857,9 +878,9 @@ function plainPreviewWithMedia(value) {
       const greetings = greetingList(rp);
       const raw = greetings[openingState.index] || "";
       const rules = Array.isArray(rp.regexRules) ? rp.regexRules : [];
-      if (raw && !looksLikeRichGreeting(raw) && /\[播放[:：]/.test(raw)) {
-        const html = beautifyOpeningHTML(applyRegexRules(raw, rules));
-        if (html) {
+      if (raw && !looksLikeRichGreeting(raw)) {
+        const html = displayGreeting(raw, rules);
+        if (html && html !== raw) {
           needRestore = { rp, greetings };
           const updated = greetings.slice();
           updated[openingState.index] = html;
