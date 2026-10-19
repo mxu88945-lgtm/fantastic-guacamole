@@ -33,7 +33,7 @@ ok(html.includes('id="system-prompt-role-name"'), "system prompt does not identi
 ok(html.includes('id="system-prompt-save-status"'), "system prompt save status is missing");
 ok(html.includes('id="system-prompt-count"'), "system prompt character count is missing");
 ok(html.includes('$("systemPrompt").addEventListener("input", queueSystemPromptSave)'), "system prompt is not auto-saved while typing");
-ok(html.includes('let systemText = settings.systemPrompt || "";'), "system prompt is not connected to chat requests");
+ok(html.includes('systemText = settings.systemPrompt || "";'), "system prompt is not connected to chat requests");
 ok(html.includes('const ROLE_FIELDS = ["systemPrompt"'), "system prompt is not isolated per role");
 ok(html.includes('id="systemInstruction"'), "independent system instruction input is missing");
 ok(html.includes('id="system-instruction-save-status"'), "system instruction save status is missing");

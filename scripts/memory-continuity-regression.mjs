@@ -32,7 +32,7 @@ requireText('【人物表达与互动锚点】', 'voice/interaction anchors are 
 requireText('【重要原话与专属称呼】', 'important quotes and names are missing from the summary schema')
 requireText('【未完事项与隐性张力】', 'unfinished tension layer is missing from the summary schema')
 requireText('m._compactedBy || m._summary', 'summary cards are still eligible for wire history')
-requireText('const boundedMemory = buildBoundedMemoryContext(historyWindow);', 'bounded layered memory context is not injected')
+requireText('boundedMemory = buildBoundedMemoryContext(historyWindow);', 'bounded layered memory context is not injected')
 requireText('const recentState = buildRecentStateContext(historyWindow);', 'recent daily state is not injected into bounded memory')
 requireText('const roleContinuityNote = "【角色身份连续性】" + roleIdentityLead',
   'role identity continuity guard is missing')

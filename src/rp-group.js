@@ -57,6 +57,7 @@ if (bridge) {
     return `<details class="rp-cast-member" data-member="${escape(member.id)}" ${index === 0 || member.newMember ? "open" : ""}>
       <summary><span class="rp-cast-avatar">${member.avatar ? `<img src="${escape(member.avatar)}" alt="">` : escape(member.kind === "director" ? "导" : member.name.slice(0, 1))}</span><span><strong>${escape(member.name)}</strong><small>${lead ? "剧本主角" : member.kind === "director" ? "共演导演" : "共演角色"}</small></span><span class="rp-cast-expand">⌄</span></summary>
       <div class="rp-cast-fields"><label class="rp-cast-check"><input type="checkbox" data-field="enabled" ${member.enabled !== false ? "checked" : ""}>参与每轮回复</label>
+      <label class="rp-cast-check"><input type="checkbox" data-field="playedByOwner" ${(lead ? member.playedByOwner !== false : member.playedByOwner === true) ? "checked" : ""}>由 ${escape(bridge.role().roleName)} 出演</label><p class="rp-group-note">开启：保留本体身份和戏外记忆来扮演。关闭：只用这个角色自己的设定与本场剧情资料。主角默认开，其他成员默认关。</p>
       ${lead ? `<p class="rp-group-note">主角人设沿用角色卡，可在“情景与角色资料”中修改。</p>` : `<label>成员名字<input data-field="name" maxlength="80" value="${escape(member.name)}"></label><label>共演身份<select data-field="kind"><option value="actor" ${member.kind !== "director" ? "selected" : ""}>角色</option><option value="director" ${member.kind === "director" ? "selected" : ""}>导演</option></select></label><label>角色卡 / 导演资料<textarea data-field="prompt" rows="6" maxlength="30000" placeholder="人物背景、说话方式、关系或导演分工">${escape(member.prompt)}</textarea></label>`}
       <div class="rp-cast-add"><button type="button" data-avatar-pick="${escape(member.id)}">从相册选择头像</button><button type="button" data-avatar-clear="${escape(member.id)}">移除头像</button><input type="file" accept="image/*" data-avatar-file="${escape(member.id)}" hidden></div>
       ${channelFields(member, index)}${lead ? "" : `<button type="button" class="rp-cast-remove" data-remove="${escape(member.id)}">移出本场共演</button>`}</div></details>`;
@@ -113,7 +114,7 @@ if (bridge) {
     const names = new Set([draft.actorName, ...draft.members.map(member => member.name)]);
     let name = baseName, suffix = 2;
     while (names.has(name)) name = `${baseName} ${suffix++}`;
-    draft.members.push({ id: memberId(), name, kind, prompt: card.prompt || (kind === "director" ? "负责环境、转场与未加入群聊的 NPC，承接现有剧情，不替用户或其他共演角色发言。" : ""), avatar: /^(https?:\/\/|data:image\/)/.test(card.avatar || "") ? card.avatar : "", enabled: true, providerId: "", model: "", newMember: true });
+    draft.members.push({ id: memberId(), name, kind, playedByOwner: false, prompt: card.prompt || (kind === "director" ? "负责环境、转场与未加入群聊的 NPC，承接现有剧情，不替用户或其他共演角色发言。" : ""), avatar: /^(https?:\/\/|data:image\/)/.test(card.avatar || "") ? card.avatar : "", enabled: true, providerId: "", model: "", newMember: true });
     draft.groupEnabled = true; panel.querySelector("#rp-group-enabled").checked = true;
     markDirty(); renderMembers();
   }

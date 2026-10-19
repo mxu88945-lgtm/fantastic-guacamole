@@ -42,6 +42,9 @@ assert.match(prompt, /后台共享不等于人物全知/);
 const legacy = context.normalizedRoleplayProject({ actorName: "旧角色" }, { title: "旧场次" });
 assert.equal(legacy.groupEnabled, false);
 assert.equal(context.roleplayMembers(legacy).length, 1);
+assert.equal(legacy.leadChannel.playedByOwner, true, "existing primary cards keep the owner actor by default");
+assert.equal(project.members[0].playedByOwner, false, "existing directors are independent by default");
+assert.equal(project.members[1].playedByOwner, false, "new and existing supporting actors are independent by default");
 const mentionDefault = context.normalizedRoleplayProject({ ...project, replyMode: undefined });
 assert.equal(mentionDefault.replyMode, "mention");
 assert.equal(context.roleplayReplyMembers(mentionDefault, "继续").map(member => member.id).join(","), "lead", "new and existing groups must not invite every member by default");
@@ -99,6 +102,9 @@ Object.assign(context, {
   buildApiHistoryWindow: () => ({ messages: [{ role: "user", content: "继续" }], sentMessages: 1 }),
   buildBoundedMemoryContext: () => ({ text: "较早摘要：签字后离开", audit: {} }),
   buildSpecialDaysPromptClaim: () => ({ text: "" }), conversationProjectFiles: () => [],
+  CONVERSATION_PROJECT_FILE_LIMIT: 12, CONVERSATION_PROJECT_PROMPT_CHAR_BUDGET: 16000,
+  activeRollingSummary: () => ({ content: "较早摘要：签字后离开" }), rollingSummaryText: summary => summary?.content || "",
+  updateConversationSpaceUI() {},
   estimateTextTokens: text => text.length / 4, estimateContentTokens: text => String(text).length / 4,
   geminiPartsTokenEstimate: parts => JSON.stringify(parts).length / 4,
   apiMessagesFor: () => [{ role: "assistant", content: "主角刚说完" }], geminiContentsFor: () => [{ role: "model", parts: [{ text: "主角刚说完" }] }],
@@ -128,6 +134,49 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
 assert.equal(context.sendContent({ role: "assistant", content: "我接着说", rpSpeakerName: "江屿" }), "【共演发言：江屿】\n我接着说");
 assert.equal(context.sendContent({ role: "assistant", content: "普通对话" }), "普通对话");
 
+// Check real wire requests with recognizable owner-only context. Off/on/off
+// must choose different builders, including native Gemini and Anthropic.
+context.settings.systemPrompt = "OWNER_PERSONA_ONLY";
+context.settings.systemInstruction = "OWNER_EXTRA_INSTRUCTION";
+context.buildGlobalPromptPresetText = () => "OWNER_GLOBAL_PRESET";
+context.buildBoundedMemoryContext = () => ({ text: "OWNER_PRIVATE_MEMORY_AND_DIARY", audit: { blocks: [] } });
+context.cycleSystemNote = () => "OWNER_RECENT_LIFE";
+context.charLockPromptNote = () => "OWNER_LOCK_SCREEN";
+context.pendingReadingContext = "OWNER_PRIVATE_READING";
+context.conversationProjectFiles = () => [{ name: "场景资料", text: "SCENE_REFERENCE_ONLY" }];
+context.safeReferenceFileName = name => name;
+context.boundedReferenceFileText = (text, limit) => String(text).slice(0, limit);
+project.characterPrompt = "LEAD_CARD_ONLY";
+const requestSystem = request => request.body.system || request.body.systemInstruction?.parts[0].text || request.body.messages[0].content;
+for (const provider of ["openai", "gemini", "anthropic"]) {
+  const config = { ...context.settings, provider, baseUrl: "https://member.test/v1", apiKey: "member-key", model: "member-model", temperature: 0.8 };
+  const director = project.members[0];
+  director.playedByOwner = false;
+  await assert.rejects(() => context.streamChat(() => {}, () => {}, config, director), /captured-request/);
+  let system = requestSystem(captured.at(-1));
+  assert.doesNotMatch(system, /OWNER_|顾祁砚|LEAD_CARD_ONLY/, "independent members must not receive owner persona, private context or the lead's identity card");
+  for (const text of ["导演", "保持节奏", "现世背景", "已经签字", "已离婚", "较早摘要：签字后离开", "SCENE_REFERENCE_ONLY"]) assert.ok(system.includes(text), `missing shared stage input: ${text}`);
+  assert.equal(context.lastPromptAudit.memory.scope, "scene-only");
+  director.playedByOwner = true;
+  await assert.rejects(() => context.streamChat(() => {}, () => {}, config, director), /captured-request/);
+  system = requestSystem(captured.at(-1));
+  for (const text of ["OWNER_PERSONA_ONLY", "OWNER_EXTRA_INSTRUCTION", "OWNER_PRIVATE_MEMORY_AND_DIARY", "OWNER_GLOBAL_PRESET", "顾祁砚"]) assert.ok(system.includes(text), `owner switch on must restore: ${text}`);
+  director.playedByOwner = false;
+  await assert.rejects(() => context.streamChat(() => {}, () => {}, config, director), /captured-request/);
+  assert.doesNotMatch(requestSystem(captured.at(-1)), /OWNER_|顾祁砚/);
+  project.leadChannel.playedByOwner = false;
+  await assert.rejects(() => context.streamChat(() => {}, () => {}, config), /captured-request/);
+  system = requestSystem(captured.at(-1));
+  assert.ok(system.includes("LEAD_CARD_ONLY"), "switching the solo lead off must keep its own character card");
+  assert.doesNotMatch(system, /OWNER_|顾祁砚/, "the lead switch must also work outside group dispatch");
+  project.leadChannel.playedByOwner = true;
+}
+context.conv.space = "private";
+await assert.rejects(() => context.streamChat(() => {}, () => {}, { ...context.settings, provider: "openai", baseUrl: "https://base.test", model: "base-model" }), /captured-request/);
+assert.match(requestSystem(captured.at(-1)), /OWNER_PERSONA_ONLY/, "private chats must retain the full owner identity");
+context.conv.space = "roleplay";
+assert.equal(context.stripIndependentRoleplayControls("剧情[私记:污染]【锁屏 5分钟：剧情】[存档:污染][提醒:污染][记忆:签字]"), "剧情[记忆:签字]", "independent replies may save scene memories but never execute owner tools");
+
 // Editing scene memories must preserve worlds, regex and other windows without re-rendering chat.
 context.window = {};
 context.isMobile = () => false;
@@ -155,4 +204,34 @@ assert.ok(bridge.editSceneMemory("scene", "fact", ""));
 assert.equal(context.conv.rpProject.memories.length, 1);
 assert.equal(JSON.stringify(context.conversations[1]), privateBefore);
 assert.equal(bridge.editSceneMemory("private", "", "串入本体"), false);
+const flagged = { ...context.conv.rpProject.leadChannel, providerId: "base", model: "retained-model", playedByOwner: false };
+assert.ok(bridge.saveSceneSettings("scene", { leadChannel: flagged, members: context.conv.rpProject.members.map(member => ({ ...member, playedByOwner: false })) }));
+assert.equal(context.conv.rpProject.leadChannel.playedByOwner, false);
+assert.equal(context.conv.rpProject.leadChannel.model, "retained-model");
+assert.equal(context.conv.rpProject.members[0].playedByOwner, false);
+
+// Run the real completion handler with hostile/unexpected control markers:
+// scene memory is allowed, while owner diary/search/album/actions must stay off.
+const completion = vm.createContext({
+  console, performance, settings: { crossSearch: true, webSearch: true }, messages: [], currentId: "scene", chatNavigationRevision: 0,
+  startMessageTrace: () => ({ id: "trace" }), finishMessageTrace() {},
+  abortController: null, replyBooting: false, roleplayGroupRun: null, stickBottom: false,
+  TYPING_HTML: "typing", lastPromptAudit: null, lastCallUsage: null,
+  roleplayIndependentSpeaker: context.roleplayIndependentSpeaker,
+  stripIndependentRoleplayControls: context.stripIndependentRoleplayControls,
+  isRoleplayConversation: () => true, uid: () => "independent-response",
+  requestAnimationFrame: fn => { fn(); return 1; }, cancelAnimationFrame() {}, setTimeout,
+  createStreamContentGate: emit => ({ push: emit, finish() {} }),
+  makeMsgEl: () => ({ querySelector: () => ({ isConnected: false, innerHTML: "" }), remove() {} }),
+  $: () => ({ appendChild() {} }),
+  extractAssistantReasoning: text => ({ answer: text, reasoning: "" }), bubbleHtml: () => "rendered",
+  streamChat: async emit => { emit("剧情正文 [搜索:本体][相册:私照][私记:污染][存档:污染][提醒:污染]【锁屏 5分钟】[工作台运行:污染][记忆:角色已签字]"); },
+  extractMemorySaves: text => { completion.savedSceneFact = text.includes("[记忆:角色已签字]"); return text.replace(/\[记忆:[^\]]*\]/g, "").trim(); },
+});
+for (const name of ["clearError", "markSeen", "pinToBottom", "setSending", "mergeMessageHistoryRecall", "finishRunningTraces", "saveConversations", "renderMessages", "maybeAutoCompactConversation"]) completion[name] = () => {};
+for (const name of ["extractPrivateDiary", "extractNotionSaves", "extractReminders", "parseCharLockCommand", "consumeWorkbenchDirective", "searchHistoryRecall", "readHistoryOriginal", "inspectAlbumForModel", "webSearch"]) completion[name] = () => { throw new Error(`independent response invoked owner capability ${name}`); };
+vm.runInContext(source("async function generateSingleReply(", "function switchReplyVariant("), completion);
+assert.equal(await completion.generateSingleReply(), true);
+assert.equal(completion.savedSceneFact, true);
+assert.equal(completion.messages[0].content, "剧情正文");
 console.log("RP group regression: ordered routing, member APIs, cancellation, prompts and isolated memory editing passed");

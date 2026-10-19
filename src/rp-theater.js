@@ -6,7 +6,7 @@ if (!bridge) {
   console.error("RP theater bridge is unavailable");
 } else {
   const $ = (id) => document.getElementById(id);
-  const state = { editingId: "", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false };
+  const state = { editingId: "", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {} };
   const openingState = { projectId: "", index: 0, forceNew: true };
 
   function safeText(value, max = 200000) {
@@ -298,6 +298,7 @@ function plainPreviewWithMedia(value) {
             <div class="rp-editor-grid">
               <label data-rp-sec="main"><span>剧目名称</span><input id="rp-field-title" maxlength="80" placeholder="例如：镜澜湾三号院" /></label>
               <label data-rp-sec="main"><span>TA 在戏里扮演谁</span><input id="rp-field-actor" maxlength="80" placeholder="例如：虞山行" /></label>
+              <section class="rp-wide rp-card-block" data-rp-sec="main"><label class="rp-owner-toggle"><input type="checkbox" id="rp-owner-actor-toggle" checked><span id="rp-owner-actor-label">由本体出演</span></label><p class="rp-group-note">开启时由本体扮演主角；关闭后只用主角卡和本场剧情，出戏也不会切回本体。每个剧本单独保存。</p></section>
               <section class="rp-wide rp-card-block rp-avatar-editor" data-rp-sec="main"><div id="rp-actor-avatar-preview" class="rp-actor-avatar-preview" aria-label="戏内角色头像"></div><div><strong>戏内角色头像</strong><p>只用于这个剧本，聊天与开场选择页都会使用。</p><button type="button" id="rp-actor-avatar-pick">从相册选择图片</button><button type="button" id="rp-actor-avatar-clear">移除头像</button><input type="file" id="rp-actor-avatar-file" accept="image/*" hidden></div></section>
               <label class="rp-wide" data-rp-sec="main"><span>你在戏里的身份</span><input id="rp-field-user-role" maxlength="240" placeholder="例如：宁梦曦；留空也可以在开场时说明" /></label>
               <section class="rp-wide rp-card-block" id="rp-desc-block" data-rp-sec="main" hidden>
@@ -369,6 +370,7 @@ function plainPreviewWithMedia(value) {
       title: $("rp-field-title").value.trim(),
       actorName: $("rp-field-actor").value.trim(),
       actorAvatar: state.actorAvatar,
+      leadChannel: { ...state.leadChannel, playedByOwner: $("rp-owner-actor-toggle").checked },
       userRole: $("rp-field-user-role").value.trim(),
       characterPrompt: $("rp-field-character").value.trim(),
       world: wbText,
@@ -399,6 +401,9 @@ function plainPreviewWithMedia(value) {
     state.avatarRevision++;
     state.avatarPending = false;
     state.actorAvatar = /^(https?:\/\/|data:image\/)/.test(data.actorAvatar || data.avatar || "") ? data.actorAvatar || data.avatar : "";
+    state.leadChannel = { ...(data.leadChannel || {}), playedByOwner: data.leadChannel?.playedByOwner !== false };
+    $("rp-owner-actor-toggle").checked = state.leadChannel.playedByOwner;
+    $("rp-owner-actor-label").textContent = `由 ${bridge.role().roleName} 出演`;
     state.files = projectFiles(project);
     $("rp-field-title").value = safeText(data.title || project?.title || "", 80);
     $("rp-field-actor").value = safeText(data.actorName || "", 80);
@@ -461,7 +466,7 @@ function plainPreviewWithMedia(value) {
     const tags = Array.isArray(data.tags) ? data.tags : [];
     $("rp-detail-tags").innerHTML = tags.map((t) => `<span class="rp-tag">${escapeHtml(t)}</span>`).join("");
     const greetings = greetingList(rp);
-    $("rp-detail-greeting-count").textContent = `${greetings.length} 个开场 · Card 3.0`;
+    $("rp-detail-greeting-count").textContent = `${greetings.length} 个开场 · ${rp.leadChannel?.playedByOwner === false ? "独立角色" : "由 " + bridge.role().roleName + " 出演"}`;
     const wb = Array.isArray(data.worldEntries) ? data.worldEntries : [];
     $("rp-detail-world-count").textContent = `${wb.length} 条 · 可编辑、启停和调整插入位置`;
     const rx = Array.isArray(data.regexRules) ? data.regexRules : [];
@@ -626,16 +631,17 @@ function plainPreviewWithMedia(value) {
     const projects = bridge.list();
     $("rp-hero-role").textContent = info.roleName || "TA";
     $("rp-theater-subtitle").textContent = `${info.roleName || "TA"} 本体在线 · 陪你入戏`;
-    $("rp-identity-copy").textContent = `${info.roleName || "TA"} 始终知道自己是谁。入戏时完整扮演舞台角色；你说“暂停”“出戏”或“停止扮演”时，由 ${info.roleName || "TA"} 本人接话。`;
+    $("rp-identity-copy").textContent = `开启“由 ${info.roleName || "TA"} 出演”时保留本体身份；关闭后只演角色自己。主角默认开启，其他成员和导演默认关闭，每张卡单独保存。`;
     $("rp-project-count").textContent = `${projects.length} 个剧本`;
     $("rp-project-empty").hidden = projects.length > 0;
     const list = $("rp-project-list");
     list.innerHTML = projects.map((project) => {
       const actor = project.rpProject?.actorName || "未命名角色";
       const userRole = project.rpProject?.userRole ? `你演 ${project.rpProject.userRole}` : "你的戏内身份待定";
+      const casting = project.rpProject?.leadChannel?.playedByOwner === false ? "独立角色" : `${info.roleName || "TA"} 演`;
       return `<article class="rp-project-card" data-rp-project="${escapeHtml(project.id)}">
         <span class="rp-project-mark">${project.rpProject?.actorAvatar ? `<img src="${escapeHtml(project.rpProject.actorAvatar)}" alt="">` : escapeHtml([...actor][0] || "剧")}</span>
-        <button type="button" class="rp-project-copy" data-rp-detail="${escapeHtml(project.id)}"><small>RP PROJECT · ${escapeHtml(formatTime(project.updatedAt))}</small><strong>${escapeHtml(project.title || "未命名剧本")}</strong><p>${escapeHtml(info.roleName || "TA")} 演 ${escapeHtml(actor)} · ${escapeHtml(userRole)}</p><em>${project.messageCount || 0} 条正文 · ${project.memoryCount || 0} 条剧情记忆</em></button>
+        <button type="button" class="rp-project-copy" data-rp-detail="${escapeHtml(project.id)}"><small>RP PROJECT · ${escapeHtml(formatTime(project.updatedAt))}</small><strong>${escapeHtml(project.title || "未命名剧本")}</strong><p>${escapeHtml(casting)} ${escapeHtml(actor)} · ${escapeHtml(userRole)}</p><em>${project.messageCount || 0} 条正文 · ${project.memoryCount || 0} 条剧情记忆</em></button>
         <button type="button" class="rp-continue" data-rp-open="${escapeHtml(project.id)}">继续对戏</button>
         <div class="rp-project-menu"><button type="button" data-rp-edit="${escapeHtml(project.id)}">角色卡与开场白</button><button type="button" data-rp-duplicate="${escapeHtml(project.id)}">选择开场并新建对话</button><button type="button" class="danger" data-rp-delete="${escapeHtml(project.id)}">删除</button></div>
       </article>`;
