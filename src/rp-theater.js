@@ -370,7 +370,8 @@ function plainPreviewWithMedia(value) {
     $("rp-desc-block").hidden = !(hasDesc || hasTags);
     if (hasDesc) {
       const short = desc.slice(0, 220);
-      $("rp-field-description").textContent = desc.length > 220 ? short + "…" : desc;
+      const html = (t) => escapeHtml(t).replace(/\r?\n/g, "<br>");
+      $("rp-field-description").innerHTML = html(desc.length > 220 ? short + "…" : desc);
       $("rp-field-description").dataset.full = desc;
       $("rp-field-description").dataset.expanded = "";
     }
@@ -641,10 +642,24 @@ function plainPreviewWithMedia(value) {
     $("rp-import-file").click();
   });
   $("rp-opening-confirm").addEventListener("click", () => {
-    const project = bridge.startWithGreeting(openingState.projectId, openingState.index, openingState.forceNew);
-    if (!project) return;
+    // 开场白里有 [播放：] 标记时，转成带播放器的 HTML 再开场，聊天里才能显示音乐
+    const project = bridge.get(openingState.projectId);
+    if (project) {
+      const greetings = greetingList(project.rpProject);
+      const raw = greetings[openingState.index] || "";
+      if (/\[播放[:：]/.test(raw) && !looksLikeRichGreeting(raw)) {
+        const html = beautifyOpeningHTML(raw);
+        if (html) {
+          const updated = greetings.slice();
+          updated[openingState.index] = html;
+          bridge.update(openingState.projectId, { ...project.rpProject, greetings: updated, opening: updated[openingState.index] });
+        }
+      }
+    }
+    const started = bridge.startWithGreeting(openingState.projectId, openingState.index, openingState.forceNew);
+    if (!started) return;
     closeOpeningPicker();
-    enter(project.id);
+    enter(started.id);
   });
   $("rp-home-exit").addEventListener("click", () => bridge.exitToHome());
   $("rp-new-project").addEventListener("click", () => showEditor());
@@ -653,8 +668,9 @@ function plainPreviewWithMedia(value) {
     const el = $("rp-field-description");
     const expanded = el.dataset.expanded === "1";
     const full = el.dataset.full || "";
-    if (expanded) { el.textContent = full.length > 220 ? full.slice(0, 220) + "…" : full; el.dataset.expanded = ""; $("rp-tags-toggle").textContent = "展开"; }
-    else { el.textContent = full; el.dataset.expanded = "1"; $("rp-tags-toggle").textContent = "收起"; }
+    const html = (t) => escapeHtml(t).replace(/\r?\n/g, "<br>");
+    if (expanded) { el.innerHTML = html(full.length > 220 ? full.slice(0, 220) + "…" : full); el.dataset.expanded = ""; $("rp-tags-toggle").textContent = "展开"; }
+    else { el.innerHTML = html(full); el.dataset.expanded = "1"; $("rp-tags-toggle").textContent = "收起"; }
   });
   $("rp-editor-back").addEventListener("click", showLibrary);
   $("rp-save-only").addEventListener("click", () => save(false));

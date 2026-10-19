@@ -194,3 +194,9 @@ body.rp-chat-active #sidebar-workbench { display: none; }
 .rp-entry strong, .rp-entry small { display: block; overflow: hidden; text-overflow: ellipsis; }
 .rp-entry strong { font-size: 12px; }
 .rp-entry small { margin-top: 4px; color: var(--text-dim); font-size: 10px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* 防止横溢 */
+.rp-card-desc { word-break: break-word; overflow-wrap: anywhere; white-space: normal; }
+.rp-card-block, .rp-entry, .rp-entry > div { min-width: 0; max-width: 100%; overflow: hidden; }
+.rp-theater-shell, .rp-theater-body, .rp-editor-grid { max-width: 100%; overflow-x: hidden; }
+.rp-editor-grid input, .rp-editor-grid textarea { max-width: 100%; }
