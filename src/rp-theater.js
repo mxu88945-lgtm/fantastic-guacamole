@@ -4,14 +4,99 @@ if (!bridge) {
   console.error("RP theater bridge is unavailable");
 } else {
   const $ = (id) => document.getElementById(id);
-  const state = { editingId: "", files: [] };
+  const state = { editingId: "", files: [], greetings: [""], selectedGreeting: 0 };
 
-  function safeText(value, max = 20000) {
+  function safeText(value, max = 200000) {
     return String(value || "").replace(/\u0000/g, "").slice(0, max);
   }
 
   function escapeHtml(value) {
     return safeText(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
+  }
+
+  function greetingList(data = {}) {
+    const source = Array.isArray(data.greetings)
+      ? data.greetings
+      : [data.opening, ...(Array.isArray(data.alternateGreetings) ? data.alternateGreetings : [])];
+    const list = source.map((item) => safeText(item, 300000)).filter((item, index) => item.trim() || index === 0).slice(0, 24);
+    return list.length ? list : [""];
+  }
+
+  function plainPreview(value) {
+    return safeText(value, 300000)
+      .replace(/```(?:html)?/gi, " ").replace(/```/g, " ")
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ")
+      .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&amp;/gi, "&")
+      .replace(/\s+/g, " ").trim();
+  }
+
+  function richGreetingSource(value) {
+    const source = safeText(value, 300000).trim();
+    const fenced = source.match(/^```(?:html)?\s*([\s\S]*?)\s*```$/i);
+    return fenced ? fenced[1].trim() : source;
+  }
+
+  function looksLikeRichGreeting(value) {
+    return /<!doctype\s+html|<html\b|<head\b|<body\b|<style\b|<script\b/i.test(richGreetingSource(value));
+  }
+
+  function greetingPreviewDocument(value) {
+    const source = richGreetingSource(value);
+    const guard = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https:; media-src data: https:; font-src data: https:; style-src 'unsafe-inline' https:; script-src 'unsafe-inline'; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'">`;
+    const base = `<style>html,body{height:auto!important;min-height:0!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}</style>`;
+    if (/<head\b[^>]*>/i.test(source)) return source.replace(/<head\b[^>]*>/i, (match) => `${match}${guard}${base}`);
+    if (/<html\b[^>]*>/i.test(source)) return source.replace(/<html\b[^>]*>/i, (match) => `${match}<head>${guard}${base}</head>`);
+    return `<!doctype html><html><head>${guard}${base}</head><body>${source}</body></html>`;
+  }
+
+  function commitGreetingDraft() {
+    const field = $("rp-field-opening");
+    if (!field) return;
+    state.greetings[state.selectedGreeting] = safeText(field.value, 300000);
+  }
+
+  function renderGreetingPreview() {
+    commitGreetingDraft();
+    const holder = $("rp-greeting-preview-content");
+    const value = state.greetings[state.selectedGreeting] || "";
+    if (!value.trim()) {
+      holder.innerHTML = '<div class="rp-greeting-preview-empty">这里还没有内容。</div>';
+    } else if (looksLikeRichGreeting(value)) {
+      holder.innerHTML = '<iframe class="rp-greeting-preview-frame" title="开场白美化预览" sandbox="allow-scripts"></iframe>';
+      holder.querySelector("iframe").srcdoc = greetingPreviewDocument(value);
+    } else {
+      holder.innerHTML = `<div class="rp-greeting-preview-text">${escapeHtml(value).replace(/\n/g, "<br>")}</div>`;
+    }
+  }
+
+  function selectGreeting(index) {
+    commitGreetingDraft();
+    state.selectedGreeting = Math.max(0, Math.min(Number(index) || 0, state.greetings.length - 1));
+    $("rp-field-opening").value = state.greetings[state.selectedGreeting] || "";
+    renderGreetings();
+  }
+
+  function renderGreetings() {
+    const list = $("rp-greeting-list");
+    $("rp-greeting-count").textContent = `${state.greetings.length} 条开场白 · 已选第 ${state.selectedGreeting + 1} 条`;
+    list.innerHTML = state.greetings.map((value, index) => {
+      const preview = plainPreview(value) || "空白开场，可直接在下方编辑";
+      return `<article class="rp-greeting-card${index === state.selectedGreeting ? " selected" : ""}" data-rp-greeting="${index}">
+        <button type="button" class="rp-greeting-select" data-rp-greeting-select="${index}"><b>开场 ${index + 1}</b><span>${escapeHtml(preview.slice(0, 108))}</span></button>
+        ${state.greetings.length > 1 ? `<button type="button" class="rp-greeting-remove" data-rp-greeting-remove="${index}" aria-label="删除第 ${index + 1} 条开场白">×</button>` : ""}
+      </article>`;
+    }).join("");
+    list.querySelectorAll("[data-rp-greeting-select]").forEach((button) => button.addEventListener("click", () => selectGreeting(button.dataset.rpGreetingSelect)));
+    list.querySelectorAll("[data-rp-greeting-remove]").forEach((button) => button.addEventListener("click", () => {
+      commitGreetingDraft();
+      const index = Number(button.dataset.rpGreetingRemove);
+      state.greetings.splice(index, 1);
+      state.selectedGreeting = Math.max(0, Math.min(state.selectedGreeting - (index < state.selectedGreeting ? 1 : 0), state.greetings.length - 1));
+      $("rp-field-opening").value = state.greetings[state.selectedGreeting] || "";
+      renderGreetings();
+    }));
   }
 
   function formatTime(value) {
@@ -66,7 +151,12 @@ if (!bridge) {
               <label class="rp-wide"><span>世界观与长期剧情背景</span><textarea id="rp-field-world" rows="7" placeholder="时代、地点、组织、人物关系、已经发生的事实……"></textarea></label>
               <label class="rp-wide"><span>当前场景</span><textarea id="rp-field-scenario" rows="5" placeholder="现在的时间、地点、在场人物和关系阶段。这里是本场唯一有效的现在时锚点。"></textarea></label>
               <label class="rp-wide"><span>临时剧情推进</span><textarea id="rp-field-temporary" rows="4" placeholder="可随时修改或清空；只代表接下来想推进的方向，不算已经发生。"></textarea></label>
-              <label class="rp-wide"><span>开场白</span><textarea id="rp-field-opening" rows="5" placeholder="新剧本第一次进入时显示；已有聊天不会因修改这里被覆盖。"></textarea></label>
+              <section class="rp-wide rp-greeting-editor">
+                <div class="rp-greeting-head"><div><strong>开场白</strong><small id="rp-greeting-count">1 条开场白</small></div><div><button type="button" id="rp-add-greeting">＋ 添加开场</button><button type="button" id="rp-preview-greeting">预览当前</button></div></div>
+                <div class="rp-greeting-list" id="rp-greeting-list"></div>
+                <label><span>当前选中的完整内容</span><textarea id="rp-field-opening" rows="12" placeholder="可保存多条开场白；选择其中一条作为新场次的开头。支持完整 HTML 美化卡片。"></textarea></label>
+                <details class="rp-greeting-preview" id="rp-greeting-preview"><summary>美化预览</summary><div id="rp-greeting-preview-content"></div></details>
+              </section>
               <label class="rp-wide"><span>本剧本连续性记忆</span><textarea id="rp-field-memory" rows="5" placeholder="戏内专属档案。模型保存的剧情记忆会进入这里，不写进 TA 的本体记忆。"></textarea></label>
             </div>
             <section class="rp-files-card">
@@ -90,6 +180,7 @@ if (!bridge) {
   }
 
   function currentDraft() {
+    commitGreetingDraft();
     return {
       title: $("rp-field-title").value.trim(),
       actorName: $("rp-field-actor").value.trim(),
@@ -98,7 +189,10 @@ if (!bridge) {
       world: $("rp-field-world").value.trim(),
       scenario: $("rp-field-scenario").value.trim(),
       temporaryPlot: $("rp-field-temporary").value.trim(),
-      opening: $("rp-field-opening").value.trim(),
+      opening: (state.greetings[state.selectedGreeting] || "").trim(),
+      greetings: state.greetings.map((item) => safeText(item, 300000)),
+      openingIndex: state.selectedGreeting,
+      alternateGreetings: state.greetings.filter((_, index) => index !== state.selectedGreeting),
       memory: $("rp-field-memory").value.trim(),
       projectFiles: state.files.map((file) => ({ ...file })),
     };
@@ -115,10 +209,14 @@ if (!bridge) {
     $("rp-field-world").value = safeText(data.world);
     $("rp-field-scenario").value = safeText(data.scenario);
     $("rp-field-temporary").value = safeText(data.temporaryPlot);
-    $("rp-field-opening").value = safeText(data.opening);
+    state.greetings = greetingList(data);
+    state.selectedGreeting = Math.max(0, Math.min(Number(data.openingIndex) || 0, state.greetings.length - 1));
+    $("rp-field-opening").value = state.greetings[state.selectedGreeting] || "";
     $("rp-field-memory").value = safeText(data.memory);
     $("rp-editor-title").textContent = state.editingId ? "编辑剧本" : "新建剧本";
     renderFiles();
+    renderGreetings();
+    $("rp-greeting-preview").open = false;
   }
 
   function showLibrary() {
@@ -238,20 +336,31 @@ if (!bridge) {
     const characterPrompt = [
       data.description && `【人物背景】\n${data.description}`,
       data.personality && `【性格与行为】\n${data.personality}`,
+      data.creator_notes && `【创作者备注】\n${data.creator_notes}`,
       data.system_prompt && `【角色卡补充指令】\n${data.system_prompt}`,
       data.mes_example && `【对话示例】\n${data.mes_example}`,
       data.post_history_instructions && `【续写要求】\n${data.post_history_instructions}`,
+      data.extensions?.beautification_protocol && `【输出与美化协议】\n${data.extensions.beautification_protocol}`,
     ].filter(Boolean).join("\n\n");
     const world = [worldBookText(data.character_book), worldBookText(parsed.character_book)].filter(Boolean).join("\n\n");
+    const firstGreeting = data.first_mes || data.greeting || parsed.first_mes || parsed.greeting || "";
+    const alternateGreetings = [
+      ...(Array.isArray(data.alternate_greetings) ? data.alternate_greetings : []),
+      ...(Array.isArray(parsed.alternate_greetings) ? parsed.alternate_greetings : []),
+    ];
+    const greetings = [firstGreeting, ...alternateGreetings].map((item) => safeText(item, 300000)).filter((item, index) => item.trim() || index === 0).slice(0, 24);
     showEditor({ rpProject: {
       title: name ? `${name}的故事` : filename.replace(/\.[^.]+$/, ""),
       actorName: name,
       characterPrompt,
       world,
       scenario: safeText(data.scenario),
-      opening: safeText(data.first_mes || data.greeting),
+      opening: greetings[0] || "",
+      greetings,
+      openingIndex: 0,
+      alternateGreetings: greetings.slice(1),
     }, projectFiles: [] });
-    bridge.toast(`已读取角色卡：${name || filename}`);
+    bridge.toast(`已读取角色卡：${name || filename} · ${greetings.length} 条开场白`);
   }
 
   async function readFiles(files, asImport) {
@@ -275,6 +384,22 @@ if (!bridge) {
   $("rp-editor-back").addEventListener("click", showLibrary);
   $("rp-save-only").addEventListener("click", () => save(false));
   $("rp-save-enter").addEventListener("click", () => save(true));
+  $("rp-add-greeting").addEventListener("click", () => {
+    commitGreetingDraft();
+    state.greetings.push("");
+    state.selectedGreeting = state.greetings.length - 1;
+    $("rp-field-opening").value = "";
+    renderGreetings();
+    $("rp-field-opening").focus();
+  });
+  $("rp-preview-greeting").addEventListener("click", () => {
+    renderGreetingPreview();
+    $("rp-greeting-preview").open = true;
+    $("rp-greeting-preview").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+  $("rp-field-opening").addEventListener("input", () => {
+    state.greetings[state.selectedGreeting] = safeText($("rp-field-opening").value, 300000);
+  });
   $("rp-import-project").addEventListener("click", () => $("rp-import-file").click());
   $("rp-import-file").addEventListener("change", async (event) => { await readFiles(event.target.files, true); event.target.value = ""; });
   $("rp-add-files").addEventListener("click", () => $("rp-files-input").click());

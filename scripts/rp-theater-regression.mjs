@@ -26,8 +26,14 @@ ok(html.includes("addRoleplayMemory(t, sourceMessageId)"), "RP memory tokens are
 ok(html.includes("RP 剧本的戏内连续性档案整理器"), "RP rolling-summary prompt is missing");
 ok(html.includes("RP 剧情档案"), "cross-window RP source labeling is missing");
 ok(js.includes("importCharacterCard") && js.includes("character_book"), "character-card import is incomplete");
+ok(js.includes("alternate_greetings") && js.includes("rp-greeting-list"), "alternate greeting import or picker is missing");
+ok(js.includes("rp-preview-greeting") && js.includes("greetingPreviewDocument"), "opening preview is missing");
 ok(js.includes("bridge.duplicate"), "new-scene duplication is missing");
 ok(css.includes(".rp-theater-panel") && css.includes("@media (max-width: 680px)"), "RP theater responsive layout is missing");
+ok(css.includes("#rp-field-opening") && css.includes(".rp-greeting-card.selected"), "mobile-friendly opening editor is missing");
+ok(html.includes("roleplayRichFrameHtml") && html.includes('sandbox="allow-scripts"'), "rich HTML openings are not sandbox-rendered");
+ok(html.includes("jyc-rp-frame-height") && html.includes("Content-Security-Policy"), "rich opening isolation or auto-sizing is missing");
+ok(html.includes("greetings, openingIndex, alternateGreetings"), "opening selection is not persisted");
 ok(dashboard.includes('action === "roleplay"') && dashboard.includes("jyc:roleplay-updated"), "dashboard does not open or refresh RP theater");
 
 console.log(`RP theater regression checks passed (${checks})`);
