@@ -141,7 +141,7 @@ if (!bridge) {
   $("dashboard-profile").addEventListener("click", () => runAction("settings"));
   $("sidebar-home").addEventListener("click", () => {
     if (document.body.classList.contains("rp-chat-active")) {
-      window.JYCRoleplay?.open?.();
+      window.JYCRoleplayBridge?.exitToHome?.();
       return;
     }
     show();

@@ -118,7 +118,7 @@ if (!bridge) {
         <header class="rp-theater-head">
           <button type="button" class="rp-icon-button" id="rp-theater-close" aria-label="关闭 RP 剧场">‹</button>
           <div><strong>RP 剧场</strong><small id="rp-theater-subtitle">本体在线，陪你入戏</small></div>
-          <button type="button" class="rp-head-action" id="rp-new-project">＋ 新剧本</button>
+          <div><button type="button" class="rp-head-action" id="rp-home-exit">本体主页</button><button type="button" class="rp-head-action" id="rp-new-project">＋ 新剧本</button></div>
         </header>
         <main class="rp-theater-body">
           <section class="rp-theater-hero">
@@ -379,6 +379,7 @@ if (!bridge) {
   }
 
   $("rp-theater-close").addEventListener("click", close);
+  $("rp-home-exit").addEventListener("click", () => bridge.exitToHome());
   $("rp-new-project").addEventListener("click", () => showEditor());
   $("rp-empty-create").addEventListener("click", () => showEditor());
   $("rp-editor-back").addEventListener("click", showLibrary);

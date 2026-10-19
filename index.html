@@ -5641,6 +5641,12 @@ function deriveTitle(msgs) {
 
 // ---------- Conversation management ----------
 function switchConversation(id, openChatView) {
+  if (id === currentId && currentConv()) {
+    updateConversationSpaceUI();
+    if (openChatView) window.dispatchEvent(new CustomEvent("jyc:chat-opened", { detail: { conversationId: id } }));
+    if (isMobile()) closeSidebar();
+    return true;
+  }
   if (abortController) abortController.abort();
   renderLimit = RENDER_WINDOW;
   const target = conversations.find(c => c.id === id);
@@ -6157,8 +6163,8 @@ function updateConversationSpaceUI() {
   updateBrand();
   const home = $("sidebar-home");
   if (home) {
-    home.title = active ? "返回 RP 剧场" : "主页";
-    home.setAttribute("aria-label", active ? "返回 RP 剧场" : "回到主页");
+    home.title = "返回本体主页";
+    home.setAttribute("aria-label", "返回本体主页");
   }
   const add = $("sidebar-new-chat");
   if (add) {
@@ -6217,7 +6223,7 @@ function avatarFor(role) {
   return role === "user" ? (settings.userAvatar || "你") : (settings.aiAvatar || "江");
 }
 function nameFor(role) {
-  if (role === "user") return settings.userName || "你";
+  if (role === "user") return (isRoleplayConversation() && currentConv()?.rpProject?.userRole) || settings.userName || "你";
   if (isRoleplayConversation()) return String(currentConv()?.rpProject?.actorName || settings.aiName || "RP 角色");
   return settings.aiName || "当前角色";
 }
@@ -6264,7 +6270,7 @@ function updateBrand() {
 function updateSilentUI() {
   const on = !!settings.silentMode;
   const chip = $("silent-chip"); if (chip) chip.style.display = on ? "" : "none";
-  const aiName = settings.aiName || "当前角色";
+  const aiName = nameFor("assistant");
   const normal = currentTheme().key === "claude" ? ("回复给 " + aiName) : ("发送消息给 " + aiName);
   const inp = $("input"); if (inp) inp.placeholder = on ? "🔇 旁白模式 · 只记录（AI 不回复）" : normal;
 }
@@ -6314,6 +6320,11 @@ function loadEarlierMessages() {
 }
 function renderMessages() {
   const box = $("messages");
+  const scroller = $("chat");
+  const preserve = isRoleplayConversation() && box.dataset.conversationId === currentId;
+  const oldTop = scroller?.scrollTop || 0;
+  const richCards = new Map(preserve ? [...box.querySelectorAll('.msg[data-mid]')].map(el => [el.dataset.mid, el.querySelector('.roleplay-html-card')]).filter(([, card]) => card) : []);
+  box.dataset.conversationId = currentId || "";
   if (messages.length === 0) {
     const who = (settings.userName && settings.userName !== "你") ? `<span class="greet-name">, ${escapeHtml(settings.userName)}</span>` : "";
     const aiName = escapeHtml(settings.aiName || "当前角色");
@@ -6392,6 +6403,16 @@ function renderMessages() {
   }
   renderReplyVariantNav(box);
   renderReminderPin();
+  if (preserve) {
+    box.querySelectorAll('.msg[data-mid]').forEach(el => {
+      const oldCard = richCards.get(el.dataset.mid);
+      const newCard = el.querySelector('.roleplay-html-card');
+      if (oldCard && newCard) newCard.replaceWith(oldCard);
+    });
+    if (scroller) scroller.scrollTop = oldTop;
+    const renderedId = currentId;
+    requestAnimationFrame(() => { if (currentId === renderedId && scroller) scroller.scrollTop = oldTop; });
+  }
   requestAnimationFrame(updateScrollControls);
 }
 function flashMessage(mid) {
@@ -6766,19 +6787,28 @@ function looksLikeRoleplayRichHtml(value) {
 }
 function roleplayRichDocument(value, token) {
   const source = roleplayRichSource(value);
+  const greetings = normalizedRoleplayProject(currentConv()?.rpProject, currentConv()).greetings;
+  const greetingBridge = `<script>(()=>{const token=${JSON.stringify(token)},swipes=${JSON.stringify(greetings).replace(/</g, "\\u003c")};const pick=i=>{window.__jycGreetingPicked=true;parent.postMessage({type:'jyc-rp-select-greeting',token,index:Number(i)||0},'*');setTimeout(()=>{window.__jycGreetingPicked=false},100)};window.getChatMessages=async()=>[{message_id:0,role:'assistant',message:swipes[0],swipes}];window.setChatMessage=async(_m,_id,opts)=>pick(opts&&opts.swipe_id!=null?opts.swipe_id:0);window.jumpToSwipe=pick;addEventListener('DOMContentLoaded',()=>{const home=document.getElementById('returnHomeText');if(home)home.addEventListener('click',()=>pick(0))})})()<\/script>`;
   const guard = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https:; media-src data: https:; font-src data: https:; style-src 'unsafe-inline' https:; script-src 'unsafe-inline'; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'">`;
   const base = `<style>html,body{height:auto!important;min-height:0!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}</style>`;
   const reporter = `<script>(function(){var token=${JSON.stringify(token)};var send=function(){var h=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0,120);parent.postMessage({type:'jyc-rp-frame-height',token:token,height:Math.min(h,6000)},'*')};var pick=function(node){if(!node)return null;var explicit=node.getAttribute('data-prompt')||node.getAttribute('data-message')||node.getAttribute('data-opening')||node.getAttribute('data-scene')||node.getAttribute('data-choice');var text=(explicit||node.innerText||node.textContent||'').replace(/\\s+/g,' ').trim();if(!text)return null;return{text:text.slice(0,4000),label:(node.innerText||node.textContent||text).replace(/\\s+/g,' ').trim().slice(0,160)}};document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-prompt],[data-message],[data-opening],[data-scene],[data-choice],button,[role="button"],a[href],[onclick],.script-card,.scene-card,.choice-card'):null;if(!node)return;var action=pick(node);if(!action)return;setTimeout(function(){parent.postMessage({type:'jyc-rp-card-action',token:token,text:action.text,label:action.label},'*')},0)},false);addEventListener('load',send);addEventListener('resize',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.documentElement);setTimeout(send,60);setTimeout(send,400)})()<\/script>`;
   let documentHtml = source;
-  if (/<head\b[^>]*>/i.test(documentHtml)) documentHtml = documentHtml.replace(/<head\b[^>]*>/i, match => `${match}${guard}${base}`);
-  else if (/<html\b[^>]*>/i.test(documentHtml)) documentHtml = documentHtml.replace(/<html\b[^>]*>/i, match => `${match}<head>${guard}${base}</head>`);
-  else documentHtml = `<!doctype html><html><head>${guard}${base}</head><body>${documentHtml}</body></html>`;
+  if (/<head\b[^>]*>/i.test(documentHtml)) documentHtml = documentHtml.replace(/<head\b[^>]*>/i, match => `${match}${guard}${base}${greetingBridge}`);
+  else if (/<html\b[^>]*>/i.test(documentHtml)) documentHtml = documentHtml.replace(/<html\b[^>]*>/i, match => `${match}<head>${guard}${base}${greetingBridge}</head>`);
+  else documentHtml = `<!doctype html><html><head>${guard}${base}${greetingBridge}</head><body>${documentHtml}</body></html>`;
   return /<\/body>/i.test(documentHtml) ? documentHtml.replace(/<\/body>/i, `${reporter}</body>`) : `${documentHtml}${reporter}`;
 }
 function roleplayRichFrameHtml(value) {
   const token = `rp-${uid()}`;
   const attribute = source => escapeHtml(String(source || "")).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  return `<div class="roleplay-html-card"><iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}" title="角色卡互动内容" sandbox="allow-scripts" srcdoc="${attribute(roleplayRichDocument(value, token))}"></iframe></div>`;
+  return `<div class="roleplay-html-card"><button type="button" class="rp-opening-reset" onclick="restoreRoleplayOpening(this.nextElementSibling)" title="仅恢复这张卡的初始画面，不清空聊天">↶ 重看原始开场</button><iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}" title="角色卡互动内容" sandbox="allow-scripts" srcdoc="${attribute(roleplayRichDocument(value, token))}"></iframe></div>`;
+}
+function restoreRoleplayOpening(frame, index = 0) {
+  if (!frame || !isRoleplayConversation()) return;
+  frame.dataset.greetingChangedAt = String(Date.now());
+  const p = normalizedRoleplayProject(currentConv()?.rpProject, currentConv());
+  const opening = p.greetings[index];
+  if (opening) frame.srcdoc = roleplayRichDocument(opening, frame.dataset.rpFrameToken);
 }
 let lastRoleplayCardAction = { text: "", at: 0 };
 function enterRoleplayCardAction(text, label) {
@@ -6799,11 +6829,16 @@ if (typeof window !== "undefined") window.addEventListener("message", event => {
   if (!data || !data.token) return;
   const frame = document.querySelector(`iframe[data-rp-frame-token="${CSS.escape(String(data.token))}"]`);
   if (!frame || frame.contentWindow !== event.source) return;
+  if (data.type === "jyc-rp-select-greeting") {
+    restoreRoleplayOpening(frame, Math.max(0, Math.floor(Number(data.index) || 0)));
+    return;
+  }
   if (data.type === "jyc-rp-frame-height") {
     frame.style.height = `${Math.max(120, Math.min(Number(data.height) || 120, 6000))}px`;
     return;
   }
   if (["jyc-rp-card-action", "send", "send-message", "send_message", "select-opening", "select_script"].includes(data.type)) {
+    if (Date.now() - Number(frame.dataset.greetingChangedAt || 0) < 500) return;
     enterRoleplayCardAction(data.text || data.message || data.prompt || data.content || data.value, data.label);
   }
 });
@@ -7793,6 +7828,18 @@ function buildRoleplayProjectText(conv = currentConv()) {
     memories ? `【本剧本连续性档案·仅戏内】\n- ${memories}` : "",
     "【输出规则】入戏时只输出自然的剧情正文；不要解释协议，不要在结尾加客服式提醒。若信息冲突，优先级为：用户最新明确指令 > 当前场景 > 已演正文 > 剧本连续性档案 > 世界观 > 人物设定。",
   ].filter(Boolean).join("\n\n");
+}
+function buildSharedRoleplayExperienceText() {
+  if (isRoleplayConversation()) return "";
+  const projects = roleConvs().filter(isRoleplayConversation).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 6);
+  const blocks = projects.map(conv => {
+    const p = normalizedRoleplayProject(conv.rpProject, conv);
+    const archive = [p.memory, ...p.memories.slice(-8).map(item => item.text)].filter(Boolean).join("\n").slice(-2200);
+    const recent = (conv.messages || []).filter(m => !m._event && !m._summary && !looksLikeRoleplayRichHtml(messageText(m))).slice(-4)
+      .map(m => `${m.role === "user" ? p.userRole || "用户戏内角色" : p.actorName || "舞台角色"}：${messageText(m).slice(0, 650)}`).join("\n");
+    return `《${conv.title || p.title}》 · 你出演 ${p.actorName || "舞台角色"} · 用户出演 ${p.userRole || "自定角色"}\n${archive ? "戏内档案：\n" + archive : ""}\n${recent ? "最近共同演出正文：\n" + recent : "尚无演出正文"}`;
+  });
+  return blocks.length ? "【共同演出记忆·只读戏剧档案】\n以下是你与用户在独立 RP 长剧情中共同演出的实际记录，已接通并在每轮提供，不必等到完结。可以在本体聊天中回顾、讨论；更早细节可搜索 RP 旧文。所有人物关系、事件与感情只属于相应剧本，不是本体真实经历，不得据此替换本体身份或其他剧本事实。\n\n" + blocks.join("\n\n").slice(0, 14000) : "";
 }
 function buildConversationProjectText(conv = currentConv()) {
   const files = conversationProjectFiles(conv)
@@ -8892,6 +8939,8 @@ async function streamChat(onDelta, onReasoning) {
     systemText = systemText ? systemText + "\n\n" + instructionBlock : instructionBlock;
   }
   const conversationProjectText = [buildRoleplayProjectText(), buildConversationProjectText()].filter(Boolean).join("\n\n");
+  const sharedRoleplayExperience = buildSharedRoleplayExperienceText();
+  if (sharedRoleplayExperience) systemText = [systemText, sharedRoleplayExperience].filter(Boolean).join("\n\n");
   if (conversationProjectText)
     systemText = systemText ? systemText + "\n\n" + conversationProjectText : conversationProjectText;
   const systemRoleName = ((settings.aiName || "当前角色").trim() || "当前角色");
@@ -15107,11 +15156,19 @@ function roleplaySaveDraft(conv, draft) {
   conv.updatedAt = Date.now();
   saveConversations();
   renderConvList(); updateConvTitle(); updateConversationSpaceUI(); renderConversationProjectFiles();
+  if (conv.id === currentId) renderMessages();
   window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: conv.id } }));
   window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
   return roleplayPublicProject(conv);
 }
 window.JYCRoleplayBridge = {
+  exitToHome() {
+    window.JYCRoleplay?.close?.();
+    const target = privateRoleConvs().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+    if (target) switchConversation(target.id); else goHome();
+    window.dispatchEvent(new CustomEvent("jyc:dashboard-open"));
+    if (isMobile()) closeSidebar();
+  },
   role: () => ({ roleId: settings.activeRoleId, roleName: String(settings.aiName || activeRole()?.name || "当前角色"), roleAvatar: settings.aiAvatar || "" }),
   list: () => roleConvs().filter(isRoleplayConversation).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).map(roleplayPublicProject),
   get: id => roleplayPublicProject(conversations.find(conv => conv.id === id)),

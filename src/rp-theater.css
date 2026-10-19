@@ -101,6 +101,7 @@
 body.rp-theater-open { overflow: hidden; }
 .roleplay-html-card { width: min(100%, 920px); overflow: hidden; border: 1px solid var(--border); border-radius: 20px; background: transparent; box-shadow: 0 14px 36px rgba(20,16,30,.1); }
 .roleplay-html-frame { display: block; width: 100%; min-height: 240px; height: 360px; border: 0; background: transparent; }
+.rp-opening-reset { display: block; width: 100%; padding: 10px 14px; border: 0; border-bottom: 1px solid var(--border); background: var(--bg-panel); color: var(--text-dim); text-align: right; cursor: pointer; font-size: 12px; }
 .msg.assistant .bubble:has(.roleplay-html-card) { width: min(100%, 920px); max-width: 100%; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; overflow: visible; }
 body.rp-chat-active .messages { max-width: 980px; padding-inline: 12px; }
 body.rp-chat-active .msg.roleplay-rich-message { width: 100%; gap: 0; }

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import vm from "node:vm";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../src/rp-theater.css", import.meta.url), "utf8");
@@ -41,4 +42,24 @@ ok(css.includes('.roleplay-rich-message > .msg-head'), "flat-layout rich opening
 ok(html.includes("greetings, openingIndex, alternateGreetings"), "opening selection is not persisted");
 ok(dashboard.includes('action === "roleplay"') && dashboard.includes("jyc:roleplay-updated"), "dashboard does not open or refresh RP theater");
 
+const context = { settings: { userName: "周惟惟", aiName: "顾祁砚" }, current: { space: "roleplay", rpProject: { userRole: "顾里", actorName: "周竞尧" } } };
+context.currentConv = () => context.current;
+context.isRoleplayConversation = (conv = context.current) => conv?.space === "roleplay";
+vm.createContext(context);
+vm.runInContext(html.slice(html.indexOf('function nameFor(role)'), html.indexOf('function isImageRef(')), context);
+ok(context.nameFor('user') === '顾里' && context.nameFor('assistant') === '周竞尧', 'RP participants must use their scoped stage names');
+context.current = { space: 'private' };
+ok(context.nameFor('user') === '周惟惟' && context.nameFor('assistant') === '顾祁砚', 'RP names must not overwrite private identities');
+context.roleConvs = () => [{ space: 'roleplay', title: '测试剧本', rpProject: { actorName: '周竞尧', userRole: '顾里', memory: '戏内已经离婚', memories: [] }, messages: [{ role: 'user', content: '归还信物' }] }];
+context.normalizedRoleplayProject = p => p;
+context.messageText = m => m.content;
+context.looksLikeRoleplayRichHtml = () => false;
+vm.runInContext(html.slice(html.indexOf('function buildSharedRoleplayExperienceText()'), html.indexOf('function buildConversationProjectText(')), context);
+const shared = context.buildSharedRoleplayExperienceText();
+ok(shared.includes('戏内已经离婚') && shared.includes('顾里：归还信物') && shared.includes('不是本体真实经历'), 'private prompts must include real RP archives with fiction boundaries');
+context.current = { space: 'roleplay' };
+ok(context.buildSharedRoleplayExperienceText() === '', 'other RP projects must not leak into the active stage');
+ok(dashboard.includes('JYCRoleplayBridge?.exitToHome?.()') && js.includes('rp-home-exit'), 'RP must have a working backstage-home exit');
+ok(html.includes('box.dataset.conversationId === currentId') && html.includes('scroller.scrollTop = oldTop'), 'RP redraws must retain the current scroll position');
+ok(html.includes('window.getChatMessages=async') && html.includes('jyc-rp-select-greeting') && html.includes('重看原始开场'), 'original opening and Tavern swipe navigation must be recoverable');
 console.log(`RP theater regression checks passed (${checks})`);
