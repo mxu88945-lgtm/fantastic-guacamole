@@ -6217,7 +6217,9 @@ function avatarFor(role) {
   return role === "user" ? (settings.userAvatar || "你") : (settings.aiAvatar || "江");
 }
 function nameFor(role) {
-  return role === "user" ? (settings.userName || "你") : (settings.aiName || "当前角色");
+  if (role === "user") return settings.userName || "你";
+  if (isRoleplayConversation()) return String(currentConv()?.rpProject?.actorName || settings.aiName || "RP 角色");
+  return settings.aiName || "当前角色";
 }
 function isImageRef(v) { return /^(https?:\/\/|data:image\/)/.test(v || ""); }
 function avatarHtml(role) {

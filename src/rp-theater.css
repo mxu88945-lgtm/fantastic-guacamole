@@ -105,7 +105,8 @@ body.rp-theater-open { overflow: hidden; }
 body.rp-chat-active .messages { max-width: 980px; padding-inline: 12px; }
 body.rp-chat-active .msg.roleplay-rich-message { width: 100%; gap: 0; }
 body.rp-chat-active .msg.roleplay-rich-message > .avatar,
-body.rp-chat-active .msg.roleplay-rich-message .body > .name { display: none; }
+body.rp-chat-active .msg.roleplay-rich-message .body > .name,
+body.rp-chat-active .msg.roleplay-rich-message > .msg-head { display: none; }
 body.rp-chat-active .msg.roleplay-rich-message .body,
 body.rp-chat-active .msg.roleplay-rich-message .bubble,
 body.rp-chat-active .msg.roleplay-rich-message .roleplay-html-card { width: 100% !important; max-width: none !important; }

@@ -36,6 +36,8 @@ ok(html.includes("roleplayRichFrameHtml") && html.includes('sandbox="allow-scrip
 ok(html.includes("jyc-rp-frame-height") && html.includes("Content-Security-Policy"), "rich opening isolation or auto-sizing is missing");
 ok(html.includes("jyc-rp-card-action") && html.includes("enterRoleplayCardAction"), "rich opening choices cannot enter the RP conversation");
 ok(html.includes("roleplay-rich-message") && css.includes(".roleplay-rich-message"), "rich opening cards do not use the wide RP layout");
+ok(html.includes('currentConv()?.rpProject?.actorName || settings.aiName'), "RP messages still use the backstage identity as their author label");
+ok(css.includes('.roleplay-rich-message > .msg-head'), "flat-layout rich openings still show a duplicate backstage author header");
 ok(html.includes("greetings, openingIndex, alternateGreetings"), "opening selection is not persisted");
 ok(dashboard.includes('action === "roleplay"') && dashboard.includes("jyc:roleplay-updated"), "dashboard does not open or refresh RP theater");
 
