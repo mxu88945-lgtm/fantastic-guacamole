@@ -942,8 +942,12 @@ function plainPreviewWithMedia(value) {
     close,
     chooseOpening,
     editCurrent() {
+      // 惟镜同款「情景与角色资料」：先进角色详情（角色卡/世界书/正则/世界观四个入口），点哪项编辑哪项
       const current = bridge.current();
-      open(current?.id || "");
+      if (!current?.id || !bridge.get(current.id)) { open(""); return; }
+      open("");
+      state.detailId = current.id;
+      showDetail(current.id);
     },
     summary: () => ({ count: bridge.list().length }),
   };
