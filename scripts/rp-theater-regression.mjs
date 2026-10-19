@@ -40,6 +40,13 @@ ok(html.includes("roleplay-rich-message") && css.includes(".roleplay-rich-messag
 ok(html.includes('currentConv()?.rpProject?.actorName || settings.aiName'), "RP messages still use the backstage identity as their author label");
 ok(css.includes('.roleplay-rich-message > .msg-head'), "flat-layout rich openings still show a duplicate backstage author header");
 ok(html.includes("greetings, openingIndex, alternateGreetings"), "opening selection is not persisted");
+ok(html.includes('worldEntries: Array.isArray(raw.worldEntries)') && html.includes('regexRules: Array.isArray(raw.regexRules)') && html.includes('theaterWorldBackground: text("theaterWorldBackground")'), "saving an RP project drops worldbook, regex, tags or theater world");
+ok(html.includes("【本剧本世界观（本剧场所有角色与 NPC 共用）】"), "theater world background never reaches the prompt");
+ok(!js.includes("closePanel("), "detail continue button calls an undefined closePanel");
+ok(js.includes('showEditor(project, "world")') && js.includes('showEditor(project, "regex")'), "detail rows must open their own section page like 惟镜");
+ok(css.includes('#rp-editor-view[data-section="world"] [data-rp-sec]:not([data-rp-sec="world"])'), "section pages must hide other editor parts");
+ok(css.includes(".rp-entry-list > * { flex-shrink: 0; }"), "worldbook/regex rows can be squashed by the scrolling list");
+ok(css.includes("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)"), "editor grid can overflow the phone width");
 ok(dashboard.includes('action === "roleplay"') && dashboard.includes("jyc:roleplay-updated"), "dashboard does not open or refresh RP theater");
 
 const context = { settings: { userName: "周惟惟", aiName: "顾祁砚" }, current: { space: "roleplay", rpProject: { userRole: "顾里", actorName: "周竞尧" } } };

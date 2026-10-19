@@ -257,3 +257,38 @@ body.rp-chat-active #sidebar-workbench { display: none; }
 .rp-btn-primary { background: #5b8def; color: #fff; border: none; border-radius: 16px; padding: 16px; font-size: 15px; font-weight: 600; cursor: pointer; }
 .rp-btn-secondary { background: #f0edf8; color: #666; border: none; border-radius: 16px; padding: 14px; font-size: 14px; cursor: pointer; }
 .rp-project-copy { background: none; border: none; text-align: left; cursor: pointer; flex: 1; min-width: 0; }
+
+/* === 2026-10-19 修横溢/条目压扁 + 惟镜式分区页 === */
+.rp-editor-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.rp-editor-grid > *, .rp-greeting-editor, .rp-greeting-editor > *, .rp-card-block > * { min-width: 0; max-width: 100%; }
+.rp-theater-body, #rp-editor-view, #rp-detail-view, #rp-library-view { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.rp-theater-body { overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+.rp-editor-grid input, .rp-editor-grid textarea, .rp-wb-body input, .rp-wb-body textarea, .rp-wb-body select, #rp-theater-world-block textarea { box-sizing: border-box; max-width: 100%; }
+.rp-entry-list > * { flex-shrink: 0; }
+.rp-wb-head { box-sizing: border-box; min-height: 52px; }
+.rp-entry { align-items: center; }
+.rp-entry strong { white-space: normal; line-height: 1.45; word-break: break-word; }
+.rp-entry small { word-break: break-all; }
+.rp-theater-panel[data-view="detail"] .rp-theater-hero,
+.rp-theater-panel[data-view="editor"] .rp-theater-hero { display: none; }
+#rp-editor-view[data-section="world"] [data-rp-sec]:not([data-rp-sec="world"]),
+#rp-editor-view[data-section="regex"] [data-rp-sec]:not([data-rp-sec="regex"]),
+#rp-editor-view[data-section="theater"] [data-rp-sec]:not([data-rp-sec="theater"]),
+#rp-editor-view[data-section="main"] [data-rp-sec]:not([data-rp-sec="main"]) { display: none !important; }
+#rp-editor-view[data-section="world"] .rp-entry-list,
+#rp-editor-view[data-section="regex"] .rp-entry-list { max-height: none; overflow: visible; }
+#rp-editor-view[data-section] .rp-card-block { border: 0; padding: 0; background: transparent; }
+#rp-editor-view[data-section] .rp-card-block-head { display: none; }
+#rp-editor-view[data-section="theater"] .rp-card-block-head { display: flex; }
+.rp-editor-heading button { flex-shrink: 0; }
+.rp-editor-heading > div { min-width: 0; }
+.rp-detail-card3 .rp-detail-avatar { overflow: hidden; color: #8b7ed6; font: 600 34px/1 Georgia, "Songti SC", serif; }
+.rp-detail-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rp-detail-actions { background: linear-gradient(transparent, #eef4fd 30%); }
+@media (max-width: 680px) {
+  .rp-editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .rp-theater-head { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }
+  .rp-theater-head > div:last-child { display: flex; gap: 6px; }
+  .rp-head-action { min-height: 36px; padding: 0 10px; font-size: 13px; }
+  .rp-wb-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}

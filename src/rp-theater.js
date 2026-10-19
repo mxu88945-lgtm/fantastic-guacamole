@@ -278,46 +278,46 @@ function plainPreviewWithMedia(value) {
           <section id="rp-editor-view" hidden>
             <div class="rp-editor-heading"><button type="button" id="rp-editor-back">‹ 返回剧场</button><div><strong id="rp-editor-title">新建剧本</strong><small>所有内容自动保存在这个剧本里</small></div></div>
             <div class="rp-editor-grid">
-              <label><span>剧目名称</span><input id="rp-field-title" maxlength="80" placeholder="例如：镜澜湾三号院" /></label>
-              <label><span>TA 在戏里扮演谁</span><input id="rp-field-actor" maxlength="80" placeholder="例如：虞山行" /></label>
-              <label class="rp-wide"><span>你在戏里的身份</span><input id="rp-field-user-role" maxlength="240" placeholder="例如：宁梦曦；留空也可以在开场时说明" /></label>
-              <section class="rp-wide rp-card-block" id="rp-desc-block" hidden>
+              <label data-rp-sec="main"><span>剧目名称</span><input id="rp-field-title" maxlength="80" placeholder="例如：镜澜湾三号院" /></label>
+              <label data-rp-sec="main"><span>TA 在戏里扮演谁</span><input id="rp-field-actor" maxlength="80" placeholder="例如：虞山行" /></label>
+              <label class="rp-wide" data-rp-sec="main"><span>你在戏里的身份</span><input id="rp-field-user-role" maxlength="240" placeholder="例如：宁梦曦；留空也可以在开场时说明" /></label>
+              <section class="rp-wide rp-card-block" id="rp-desc-block" data-rp-sec="main" hidden>
                 <div class="rp-card-block-head"><div><strong>角色简介</strong><small id="rp-tags-count"></small></div><button type="button" id="rp-tags-toggle">展开</button></div>
                 <p class="rp-card-desc" id="rp-field-description"></p>
                 <div class="rp-tags" id="rp-tags-list"></div>
               </section>
-              <label class="rp-wide"><span>角色卡 / 人物设定</span><textarea id="rp-field-character" rows="9" placeholder="身份、性格、经历、行为逻辑、关系边界、说话方式……"></textarea></label>
-              <section class="rp-wide rp-card-block" id="rp-worldbook-block" hidden>
+              <label class="rp-wide" data-rp-sec="main"><span>角色卡 / 人物设定</span><textarea id="rp-field-character" rows="9" placeholder="身份、性格、经历、行为逻辑、关系边界、说话方式……"></textarea></label>
+              <section class="rp-wide rp-card-block" id="rp-worldbook-block" data-rp-sec="world" hidden>
                 <div class="rp-card-block-head"><div><strong>角色世界书</strong><small id="rp-worldbook-count"></small></div></div>
                 <div class="rp-entry-list" id="rp-worldbook-list"></div>
               </section>
-              <section class="rp-wide rp-card-block" id="rp-regex-block" hidden>
+              <section class="rp-wide rp-card-block" id="rp-regex-block" data-rp-sec="regex" hidden>
                 <div class="rp-card-block-head"><div><strong>角色正则与美化</strong><small id="rp-regex-count"></small></div></div>
-                <div class="rp-entry-list" id="rp-regex-list"></div>
+                <div class="rp-entry-list" id="rp-regex-list"></div><p class="rp-files-empty" id="rp-regex-empty" hidden>这张角色卡没有正则与美化规则。</p>
               </section>
-              <section class="rp-wide rp-card-block" id="rp-theater-world-block">
+              <section class="rp-wide rp-card-block" id="rp-theater-world-block" data-rp-sec="theater">
                 <div class="rp-card-block-head"><div><strong>剧本世界观</strong><small>本剧场所有角色与 NPC 共用 · 对标惟镜长剧情</small></div></div>
                 <div class="rp-theater-world-desc">这份设定只属于这个剧本。开场后本剧场里的所有角色和 NPC 都会读取；切换到其他剧本时不会带过去。角色各自的人设、世界书与正则仍会叠加生效。</div>
                 <textarea id="rp-field-world" rows="10" placeholder="填写本剧场的时代与地点、公共背景、人物关系、共同经历、势力结构和所有成员必须知道的事实……"></textarea>
                 <details class="rp-greeting-preview" id="rp-world-preview"><summary>世界观呈现预览</summary><div id="rp-world-preview-content"></div></details>
               </section>
-              <label class="rp-wide"><span>当前场景</span><textarea id="rp-field-scenario" rows="5" placeholder="现在的时间、地点、在场人物和关系阶段。这里是本场唯一有效的现在时锚点。"></textarea></label>
-              <label class="rp-wide"><span>临时剧情推进</span><textarea id="rp-field-temporary" rows="4" placeholder="可随时修改或清空；只代表接下来想推进的方向，不算已经发生。"></textarea></label>
-              <section class="rp-wide rp-greeting-editor">
+              <label class="rp-wide" data-rp-sec="main"><span>当前场景</span><textarea id="rp-field-scenario" rows="5" placeholder="现在的时间、地点、在场人物和关系阶段。这里是本场唯一有效的现在时锚点。"></textarea></label>
+              <label class="rp-wide" data-rp-sec="main"><span>临时剧情推进</span><textarea id="rp-field-temporary" rows="4" placeholder="可随时修改或清空；只代表接下来想推进的方向，不算已经发生。"></textarea></label>
+              <section class="rp-wide rp-greeting-editor" data-rp-sec="main">
                 <div class="rp-greeting-head"><div><strong>开场白</strong><small id="rp-greeting-count">1 条开场白</small></div><div><button type="button" id="rp-add-greeting">＋ 添加开场</button><button type="button" id="rp-preview-greeting">预览当前</button></div></div>
                 <div class="rp-greeting-list" id="rp-greeting-list"></div>
                 <label><span>当前选中的完整内容</span><textarea id="rp-field-opening" rows="12" placeholder="可保存多条开场白；选择其中一条作为新场次的开头。支持完整 HTML 美化卡片。"></textarea></label>
                 <details class="rp-greeting-preview" id="rp-greeting-preview"><summary>美化预览</summary><div id="rp-greeting-preview-content"></div></details>
               </section>
-              <label class="rp-wide"><span>本剧本连续性记忆</span><textarea id="rp-field-memory" rows="5" placeholder="戏内专属档案。模型保存的剧情记忆会进入这里，不写进 TA 的本体记忆。"></textarea></label>
+              <label class="rp-wide" data-rp-sec="main"><span>本剧本连续性记忆</span><textarea id="rp-field-memory" rows="5" placeholder="戏内专属档案。模型保存的剧情记忆会进入这里，不写进 TA 的本体记忆。"></textarea></label>
             </div>
-            <section class="rp-files-card">
+            <section class="rp-files-card" data-rp-sec="main">
               <div><strong>补充资料</strong><small>TXT、Markdown、JSON 等，只绑定本剧本</small></div>
               <button type="button" id="rp-add-files">＋ 添加资料</button>
               <input id="rp-files-input" type="file" accept=".json,.txt,.md,.markdown,.csv,.log,.xml,.yml,.yaml,text/*,application/json" multiple hidden />
               <div id="rp-files-list" class="rp-files-list"></div>
             </section>
-            <aside class="rp-identity-note"><strong>身份保护已锁定</strong><p id="rp-identity-copy">TA 始终知道自己是谁。入戏时完整扮演舞台角色；你说“暂停”“出戏”或“停止扮演”时，由 TA 本人接话。</p></aside>
+            <aside class="rp-identity-note" data-rp-sec="main"><strong>身份保护已锁定</strong><p id="rp-identity-copy">TA 始终知道自己是谁。入戏时完整扮演舞台角色；你说“暂停”“出戏”或“停止扮演”时，由 TA 本人接话。</p></aside>
             <div class="rp-editor-actions"><button type="button" id="rp-save-only">保存剧本</button><button type="button" class="primary" id="rp-save-enter">选择开场并开始对戏</button></div>
           </section>
         </main>
@@ -398,7 +398,9 @@ function plainPreviewWithMedia(value) {
     $("rp-library-view").hidden = false;
     $("rp-editor-view").hidden = true;
     $("rp-detail-view").hidden = true;
+    $("rp-theater-panel").dataset.view = "library";
     state.editingId = "";
+    state.detailId = "";
     render();
   }
   function showDetail(projectId) {
@@ -408,6 +410,7 @@ function plainPreviewWithMedia(value) {
     $("rp-library-view").hidden = true;
     $("rp-editor-view").hidden = true;
     $("rp-detail-view").hidden = false;
+    $("rp-theater-panel").dataset.view = "detail";
     $("rp-theater-panel").querySelector(".rp-theater-body").scrollTop = 0;
   }
 
@@ -418,7 +421,13 @@ function plainPreviewWithMedia(value) {
     $("rp-detail-name").textContent = data.actorName || data.title || "—";
     const desc = safeText(data.description || "", 20000);
     $("rp-detail-desc-short").textContent = desc ? desc.slice(0, 120) + (desc.length > 120 ? "…" : "") : "暂无简介";
-    $("rp-detail-desc").innerHTML = escapeHtml(desc).replace(/\r?\n/g, "<br>");
+    $("rp-detail-desc").innerHTML = escapeHtml(desc.length > 120 ? desc.slice(0, 120) + "…" : desc).replace(/\r?\n/g, "<br>");
+    $("rp-detail-desc").dataset.expanded = "";
+    $("rp-detail-desc-toggle").textContent = "展开";
+    $("rp-detail-desc-toggle").hidden = desc.length <= 120;
+    const avatarEl = $("rp-detail-avatar");
+    const img = /^(https?:\/\/|data:image\/)/.test(data.avatar || "") ? data.avatar : "";
+    avatarEl.innerHTML = img ? `<img src="${escapeHtml(img)}" alt="" />` : escapeHtml([...(data.actorName || data.title || "剧")][0]);
     $("rp-detail-desc-block").hidden = !desc;
     const tags = Array.isArray(data.tags) ? data.tags : [];
     $("rp-detail-tags").innerHTML = tags.map((t) => `<span class="rp-tag">${escapeHtml(t)}</span>`).join("");
@@ -432,7 +441,7 @@ function plainPreviewWithMedia(value) {
     const tw = safeText(data.theaterWorldBackground || "", 50000);
     $("rp-detail-theater-count").textContent = tw ? "已填写" : "未填写";
     $("rp-detail-openings").innerHTML = greetings.map((g, i) => {
-      const txt = safeText(g, 500000);
+      const txt = plainPreviewWithMedia(g);
       const preview = txt.length > 200 ? txt.slice(0, 200) + "…" : txt;
       return `<div class="rp-detail-opening"><small>开场 ${i + 1}</small><p>${escapeHtml(preview).replace(/\n/g, "<br>")}</p></div>`;
     }).join("") || '<div class="rp-empty"><p>还没有开场白</p></div>';
@@ -443,24 +452,36 @@ function plainPreviewWithMedia(value) {
       el.dataset.expanded = exp ? "" : "1";
       $("rp-detail-desc-toggle").textContent = exp ? "展开" : "收起";
     };
-    $("rp-detail-edit").onclick = () => showEditor(project);
+    $("rp-detail-edit").onclick = () => showEditor(project, "main");
     $("rp-detail-back").onclick = showLibrary;
-    $("rp-detail-goto-main").onclick = () => { showEditor(project); setTimeout(() => $("rp-field-character")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100); };
-    $("rp-detail-goto-world").onclick = () => { showEditor(project); setTimeout(() => $("rp-worldbook-block")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100); };
-    $("rp-detail-goto-regex").onclick = () => { showEditor(project); setTimeout(() => $("rp-regex-block")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100); };
-    $("rp-detail-goto-theater").onclick = () => { showEditor(project); setTimeout(() => $("rp-theater-world-block")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100); };
-    $("rp-detail-continue").onclick = () => { closePanel(); enter(project.id); };
+    $("rp-detail-goto-main").onclick = () => showEditor(project, "main");
+    $("rp-detail-goto-world").onclick = () => showEditor(project, "world");
+    $("rp-detail-goto-regex").onclick = () => showEditor(project, "regex");
+    $("rp-detail-goto-theater").onclick = () => showEditor(project, "theater");
+    $("rp-detail-continue").onclick = () => { enter(project.id); };
     $("rp-detail-new").onclick = () => chooseOpening(project.id, true);
     state.detailId = project.id;
   }
-  function showEditor(project) {
+  const SECTION_TITLES = { main: "角色卡主体与开场白", world: "角色世界书", regex: "角色正则与美化", theater: "剧本世界观" };
+  function showEditor(project, section = "") {
     if (!project) { state.tags = []; state.worldEntries = []; state.regexRules = []; }
     fillEditor(project || null);
+    const sec = project && SECTION_TITLES[section] ? section : "";
+    const view = $("rp-editor-view");
+    if (sec) view.dataset.section = sec; else delete view.dataset.section;
+    if (sec) $("rp-editor-title").textContent = SECTION_TITLES[sec];
+    $("rp-editor-back").textContent = project && state.detailId === project.id ? "‹ 返回角色" : "‹ 返回剧场";
+    if (sec === "regex" || sec === "world") $(sec === "regex" ? "rp-regex-block" : "rp-worldbook-block").hidden = false;
     $("rp-library-view").hidden = true;
     $("rp-editor-view").hidden = false;
     $("rp-detail-view").hidden = true;
+    $("rp-theater-panel").dataset.view = "editor";
     $("rp-theater-panel").querySelector(".rp-theater-body").scrollTop = 0;
-    requestAnimationFrame(() => $("rp-field-title").focus());
+    if (!sec || sec === "main") requestAnimationFrame(() => { if (!bridge.isMobile()) $("rp-field-title").focus(); });
+  }
+  function leaveEditor() {
+    const id = state.editingId;
+    if (id && state.detailId === id && bridge.get(id)) showDetail(id); else showLibrary();
   }
 
   function renderCardBlocks() {
@@ -488,7 +509,7 @@ function plainPreviewWithMedia(value) {
         <button type="button" class="rp-wb-head" data-wb-expand="${idx}">
           <span class="rp-wb-dot${entry.enabled ? " on" : ""}"></span>
           <span class="rp-wb-title">${escapeHtml(entry.title) || "未命名条目"}</span>
-          <small>${entry.constant ? "常驻" : ""}${entry.constant && entry.selective ? " · " : ""}${entry.selective ? "选择性" : ""} · 深度 ${entry.depth}</small>
+          <small>${[entry.constant ? "常驻" : "", entry.selective ? "选择性" : "", `深度 ${entry.depth}`].filter(Boolean).join(" · ")}</small>
           <i>${entry.expanded ? "︿" : "﹀"}</i>
         </button>
         ${entry.expanded ? `
@@ -542,7 +563,8 @@ function plainPreviewWithMedia(value) {
       renderCardBlocks();
     });
     // 正则与美化
-    $("rp-regex-block").hidden = state.regexRules.length === 0;
+    $("rp-regex-block").hidden = state.regexRules.length === 0 && $("rp-editor-view").dataset.section !== "regex";
+    $("rp-regex-empty").hidden = state.regexRules.length > 0;
     const enabledRx = state.regexRules.filter((r) => !r.disabled).length;
     $("rp-regex-count").textContent = `${state.regexRules.length} 条 · ${enabledRx} 条启用`;
     $("rp-regex-list").innerHTML = state.regexRules.map((rule, idx) => `
@@ -706,7 +728,7 @@ function plainPreviewWithMedia(value) {
     state.editingId = project.id;
     bridge.toast("剧本已保存");
     window.dispatchEvent(new CustomEvent("jyc:roleplay-updated"));
-    if (shouldEnter) chooseOpening(project.id, false); else showLibrary();
+    if (shouldEnter) chooseOpening(project.id, false); else leaveEditor();
   }
 
   function worldBookText(book) {
@@ -862,7 +884,7 @@ function plainPreviewWithMedia(value) {
     if (expanded) { el.innerHTML = html(full.length > 220 ? full.slice(0, 220) + "…" : full); el.dataset.expanded = ""; $("rp-tags-toggle").textContent = "展开"; }
     else { el.innerHTML = html(full); el.dataset.expanded = "1"; $("rp-tags-toggle").textContent = "收起"; }
   });
-  $("rp-editor-back").addEventListener("click", showLibrary);
+  $("rp-editor-back").addEventListener("click", leaveEditor);
   $("rp-save-only").addEventListener("click", () => save(false));
   $("rp-save-enter").addEventListener("click", () => save(true));
   $("rp-add-greeting").addEventListener("click", () => {

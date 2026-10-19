@@ -609,3 +609,10 @@
 - **新窗口可试的新方向**（都没试过）：① 怀疑 `env(safe-area-inset-bottom)` 在此 standalone 实际为 0 或 composer-wrap 的 padding 没真正到物理底——先想办法**确认安全区数值**（页面上打印 `getComputedStyle` 或临时给 #某元素 `height:env(safe-area-inset-bottom)` 加亮色看有多高）。② 试 `100dvh`/`100svh` 给 body 或新增满屏层。③ 试**去掉 body 的 `height:100%` 过约束**只留 `inset:0`，或改用 `min-height:100dvh` 的非 fixed 布局。④ 直接给 `html` 加 `background` 且确认根背景传播在 iOS standalone 是否真生效。⑤ 若是 overscroll 露白：给 `.chat` `overscroll-behavior:contain` 已有，可能需要在最底再压一个**真正到物理底**的层（但要先搞清 fixed bottom 在此 PWA 到底对齐哪）。⚠️ 每次只改一处、让惟惟截图，避免像本窗口反复横跳。**开发分支 `claude/project-diary-review-8qdhd2`；改完 commit→push→合 main 部署→她「🔄 强制刷新」(状态栏类改动还要划掉重开)。**
 
 </details>
+
+## 2026-10-19 RP剧场角色卡：惟镜式分区页 + 保存丢数据（sw v211，Hark）
+- 根因1：`normalizedRoleplayProject` 不认识 worldEntries/regexRules/tags/description/theaterWorldBackground，保存一次就全丢（所以世界书显示 0 条、详情页空）。已加入白名单；剧本世界观现在也真正进 prompt。
+- 根因2：编辑页 grid 用 `1fr`，长内容把列撑出屏幕右侧（整页被切）；`.rp-entry-list` 是 flex 列 + max-height，子项被压扁（世界书/正则条目只剩半截）。改 `minmax(0,1fr)` + `flex-shrink:0`。
+- 角色详情页四个入口改成各自独立的分区页（`showEditor(project, "main"|"world"|"regex"|"theater")`，CSS 按 `data-rp-sec` 隐藏其他部分），返回回到角色详情；非剧场列表页隐藏顶部大卡片。
+- 修 `closePanel` 未定义导致「继续共演」点击报错。
+- 已导入后保存过的旧剧本，世界书/正则已经丢了，需重新导入角色卡。

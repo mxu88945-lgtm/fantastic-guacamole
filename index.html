@@ -7793,6 +7793,10 @@ function normalizedRoleplayProject(value, conv) {
     characterPrompt: text("characterPrompt"), world: text("world"), scenario: text("scenario"),
     temporaryPlot: text("temporaryPlot"), opening: greetings[openingIndex], memory: text("memory"),
     greetings, openingIndex, alternateGreetings: greetings.filter((_, index) => index !== openingIndex),
+    theaterWorldBackground: text("theaterWorldBackground"), description: text("description", 20000),
+    tags: Array.isArray(raw.tags) ? raw.tags.map(item => String(item || "").trim().slice(0, 40)).filter(Boolean).slice(0, 24) : [],
+    worldEntries: Array.isArray(raw.worldEntries) ? cloneChatData(raw.worldEntries.filter(item => item && typeof item === "object").slice(0, 300)) : [],
+    regexRules: Array.isArray(raw.regexRules) ? cloneChatData(raw.regexRules.filter(item => item && typeof item === "object").slice(0, 300)) : [],
     memories: Array.isArray(raw.memories) ? raw.memories.filter(item => item && String(item.text || "").trim()).slice(-120).map(item => ({
       id: String(item.id || uid()), text: String(item.text || "").trim().slice(0, 1200), at: Number(item.at || Date.now()), sourceMessageId: String(item.sourceMessageId || ""),
     })) : [],
@@ -7824,6 +7828,7 @@ function buildRoleplayProjectText(conv = currentConv()) {
     "叙事控制：只控制舞台角色与环境，不代替用户说话、行动、作决定、下心理结论或预设同意。临时剧情推进只是导演意图，尚未发生；只有正文真实演出的事件才算发生。",
     p.userRole ? `【用户戏内身份】\n${p.userRole}` : "",
     p.characterPrompt ? `【舞台人物设定】\n${p.characterPrompt}` : "",
+    p.theaterWorldBackground ? `【本剧本世界观（本剧场所有角色与 NPC 共用）】\n${p.theaterWorldBackground}` : "",
     p.world ? `【世界观与长期背景】\n${p.world}` : "",
     p.scenario ? `【当前场景锚点】\n${p.scenario}` : "",
     p.temporaryPlot ? `【临时导演意图·未发生】\n${p.temporaryPlot}` : "",
