@@ -2663,6 +2663,7 @@
         <button class="icon-btn" id="header-new-btn" title="新对话" aria-label="新对话"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h6"/><path d="M17 3v8M13 7h8"/></svg></button>
         <button class="icon-btn" id="header-more-btn" title="更多" aria-label="更多对话操作"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
         <div class="header-menu" id="header-menu">
+          <button data-hact="rp-group" id="header-rp-group" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M17 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></svg>群聊与剧情记忆</button>
           <button data-hact="rp" id="header-rp-settings" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>情景与角色资料</button>
           <button data-hact="files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6l2 3h8v13H4Z"/><path d="M8 12h8M8 16h5"/></svg>本对话资料<span class="header-menu-count" id="conversation-files-count">0</span></button>
           <button data-hact="rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>重命名对话</button>
@@ -5871,7 +5872,7 @@ function buildCompactionTranscript(prefix, batch, byteBudget) {
   const rows = batch.map(m => {
     const text = normalizeMemoryTransportText(messageText(m)).replace(/\s+/g, " ").trim();
     const body = text || (messageImages(m).length ? "[图片]" : "");
-    return { lead: normalizeMemoryTransportText(nameFor(m.role) + "："), body };
+    return { lead: normalizeMemoryTransportText((m.rpSpeakerName || nameFor(m.role)) + "："), body };
   });
   const structuralBytes = utf8ByteLength(safePrefix)
     + rows.reduce((sum, row) => sum + utf8ByteLength(row.lead) + 1, 0);
@@ -6155,7 +6156,7 @@ function updateConversationSpaceUI() {
   const active = isRoleplayConversation(conv);
   const actor = String(conv?.rpProject?.actorName || "RP 角色");
   document.body.classList.toggle("rp-chat-active", active);
-  [$("rp-chat-back"), $("rp-chat-identity"), $("header-rp-settings")].forEach(el => { if (el) el.hidden = !active; });
+  [$("rp-chat-back"), $("rp-chat-identity"), $("header-rp-settings"), $("header-rp-group")].forEach(el => { if (el) el.hidden = !active; });
   if ($("rp-chat-actor")) $("rp-chat-actor").textContent = actor;
   if ($("rp-chat-meta")) $("rp-chat-meta").textContent = active
     ? `由 ${String(settings.aiName || "当前角色")} 出演 · 点此编辑剧本`
@@ -6381,7 +6382,7 @@ function renderMessages() {
     const isLast = i === messages.length - 1;
     const el = makeMsgEl(m.role, m.content, {
       actions: true, isLast, reasoning: m.reasoning, traces: m.traces,
-      responseState: m.responseState, ts: m.ts,
+      responseState: m.responseState, ts: m.ts, rpSpeakerName: m.rpSpeakerName, rpSpeakerAvatar: m.rpSpeakerAvatar,
       tokens: m.tokens, timing: m.timing, promptAudit: m.promptAudit, historyRecall: m.historyRecall,
     });
     el.dataset.idx = i;
@@ -6990,12 +6991,15 @@ function makeMsgEl(role, content, opts) {
   const richRoleplay = role === "assistant" && isRoleplayConversation() && typeof content === "string" && looksLikeRoleplayRichHtml(roleplayRegexDisplay(content));
   el.className = "msg " + role + (flat ? " flat" : "") + (stickerOnly ? " sticker-only" : "") + (richRoleplay ? " roleplay-rich-message" : "");
   const timeHtml = (settings.showTime && opts.ts) ? `<span class="msg-time">${formatTime(opts.ts)}</span>` : "";
-  const nameHtml = escapeHtml(nameFor(role)) + timeHtml;
+  const nameHtml = escapeHtml(opts.rpSpeakerName || nameFor(role)) + timeHtml;
+  const speakerAvatar = opts.rpSpeakerName
+    ? (isImageRef(opts.rpSpeakerAvatar) ? `<div class="avatar"><img src="${escapeHtml(opts.rpSpeakerAvatar)}" alt=""></div>` : `<div class="avatar">${escapeHtml(opts.rpSpeakerName.slice(0, 1))}</div>`)
+    : avatarHtml(role);
   if (flat) {
-    el.innerHTML = `<div class="msg-head">${avatarHtml(role)}<span class="name">${nameHtml}</span></div>
+    el.innerHTML = `<div class="msg-head">${speakerAvatar}<span class="name">${nameHtml}</span></div>
       ${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState)}`;
   } else {
-    el.innerHTML = `${avatarHtml(role)}
+    el.innerHTML = `${speakerAvatar}
       <div class="body"><div class="name">${nameHtml}</div>
       ${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState)}</div>`;
   }
@@ -7831,10 +7835,36 @@ function normalizedRoleplayProject(value, conv) {
     tags: Array.isArray(raw.tags) ? raw.tags.map(item => String(item || "").trim().slice(0, 40)).filter(Boolean).slice(0, 24) : [],
     worldEntries: Array.isArray(raw.worldEntries) ? cloneChatData(raw.worldEntries.filter(item => item && typeof item === "object").slice(0, 300)) : [],
     regexRules: Array.isArray(raw.regexRules) ? cloneChatData(raw.regexRules.filter(item => item && typeof item === "object").slice(0, 300)) : [],
+    groupEnabled: raw.groupEnabled === true,
+    leadChannel: { providerId: String(raw.leadChannel?.providerId || "").slice(0, 120), model: String(raw.leadChannel?.model || "").slice(0, 200), enabled: raw.leadChannel?.enabled !== false },
+    members: Array.isArray(raw.members) ? raw.members.filter(item => item && item.id !== "lead" && String(item.name || "").trim()).slice(0, 8).map((item, index) => ({
+      id: String(item.id || `member-${index}`).slice(0, 120), name: String(item.name).trim().slice(0, 80),
+      kind: item.kind === "director" ? "director" : "actor", prompt: String(item.prompt || "").slice(0, 30000),
+      avatar: /^(https?:\/\/|data:image\/)/.test(item.avatar || "") ? String(item.avatar).slice(0, 2000000) : "",
+      providerId: String(item.providerId || "").slice(0, 120), model: String(item.model || "").slice(0, 200), enabled: item.enabled !== false,
+    })) : [],
     memories: Array.isArray(raw.memories) ? raw.memories.filter(item => item && String(item.text || "").trim()).slice(-120).map(item => ({
       id: String(item.id || uid()), text: String(item.text || "").trim().slice(0, 1200), at: Number(item.at || Date.now()), sourceMessageId: String(item.sourceMessageId || ""),
     })) : [],
   };
+}
+function roleplayMembers(project) {
+  return [{ id: "lead", name: project.actorName || "舞台主角", kind: "actor", prompt: project.characterPrompt, avatar: "", ...project.leadChannel }, ...project.members];
+}
+function roleplayReplyMembers(project, userText = "") {
+  const members = roleplayMembers(project);
+  const mentioned = members.filter(member => new RegExp("@" + member.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?=$|[\\s，。！？、:：])", "u").test(userText));
+  return mentioned.length ? mentioned : members.filter(member => member.enabled !== false);
+}
+function roleplaySpeakerPrompt(speaker, project) {
+  if (!speaker) return "";
+  return ["【本轮共演分工】", `在场成员：${roleplayMembers(project).map(member => `${member.name}${member.kind === "director" ? "（导演）" : ""}`).join("、")}。`,
+    `本条消息仅由「${speaker.name}」发言。历史中署名不同的 assistant 消息来自不同共演成员，不是你说过的话。`,
+    speaker.kind === "director" ? "你是本场导演：负责场景、节奏、NPC 和必要的承接；不要接管已加入的角色，也不要替用户决定行动、感情或台词。导演建议不等于已发生事实。"
+      : `本轮舞台身份是「${speaker.name}」。主角「${project.actorName}」的人物资料只定义主角；本条以当前成员的人设和视角演出，不替其他成员或用户发言。`,
+    speaker.prompt ? `【${speaker.name}的共演资料】\n${speaker.prompt}` : "",
+    "共享本剧本的世界观、场景、正文与连续性档案。各角色只使用自己在戏内知道的信息；后台共享不等于人物全知。只输出这一成员的正文，不重演整轮对话。",
+  ].filter(Boolean).join("\n\n");
 }
 function addRoleplayMemory(text, sourceMessageId) {
   const conv = currentConv();
@@ -7877,7 +7907,7 @@ function buildSharedRoleplayExperienceText() {
     const p = normalizedRoleplayProject(conv.rpProject, conv);
     const archive = [p.memory, ...p.memories.slice(-8).map(item => item.text)].filter(Boolean).join("\n").slice(-2200);
     const recent = (conv.messages || []).filter(m => !m._event && !m._summary && !looksLikeRoleplayRichHtml(messageText(m))).slice(-4)
-      .map(m => `${m.role === "user" ? p.userRole || "用户戏内角色" : p.actorName || "舞台角色"}：${messageText(m).slice(0, 650)}`).join("\n");
+      .map(m => `${m.role === "user" ? p.userRole || "用户戏内角色" : m.rpSpeakerName || p.actorName || "舞台角色"}：${messageText(m).slice(0, 650)}`).join("\n");
     return `《${conv.title || p.title}》 · 你出演 ${p.actorName || "舞台角色"} · 用户出演 ${p.userRole || "自定角色"}\n${archive ? "戏内档案：\n" + archive : ""}\n${recent ? "最近共同演出正文：\n" + recent : "尚无演出正文"}`;
   });
   return blocks.length ? "【共同演出记忆·只读戏剧档案】\n以下是你与用户在独立 RP 长剧情中共同演出的实际记录，已接通并在每轮提供，不必等到完结。可以在本体聊天中回顾、讨论；更早细节可搜索 RP 旧文。所有人物关系、事件与感情只属于相应剧本，不是本体真实经历，不得据此替换本体身份或其他剧本事实。\n\n" + blocks.join("\n\n").slice(0, 14000) : "";
@@ -8154,7 +8184,7 @@ function buildPendingContinuityBridge(historyWindow) {
   const rows = boundary.map(message => {
     const body = messageText(message).replace(/\s+/g, " ").trim()
       || (messageImages(message).length ? "[图片]" : "");
-    return nameFor(message.role) + "：" + clipUnicodeChars(body, 180);
+    return (message.rpSpeakerName || nameFor(message.role)) + "：" + clipUnicodeChars(body, 180);
   });
   return clipUnicodeChars(
     "【尚未生成连续性档案时的旧文衔接桥】\n" + rows.join("\n")
@@ -8272,7 +8302,7 @@ function recallNeighborhood(sourceMessages, targetMessage) {
     const body = messageText(message).replace(/\s+/g, " ").trim()
       || (messageImages(message).length ? "[图片]" : "");
     if (!body) continue;
-    rows.push((message.role === "user" ? userRef() : (settings.aiName || "当前角色"))
+    rows.push((message.rpSpeakerName || (message.role === "user" ? userRef() : (settings.aiName || "当前角色")))
       + "：" + clipUnicodeChars(body, 190));
   }
   return clipUnicodeChars(rows.join(" / "), RECALL_NEIGHBOR_CHAR_BUDGET);
@@ -8699,12 +8729,14 @@ async function drawImage() {
 // What to actually send for a stored message: if an assistant turn's visible reply
 // ended up only in the reasoning channel, send that so the model keeps full context.
 function sendContent(m) {
-  if (m.role === "assistant" && m.rpSelectedOpening) return m.rpSelectedOpening;
+  let content = m.rpSelectedOpening && m.role === "assistant" ? m.rpSelectedOpening : m.content;
   if (m.role === "assistant" && typeof m.content === "string"
       && !m.content.trim() && m.reasoning && m.reasoning.trim()) {
-    return m.reasoning;
+    content = m.reasoning;
   }
-  return m.content;
+  if (m.role === "assistant" && m.rpSpeakerName && typeof content === "string" && content.trim())
+    return `【共演发言：${m.rpSpeakerName}】\n${content}`;
+  return content;
 }
 // Map the chosen 表情风格 preset to a system-prompt note (handles legacy boolean).
 function emojiStyleNote(style) {
@@ -8939,12 +8971,14 @@ async function oneShotResponseText(resp, isAnthropic, isGemini) {
   catch (_) { throw new Error("记忆接口返回了无法识别的内容格式"); }
   return oneShotCompletionText(data, isAnthropic, isGemini);
 }
-async function streamChat(onDelta, onReasoning) {
+function chatRuntimeSettings() { return settings; }
+async function streamChat(onDelta, onReasoning, requestSettings = null, speaker = null) {
+  const settings = requestSettings || chatRuntimeSettings();
   onReasoning = onReasoning || (() => {});
   const isAnthropic = settings.provider === "anthropic";
   const isGemini = settings.provider === "gemini";
   const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
-  const model = conversationModel();
+  const model = requestSettings?.model || conversationModel();
   const reasoningEffort = conversationReasoningEffort();
   const historyWindow = buildApiHistoryWindow();
   abortController = new AbortController();
@@ -9085,6 +9119,7 @@ async function streamChat(onDelta, onReasoning) {
   try { wxNote = buildWxPromptNote(); } catch (_) { wxNote = ""; }
   if (wxNote) systemText = systemText ? systemText + "\n\n" + wxNote : wxNote;
 
+  if (speaker && isRoleplayConversation()) systemText += "\n\n" + roleplaySpeakerPrompt(speaker, normalizedRoleplayProject(currentConv().rpProject, currentConv()));
   let url, headers, body;
   if (isAnthropic) {
     url = base + "/messages";
@@ -9160,6 +9195,15 @@ async function streamChat(onDelta, onReasoning) {
       body.reasoning = { effort: "medium" };
     }
     if (/openrouter\.ai/i.test(base)) body.usage = { include: true };  // OpenRouter: also return cost
+  }
+  // Relays and Gemini may require the final turn to be user rather than a
+  // different group member's assistant reply. This dispatch turn is API-only.
+  if (speaker) {
+    const dispatch = `【共演调度】现在轮到「${speaker.name}」。承接已发生的正文，只写自己的这一条回复。`;
+    const history = isGemini ? body.contents : body.messages;
+    const lastRole = history[history.length - 1]?.role;
+    if (lastRole === "assistant") history.push({ role: "user", content: dispatch });
+    else if (lastRole === "model") history.push({ role: "user", parts: [{ text: dispatch }] });
   }
   if (temperatureUnsupportedFor(settings.provider, base, model)) {
     if (isGemini) delete body.generationConfig.temperature;
@@ -9755,7 +9799,7 @@ function retrieveCrossChat() {
       if (lexical >= 1 || (explicit && (temporal + affinity + semantic >= 1))) hits.push({
         key: "cross:" + c.id + ":" + (m.id || normalizedPromptFact(txt).slice(0, 80)),
         s, ts: m.ts || c.updatedAt || 0,
-        who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "当前角色"),
+        who: m.rpSpeakerName || (m.role === "user" ? (c.rpProject?.userRole || settings.userName || "我") : (c.rpProject?.actorName || settings.aiName || "当前角色")),
         title: c.title || "对话", txt, m, c,
       });
     }
@@ -9984,7 +10028,7 @@ function searchHistoryRecall(query) {
       const semantic = recallSemanticAffinity(query, txt);
       const s = lexical + temporal + affinity + semantic;
       if (lexical >= 1 || (explicit && (temporal + affinity + semantic >= 1))) hits.push({ key: c.id + ":" + m.id, s, ts: m.ts || c.updatedAt || 0,
-        who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "当前角色"),
+        who: m.rpSpeakerName || (m.role === "user" ? (c.rpProject?.userRole || settings.userName || "我") : (c.rpProject?.actorName || settings.aiName || "当前角色")),
         title: c.title || "对话", txt, isCur: c.id === cur.id, m, c });
     }
   }
@@ -11581,7 +11625,7 @@ function dismissComposerKeyboard(input) {
 // opts.parts: send exactly these parts as one user message (e.g. a 位置 card)
 // without touching the draft or staged attachments.
 async function send(opts) {
-  if (abortController) return;
+  if (abortController || roleplayGroupRun || replyBooting) return;
   const input = $("input");
   const directParts = opts && Array.isArray(opts.parts) && opts.parts.length ? opts.parts : null;
   const text = directParts ? "" : input.value.trim();
@@ -12394,16 +12438,48 @@ function onAppActive() {
 
 // Generate an assistant reply for the current messages (which must end with a user turn).
 let replyBooting = false;
+let roleplayGroupRun = null;
 async function generateReply() {
+  if (roleplayGroupRun || abortController || replyBooting) return;
+  const conv = currentConv();
+  if (!isRoleplayConversation(conv) || !conv.rpProject?.groupEnabled) return generateSingleReply();
+  const project = normalizedRoleplayProject(conv.rpProject, conv);
+  const latestUser = [...messages].reverse().find(message => message.role === "user" && !message._summary);
+  const members = roleplayReplyMembers(project, latestUser ? messageText(latestUser) : "");
+  if (!members.length) { showToast("先在群聊设置里勾选本轮发言成员"); return; }
+  const requests = members.map(speaker => {
+    const profile = speaker.providerId ? providerById(speaker.providerId) : conversationProvider(conv);
+    return { speaker, profile, config: { ...settings, provider: profile?.provider || settings.provider,
+      baseUrl: profile?.baseUrl || "", apiKey: profile?.apiKey || "",
+      model: speaker.model || (speaker.providerId ? profile?.model : conversationModel(conv)) } };
+  });
+  const unavailable = requests.find(request => !request.profile || !request.config.apiKey || !request.config.model);
+  if (unavailable) { showToast(`请为「${unavailable.speaker.name}」选择有效的接口和模型`); return; }
+  const run = { conversationId: conv.id, revision: chatNavigationRevision, cancelled: false };
+  roleplayGroupRun = run;
+  try {
+    for (const request of requests) {
+      if (run.cancelled || currentId !== run.conversationId || chatNavigationRevision !== run.revision) break;
+      if (!await generateSingleReply(request.speaker, request.config)) break;
+    }
+  } finally {
+    if (roleplayGroupRun === run) roleplayGroupRun = null;
+    setSending(false);
+  }
+}
+async function generateSingleReply(speaker = null, requestSettings = null) {
   if (abortController || replyBooting) return;
+  const replyConversationId = currentId, replyRevision = chatNavigationRevision;
+  const replyMessages = messages;
   clearError();
   markSeen();
   const assistantMsg = {
     id: uid(), role: "assistant", content: "", reasoning: "", traces: [],
     responseState: "submitted", ts: Date.now(),
+    ...(speaker ? { rpSpeakerId: speaker.id, rpSpeakerName: speaker.name, rpSpeakerAvatar: speaker.avatar || "" } : {}),
   };
   messages.push(assistantMsg);
-  const el = makeMsgEl("assistant", "");
+  const el = makeMsgEl("assistant", "", assistantMsg);
   $("messages").appendChild(el);
   const bubble = el.querySelector(".bubble");
   bubble.innerHTML = TYPING_HTML;
@@ -12413,6 +12489,11 @@ async function generateReply() {
   replyBooting = true;
   try { await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); }
   finally { replyBooting = false; }
+  if (roleplayGroupRun?.cancelled || currentId !== replyConversationId || chatNavigationRevision !== replyRevision) {
+    const index = replyMessages.indexOf(assistantMsg);
+    if (index >= 0) replyMessages.splice(index, 1);
+    el.remove(); setSending(false); return false;
+  }
   let paintFrame = null;
   const paint = () => {
     if (paintFrame !== null) return;
@@ -12486,7 +12567,7 @@ async function generateReply() {
       try {
         roundTiming = await streamChat(
           (delta) => { contentGate.push(delta); paint(); },
-          (rdelta) => { appendReasoning(rdelta, false); paint(); }
+          (rdelta) => { appendReasoning(rdelta, false); paint(); }, requestSettings, speaker
         );
       } finally {
         contentGate.finish();
@@ -12605,7 +12686,7 @@ async function generateReply() {
       assistantMsg.content = consumeWorkbenchDirective(assistantMsg.content);
       // Texting like a real person: split the finished reply into multiple bubbles
       // and standalone stickers, then reveal them one at a time.
-      const segs = (settings.multiBubble || settings.aiSticker)
+      const segs = !isRoleplayConversation() && (settings.multiBubble || settings.aiSticker)
         ? splitReply(assistantMsg.content, settings.multiBubble, settings.aiSticker) : null;
       const multi = segs && (segs.length > 1 || (segs.length === 1 && segs[0].kind === "sticker"));
       if (multi) {
@@ -12648,16 +12729,17 @@ async function generateReply() {
   } finally {
     // A queued streaming frame must never overwrite a completed/stopped reply.
     if (paintFrame !== null) cancelAnimationFrame(paintFrame);
-    setSending(false);
+    setSending(!!roleplayGroupRun);
     abortController = null;
     saveConversations();
     renderMessages();   // re-render so per-message actions (copy / regenerate) show
     if (stickBottom) scrollToBottom();   // respect the user reading history
   }
 
-  if (replied) {
+  if (replied && currentId === replyConversationId && chatNavigationRevision === replyRevision) {
     await maybeAutoCompactConversation();
   }
+  return replied;
 }
 
 function switchReplyVariant(direction) {
@@ -12708,7 +12790,7 @@ function removeRenderedFrom(start) {
 }
 
 async function regenerate() {
-  if (abortController || replyBooting) return;
+  if (abortController || replyBooting || roleplayGroupRun) return;
   const turn = latestReplyTurn();
   if (!turn) { showToast("没有可重新生成的内容"); return; }
   if (!settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
@@ -14599,7 +14681,8 @@ async function init() {
       e.stopPropagation();
       $("header-menu").classList.remove("show");
       const a = btn.dataset.hact;
-      if (a === "rp") window.JYCRoleplay?.editCurrent?.();
+      if (a === "rp-group") window.JYCRoleplayGroup?.open?.();
+      else if (a === "rp") window.JYCRoleplay?.editCurrent?.();
       else if (a === "files") openConversationProjectFiles();
       else if (a === "rename") renameConversation(currentId);
       else if (a === "export") openExportDialog();
@@ -14654,7 +14737,10 @@ async function init() {
     applySystemTextColor();
     showToast("系统文字已全部恢复为跟随主题");
   };
-  $("send-btn").onclick = () => { if (abortController) abortController.abort(); else send(); };
+  $("send-btn").onclick = () => {
+    if (roleplayGroupRun) { roleplayGroupRun.cancelled = true; if (abortController) abortController.abort(); }
+    else if (abortController) abortController.abort(); else send();
+  };
   // On iPhone PWA, handling the second tap at pointer-down avoids WebKit
   // swallowing the delayed click while its speech recognizer owns the mic.
   $("voice-input-btn").addEventListener("pointerdown", (event) => {
@@ -15244,6 +15330,40 @@ function roleplaySceneFromGreeting(source, index, forceNew = false) {
   return roleplayPublicProject(conv);
 }
 window.JYCRoleplayBridge = {
+  openApiSettings() { openSettings(true); showSettingsTab("services"); },
+  channels: () => (settings.providers || []).map(profile => ({ id: profile.id, name: profile.name || "接口", models: modelLinesFor(profile), model: profile.model || "" })),
+  castLibrary: () => (settings.roles || []).map(role => ({ name: role.name || "角色", prompt: role.systemPrompt || "", avatar: role.aiAvatar || "" })),
+  inspectScene(id) {
+    const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
+    if (!conv) return null;
+    const summary = activeRollingSummary(conv.messages);
+    return { ...roleplayPublicProject(conv), summary: rollingSummaryText(summary),
+      turns: (conv.messages || []).filter(message => message.role === "user" && !message._summary && !message._event).length,
+      replies: (conv.messages || []).filter(message => message.role === "assistant" && !message._summary && !message._event).length,
+      busy: !!(abortController || replyBooting || roleplayGroupRun) };
+  },
+  saveSceneSettings(id, patch) {
+    const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
+    if (!conv || abortController || replyBooting || roleplayGroupRun) { showToast("等当前回复结束后再保存设置"); return null; }
+    const allowed = {};
+    ["groupEnabled", "members", "leadChannel", "memory"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
+    conv.rpProject = normalizedRoleplayProject({ ...conv.rpProject, ...allowed }, conv);
+    conv.updatedAt = Date.now(); saveConversations();
+    window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: id } }));
+    return roleplayPublicProject(conv);
+  },
+  editSceneMemory(id, entryId, text) {
+    const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
+    if (!conv || abortController || replyBooting || roleplayGroupRun) { showToast("等当前回复结束后再编辑记忆"); return false; }
+    const p = normalizedRoleplayProject(conv.rpProject, conv);
+    const value = String(text || "").trim().slice(0, 1200);
+    if (entryId) p.memories = p.memories.flatMap(entry => entry.id !== entryId ? [entry] : value ? [{ ...entry, text: value }] : []);
+    else if (value) p.memories.push({ id: uid(), text: value, at: Date.now(), sourceMessageId: "" });
+    p.memories = p.memories.slice(-120); conv.rpProject = p;
+    conv.updatedAt = Date.now(); saveConversations();
+    window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: id } }));
+    return true;
+  },
   repairGreetings(id, rawCard) {
     const target = conversations.find(conv => conv.id === id && conv.roleId === settings.activeRoleId && isRoleplayConversation(conv));
     if (!target) return null;
@@ -15399,6 +15519,7 @@ if ("serviceWorker" in navigator) {
 <script type="module" src="./src/music.js"></script>
 <script type="module" src="./src/game-room.js"></script>
 <script type="module" src="./src/rp-theater.js"></script>
+<script type="module" src="./src/rp-group.js"></script>
 <script type="module" src="./src/dashboard.js"></script>
 <script>
 /* iOS standalone: keep a focused settings field visible once the keyboard has shrunk the sheet

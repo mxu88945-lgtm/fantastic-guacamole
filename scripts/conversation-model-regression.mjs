@@ -14,7 +14,7 @@ ok(/function newConversation\([^)]*\)[\s\S]*?providerId: settings\.activeProvide
   "new conversations do not inherit a provider and model");
 ok(/function switchConversation\([\s\S]*?activateConversationRuntime\(target\)[\s\S]*?syncSettingsToUI\(\)/.test(html),
   "switching conversations does not restore its provider/model UI");
-ok(/const model = conversationModel\(\);[\s\S]*?const historyWindow = buildApiHistoryWindow\(\)/.test(html),
+ok(/const model = requestSettings\?\.model \|\| conversationModel\(\);[\s\S]*?const historyWindow = buildApiHistoryWindow\(\)/.test(html),
   "chat requests do not use the conversation model");
 ok(/const pickModel = \(value\)[\s\S]*?conv\.model = value[\s\S]*?saveConversations\(\)/.test(html),
   "quick model selection is not persisted to the conversation");
