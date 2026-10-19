@@ -257,6 +257,24 @@ function plainPreviewWithMedia(value) {
             <div class="rp-empty" id="rp-project-empty" hidden><span>◇</span><strong>还没有剧本</strong><p>新建一部，或直接导入惟镜使用的 JSON／文本角色卡。</p><button type="button" id="rp-empty-create">创建第一个剧本</button></div>
           </section>
 
+          <section id="rp-detail-view" hidden>
+            <div class="rp-detail-head"><button type="button" id="rp-detail-back">‹ 返回剧场</button><div><strong id="rp-detail-title">角色详情</strong></div><button type="button" id="rp-detail-edit">编辑</button></div>
+            <div class="rp-detail-card3">
+              <div class="rp-detail-avatar" id="rp-detail-avatar">🎭</div>
+              <div class="rp-detail-meta"><span class="rp-card30">CHARACTER CARD 3.0</span><strong id="rp-detail-name">—</strong><p id="rp-detail-desc-short">—</p></div>
+            </div>
+            <div class="rp-detail-card3 rp-detail-desc-full" id="rp-detail-desc-block" hidden>
+              <div class="rp-card-block-head"><div><strong>角色简介</strong></div><button type="button" id="rp-detail-desc-toggle">展开</button></div>
+              <div class="rp-card-desc" id="rp-detail-desc"></div>
+              <div class="rp-tags" id="rp-detail-tags"></div>
+            </div>
+            <button type="button" class="rp-detail-link" id="rp-detail-goto-main"><div><strong>角色卡主体与开场白</strong><small id="rp-detail-greeting-count">—</small></div><i>›</i></button>
+            <button type="button" class="rp-detail-link" id="rp-detail-goto-world"><div><strong>角色世界书</strong><small id="rp-detail-world-count">—</small></div><i>›</i></button>
+            <button type="button" class="rp-detail-link" id="rp-detail-goto-regex"><div><strong>角色正则与美化</strong><small id="rp-detail-regex-count">—</small></div><i>›</i></button>
+            <button type="button" class="rp-detail-link" id="rp-detail-goto-theater"><div><strong>剧本世界观</strong><small id="rp-detail-theater-count">—</small></div><i>›</i></button>
+            <div class="rp-detail-card3"><div class="rp-card-block-head"><div><strong>开场白</strong></div></div><div id="rp-detail-openings"></div></div>
+            <div class="rp-detail-actions"><button type="button" id="rp-detail-continue" class="rp-btn-primary">继续共演</button><button type="button" id="rp-detail-new" class="rp-btn-secondary">选择开场并新建对话</button></div>
+          </section>
           <section id="rp-editor-view" hidden>
             <div class="rp-editor-heading"><button type="button" id="rp-editor-back">‹ 返回剧场</button><div><strong id="rp-editor-title">新建剧本</strong><small>所有内容自动保存在这个剧本里</small></div></div>
             <div class="rp-editor-grid">
@@ -379,15 +397,68 @@ function plainPreviewWithMedia(value) {
   function showLibrary() {
     $("rp-library-view").hidden = false;
     $("rp-editor-view").hidden = true;
+    $("rp-detail-view").hidden = true;
     state.editingId = "";
     render();
   }
+  function showDetail(projectId) {
+    const project = bridge.get(projectId);
+    if (!project) return;
+    fillDetail(project);
+    $("rp-library-view").hidden = true;
+    $("rp-editor-view").hidden = true;
+    $("rp-detail-view").hidden = false;
+    $("rp-theater-panel").querySelector(".rp-theater-body").scrollTop = 0;
+  }
 
+  function fillDetail(project) {
+    const rp = project.rpProject || {};
+    const data = { ...rp, ...project };
+    $("rp-detail-title").textContent = data.title || "角色详情";
+    $("rp-detail-name").textContent = data.actorName || data.title || "—";
+    const desc = safeText(data.description || "", 20000);
+    $("rp-detail-desc-short").textContent = desc ? desc.slice(0, 120) + (desc.length > 120 ? "…" : "") : "暂无简介";
+    $("rp-detail-desc").innerHTML = escapeHtml(desc).replace(/\r?\n/g, "<br>");
+    $("rp-detail-desc-block").hidden = !desc;
+    const tags = Array.isArray(data.tags) ? data.tags : [];
+    $("rp-detail-tags").innerHTML = tags.map((t) => `<span class="rp-tag">${escapeHtml(t)}</span>`).join("");
+    const greetings = greetingList(rp);
+    $("rp-detail-greeting-count").textContent = `${greetings.length} 个开场 · Card 3.0`;
+    const wb = Array.isArray(data.worldEntries) ? data.worldEntries : [];
+    $("rp-detail-world-count").textContent = `${wb.length} 条 · 可编辑、启停和调整插入位置`;
+    const rx = Array.isArray(data.regexRules) ? data.regexRules : [];
+    const rxOn = rx.filter((r) => !r.disabled).length;
+    $("rp-detail-regex-count").textContent = `${rx.length} 条 · ${rxOn} 条启用`;
+    const tw = safeText(data.theaterWorldBackground || "", 50000);
+    $("rp-detail-theater-count").textContent = tw ? "已填写" : "未填写";
+    $("rp-detail-openings").innerHTML = greetings.map((g, i) => {
+      const txt = safeText(g, 500000);
+      const preview = txt.length > 200 ? txt.slice(0, 200) + "…" : txt;
+      return `<div class="rp-detail-opening"><small>开场 ${i + 1}</small><p>${escapeHtml(preview).replace(/\n/g, "<br>")}</p></div>`;
+    }).join("") || '<div class="rp-empty"><p>还没有开场白</p></div>';
+    $("rp-detail-desc-toggle").onclick = () => {
+      const el = $("rp-detail-desc");
+      const exp = el.dataset.expanded === "1";
+      el.innerHTML = exp ? escapeHtml(desc.slice(0, 120) + "…").replace(/\r?\n/g, "<br>") : escapeHtml(desc).replace(/\r?\n/g, "<br>");
+      el.dataset.expanded = exp ? "" : "1";
+      $("rp-detail-desc-toggle").textContent = exp ? "展开" : "收起";
+    };
+    $("rp-detail-edit").onclick = () => showEditor(project);
+    $("rp-detail-back").onclick = showLibrary;
+    $("rp-detail-goto-main").onclick = () => { showEditor(project); setTimeout(() => $("rp-field-character")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100); };
+    $("rp-detail-goto-world").onclick = () => { showEditor(project); setTimeout(() => $("rp-worldbook-block")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100); };
+    $("rp-detail-goto-regex").onclick = () => { showEditor(project); setTimeout(() => $("rp-regex-block")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100); };
+    $("rp-detail-goto-theater").onclick = () => { showEditor(project); setTimeout(() => $("rp-theater-world-block")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100); };
+    $("rp-detail-continue").onclick = () => { closePanel(); enter(project.id); };
+    $("rp-detail-new").onclick = () => chooseOpening(project.id, true);
+    state.detailId = project.id;
+  }
   function showEditor(project) {
     if (!project) { state.tags = []; state.worldEntries = []; state.regexRules = []; }
     fillEditor(project || null);
     $("rp-library-view").hidden = true;
     $("rp-editor-view").hidden = false;
+    $("rp-detail-view").hidden = true;
     $("rp-theater-panel").querySelector(".rp-theater-body").scrollTop = 0;
     requestAnimationFrame(() => $("rp-field-title").focus());
   }
@@ -513,12 +584,13 @@ function plainPreviewWithMedia(value) {
       const userRole = project.rpProject?.userRole ? `你演 ${project.rpProject.userRole}` : "你的戏内身份待定";
       return `<article class="rp-project-card" data-rp-project="${escapeHtml(project.id)}">
         <span class="rp-project-mark">${escapeHtml([...actor][0] || "剧")}</span>
-        <div class="rp-project-copy"><small>RP PROJECT · ${escapeHtml(formatTime(project.updatedAt))}</small><strong>${escapeHtml(project.title || "未命名剧本")}</strong><p>${escapeHtml(info.roleName || "TA")} 演 ${escapeHtml(actor)} · ${escapeHtml(userRole)}</p><em>${project.messageCount || 0} 条正文 · ${project.memoryCount || 0} 条剧情记忆</em></div>
+        <button type="button" class="rp-project-copy" data-rp-detail="${escapeHtml(project.id)}"><small>RP PROJECT · ${escapeHtml(formatTime(project.updatedAt))}</small><strong>${escapeHtml(project.title || "未命名剧本")}</strong><p>${escapeHtml(info.roleName || "TA")} 演 ${escapeHtml(actor)} · ${escapeHtml(userRole)}</p><em>${project.messageCount || 0} 条正文 · ${project.memoryCount || 0} 条剧情记忆</em></button>
         <button type="button" class="rp-continue" data-rp-open="${escapeHtml(project.id)}">继续对戏</button>
         <div class="rp-project-menu"><button type="button" data-rp-edit="${escapeHtml(project.id)}">角色卡与开场白</button><button type="button" data-rp-duplicate="${escapeHtml(project.id)}">选择开场并新建对话</button><button type="button" class="danger" data-rp-delete="${escapeHtml(project.id)}">删除</button></div>
       </article>`;
     }).join("");
     list.querySelectorAll("[data-rp-open]").forEach((button) => button.addEventListener("click", () => enter(button.dataset.rpOpen)));
+    list.querySelectorAll("[data-rp-detail]").forEach((button) => button.addEventListener("click", () => showDetail(button.dataset.rpDetail)));
     list.querySelectorAll("[data-rp-edit]").forEach((button) => button.addEventListener("click", () => showEditor(bridge.get(button.dataset.rpEdit))));
     list.querySelectorAll("[data-rp-duplicate]").forEach((button) => button.addEventListener("click", () => {
       chooseOpening(button.dataset.rpDuplicate, true);

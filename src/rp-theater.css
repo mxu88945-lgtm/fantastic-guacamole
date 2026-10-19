@@ -230,3 +230,29 @@ body.rp-chat-active #sidebar-workbench { display: none; }
 /* 剧本世界观独立板块 */
 .rp-theater-world-desc { font-size: 12px; color: #888; line-height: 1.6; margin-bottom: 12px; padding: 10px 12px; background: #f8f7fc; border-radius: 10px; }
 #rp-theater-world-block textarea { width: 100%; padding: 12px; border: 1px solid #e0ddf0; border-radius: 12px; font-size: 14px; line-height: 1.7; background: #faf9fd; resize: vertical; }
+
+/* 角色详情页（对标惟镜） */
+.rp-detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.rp-detail-head button { background: none; border: none; color: #7c6bd6; font-size: 14px; cursor: pointer; }
+.rp-detail-head div { flex: 1; text-align: center; }
+.rp-detail-head strong { font-size: 17px; }
+.rp-detail-card3 { background: #f6f1f8; border-radius: 20px; padding: 18px; margin-bottom: 12px; }
+.rp-detail-card3 .rp-detail-avatar { width: 84px; height: 84px; border-radius: 20px; background: #e8e4f5; display: grid; place-items: center; font-size: 36px; flex-shrink: 0; }
+.rp-detail-card3:first-of-type { display: flex; gap: 16px; align-items: flex-start; }
+.rp-detail-meta { flex: 1; min-width: 0; }
+.rp-card30 { font-size: 11px; letter-spacing: 2px; color: #8b7ed6; font-weight: 700; }
+.rp-detail-meta strong { display: block; font-size: 20px; margin: 4px 0 8px; }
+.rp-detail-meta p { font-size: 13px; color: #666; line-height: 1.6; margin: 0; }
+.rp-detail-desc-full .rp-card-desc { font-size: 13px; color: #555; line-height: 1.7; margin: 8px 0 12px; }
+.rp-detail-link { display: flex; align-items: center; justify-content: space-between; width: 100%; background: #f6f1f8; border: none; border-radius: 20px; padding: 18px; margin-bottom: 12px; cursor: pointer; text-align: left; }
+.rp-detail-link strong { display: block; font-size: 15px; margin-bottom: 4px; }
+.rp-detail-link small { color: #999; font-size: 12px; }
+.rp-detail-link i { color: #8b7ed6; font-size: 20px; font-style: normal; }
+.rp-detail-opening { border-top: 1px solid #eee; padding: 12px 0; }
+.rp-detail-opening:first-child { border-top: none; }
+.rp-detail-opening small { color: #999; font-size: 11px; }
+.rp-detail-opening p { font-size: 13px; color: #444; line-height: 1.6; margin: 6px 0 0; }
+.rp-detail-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; position: sticky; bottom: 0; padding: 12px 0; background: linear-gradient(transparent, #fff 30%); }
+.rp-btn-primary { background: #5b8def; color: #fff; border: none; border-radius: 16px; padding: 16px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.rp-btn-secondary { background: #f0edf8; color: #666; border: none; border-radius: 16px; padding: 14px; font-size: 14px; cursor: pointer; }
+.rp-project-copy { background: none; border: none; text-align: left; cursor: pointer; flex: 1; min-width: 0; }
