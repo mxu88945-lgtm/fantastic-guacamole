@@ -9,7 +9,7 @@
 .rp-mention-portrait img { width: 100%; height: 100%; object-fit: cover; }
 .rp-scene-strip { margin: 0 0 14px; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--accent-soft) 42%, transparent); color: var(--text-dim); font-size: .9em; line-height: 1.65; }
 .rp-story-body + .rp-status-card { margin-top: 16px; }
-.rp-status-card { box-sizing: border-box; display: block; width: 100%; height: auto; min-height: 0; margin-block: 12px 0; padding: 11px 13px; border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border)); border-left: 3px solid color-mix(in srgb, var(--accent) 62%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--bg-panel) 48%, transparent); box-shadow: none; overflow: visible; }
+.rp-status-card { box-sizing: border-box; display: block; width: 100%; height: auto; min-height: 0; margin-block: 12px 0; padding: 6px 0 6px 12px; border: 0; border-left: 2px solid color-mix(in srgb, var(--accent) 62%, transparent); border-radius: 0; background: transparent !important; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; overflow: visible; }
 .rp-status-card header { margin: 0 0 5px; color: var(--accent); font-size: 11px; font-weight: 750; letter-spacing: .08em; }
 .rp-status-row { display: grid; grid-template-columns: minmax(92px, max-content) minmax(0, 1fr); gap: 9px; align-items: start; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--border) 64%, transparent); font-size: .86em; line-height: 1.5; }
 .rp-status-row:first-of-type { border-top: 0; }
@@ -63,6 +63,9 @@
 .rp-memory-entry small { color: var(--text-dim); font-size: 11px; }
 .rp-memory-entry > div { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 #rp-memory-summary { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 14px; line-height: 1.8; }
+#rp-memory-action-status { min-height: 1.7em; margin: 8px 0 0; }
+#rp-memory-action-status[data-state="success"] { color: var(--accent); }
+#rp-memory-action-status[data-state="error"] { color: var(--err-text); }
 .rp-group-links { display: grid; gap: 10px; }
 .rp-group-links button { text-align: left; }
 .rp-group-drawer footer { border-top: 1px solid var(--border); padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: 12px; }

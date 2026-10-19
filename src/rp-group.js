@@ -127,6 +127,13 @@ if (bridge) {
     panel.querySelector("#rp-memory-list").innerHTML = p.memories.length ? p.memories.map(entry => `<article class="rp-memory-entry" data-memory="${escape(entry.id)}"><small>${escape(new Date(entry.at).toLocaleString())} · ${entry.sourceMessageId ? "演出中保存" : "手动补充"}</small><textarea rows="3" maxlength="1200" aria-label="剧情记忆">${escape(entry.text)}</textarea><div><button type="button" data-memory-save="${escape(entry.id)}">保存修改</button><button type="button" data-memory-delete="${escape(entry.id)}">删除这条</button></div></article>`).join("") : '<p class="rp-group-note">这场戏还没有保存自动记忆。正文仍会按上下文范围发送；你也可以在下面补充重要事实。</p>';
     panel.querySelector("#rp-memory-summary").textContent = scene.summary || "尚未压缩较早剧情。生成摘要后会在这里显示，并随本窗口的后续请求带上。";
   }
+  function setMemoryStatus(message, state = "") {
+    const status = panel.querySelector("#rp-memory-action-status");
+    if (!status) return;
+    status.textContent = message || "";
+    if (state) status.dataset.state = state;
+    else delete status.dataset.state;
+  }
   function open() {
     const current = bridge.current();
     if (!current) return;
@@ -145,7 +152,7 @@ if (bridge) {
       <section><div class="rp-group-section-head"><h3>成员（<span id="rp-cast-count"></span>）</h3><label class="rp-cast-check"><input id="rp-group-enabled" type="checkbox" ${draft.groupEnabled ? "checked" : ""}>开启群聊</label></div><label>发言方式<select id="rp-group-reply-mode"><option value="mention" ${draft.replyMode !== "round" ? "selected" : ""}>按 @ 指定；未指定时只由主角回复</option><option value="round" ${draft.replyMode === "round" ? "selected" : ""}>勾选的成员依次回复</option></select></label><p class="rp-group-note">输入 @ 后点选成员，本轮只让选中的人发言。只有选择“依次回复”时，下方的“参与每轮回复”勾选才会生效。</p><div id="rp-cast-list"></div><div class="rp-cast-add"><button type="button" data-add="actor">＋ 添加角色</button><button type="button" data-add="director">＋ 新建导演卡</button><button type="button" data-import>导入角色卡</button></div><label class="rp-cast-library">从角色库添加<select id="rp-cast-library"><option value="">选择已有角色…</option>${library.map((role, index) => `<option value="${index}">${escape(role.name)}</option>`).join("")}</select></label><input type="file" id="rp-cast-file" accept=".json,.txt,.md,application/json,text/plain" hidden></section>
       <section id="rp-user-profile"><div class="rp-group-section-head"><h3>用户身份</h3><span class="rp-group-note">仅本剧本</span></div><p class="rp-group-note">这份身份只发给本场共演角色，不会改动顾祁砚本体里的“周惟惟”，也不会串进其他剧本。</p><label>姓名 / 戏内身份<input id="rp-user-role" maxlength="240" value="${escape(draft.userRole || "")}" placeholder="例如：宁梦曦"></label><label>用户身份资料<textarea id="rp-user-identity" rows="8" maxlength="30000" placeholder="填写背景、经历、关系、外貌或这条剧情里需要角色知道的身份资料……">${escape(draft.userIdentity || "")}</textarea></label></section>
       <section id="rp-temporary-section"><div class="rp-group-section-head"><h3>临时剧情</h3><span class="rp-group-note">正文不显示</span></div><p class="rp-group-note">仅本对话生效。群聊只有本轮被你 @ 且符合接收范围的角色能看到；单人剧情直接发送或续演即可。</p><label>生效时长<select id="rp-temporary-mode"><option value="once" ${draft.temporaryPlotMode === "once" ? "selected" : ""}>仅下一次（默认）</option><option value="counted" ${draft.temporaryPlotMode === "counted" ? "selected" : ""}>持续指定次数</option><option value="persistent" ${draft.temporaryPlotMode === "persistent" ? "selected" : ""}>持续到手动结束</option></select></label><label id="rp-temporary-uses-wrap">剩余成功次数<input id="rp-temporary-uses" type="number" min="1" max="100" value="${Number(draft.temporaryPlotRemainingUses) || 3}"></label><fieldset id="rp-plot-recipients" class="rp-plot-recipients"></fieldset><label>幕后安排<textarea id="rp-temporary-plot" rows="12" maxlength="120000" placeholder="例如：让他接到一通紧急电话；或保持缓慢对峙，不急着和解……">${escape(draft.temporaryPlot || "")}</textarea></label><div class="rp-cast-add"><button type="button" data-clear-plot>清空 / 结束</button></div><p class="rp-group-note">成功回复后按次数消耗；失败或停止时保留。持续方向会沿最新进展推进，不要求重复已经发生的事件。</p></section>
-      <section id="rp-scene-memory"><div class="rp-group-section-head"><h3>本窗口剧情记忆</h3><button type="button" data-refresh>刷新档案</button></div><p id="rp-scene-memory-count" class="rp-group-note"></p><p class="rp-group-note">以下手填档案、自动记忆和较早剧情摘要，会随本窗口的后续请求提供给所有共演成员。人物仍需遵守戏内知情范围。本体可回顾最近的共同演出，剧情档案保存在各自剧本里。</p><details open><summary>手填连续性档案</summary><textarea id="rp-memory-manual" rows="6" maxlength="120000" aria-label="手填连续性档案"></textarea><button type="button" data-save-manual>保存档案</button></details><details open><summary>演出中保存的记忆</summary><div id="rp-memory-list"></div><label>补充一条重要事实<textarea id="rp-memory-new" rows="3" maxlength="1200" placeholder="只记录已经发生的剧情"></textarea></label><button type="button" data-add-memory>添加记忆</button></details><details><summary>较早剧情摘要 · 只读</summary><pre id="rp-memory-summary"></pre></details></section>
+      <section id="rp-scene-memory"><div class="rp-group-section-head"><h3>本窗口剧情记忆</h3><button type="button" data-refresh>提取新记忆</button></div><p id="rp-scene-memory-count" class="rp-group-note"></p><p class="rp-group-note">以下手填档案、自动记忆和较早剧情摘要，会随本窗口的后续请求提供给所有共演成员。人物仍需遵守戏内知情范围。本体可回顾最近的共同演出，剧情档案保存在各自剧本里。</p><p id="rp-memory-action-status" class="rp-group-note" role="status" aria-live="polite"></p><details open><summary>手填连续性档案</summary><textarea id="rp-memory-manual" rows="6" maxlength="120000" aria-label="手填连续性档案"></textarea><button type="button" data-save-manual>保存档案</button></details><details open><summary>演出中保存的记忆</summary><div id="rp-memory-list"></div><label>补充一条重要事实<textarea id="rp-memory-new" rows="3" maxlength="1200" placeholder="只记录已经发生的剧情"></textarea></label><button type="button" data-add-memory>添加记忆</button></details><details><summary>较早剧情摘要 · 只读</summary><pre id="rp-memory-summary"></pre></details></section>
       <section class="rp-group-links"><button type="button" data-detail>情景与角色资料 ›</button><button type="button" data-export-scene>导出当前对话 TXT ↓</button><button type="button" data-import-scene>导入对话 TXT · 新建副本 ↑</button><input type="file" id="rp-scene-import-file" accept=".txt,.json,text/plain,application/json" hidden><button type="button" data-home>回到顾祁砚本体主页 ›</button></section></div>
       <footer><small id="rp-group-save-state">成员设置只属于当前窗口</small><button type="button" data-save>保存并返回对戏</button></footer></aside>`;
     panel.hidden = false;
@@ -275,7 +282,7 @@ if (bridge) {
       } catch (error) { bridge.toast(error.message || "剧情文件读取失败"); }
     }
   });
-  panel.addEventListener("click", event => {
+  panel.addEventListener("click", async event => {
     const button = event.target.closest("button");
     if (!button) { if (event.target === panel) close(); return; }
     if (button.hasAttribute("data-close")) close();
@@ -298,13 +305,59 @@ if (bridge) {
       panel.querySelector("#rp-temporary-uses").value = "3";
       markDirty(); renderTemporaryPlotRecipients(); updateTemporaryPlotMode();
     }
-    else if (button.hasAttribute("data-refresh")) renderMemory();
-    else if (button.hasAttribute("data-save-manual")) { if (bridge.saveSceneSettings(sceneId, { memory: panel.querySelector("#rp-memory-manual").value })) bridge.toast("剧情档案已保存，聊天位置保持不变"); }
+    else if (button.hasAttribute("data-refresh")) {
+      button.disabled = true;
+      const oldLabel = button.textContent;
+      button.textContent = "正在提取…";
+      setMemoryStatus("正在阅读本窗口最近剧情并提炼既成事实…");
+      try {
+        const result = await bridge.extractSceneMemories(sceneId);
+        renderMemory();
+        const message = result.added
+          ? `已提取并保存 ${result.added} 条新记忆。`
+          : "已检查最近剧情，没有需要新增的记忆。";
+        setMemoryStatus(message, "success");
+        bridge.toast(message);
+      } catch (error) {
+        const message = error?.message || "剧情记忆提取失败";
+        setMemoryStatus(message, "error");
+        bridge.toast(message);
+      } finally {
+        button.disabled = false;
+        button.textContent = oldLabel;
+      }
+    }
+    else if (button.hasAttribute("data-save-manual")) {
+      const value = panel.querySelector("#rp-memory-manual").value;
+      const saved = bridge.saveSceneSettings(sceneId, { memory: value });
+      if (saved) {
+        draft.memory = value;
+        renderMemory();
+        setMemoryStatus("手填连续性档案已保存，聊天位置保持不变。", "success");
+        bridge.toast("剧情档案已保存，聊天位置保持不变");
+      }
+    }
     else if (button.hasAttribute("data-add-memory")) {
       const input = panel.querySelector("#rp-memory-new");
-      if (input.value.trim() && bridge.editSceneMemory(sceneId, "", input.value)) { input.value = ""; renderMemory(); }
-    } else if (button.hasAttribute("data-memory-save")) { if (bridge.editSceneMemory(sceneId, button.dataset.memorySave, button.closest("[data-memory]").querySelector("textarea").value)) renderMemory(); }
-    else if (button.hasAttribute("data-memory-delete")) { if (bridge.editSceneMemory(sceneId, button.dataset.memoryDelete, "")) renderMemory(); }
+      if (!input.value.trim()) {
+        setMemoryStatus("先填写一条已经发生的重要事实。", "error");
+        bridge.toast("先填写一条已经发生的重要事实");
+      } else if (bridge.editSceneMemory(sceneId, "", input.value)) {
+        input.value = "";
+        renderMemory();
+        setMemoryStatus("这条剧情记忆已经保存。", "success");
+        bridge.toast("已添加 1 条剧情记忆");
+      }
+    } else if (button.hasAttribute("data-memory-save")) {
+      if (bridge.editSceneMemory(sceneId, button.dataset.memorySave, button.closest("[data-memory]").querySelector("textarea").value)) {
+        renderMemory(); setMemoryStatus("记忆修改已保存。", "success"); bridge.toast("记忆修改已保存");
+      }
+    }
+    else if (button.hasAttribute("data-memory-delete")) {
+      if (bridge.editSceneMemory(sceneId, button.dataset.memoryDelete, "")) {
+        renderMemory(); setMemoryStatus("这条剧情记忆已删除。", "success"); bridge.toast("剧情记忆已删除");
+      }
+    }
     else if (button.hasAttribute("data-api")) { close(); if (panel.hidden) bridge.openApiSettings(); }
     else if (button.hasAttribute("data-detail")) { close(); if (panel.hidden) window.JYCRoleplay?.editCurrent(); }
     else if (button.hasAttribute("data-export-scene")) { if (!dirty || save()) bridge.exportSceneTxt(sceneId); }

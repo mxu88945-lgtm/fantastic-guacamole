@@ -9,7 +9,7 @@ let id = 0;
 const context = vm.createContext({
   uid: () => `id-${++id}`, cloneChatData: structuredClone, console,
   settings: { aiName: "顾祁砚", activeRoleId: "gu", provider: "openai", apiKey: "base-key", model: "base-model" },
-  currentId: "scene", chatNavigationRevision: 0, abortController: null, replyBooting: false,
+  currentId: "scene", chatNavigationRevision: 0, abortController: null, replyBooting: false, roleplayGroupRun: null,
   messages: [{ role: "user", content: "继续" }],
   conversationModel: () => "window-model", messageText: message => message.content || "",
   setSending() {}, showToast(message) { context.toast = message; },
@@ -70,6 +70,29 @@ assert.ok(groupUi.includes('<select data-field="model">') && !groupUi.includes("
 assert.ok(groupUi.includes("data-fetch-models") && groupUi.includes("pullChannelModels"), "member channels cannot fetch their own model lists");
 assert.ok(groupUi.includes("!profile.hasModelList") && groupUi.includes("refreshMemberModels(id, true)"), "changing to an uncached interface must pull models automatically");
 assert.ok(html.includes("async function pullProviderModels(profile)") && html.includes("async pullChannelModels(profileId)"), "the RP drawer is not wired to the main provider model loader");
+assert.ok(groupUi.includes("data-refresh>提取新记忆") && groupUi.includes("bridge.extractSceneMemories(sceneId)"), "the memory action must run extraction instead of only repainting the drawer");
+assert.ok(groupUi.includes('id="rp-memory-action-status"') && groupUi.includes("这条剧情记忆已经保存"), "manual memory actions need visible success feedback");
+assert.ok(html.includes("async function extractRoleplaySceneMemories(conv)") && html.includes("async extractSceneMemories(id)"), "scene memory extraction is not exposed through the RP bridge");
+assert.ok(html.includes("本轮若产生会影响后续的新增既成事实，必须"), "RP replies must actively emit hidden memory markers when durable facts are created");
+
+Object.assign(context, {
+  visibleAssistantText: text => text,
+  memoryRuntimeConfig: () => ({ apiKey: "memory-key" }),
+  isChatContentMessage: message => ["user", "assistant"].includes(message.role),
+  isHiddenRoleplayMentionMessage: () => false,
+  completeOnce: async () => '["周竞尧已经把钥匙交给顾里", "顾里答应明早赴约"]',
+  saveConversations: () => { context.memorySaved = true; },
+  window: { dispatchEvent() {} }, CustomEvent: class {},
+});
+vm.runInContext(source("function parseRoleplayMemoryCandidates(", "function roleplaySceneFromGreeting("), context);
+const extractConv = { ...context.conv, rpProject: structuredClone(context.conv.rpProject), messages: [
+  { id: "u1", role: "user", content: "我把钥匙收好，明早见。" },
+  { id: "a1", role: "assistant", content: "他把钥匙交给她，约定明早见面。" },
+] };
+const extracted = await context.extractRoleplaySceneMemories(extractConv);
+assert.equal(extracted.added, 2, "manual extraction must persist newly derived scene facts");
+assert.equal(extractConv.rpProject.memories.at(-1).sourceMessageId, "a1");
+assert.equal(context.memorySaved, true);
 
 const profiles = { base: { id: "base", provider: "openai", baseUrl: "https://base.test/v1", apiKey: "base-key", model: "profile-model" },
   other: { id: "other", provider: "gemini", baseUrl: "https://other.test/v1beta", apiKey: "other-key", model: "other-model" } };
