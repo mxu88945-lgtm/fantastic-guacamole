@@ -7081,6 +7081,14 @@ function makeMsgEl(role, content, opts) {
       reBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>`;
       reBtn.onclick = regenerate;
       bar.appendChild(reBtn);
+      if (isRoleplayConversation()) {
+        const goBtn = document.createElement("button");
+        goBtn.type = "button"; goBtn.className = "msg-act rp-continue-act";
+        goBtn.title = "续写剧情"; goBtn.setAttribute("aria-label", "续写剧情");
+        goBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"/></svg>`;
+        goBtn.onclick = (e) => { e.stopPropagation(); continueRoleplayStory(); };
+        bar.appendChild(goBtn);
+      }
     }
     const editBtn = document.createElement("button");
     editBtn.type = "button"; editBtn.className = "msg-act";
@@ -7102,7 +7110,8 @@ function makeMsgEl(role, content, opts) {
       openMsgMenu(r.left, r.bottom + 4, idx, "assistant-more");
     };
     bar.appendChild(moreBtn);
-    if (opts.historyRecall?.sources?.length) {
+    const hideStats = isRoleplayConversation();
+    if (!hideStats && opts.historyRecall?.sources?.length) {
       const receipt = document.createElement("button");
       receipt.type = "button"; receipt.className = "msg-tokens";
       receipt.style.cssText = "border:0;background:none;padding:0;cursor:pointer;";
@@ -7111,7 +7120,7 @@ function makeMsgEl(role, content, opts) {
       receipt.onclick = () => showToast(receipt.title, 6500);
       bar.appendChild(receipt);
     }
-    if (opts.tokens) {
+    if (!hideStats && opts.tokens) {
       const tk = document.createElement("span");
       tk.className = "msg-tokens";
       tk.textContent = Number(opts.tokens).toLocaleString() + " tokens";
@@ -7133,7 +7142,7 @@ function makeMsgEl(role, content, opts) {
       }
       bar.appendChild(tk);
     }
-    if (opts.timing && Number.isFinite(opts.timing.totalMs)) {
+    if (!hideStats && opts.timing && Number.isFinite(opts.timing.totalMs)) {
       const tm = document.createElement("span");
       const visibleMs = Number.isFinite(opts.timing.visibleMs)
         ? opts.timing.visibleMs : opts.timing.firstTokenMs;
@@ -10354,6 +10363,19 @@ function reminderCancel(id) {
   renderMessages();
   if (!allReminderMsgs().some(x => !x.done && !x.canceled)) stopReminderTimer();
 }
+// 惟镜同款 ▶：不用自己打字，让角色直接接着上一段往下写（隐藏的系统指令，不显示成用户消息）。
+async function continueRoleplayStory() {
+  if (abortController || !isRoleplayConversation()) return;
+  if (!settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
+  clearError();
+  messages.push({ id: uid(), role: "user", _event: true, _rpContinue: true, ts: Date.now(),
+    content: "（续写指令，不是 ta 打字：ta 这一轮没有发言。请直接承接你上一段的最后一幕继续往下写，自然推进剧情、可以推动时间或场景，保持原有人称、文风和美化格式；不要替 ta 说话、做决定或描写 ta 的内心，不要重复上一段，不要复述这段说明。）" });
+  saveConversations();
+  renderMessages();
+  pinToBottom();
+  try { await generateReply(); }
+  catch (e) { showToast("❌ 续写异常: " + (e.message || String(e)).slice(0, 80)); }
+}
 // Inject a hidden "she completed it" event turn, then let江屹琛 react in-character.
 async function reactToReminderDone(r) {
   if (abortController || !settings.apiKey) return;
@@ -12663,7 +12685,7 @@ function appendLastMessageFast() {
   try {
     const box = $("messages"), i = messages.length - 1;
     if (i < 1 || !box.querySelector(`:scope > [data-idx="${i - 1}"]`)) return false;
-    box.querySelectorAll('.msg-act[aria-label="重新生成回复"]').forEach(b => b.remove());
+    box.querySelectorAll('.msg-act[aria-label="重新生成回复"], .msg-act.rp-continue-act').forEach(b => b.remove());
     const m = messages[i];
     const el = makeMsgEl(m.role, m.content, { actions: true, isLast: true, ts: m.ts });
     el.dataset.idx = i;

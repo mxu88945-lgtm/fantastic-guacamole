@@ -46,6 +46,7 @@ ok(js.includes("function displayGreeting(") && !js.includes("bridge.update(proje
 ok(js.includes("if (looksLikeRichGreeting(regexed)) return regexed"), "regex-produced HTML openings must render as HTML, not be re-bubbled");
 ok(js.includes("function cardStructure(") && js.includes("patch.regexRules = extra.regexRules"), "JSON repair must restore lost regex/worldbook");
 ok(html.includes("function roleplayRegexDisplay(") && html.includes("answer = roleplayRegexDisplay(answer)"), "card regex must beautify RP chat messages at display time");
+ok(html.includes("async function continueRoleplayStory()") && html.includes("rp-continue-act") && html.includes("const hideStats = isRoleplayConversation()"), "RP chat needs a ▶ continue button and hides token/latency stats");
 ok(!js.includes("closePanel("), "detail continue button calls an undefined closePanel");
 ok(js.includes('showEditor(project, "world")') && js.includes('showEditor(project, "regex")'), "detail rows must open their own section page like 惟镜");
 ok(css.includes('#rp-editor-view[data-section="world"] [data-rp-sec]:not([data-rp-sec="world"])'), "section pages must hide other editor parts");
