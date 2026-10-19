@@ -99,9 +99,23 @@
 #rp-chat-identity span, #rp-chat-identity small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #rp-chat-identity span { font-size: 11px; font-weight: 750; } #rp-chat-identity small { margin-top: 2px; color: var(--text-dim); font-size: 8px; }
 body.rp-theater-open { overflow: hidden; }
-.roleplay-html-card { width: min(100%, 680px); overflow: hidden; border: 1px solid var(--border); border-radius: 20px; background: transparent; box-shadow: 0 14px 36px rgba(20,16,30,.1); }
+.roleplay-html-card { width: min(100%, 920px); overflow: hidden; border: 1px solid var(--border); border-radius: 20px; background: transparent; box-shadow: 0 14px 36px rgba(20,16,30,.1); }
 .roleplay-html-frame { display: block; width: 100%; min-height: 240px; height: 360px; border: 0; background: transparent; }
-.msg.assistant .bubble:has(.roleplay-html-card) { width: min(100%, 680px); max-width: 100%; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; overflow: visible; }
+.msg.assistant .bubble:has(.roleplay-html-card) { width: min(100%, 920px); max-width: 100%; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; overflow: visible; }
+body.rp-chat-active .messages { max-width: 980px; padding-inline: 12px; }
+body.rp-chat-active .msg.roleplay-rich-message { width: 100%; gap: 0; }
+body.rp-chat-active .msg.roleplay-rich-message > .avatar,
+body.rp-chat-active .msg.roleplay-rich-message .body > .name { display: none; }
+body.rp-chat-active .msg.roleplay-rich-message .body,
+body.rp-chat-active .msg.roleplay-rich-message .bubble,
+body.rp-chat-active .msg.roleplay-rich-message .roleplay-html-card { width: 100% !important; max-width: none !important; }
+body.rp-chat-active .brand-role-picker .role-chevron,
+body.rp-chat-active .brand-role-picker .role-quick { display: none; }
+body.rp-chat-active #sidebar-music,
+body.rp-chat-active #sidebar-mailbox,
+body.rp-chat-active #sidebar-album,
+body.rp-chat-active #sidebar-special-days,
+body.rp-chat-active #sidebar-workbench { display: none; }
 @media (max-width: 680px) {
   .rp-theater-head { padding-left: 12px; padding-right: 12px; }.rp-head-action { padding: 0 12px; }
   .rp-theater-body { padding: 16px 12px calc(30px + env(safe-area-inset-bottom)); }
@@ -115,7 +129,8 @@ body.rp-theater-open { overflow: hidden; }
   .rp-greeting-list { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding: 3px; }
   .rp-greeting-card { min-width: min(78vw, 290px); scroll-snap-align: start; }
   .rp-greeting-preview-frame { height: 60vh; }
-  .roleplay-html-card, .msg.assistant .bubble:has(.roleplay-html-card) { width: calc(100vw - 76px); }
+  body.rp-chat-active .messages { padding-inline: 8px; }
+  .roleplay-html-card, .msg.assistant .bubble:has(.roleplay-html-card) { width: 100%; }
   .rp-project-card { padding: 16px; border-radius: 22px; }.rp-project-copy { padding-right: 0; }.rp-continue { position: static; grid-column: 1 / -1; min-height: 40px; }
   #rp-chat-identity { max-width: 48vw; }.rp-chat-active #header-search-btn, .rp-chat-active #header-new-btn { display: none; }
 }

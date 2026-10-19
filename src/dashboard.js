@@ -139,7 +139,13 @@ if (!bridge) {
     if (action) runAction(action);
   });
   $("dashboard-profile").addEventListener("click", () => runAction("settings"));
-  $("sidebar-home").addEventListener("click", show);
+  $("sidebar-home").addEventListener("click", () => {
+    if (document.body.classList.contains("rp-chat-active")) {
+      window.JYCRoleplay?.open?.();
+      return;
+    }
+    show();
+  });
   window.addEventListener("jyc:dashboard-open", show);
   window.addEventListener("jyc:chat-opened", hide);
   window.addEventListener("jyc:role-changed", () => { if (open) render(); });

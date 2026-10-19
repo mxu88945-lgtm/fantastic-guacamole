@@ -5290,6 +5290,11 @@ function activateConversationRuntime(conv) {
 function roleConvs() { return conversations.filter(c => c.roleId === settings.activeRoleId); }
 function isRoleplayConversation(conv = currentConv()) { return conv?.space === "roleplay"; }
 function privateRoleConvs() { return roleConvs().filter(c => !isRoleplayConversation(c)); }
+function sidebarRoleConvs() {
+  return isRoleplayConversation()
+    ? roleConvs().filter(isRoleplayConversation)
+    : privateRoleConvs();
+}
 // A message's content may be a string, or an array of parts (text + attachments).
 function messageText(m) {
   if (typeof m.content === "string") return m.content;
@@ -5685,10 +5690,14 @@ function deleteConversation(id, ev) {
   if (ev) ev.stopPropagation();
   const conv = conversations.find(c => c.id === id);
   if (conv && conv.messages.length && !confirm("确定删除这个对话？")) return;
+  const deletingRoleplay = isRoleplayConversation(conv);
   conversations = conversations.filter(c => c.id !== id);
   if (id === currentId) {
-    let rc = privateRoleConvs();
-    if (!rc.length) { const nc = newConversation(); conversations.unshift(nc); rc = [nc]; }
+    let rc = deletingRoleplay ? roleConvs().filter(isRoleplayConversation) : privateRoleConvs();
+    if (!rc.length) {
+      const nc = newConversation(); conversations.unshift(nc); rc = [nc];
+      if (deletingRoleplay) queueMicrotask(() => window.JYCRoleplay?.open?.());
+    }
     currentId = rc[0].id; messages = currentConv().messages;
     activateConversationRuntime(currentConv());
     saveSettings();
@@ -5713,7 +5722,7 @@ function runSearch(q) {
   const box = $("conv-list");
   box.innerHTML = "";
   const results = [];
-  for (const c of privateRoleConvs()) {
+  for (const c of sidebarRoleConvs()) {
     for (const m of c.messages) {
       const text = messageText(m);
       const pos = text.toLowerCase().indexOf(q);
@@ -6093,7 +6102,7 @@ function renderConvList() {
   box.innerHTML = "";
   const groups = { today: [], week: [], earlier: [] };
   const now = Date.now();
-  for (const c of privateRoleConvs().filter(c => c.messages.length > 0)) {
+  for (const c of sidebarRoleConvs().filter(c => c.messages.length > 0)) {
     const age = now - (c.updatedAt || 0);
     groups[age < 86400000 ? "today" : age < 604800000 ? "week" : "earlier"].push(c);
   }
@@ -6145,6 +6154,17 @@ function updateConversationSpaceUI() {
   if ($("rp-chat-meta")) $("rp-chat-meta").textContent = active
     ? `由 ${String(settings.aiName || "当前角色")} 出演 · 点此编辑剧本`
     : "";
+  updateBrand();
+  const home = $("sidebar-home");
+  if (home) {
+    home.title = active ? "返回 RP 剧场" : "主页";
+    home.setAttribute("aria-label", active ? "返回 RP 剧场" : "回到主页");
+  }
+  const add = $("sidebar-new-chat");
+  if (add) {
+    add.title = active ? "新建 RP 场次" : "新对话";
+    add.setAttribute("aria-label", active ? "新建 RP 场次" : "新对话");
+  }
 }
 
 // ---------- Minimal markdown ----------
@@ -6232,10 +6252,11 @@ function setAvatarValue(role, v) {
 }
 function updateBrand() {
   const aiNm = settings.aiName || "当前角色";
-  $("brand-title").textContent = aiNm;
+  const rpMode = isRoleplayConversation();
+  $("brand-title").textContent = rpMode ? "RP 长剧情" : aiNm;
   if (isImageRef(settings.aiAvatar)) $("brand-logo").innerHTML = `<img src="${escapeHtml(settings.aiAvatar)}" alt="">`;
-  else $("brand-logo").textContent = (settings.aiAvatar || aiNm).slice(0, 1);
-  document.title = aiNm === "当前角色" ? "Role Chat" : aiNm + " · Chat";
+  else $("brand-logo").textContent = rpMode ? "剧" : (settings.aiAvatar || aiNm).slice(0, 1);
+  document.title = rpMode ? `${currentConv()?.title || "RP 长剧情"} · 剧场` : (aiNm === "当前角色" ? "Role Chat" : aiNm + " · Chat");
   updateSilentUI();
 }
 function updateSilentUI() {
@@ -6745,7 +6766,7 @@ function roleplayRichDocument(value, token) {
   const source = roleplayRichSource(value);
   const guard = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https:; media-src data: https:; font-src data: https:; style-src 'unsafe-inline' https:; script-src 'unsafe-inline'; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'">`;
   const base = `<style>html,body{height:auto!important;min-height:0!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}</style>`;
-  const reporter = `<script>(function(){var token=${JSON.stringify(token)};var send=function(){var h=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0,120);parent.postMessage({type:'jyc-rp-frame-height',token:token,height:Math.min(h,6000)},'*')};addEventListener('load',send);addEventListener('resize',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.documentElement);setTimeout(send,60);setTimeout(send,400)})()<\/script>`;
+  const reporter = `<script>(function(){var token=${JSON.stringify(token)};var send=function(){var h=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0,120);parent.postMessage({type:'jyc-rp-frame-height',token:token,height:Math.min(h,6000)},'*')};var pick=function(node){if(!node)return null;var explicit=node.getAttribute('data-prompt')||node.getAttribute('data-message')||node.getAttribute('data-opening')||node.getAttribute('data-scene')||node.getAttribute('data-choice');var text=(explicit||node.innerText||node.textContent||'').replace(/\\s+/g,' ').trim();if(!text)return null;return{text:text.slice(0,4000),label:(node.innerText||node.textContent||text).replace(/\\s+/g,' ').trim().slice(0,160)}};document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-prompt],[data-message],[data-opening],[data-scene],[data-choice],button,[role="button"],a[href],[onclick],.script-card,.scene-card,.choice-card'):null;if(!node)return;var action=pick(node);if(!action)return;setTimeout(function(){parent.postMessage({type:'jyc-rp-card-action',token:token,text:action.text,label:action.label},'*')},0)},false);addEventListener('load',send);addEventListener('resize',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.documentElement);setTimeout(send,60);setTimeout(send,400)})()<\/script>`;
   let documentHtml = source;
   if (/<head\b[^>]*>/i.test(documentHtml)) documentHtml = documentHtml.replace(/<head\b[^>]*>/i, match => `${match}${guard}${base}`);
   else if (/<html\b[^>]*>/i.test(documentHtml)) documentHtml = documentHtml.replace(/<html\b[^>]*>/i, match => `${match}<head>${guard}${base}</head>`);
@@ -6757,12 +6778,32 @@ function roleplayRichFrameHtml(value) {
   const attribute = source => escapeHtml(String(source || "")).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   return `<div class="roleplay-html-card"><iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}" title="角色卡互动内容" sandbox="allow-scripts" srcdoc="${attribute(roleplayRichDocument(value, token))}"></iframe></div>`;
 }
+let lastRoleplayCardAction = { text: "", at: 0 };
+function enterRoleplayCardAction(text, label) {
+  if (!isRoleplayConversation() || abortController) return;
+  const value = String(text || label || "").replace(/\s+/g, " ").trim().slice(0, 4000);
+  if (!value) return;
+  const now = Date.now();
+  if (lastRoleplayCardAction.text === value && now - lastRoleplayCardAction.at < 1200) return;
+  lastRoleplayCardAction = { text: value, at: now };
+  const input = $("input");
+  input.value = `【选择开场】${value}`;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  showToast(`已选择${label ? `「${String(label).slice(0, 28)}」` : "开场"}，正在进入剧情…`);
+  send();
+}
 if (typeof window !== "undefined") window.addEventListener("message", event => {
   const data = event.data;
-  if (!data || data.type !== "jyc-rp-frame-height" || !data.token) return;
+  if (!data || !data.token) return;
   const frame = document.querySelector(`iframe[data-rp-frame-token="${CSS.escape(String(data.token))}"]`);
   if (!frame || frame.contentWindow !== event.source) return;
-  frame.style.height = `${Math.max(120, Math.min(Number(data.height) || 120, 6000))}px`;
+  if (data.type === "jyc-rp-frame-height") {
+    frame.style.height = `${Math.max(120, Math.min(Number(data.height) || 120, 6000))}px`;
+    return;
+  }
+  if (["jyc-rp-card-action", "send", "send-message", "send_message", "select-opening", "select_script"].includes(data.type)) {
+    enterRoleplayCardAction(data.text || data.message || data.prompt || data.content || data.value, data.label);
+  }
 });
 function bubbleHtml(role, content, reasoning, streaming, traces, responseState) {
   let text = content, stickerParts = "";
@@ -6882,7 +6923,8 @@ function makeMsgEl(role, content, opts) {
   const flat = settings.chatLayout === "flat";
   const el = document.createElement("div");
   const stickerOnly = Array.isArray(content) && content.length > 0 && content.every(p => p.type === "sticker");
-  el.className = "msg " + role + (flat ? " flat" : "") + (stickerOnly ? " sticker-only" : "");
+  const richRoleplay = role === "assistant" && isRoleplayConversation() && typeof content === "string" && looksLikeRoleplayRichHtml(content);
+  el.className = "msg " + role + (flat ? " flat" : "") + (stickerOnly ? " sticker-only" : "") + (richRoleplay ? " roleplay-rich-message" : "");
   const timeHtml = (settings.showTime && opts.ts) ? `<span class="msg-time">${formatTime(opts.ts)}</span>` : "";
   const nameHtml = escapeHtml(nameFor(role)) + timeHtml;
   if (flat) {
@@ -14402,7 +14444,18 @@ async function init() {
   refreshStorageStatus();
   startReminderTimer();   // resume any countdowns still ticking from before
 
-  $("sidebar-new-chat").onclick = () => { createConversation(); if (isMobile()) closeSidebar(); };
+  $("sidebar-new-chat").onclick = () => {
+    if (isRoleplayConversation()) {
+      const copy = window.JYCRoleplayBridge?.duplicate?.(currentId);
+      if (copy) {
+        switchConversation(copy.id, true);
+        showToast(`已开启《${copy.title || "剧本"}》的新场次`);
+      }
+    } else {
+      createConversation();
+    }
+    if (isMobile()) closeSidebar();
+  };
   $("sidebar-music").onclick = () => { window.JYCMusic?.open?.(); if (isMobile()) closeSidebar(); };
   $("sidebar-mailbox").onclick = () => { openCompanionPanel("mail"); if (isMobile()) closeSidebar(); };
   $("sidebar-special-days").onclick = () => { openSpecialDaysPanel(); if (isMobile()) closeSidebar(); };

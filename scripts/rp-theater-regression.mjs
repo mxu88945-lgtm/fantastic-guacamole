@@ -17,7 +17,8 @@ ok(html.includes('data-dashboard-action="roleplay"'), "dashboard has no RP theat
 ok(html.includes("window.JYCRoleplayBridge"), "RP bridge is missing");
 ok(html.includes('newConversation("roleplay")'), "RP projects do not create isolated conversations");
 ok(html.includes("function privateRoleConvs()"), "private chats are not separated from RP projects");
-ok(html.includes("privateRoleConvs().filter(c => c.messages.length > 0)"), "private sidebar still includes RP projects");
+ok(html.includes("function sidebarRoleConvs()") && html.includes("roleConvs().filter(isRoleplayConversation)"), "RP and private sidebars are not separated by conversation space");
+ok(html.includes("sidebarRoleConvs().filter(c => c.messages.length > 0)"), "sidebar does not use the active conversation space");
 ok(html.includes("return privateRoleConvs().filter(c => Array.isArray(c.messages)"), "main-chat continuation can still select RP");
 ok(html.includes("【RP 剧场·双层身份协议】"), "RP identity-layer prompt is missing");
 ok(html.includes("戏内事件、感情和人物关系只属于本剧本档案"), "fiction memory isolation rule is missing");
@@ -33,6 +34,8 @@ ok(css.includes(".rp-theater-panel") && css.includes("@media (max-width: 680px)"
 ok(css.includes("#rp-field-opening") && css.includes(".rp-greeting-card.selected"), "mobile-friendly opening editor is missing");
 ok(html.includes("roleplayRichFrameHtml") && html.includes('sandbox="allow-scripts"'), "rich HTML openings are not sandbox-rendered");
 ok(html.includes("jyc-rp-frame-height") && html.includes("Content-Security-Policy"), "rich opening isolation or auto-sizing is missing");
+ok(html.includes("jyc-rp-card-action") && html.includes("enterRoleplayCardAction"), "rich opening choices cannot enter the RP conversation");
+ok(html.includes("roleplay-rich-message") && css.includes(".roleplay-rich-message"), "rich opening cards do not use the wide RP layout");
 ok(html.includes("greetings, openingIndex, alternateGreetings"), "opening selection is not persisted");
 ok(dashboard.includes('action === "roleplay"') && dashboard.includes("jyc:roleplay-updated"), "dashboard does not open or refresh RP theater");
 
