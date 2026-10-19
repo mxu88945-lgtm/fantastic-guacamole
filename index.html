@@ -6221,6 +6221,10 @@ function renderMarkdown(text) {
 
 // ---------- Rendering messages ----------
 function avatarFor(role) {
+  if (role === "assistant" && isRoleplayConversation()) {
+    const p = currentConv()?.rpProject || {};
+    return p.actorAvatar || [...(p.actorName || "剧")][0];
+  }
   return role === "user" ? (settings.userAvatar || "你") : (settings.aiAvatar || "江");
 }
 function nameFor(role) {
@@ -6382,7 +6386,7 @@ function renderMessages() {
     const isLast = i === messages.length - 1;
     const el = makeMsgEl(m.role, m.content, {
       actions: true, isLast, reasoning: m.reasoning, traces: m.traces,
-      responseState: m.responseState, ts: m.ts, rpSpeakerName: m.rpSpeakerName, rpSpeakerAvatar: m.rpSpeakerAvatar,
+      responseState: m.responseState, ts: m.ts, rpSpeakerId: m.rpSpeakerId, rpSpeakerName: m.rpSpeakerName, rpSpeakerAvatar: m.rpSpeakerAvatar,
       tokens: m.tokens, timing: m.timing, promptAudit: m.promptAudit, historyRecall: m.historyRecall,
     });
     el.dataset.idx = i;
@@ -6992,8 +6996,10 @@ function makeMsgEl(role, content, opts) {
   el.className = "msg " + role + (flat ? " flat" : "") + (stickerOnly ? " sticker-only" : "") + (richRoleplay ? " roleplay-rich-message" : "");
   const timeHtml = (settings.showTime && opts.ts) ? `<span class="msg-time">${formatTime(opts.ts)}</span>` : "";
   const nameHtml = escapeHtml(opts.rpSpeakerName || nameFor(role)) + timeHtml;
+  const castMember = opts.rpSpeakerId && isRoleplayConversation() ? roleplayMembers(currentConv().rpProject).find(member => member.id === opts.rpSpeakerId) : null;
+  const castAvatar = castMember ? castMember.avatar : opts.rpSpeakerAvatar;
   const speakerAvatar = opts.rpSpeakerName
-    ? (isImageRef(opts.rpSpeakerAvatar) ? `<div class="avatar"><img src="${escapeHtml(opts.rpSpeakerAvatar)}" alt=""></div>` : `<div class="avatar">${escapeHtml(opts.rpSpeakerName.slice(0, 1))}</div>`)
+    ? (isImageRef(castAvatar) ? `<div class="avatar"><img src="${escapeHtml(castAvatar)}" alt=""></div>` : `<div class="avatar">${escapeHtml(opts.rpSpeakerName.slice(0, 1))}</div>`)
     : avatarHtml(role);
   if (flat) {
     el.innerHTML = `<div class="msg-head">${speakerAvatar}<span class="name">${nameHtml}</span></div>
@@ -7828,6 +7834,7 @@ function normalizedRoleplayProject(value, conv) {
   return {
     title: text("title", 80) || String(conv?.title || "未命名剧本").slice(0, 80),
     actorName: text("actorName", 80), userRole: text("userRole", 240),
+    actorAvatar: /^(https?:\/\/|data:image\/)/.test(raw.actorAvatar || raw.avatar || "") ? String(raw.actorAvatar || raw.avatar).slice(0, 2000000) : "",
     characterPrompt: text("characterPrompt"), world: text("world"), scenario: text("scenario"),
     temporaryPlot: text("temporaryPlot"), opening: greetings[openingIndex], memory: text("memory"),
     greetings, openingIndex, alternateGreetings: greetings.filter((_, index) => index !== openingIndex),
@@ -7836,6 +7843,7 @@ function normalizedRoleplayProject(value, conv) {
     worldEntries: Array.isArray(raw.worldEntries) ? cloneChatData(raw.worldEntries.filter(item => item && typeof item === "object").slice(0, 300)) : [],
     regexRules: Array.isArray(raw.regexRules) ? cloneChatData(raw.regexRules.filter(item => item && typeof item === "object").slice(0, 300)) : [],
     groupEnabled: raw.groupEnabled === true,
+    replyMode: raw.replyMode === "round" ? "round" : "mention",
     leadChannel: { providerId: String(raw.leadChannel?.providerId || "").slice(0, 120), model: String(raw.leadChannel?.model || "").slice(0, 200), enabled: raw.leadChannel?.enabled !== false },
     members: Array.isArray(raw.members) ? raw.members.filter(item => item && item.id !== "lead" && String(item.name || "").trim()).slice(0, 8).map((item, index) => ({
       id: String(item.id || `member-${index}`).slice(0, 120), name: String(item.name).trim().slice(0, 80),
@@ -7849,12 +7857,26 @@ function normalizedRoleplayProject(value, conv) {
   };
 }
 function roleplayMembers(project) {
-  return [{ id: "lead", name: project.actorName || "舞台主角", kind: "actor", prompt: project.characterPrompt, avatar: "", ...project.leadChannel }, ...project.members];
+  return [{ id: "lead", name: project.actorName || "舞台主角", kind: "actor", prompt: project.characterPrompt, ...project.leadChannel, avatar: project.actorAvatar || "" }, ...(project.members || [])];
 }
-function roleplayReplyMembers(project, userText = "") {
+function roleplayMentionSelection(project, userText = "") {
+  const matches = [];
+  const names = roleplayMembers(project).slice().sort((a, b) => b.name.length - a.name.length);
+  const pattern = new RegExp("[@＠](" + names.map(member => member.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?=$|[^A-Za-z0-9_])", "gu");
+  const text = userText.replace(pattern, (token, name, offset) => {
+    // Keep email addresses and quoted mid-word @ strings as ordinary content.
+    if (offset && /[A-Za-z0-9_.]/.test(userText[offset - 1])) return token;
+    const member = names.find(item => item.name === name);
+    if (member && !matches.includes(member.id)) matches.push(member.id);
+    return "";
+  }).trim();
+  return { memberIds: matches, text };
+}
+function roleplayReplyMembers(project, userText = "", memberIds = []) {
   const members = roleplayMembers(project);
-  const mentioned = members.filter(member => new RegExp("@" + member.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?=$|[\\s，。！？、:：])", "u").test(userText));
-  return mentioned.length ? mentioned : members.filter(member => member.enabled !== false);
+  const targets = Array.isArray(memberIds) && memberIds.length ? memberIds : roleplayMentionSelection(project, userText).memberIds;
+  if (targets.length) return [...new Set(targets)].map(id => members.find(member => member.id === id)).filter(Boolean);
+  return project.replyMode === "round" ? members.filter(member => member.enabled !== false) : members.slice(0, 1);
 }
 function roleplaySpeakerPrompt(speaker, project) {
   if (!speaker) return "";
@@ -11536,6 +11558,7 @@ function editMessage(idx) {
   if (m._summary) { showToast("连续性档案不能用“编辑并重发”，可以用“改文字”校正内容"); return; }
   if (idx !== messages.length - 1 && !confirm("编辑这条会删掉它之后的所有消息，确定？")) return;
   $("input").value = messageEditableText(m);
+  window.JYCRoleplayMentions?.restore?.(m.role === "user" ? m.rpReplyMemberIds || [] : []);
   pendingAttachments = Array.isArray(m.content)
     ? m.content.filter(p => p.type === "image" || p.type === "sticker" || p.type === "file").map(p => ({ ...p })) : [];
   renderAttachPreview();
@@ -11628,7 +11651,15 @@ async function send(opts) {
   if (abortController || roleplayGroupRun || replyBooting) return;
   const input = $("input");
   const directParts = opts && Array.isArray(opts.parts) && opts.parts.length ? opts.parts : null;
-  const text = directParts ? "" : input.value.trim();
+  const rawText = directParts ? "" : input.value.trim();
+  const rp = isRoleplayConversation() ? normalizedRoleplayProject(currentConv().rpProject, currentConv()) : null;
+  const mention = rp?.groupEnabled && !directParts ? roleplayMentionSelection(rp, rawText) : { text: rawText, memberIds: [] };
+  const selectedIds = !directParts ? window.JYCRoleplayMentions?.selectedIds?.() || [] : [];
+  const rpReplyMemberIds = [...new Set([...selectedIds, ...mention.memberIds])];
+  const text = mention.text;
+  if (rp?.groupEnabled && !directParts && /(?:^|\s)[@＠][^\s@＠]*$/u.test(rawText) && !mention.memberIds.length) {
+    showToast("从 @ 列表里点选要回复的成员，再发送正文"); return;
+  }
   // iOS PWA fix: image staging (FileReader → decode → canvas) is async. If the
   // user taps 发送 before it finishes, pendingAttachments is still empty and we'd
   // silently bail. Wait for any in-flight image processing to settle first.
@@ -11671,11 +11702,12 @@ async function send(opts) {
   if (!silent && messages.length > 0 && messages[messages.length - 1].role === "user") {
     messages.push({ id: uid(), role: "assistant", content: "（无回复）", ts: Date.now() });
   }
-  messages.push({ id: uid(), role: "user", content: userContent, ts: Date.now() });
+  messages.push({ id: uid(), role: "user", content: userContent, ts: Date.now(), ...(rpReplyMemberIds.length ? { rpReplyMemberIds } : {}) });
   if (!directParts) {
     pendingAttachments = []; renderAttachPreview();
     input.value = ""; autoResize();
     dismissComposerKeyboard(input);
+    window.JYCRoleplayMentions?.clear?.();
   }
   if (!appendLastMessageFast()) renderMessages();
   touchConversation();
@@ -12445,7 +12477,7 @@ async function generateReply() {
   if (!isRoleplayConversation(conv) || !conv.rpProject?.groupEnabled) return generateSingleReply();
   const project = normalizedRoleplayProject(conv.rpProject, conv);
   const latestUser = [...messages].reverse().find(message => message.role === "user" && !message._summary);
-  const members = roleplayReplyMembers(project, latestUser ? messageText(latestUser) : "");
+  const members = roleplayReplyMembers(project, latestUser ? messageText(latestUser) : "", latestUser?.rpReplyMemberIds || []);
   if (!members.length) { showToast("先在群聊设置里勾选本轮发言成员"); return; }
   const requests = members.map(speaker => {
     const profile = speaker.providerId ? providerById(speaker.providerId) : conversationProvider(conv);
@@ -12476,7 +12508,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
   const assistantMsg = {
     id: uid(), role: "assistant", content: "", reasoning: "", traces: [],
     responseState: "submitted", ts: Date.now(),
-    ...(speaker ? { rpSpeakerId: speaker.id, rpSpeakerName: speaker.name, rpSpeakerAvatar: speaker.avatar || "" } : {}),
+    ...(speaker ? { rpSpeakerId: speaker.id, rpSpeakerName: speaker.name, rpSpeakerAvatar: /^https?:\/\//.test(speaker.avatar || "") ? speaker.avatar : "" } : {}),
   };
   messages.push(assistantMsg);
   const el = makeMsgEl("assistant", "", assistantMsg);
@@ -15346,9 +15378,12 @@ window.JYCRoleplayBridge = {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
     if (!conv || abortController || replyBooting || roleplayGroupRun) { showToast("等当前回复结束后再保存设置"); return null; }
     const allowed = {};
-    ["groupEnabled", "members", "leadChannel", "memory"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
+    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
+    const previousPortraits = JSON.stringify(roleplayMembers(normalizedRoleplayProject(conv.rpProject, conv)).map(member => [member.id, member.avatar]));
     conv.rpProject = normalizedRoleplayProject({ ...conv.rpProject, ...allowed }, conv);
     conv.updatedAt = Date.now(); saveConversations();
+    const portraitsChanged = previousPortraits !== JSON.stringify(roleplayMembers(conv.rpProject).map(member => [member.id, member.avatar]));
+    if (conv.id === currentId && portraitsChanged) renderMessages();
     window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: id } }));
     return roleplayPublicProject(conv);
   },

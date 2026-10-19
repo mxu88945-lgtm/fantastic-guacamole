@@ -15,7 +15,7 @@ const context = vm.createContext({
 });
 vm.runInContext(source("function normalizedRoleplayProject(", "function addRoleplayMemory("), context);
 const project = context.normalizedRoleplayProject({
-  actorName: "周竞尧", groupEnabled: true, memory: "已离婚", world: "现世背景",
+  actorName: "周竞尧", groupEnabled: true, replyMode: "round", memory: "已离婚", world: "现世背景",
   worldEntries: [{ content: "顾屿修复的世界书" }], regexRules: [{ pattern: "保留正则" }],
   memories: [{ id: "fact", text: "已经签字", at: 1 }],
   members: [{ id: "director", name: "导演", kind: "director", providerId: "other", model: "director-model", prompt: "保持节奏" },
@@ -28,7 +28,12 @@ assert.equal(context.roleplayReplyMembers(project).map(member => member.name).jo
 assert.equal(context.roleplayReplyMembers(project, "@江屿 你来")[0].id, "guest", "@ can explicitly invite an unchecked member");
 assert.equal(context.roleplayReplyMembers(project, "@导演 不要接管主角")[0].kind, "director");
 assert.equal(context.roleplayReplyMembers(project, "提到了导演").length, 2, "plain names are not @ commands");
-assert.equal(context.roleplayReplyMembers(project, "@江屿的朋友").length, 2, "partial name matches cannot select a member");
+assert.equal(context.roleplayReplyMembers(project, "@江屿abc").length, 2, "partial Latin name matches cannot select a member");
+assert.equal(context.roleplayReplyMembers(project, "@江屿你来接话")[0].id, "guest", "Chinese text need not have a space after the mention");
+assert.equal(context.roleplayMentionSelection(project, "＠江屿，你来").text, "，你来");
+assert.equal(context.roleplayReplyMembers(project, "继续", ["guest"])[0].id, "guest", "persisted UI selection must determine the next API call");
+assert.equal(context.roleplayReplyMembers(project, "继续", ["removed-member"]).length, 0, "stale selections must not fall back to the lead");
+assert.equal(context.roleplayMentionSelection(project, "a@江屿.example").memberIds.length, 0, "emails are not mentions");
 const prompt = context.roleplaySpeakerPrompt(project.members[0], project);
 assert.match(prompt, /只由|仅由「导演」发言/);
 assert.match(prompt, /不替用户决定|不要替用户决定/);
@@ -37,6 +42,10 @@ assert.match(prompt, /后台共享不等于人物全知/);
 const legacy = context.normalizedRoleplayProject({ actorName: "旧角色" }, { title: "旧场次" });
 assert.equal(legacy.groupEnabled, false);
 assert.equal(context.roleplayMembers(legacy).length, 1);
+const mentionDefault = context.normalizedRoleplayProject({ ...project, replyMode: undefined });
+assert.equal(mentionDefault.replyMode, "mention");
+assert.equal(context.roleplayReplyMembers(mentionDefault, "继续").map(member => member.id).join(","), "lead", "new and existing groups must not invite every member by default");
+assert.equal(context.roleplayReplyMembers(mentionDefault, "@江屿你来").map(member => member.id).join(","), "guest");
 
 const profiles = { base: { id: "base", provider: "openai", baseUrl: "https://base.test/v1", apiKey: "base-key", model: "profile-model" },
   other: { id: "other", provider: "gemini", baseUrl: "https://other.test/v1beta", apiKey: "other-key", model: "other-model" } };
@@ -59,6 +68,11 @@ await context.generateReply();
 assert.equal(context.calls.length, 1);
 assert.equal(context.calls[0].speaker.name, "导演");
 context.messages[0].content = "继续";
+context.messages[0].rpReplyMemberIds = ["guest"];
+context.calls = [];
+await context.generateReply();
+assert.equal(context.calls.map(call => call.speaker.id).join(","), "guest", "selecting a member without visible @ text must route only that member");
+delete context.messages[0].rpReplyMemberIds;
 context.calls = [];
 context.generateSingleReply = async () => { context.calls.push(1); vm.runInContext("roleplayGroupRun.cancelled = true", context); return true; };
 await context.generateReply();

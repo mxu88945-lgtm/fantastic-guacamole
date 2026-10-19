@@ -1,10 +1,12 @@
+import { readRoleplayAvatar } from "./rp-avatar.js";
+
 const bridge = window.JYCRoleplayBridge;
 
 if (!bridge) {
   console.error("RP theater bridge is unavailable");
 } else {
   const $ = (id) => document.getElementById(id);
-  const state = { editingId: "", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [] };
+  const state = { editingId: "", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false };
   const openingState = { projectId: "", index: 0, forceNew: true };
 
   function safeText(value, max = 200000) {
@@ -296,6 +298,7 @@ function plainPreviewWithMedia(value) {
             <div class="rp-editor-grid">
               <label data-rp-sec="main"><span>剧目名称</span><input id="rp-field-title" maxlength="80" placeholder="例如：镜澜湾三号院" /></label>
               <label data-rp-sec="main"><span>TA 在戏里扮演谁</span><input id="rp-field-actor" maxlength="80" placeholder="例如：虞山行" /></label>
+              <section class="rp-wide rp-card-block rp-avatar-editor" data-rp-sec="main"><div id="rp-actor-avatar-preview" class="rp-actor-avatar-preview" aria-label="戏内角色头像"></div><div><strong>戏内角色头像</strong><p>只用于这个剧本，聊天与开场选择页都会使用。</p><button type="button" id="rp-actor-avatar-pick">从相册选择图片</button><button type="button" id="rp-actor-avatar-clear">移除头像</button><input type="file" id="rp-actor-avatar-file" accept="image/*" hidden></div></section>
               <label class="rp-wide" data-rp-sec="main"><span>你在戏里的身份</span><input id="rp-field-user-role" maxlength="240" placeholder="例如：宁梦曦；留空也可以在开场时说明" /></label>
               <section class="rp-wide rp-card-block" id="rp-desc-block" data-rp-sec="main" hidden>
                 <div class="rp-card-block-head"><div><strong>角色简介</strong><small id="rp-tags-count"></small></div><button type="button" id="rp-tags-toggle">展开</button></div>
@@ -365,6 +368,7 @@ function plainPreviewWithMedia(value) {
     return {
       title: $("rp-field-title").value.trim(),
       actorName: $("rp-field-actor").value.trim(),
+      actorAvatar: state.actorAvatar,
       userRole: $("rp-field-user-role").value.trim(),
       characterPrompt: $("rp-field-character").value.trim(),
       world: wbText,
@@ -384,12 +388,21 @@ function plainPreviewWithMedia(value) {
     };
   }
 
+  function renderActorAvatar() {
+    $("rp-actor-avatar-preview").innerHTML = state.actorAvatar ? `<img src="${escapeHtml(state.actorAvatar)}" alt="戏内角色头像">` : escapeHtml([...($("rp-field-actor").value || "剧")][0]);
+    $("rp-actor-avatar-pick").textContent = state.avatarPending ? "正在处理图片…" : "从相册选择图片";
+  }
+
   function fillEditor(project) {
     const data = project?.rpProject || project || {};
     state.editingId = project?.id || "";
+    state.avatarRevision++;
+    state.avatarPending = false;
+    state.actorAvatar = /^(https?:\/\/|data:image\/)/.test(data.actorAvatar || data.avatar || "") ? data.actorAvatar || data.avatar : "";
     state.files = projectFiles(project);
     $("rp-field-title").value = safeText(data.title || project?.title || "", 80);
     $("rp-field-actor").value = safeText(data.actorName || "", 80);
+    renderActorAvatar();
     $("rp-field-user-role").value = safeText(data.userRole || "", 240);
     $("rp-field-character").value = safeText(data.characterPrompt);
     $("rp-field-world").value = safeText(data.theaterWorldBackground || data.world);
@@ -442,7 +455,7 @@ function plainPreviewWithMedia(value) {
     $("rp-detail-desc-toggle").textContent = "展开";
     $("rp-detail-desc-toggle").hidden = desc.length <= 120;
     const avatarEl = $("rp-detail-avatar");
-    const img = /^(https?:\/\/|data:image\/)/.test(data.avatar || "") ? data.avatar : "";
+    const img = /^(https?:\/\/|data:image\/)/.test(data.actorAvatar || data.avatar || "") ? data.actorAvatar || data.avatar : "";
     avatarEl.innerHTML = img ? `<img src="${escapeHtml(img)}" alt="" />` : escapeHtml([...(data.actorName || data.title || "剧")][0]);
     $("rp-detail-desc-block").hidden = !desc;
     const tags = Array.isArray(data.tags) ? data.tags : [];
@@ -621,7 +634,7 @@ function plainPreviewWithMedia(value) {
       const actor = project.rpProject?.actorName || "未命名角色";
       const userRole = project.rpProject?.userRole ? `你演 ${project.rpProject.userRole}` : "你的戏内身份待定";
       return `<article class="rp-project-card" data-rp-project="${escapeHtml(project.id)}">
-        <span class="rp-project-mark">${escapeHtml([...actor][0] || "剧")}</span>
+        <span class="rp-project-mark">${project.rpProject?.actorAvatar ? `<img src="${escapeHtml(project.rpProject.actorAvatar)}" alt="">` : escapeHtml([...actor][0] || "剧")}</span>
         <button type="button" class="rp-project-copy" data-rp-detail="${escapeHtml(project.id)}"><small>RP PROJECT · ${escapeHtml(formatTime(project.updatedAt))}</small><strong>${escapeHtml(project.title || "未命名剧本")}</strong><p>${escapeHtml(info.roleName || "TA")} 演 ${escapeHtml(actor)} · ${escapeHtml(userRole)}</p><em>${project.messageCount || 0} 条正文 · ${project.memoryCount || 0} 条剧情记忆</em></button>
         <button type="button" class="rp-continue" data-rp-open="${escapeHtml(project.id)}">继续对戏</button>
         <div class="rp-project-menu"><button type="button" data-rp-edit="${escapeHtml(project.id)}">角色卡与开场白</button><button type="button" data-rp-duplicate="${escapeHtml(project.id)}">选择开场并新建对话</button><button type="button" class="danger" data-rp-delete="${escapeHtml(project.id)}">删除</button></div>
@@ -674,7 +687,7 @@ function plainPreviewWithMedia(value) {
     const hasText = choices.some(item => item.value.trim());
     $("rp-opening-note").textContent = hasText ? "选择后以角色的第一条消息开始新场次" : "旧剧本只保存了封面，缺少文字开场。请从完整角色卡 JSON 补全。";
     const actor = project.rpProject?.actorName || "角色";
-    const avatar = bridge.role().roleAvatar;
+    const avatar = project.rpProject?.actorAvatar || "";
     const portrait = /^(https?:\/\/|data:image\/)/.test(avatar || "")
       ? `<img src="${escapeHtml(avatar)}" alt="" />` : `<span>${escapeHtml([...actor][0] || "剧")}</span>`;
     $("rp-opening-actor").innerHTML = `${portrait}<strong>${escapeHtml(actor)}</strong>`;
@@ -721,6 +734,7 @@ function plainPreviewWithMedia(value) {
   }
 
   function save(shouldEnter) {
+    if (state.avatarPending) { bridge.toast("头像正在处理，稍等一下再保存"); return; }
     const draft = currentDraft();
     if (!validateDraft(draft)) return;
     const project = state.editingId ? bridge.update(state.editingId, draft) : bridge.create(draft);
@@ -790,6 +804,7 @@ function plainPreviewWithMedia(value) {
     showEditor({ rpProject: {
       title: name ? `${name}的故事` : filename.replace(/\.[^.]+$/, ""),
       actorName: name,
+      actorAvatar: /^(https?:\/\/|data:image\/)/.test(data.avatar || "") ? data.avatar : "",
       characterPrompt,
       world,
       worldEntries,
@@ -926,6 +941,21 @@ function plainPreviewWithMedia(value) {
   });
   $("rp-field-opening").addEventListener("input", () => {
     state.greetings[state.selectedGreeting] = safeText($("rp-field-opening").value, 300000);
+  });
+  $("rp-actor-avatar-pick").addEventListener("click", () => $("rp-actor-avatar-file").click());
+  $("rp-actor-avatar-clear").addEventListener("click", () => { state.avatarRevision++; state.avatarPending = false; state.actorAvatar = ""; renderActorAvatar(); });
+  $("rp-field-actor").addEventListener("input", renderActorAvatar);
+  $("rp-actor-avatar-file").addEventListener("change", async event => {
+    const file = event.target.files[0];
+    event.target.value = "";
+    if (!file) return;
+    const revision = ++state.avatarRevision;
+    state.avatarPending = true; renderActorAvatar();
+    try {
+      const avatar = await readRoleplayAvatar(file);
+      if (revision === state.avatarRevision) state.actorAvatar = avatar;
+    } catch (error) { bridge.toast(error.message); }
+    finally { if (revision === state.avatarRevision) { state.avatarPending = false; renderActorAvatar(); } }
   });
   $("rp-import-project").addEventListener("click", () => { state.repairTargetId = ""; $("rp-import-file").click(); });
   $("rp-import-file").addEventListener("change", async (event) => { await readFiles(event.target.files, true); event.target.value = ""; });
