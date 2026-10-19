@@ -6810,6 +6810,7 @@ function roleplayRegexDisplay(answer) {
   if (looksLikeRoleplayRichHtml(out)) return out;
   if (/<(?:div|span|audio|img|section|table|details|p)\b/i.test(out)) return `<!doctype html><html><body style="font:15px/1.8 -apple-system,sans-serif;white-space:pre-wrap">${out}</body></html>`;
   return out;
+}
 function roleplaySemanticDisplay(answer) {
   const source = String(answer || "");
   if (!/<(?:scene|plot|status|[a-z][\w-]*_status)\b/i.test(source)) return "";
@@ -6836,7 +6837,6 @@ function roleplaySemanticDisplay(answer) {
     return `<section class="rp-status-card"><header>${title}</header>${rows || '<div class="rp-status-row rp-status-row-wide"><span>本轮状态等待更新</span></div>'}</section>`;
   }).join("");
   return sceneHtml + (body ? `<div class="rp-story-body">${renderMarkdown(body)}</div>` : "") + statusHtml;
-}
 }
 function looksLikeRoleplayRichHtml(value) {
   return /<!doctype\s+html|<html\b|<head\b|<body\b|<style\b|<script\b/i.test(roleplayRichSource(value));
@@ -6926,9 +6926,9 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState) 
       traces, responseState, streaming);
   }
   if (role === "assistant" && !streaming && isRoleplayConversation() && !looksLikeRoleplayRichHtml(answer)) answer = roleplayRegexDisplay(answer);
+  const useRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && looksLikeRoleplayRichHtml(answer);
   const semanticRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && !useRoleplayHtml
     ? roleplaySemanticDisplay(answer) : "";
-  const useRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && looksLikeRoleplayRichHtml(answer);
   let textHtml = answer
     ? (useRoleplayHtml ? roleplayRichFrameHtml(answer) : (semanticRoleplayHtml || (role === "assistant" ? renderMarkdown(answer) : escapeHtml(answer).replace(/\n/g, "<br>"))))
     : "";
@@ -7885,9 +7885,9 @@ function normalizedRoleplayProject(value, conv) {
     leadChannel: { providerId: String(raw.leadChannel?.providerId || "").slice(0, 120), model: String(raw.leadChannel?.model || "").slice(0, 200), enabled: raw.leadChannel?.enabled !== false, playedByOwner: raw.leadChannel?.playedByOwner !== false },
     members: Array.isArray(raw.members) ? raw.members.filter(item => item && item.id !== "lead" && String(item.name || "").trim()).slice(0, 8).map((item, index) => ({
       id: String(item.id || `member-${index}`).slice(0, 120), name: String(item.name).trim().slice(0, 80),
+      kind: item.kind === "director" ? "director" : "actor", prompt: String(item.prompt || "").slice(0, 30000), playedByOwner: item.playedByOwner === true,
       greeting: String(item.greeting || "").slice(0, 120000), beautificationProtocol: String(item.beautificationProtocol || "").slice(0, 30000),
       regexRules: Array.isArray(item.regexRules) ? cloneChatData(item.regexRules.filter(rule => rule && typeof rule === "object").slice(0, 100)) : [],
-      kind: item.kind === "director" ? "director" : "actor", prompt: String(item.prompt || "").slice(0, 30000), playedByOwner: item.playedByOwner === true,
       avatar: /^(https?:\/\/|data:image\/)/.test(item.avatar || "") ? String(item.avatar).slice(0, 2000000) : "",
       providerId: String(item.providerId || "").slice(0, 120), model: String(item.model || "").slice(0, 200), enabled: item.enabled !== false,
     })) : [],
@@ -7963,6 +7963,7 @@ function roleplayReplyMembers(project, userText = "", memberIds = []) {
   const targets = Array.isArray(memberIds) && memberIds.length ? memberIds : roleplayMentionSelection(project, userText).memberIds;
   if (targets.length) return [...new Set(targets)].map(id => members.find(member => member.id === id)).filter(Boolean);
   return project.replyMode === "round" ? members.filter(member => member.enabled !== false) : members.slice(0, 1);
+}
 function roleplayStatusTag(speaker, project, output = "") {
   const ownSources = [output, speaker?.beautificationProtocol, speaker?.greeting, speaker?.prompt,
     ...(Array.isArray(speaker?.regexRules) ? speaker.regexRules.flatMap(rule => [rule?.findRegex, rule?.replaceString]) : [])];
@@ -7996,7 +7997,6 @@ function ensureRoleplayStatusOutput(value, speaker, project) {
     : `状态：${speaker.name}已完成本轮回应｜当前场景：${scene}｜待回应：等待${userName}回应`;
   return `${output}\n\n<${tag}>${content}</${tag}>`;
 }
-}
 function roleplaySpeakerPrompt(speaker, project, temporaryPlot = null) {
   if (!speaker) return "";
   return ["【本轮共演分工】", `在场成员：${roleplayMembers(project).map(member => `${member.name}${member.kind === "director" ? "（导演）" : ""}`).join("、")}。`,
@@ -8004,8 +8004,8 @@ function roleplaySpeakerPrompt(speaker, project, temporaryPlot = null) {
     speaker.kind === "director" ? "你是本场导演：负责场景、节奏、NPC 和必要的承接；不要接管已加入的角色，也不要替用户决定行动、感情或台词。导演建议不等于已发生事实。"
       : `本轮舞台身份是「${speaker.name}」。主角「${project.actorName}」的人物资料只定义主角；本条以当前成员的人设和视角演出，不替其他成员或用户发言。`,
     speaker.prompt ? `【${speaker.name}的共演资料】\n${speaker.prompt}` : "",
-    roleplayOutputProtocol(speaker, project),
     "共享本剧本的世界观、场景、正文与连续性档案。各角色只使用自己在戏内知道的信息；后台共享不等于人物全知。只输出这一成员的正文，不重演整轮对话。",
+    roleplayOutputProtocol(speaker, project),
     temporaryPlot?.text ? `【临时剧情执行令｜${temporaryPlot.mode === "once" ? "仅本轮" : "持续幕后方向"}】\n这是用户私下交给「${speaker.name}」的幕后安排，不是已经发生的事实，也不得在正文里提及、解释或泄露设置与指令。当前回复必须在保持人设、时间线和知识边界的前提下自然落实至少一个可观察的新进展；不替用户新增台词、动作、心理、身体反应、同意或关键选择。${temporaryPlot.mode === "persistent" ? "沿最新进展继续推进，已经发生的事件不要重复触发。" : "若有多个步骤，本轮先推进到用户可以回应的位置。"}\n\n【本轮安排】\n${temporaryPlot.text}` : "",
   ].filter(Boolean).join("\n\n");
 }
@@ -12901,13 +12901,13 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
         renderCharLockScreen();
       }
       // Only the isolated workbench copy runs; app source, chat data and keys stay out of reach.
+      if (!independent) assistantMsg.content = consumeWorkbenchDirective(assistantMsg.content);
       // Group roleplay follows the same two-layer contract as 惟镜: the prompt
       // asks for one stable status tag, and the saved reply is repaired if a
       // relay truncates or omits that final block. The raw text stays portable;
       // display-time rendering below turns the tags into native cards.
       if (replyProject?.groupEnabled && replySpeaker)
         assistantMsg.content = ensureRoleplayStatusOutput(assistantMsg.content, replySpeaker, replyProject);
-      if (!independent) assistantMsg.content = consumeWorkbenchDirective(assistantMsg.content);
       // Texting like a real person: split the finished reply into multiple bubbles
       // and standalone stickers, then reveal them one at a time.
       const segs = !isRoleplayConversation() && (settings.multiBubble || settings.aiSticker)
