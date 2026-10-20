@@ -46,6 +46,8 @@ assert.equal(context.roleplayStatusTag(actorWithStatus, project), "gts_status");
 assert.match(context.ensureRoleplayStatusOutput("<scene>深夜｜休息室</scene>\n他抬眼。", actorWithStatus, project), /<gts_status>[\s\S]*<\/gts_status>$/);
 const legacy = context.normalizedRoleplayProject({ actorName: "旧角色" }, { title: "旧场次" });
 assert.equal(legacy.groupEnabled, false);
+assert.equal(legacy.chatTextColor, "");
+assert.equal(context.normalizedRoleplayProject({ chatTextColor: "#AABBCC", chatNarrationColor: "invalid", chatQuoteColor: "#123456" }, {}).chatTextColor, "#aabbcc");
 assert.equal(context.roleplayMembers(legacy).length, 1);
 assert.equal(legacy.leadChannel.playedByOwner, true, "existing primary cards keep the owner actor by default");
 assert.equal(project.members[0].playedByOwner, false, "existing directors are independent by default");
@@ -65,6 +67,8 @@ assert.equal(context.roleplayTemporaryPlotFor(privatePlot, { id: "lead" }, plotU
 assert.match(context.roleplayTemporaryPlotFor(privatePlot, { id: "director" }, plotUserMessage).text, /电话/);
 assert.ok(groupUi.includes('id="rp-temporary-section"') && groupUi.includes('data-plot-recipient'), "right drawer temporary plot editor is missing");
 assert.ok(groupUi.includes('id="rp-user-profile"') && groupUi.includes('id="rp-user-identity"'), "right drawer user identity editor is missing");
+assert.ok(groupUi.includes('id="rp-display-section"') && groupUi.includes('textThemeRow("chatTextColor"') && groupUi.includes("previewSceneTextTheme"), "RP text color theme controls are missing");
+assert.ok(html.includes("function applyRoleplayTextTheme(") && html.includes('"chatTextColor", "chatNarrationColor", "chatQuoteColor"'), "per-scene text colors are not persisted and applied");
 assert.ok(groupUi.includes("data-export-scene") && groupUi.includes("data-import-scene"), "right drawer TXT export/import actions are missing");
 assert.ok(groupUi.includes('<select data-field="model">') && !groupUi.includes("<datalist"), "member models must use a real mobile-friendly select");
 assert.ok(groupUi.includes("data-fetch-models") && groupUi.includes("pullChannelModels"), "member channels cannot fetch their own model lists");

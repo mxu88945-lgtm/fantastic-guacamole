@@ -6175,6 +6175,17 @@ function updateConversationSpaceUI() {
   }
 }
 
+function applyRoleplayTextTheme(box = $("messages"), projectOverride = null) {
+  if (!box) return;
+  ["--system-text-color", "--narration-text-color", "--quote-text-color"].forEach(name => box.style.removeProperty(name));
+  if (!isRoleplayConversation()) return;
+  const project = projectOverride || normalizedRoleplayProject(currentConv()?.rpProject, currentConv());
+  const body = project.chatTextColor;
+  if (body) box.style.setProperty("--system-text-color", body);
+  if (project.chatNarrationColor || body) box.style.setProperty("--narration-text-color", project.chatNarrationColor || body);
+  if (project.chatQuoteColor || body) box.style.setProperty("--quote-text-color", project.chatQuoteColor || body);
+}
+
 // ---------- Minimal markdown ----------
 function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -6326,6 +6337,7 @@ function loadEarlierMessages() {
 }
 function renderMessages() {
   const box = $("messages");
+  applyRoleplayTextTheme(box);
   const scroller = $("chat");
   const preserve = isRoleplayConversation() && box.dataset.conversationId === currentId;
   const oldTop = scroller?.scrollTop || 0;
@@ -7856,6 +7868,7 @@ function conversationProjectFiles(conv = currentConv()) {
 function normalizedRoleplayProject(value, conv) {
   const raw = value && typeof value === "object" ? value : {};
   const text = (key, max = 120000) => String(raw[key] || "").replace(/\u0000/g, "").slice(0, max);
+  const color = key => /^#[0-9a-f]{6}$/i.test(String(raw[key] || "")) ? String(raw[key]).toLowerCase() : "";
   const legacyPlot = raw.temporaryPlot && typeof raw.temporaryPlot === "object" ? raw.temporaryPlot : null;
   const plotMode = String(raw.temporaryPlotMode || legacyPlot?.mode || "once");
   const plotRecipientSource = raw.temporaryPlotRecipientIds !== undefined ? raw.temporaryPlotRecipientIds : legacyPlot?.recipientIds;
@@ -7868,6 +7881,7 @@ function normalizedRoleplayProject(value, conv) {
   return {
     title: text("title", 80) || String(conv?.title || "未命名剧本").slice(0, 80),
     actorName: text("actorName", 80), userRole: text("userRole", 240), userIdentity: text("userIdentity", 30000),
+    chatTextColor: color("chatTextColor"), chatNarrationColor: color("chatNarrationColor"), chatQuoteColor: color("chatQuoteColor"),
     actorAvatar: /^(https?:\/\/|data:image\/)/.test(raw.actorAvatar || raw.avatar || "") ? String(raw.actorAvatar || raw.avatar).slice(0, 2000000) : "",
     characterPrompt: text("characterPrompt"), world: text("world"), scenario: text("scenario"),
     temporaryPlot: String(legacyPlot?.text ?? raw.temporaryPlot ?? "").replace(/\u0000/g, "").slice(0, 120000),
@@ -15777,15 +15791,22 @@ window.JYCRoleplayBridge = {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
     if (!conv || abortController || replyBooting || roleplayGroupRun) { showToast("等当前回复结束后再保存设置"); return null; }
     const allowed = {};
-    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
+    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
     const previousPortraits = JSON.stringify(roleplayMembers(normalizedRoleplayProject(conv.rpProject, conv)).map(member => [member.id, member.avatar]));
+    const previousTextTheme = JSON.stringify([conv.rpProject?.chatTextColor, conv.rpProject?.chatNarrationColor, conv.rpProject?.chatQuoteColor]);
     conv.rpProject = normalizedRoleplayProject({ ...conv.rpProject, ...allowed }, conv);
     conv.updatedAt = Date.now(); saveConversations();
     const portraitsChanged = previousPortraits !== JSON.stringify(roleplayMembers(conv.rpProject).map(member => [member.id, member.avatar]));
-    if (conv.id === currentId && portraitsChanged) renderMessages();
+    const textThemeChanged = previousTextTheme !== JSON.stringify([conv.rpProject.chatTextColor, conv.rpProject.chatNarrationColor, conv.rpProject.chatQuoteColor]);
+    if (conv.id === currentId && (portraitsChanged || textThemeChanged)) renderMessages();
     if (conv.id === currentId) updateConversationSpaceUI();
     window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: id } }));
     return roleplayPublicProject(conv);
+  },
+  previewSceneTextTheme(id, patch) {
+    const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
+    if (!conv || conv.id !== currentId) return;
+    applyRoleplayTextTheme($("messages"), normalizedRoleplayProject({ ...conv.rpProject, ...(patch || {}) }, conv));
   },
   editSceneMemory(id, entryId, text) {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));

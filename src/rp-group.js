@@ -54,6 +54,31 @@ if (bridge) {
       row.querySelectorAll("[data-field]").forEach(input => { member[input.dataset.field] = input.type === "checkbox" ? input.checked : input.value; });
     });
   }
+  function cssHex(name, fallback) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    if (/^#[0-9a-f]{6}$/i.test(value)) return value;
+    if (/^#[0-9a-f]{3}$/i.test(value)) return `#${[...value.slice(1)].map(char => char + char).join("")}`;
+    return fallback;
+  }
+  function textThemeDefaults() {
+    const body = cssHex("--system-text-color", cssHex("--text", "#111111"));
+    return {
+      chatTextColor: body,
+      chatNarrationColor: cssHex("--narration-text-color", body),
+      chatQuoteColor: cssHex("--quote-text-color", body),
+    };
+  }
+  function textThemeRow(field, label, fallback) {
+    const custom = draft[field] || "";
+    return `<label class="rp-text-color-row"><span><strong>${label}</strong><small data-rp-color-state="${field}">${custom ? custom.toUpperCase() : "跟随本体主题"}</small></span><input type="color" data-rp-text-color="${field}" value="${escape(custom || fallback)}" aria-label="${label}颜色"></label>`;
+  }
+  function previewTextTheme() {
+    bridge.previewSceneTextTheme?.(sceneId, {
+      chatTextColor: draft.chatTextColor || "",
+      chatNarrationColor: draft.chatNarrationColor || "",
+      chatQuoteColor: draft.chatQuoteColor || "",
+    });
+  }
   function save() {
     if (avatarPending) { bridge.toast("头像正在处理，稍等一下再保存"); return false; }
     collect();
@@ -68,6 +93,7 @@ if (bridge) {
       temporaryPlot: draft.temporaryPlot, temporaryPlotMode: draft.temporaryPlotMode,
       temporaryPlotRemainingUses: draft.temporaryPlotRemainingUses,
       temporaryPlotRecipientIds: draft.temporaryPlotRecipientIds,
+      chatTextColor: draft.chatTextColor, chatNarrationColor: draft.chatNarrationColor, chatQuoteColor: draft.chatQuoteColor,
     });
     if (result) { dirty = false; return true; }
     return false;
@@ -145,7 +171,7 @@ if (bridge) {
     return raw || "剧情记忆提取失败";
   }
   function installSectionFolds() {
-    panel.querySelectorAll("#rp-members-section, #rp-user-profile, #rp-temporary-section, #rp-scene-memory").forEach(section => {
+    panel.querySelectorAll("#rp-members-section, #rp-user-profile, #rp-display-section, #rp-temporary-section, #rp-scene-memory").forEach(section => {
       section.classList.add("rp-group-collapsible");
       const head = section.querySelector(":scope > .rp-group-section-head");
       if (!head || head.querySelector("[data-collapse-section]")) return;
@@ -181,11 +207,13 @@ if (bridge) {
     avatarPending = 0;
     dirty = false;
     library = bridge.castLibrary();
+    const textDefaults = textThemeDefaults();
     panel.innerHTML = `<aside class="rp-group-drawer" role="dialog" aria-modal="true" aria-labelledby="rp-group-title" tabindex="-1">
       <header><div><small>共演设置 · 仅本场剧本</small><h2 id="rp-group-title">${escape(scene.title)}</h2></div><button type="button" data-close aria-label="关闭共演设置">×</button></header>
       <div class="rp-group-scroll"><section class="rp-group-stats" aria-label="本次共演"><div><strong>${scene.turns}</strong><span>对话轮数</span></div><div><strong>${scene.replies}</strong><span>角色回复</span></div><div><strong>${scene.messageCount}</strong><span>消息总数</span></div></section>
       <section id="rp-members-section"><div class="rp-group-section-head"><h3>成员（<span id="rp-cast-count"></span>）</h3><label class="rp-cast-check"><input id="rp-group-enabled" type="checkbox" ${draft.groupEnabled ? "checked" : ""}>开启群聊</label></div><label>发言方式<select id="rp-group-reply-mode"><option value="mention" ${draft.replyMode !== "round" ? "selected" : ""}>按 @ 指定；未指定时只由主角回复</option><option value="round" ${draft.replyMode === "round" ? "selected" : ""}>勾选的成员依次回复</option></select></label><p class="rp-group-note">输入 @ 后点选成员，本轮只让选中的人发言。只有选择“依次回复”时，下方的“参与每轮回复”勾选才会生效。</p><div id="rp-cast-list"></div><div class="rp-cast-add"><button type="button" data-add="actor">＋ 添加角色</button><button type="button" data-add="director">＋ 新建导演卡</button><button type="button" data-import>导入角色卡</button></div><label class="rp-cast-library">从角色库添加<select id="rp-cast-library"><option value="">选择已有角色…</option>${library.map((role, index) => `<option value="${index}">${escape(role.label || role.name)}</option>`).join("")}</select></label><input type="file" id="rp-cast-file" accept=".json,.txt,.md,application/json,text/plain" hidden></section>
       <section id="rp-user-profile"><div class="rp-group-section-head"><h3>用户身份</h3><span class="rp-group-note">仅本剧本</span></div><p class="rp-group-note">这份身份只发给本场共演角色，不会改动顾祁砚本体里的“周惟惟”，也不会串进其他剧本。</p><label>姓名 / 戏内身份<input id="rp-user-role" maxlength="240" value="${escape(draft.userRole || "")}" placeholder="例如：宁梦曦"></label><label>用户身份资料<textarea id="rp-user-identity" rows="8" maxlength="30000" placeholder="填写背景、经历、关系、外貌或这条剧情里需要角色知道的身份资料……">${escape(draft.userIdentity || "")}</textarea></label></section>
+      <section id="rp-display-section"><div class="rp-group-section-head"><h3>文字显示主题</h3><span class="rp-group-note">仅本剧本</span></div><p class="rp-group-note">单独调整这个剧情窗口里角色回复的正文、旁白与引用颜色，不影响顾祁砚本体和其他剧本。</p><div class="rp-text-theme-grid">${textThemeRow("chatTextColor", "正文", textDefaults.chatTextColor)}${textThemeRow("chatNarrationColor", "旁白", textDefaults.chatNarrationColor)}${textThemeRow("chatQuoteColor", "引用", textDefaults.chatQuoteColor)}</div><button type="button" data-reset-text-theme>全部跟随本体主题</button></section>
       <section id="rp-temporary-section"><div class="rp-group-section-head"><h3>临时剧情</h3><span class="rp-group-note">正文不显示</span></div><p class="rp-group-note">仅本对话生效。群聊只有本轮被你 @ 且符合接收范围的角色能看到；单人剧情直接发送或续演即可。</p><label>生效时长<select id="rp-temporary-mode"><option value="once" ${draft.temporaryPlotMode === "once" ? "selected" : ""}>仅下一次（默认）</option><option value="counted" ${draft.temporaryPlotMode === "counted" ? "selected" : ""}>持续指定次数</option><option value="persistent" ${draft.temporaryPlotMode === "persistent" ? "selected" : ""}>持续到手动结束</option></select></label><label id="rp-temporary-uses-wrap">剩余成功次数<input id="rp-temporary-uses" type="number" min="1" max="100" value="${Number(draft.temporaryPlotRemainingUses) || 3}"></label><fieldset id="rp-plot-recipients" class="rp-plot-recipients"></fieldset><label>幕后安排<textarea id="rp-temporary-plot" rows="12" maxlength="120000" placeholder="例如：让他接到一通紧急电话；或保持缓慢对峙，不急着和解……">${escape(draft.temporaryPlot || "")}</textarea></label><div class="rp-cast-add"><button type="button" data-clear-plot>清空 / 结束</button></div><p class="rp-group-note">成功回复后按次数消耗；失败或停止时保留。持续方向会沿最新进展推进，不要求重复已经发生的事件。</p></section>
       <section id="rp-scene-memory"><div class="rp-group-section-head"><h3>本窗口剧情记忆</h3><button type="button" data-refresh>提取新记忆</button></div><p id="rp-scene-memory-count" class="rp-group-note"></p><p class="rp-group-note">以下手填档案、自动记忆和较早剧情摘要，会随本窗口的后续请求提供给所有共演成员。人物仍需遵守戏内知情范围。本体可回顾最近的共同演出，剧情档案保存在各自剧本里。</p><p id="rp-memory-action-status" class="rp-group-note" role="status" aria-live="polite"></p><details open><summary>手填连续性档案</summary><textarea id="rp-memory-manual" rows="6" maxlength="120000" aria-label="手填连续性档案"></textarea><button type="button" data-save-manual>保存档案</button></details><details open><summary>演出中保存的记忆</summary><div id="rp-memory-list"></div><label>补充一条重要事实<textarea id="rp-memory-new" rows="3" maxlength="1200" placeholder="只记录已经发生的剧情"></textarea></label><button type="button" data-add-memory>添加记忆</button></details><details><summary>较早剧情摘要 · 只读</summary><pre id="rp-memory-summary"></pre></details></section>
       <section class="rp-group-links"><button type="button" data-detail>情景与角色资料 ›</button><button type="button" data-export-scene>导出当前对话 TXT ↓</button><button type="button" data-import-scene>导入对话 TXT · 新建副本 ↑</button><input type="file" id="rp-scene-import-file" accept=".txt,.json,text/plain,application/json" hidden><button type="button" data-home>回到顾祁砚本体主页 ›</button></section></div>
@@ -256,6 +284,13 @@ if (bridge) {
   }
   panel.addEventListener("input", event => {
     if (event.target.closest("[data-member]") || event.target.closest("#rp-user-profile") || event.target.closest("#rp-temporary-section")) markDirty();
+    if (event.target.hasAttribute("data-rp-text-color")) {
+      const field = event.target.dataset.rpTextColor;
+      draft[field] = event.target.value;
+      const state = panel.querySelector(`[data-rp-color-state="${field}"]`);
+      if (state) state.textContent = event.target.value.toUpperCase();
+      markDirty(); previewTextTheme();
+    }
   });
   panel.addEventListener("change", async event => {
     if (["rp-group-enabled", "rp-group-reply-mode"].includes(event.target.id) || event.target.closest("[data-member]") || event.target.closest("#rp-user-profile") || event.target.closest("#rp-temporary-section")) markDirty();
@@ -352,6 +387,17 @@ if (bridge) {
       panel.querySelector("#rp-temporary-mode").value = "once";
       panel.querySelector("#rp-temporary-uses").value = "3";
       markDirty(); renderTemporaryPlotRecipients(); updateTemporaryPlotMode();
+    }
+    else if (button.hasAttribute("data-reset-text-theme")) {
+      const defaults = textThemeDefaults();
+      ["chatTextColor", "chatNarrationColor", "chatQuoteColor"].forEach(field => {
+        draft[field] = "";
+        const input = panel.querySelector(`[data-rp-text-color="${field}"]`);
+        const state = panel.querySelector(`[data-rp-color-state="${field}"]`);
+        if (input) input.value = defaults[field];
+        if (state) state.textContent = "跟随本体主题";
+      });
+      markDirty(); previewTextTheme();
     }
     else if (button.hasAttribute("data-refresh")) {
       button.disabled = true;
