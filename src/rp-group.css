@@ -8,9 +8,11 @@
 .rp-mention-portrait { width: 32px; height: 32px; flex-shrink: 0; display: grid; place-items: center; overflow: hidden; border-radius: 10px; color: var(--accent); background: var(--accent-soft); }
 .rp-mention-portrait img { width: 100%; height: 100%; object-fit: cover; }
 .rp-scene-strip { margin: 0 0 14px; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--accent-soft) 42%, transparent); color: var(--text-dim); font-size: .9em; line-height: 1.65; }
-.rp-story-body + .rp-status-card { margin-top: 16px; }
-.rp-status-card { box-sizing: border-box; display: block; width: 100%; height: auto; min-height: 0; margin-block: 12px 0; padding: 6px 0 6px 12px; border: 0; border-left: 2px solid color-mix(in srgb, var(--accent) 62%, transparent); border-radius: 0; background: transparent !important; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; overflow: visible; }
-.rp-status-card header { margin: 0 0 5px; color: var(--accent); font-size: 11px; font-weight: 750; letter-spacing: .08em; }
+.rp-story-body + .rp-status-card { margin-top: 12px; }
+.rp-status-card { box-sizing: border-box; display: block; position: static; width: 100%; height: auto !important; min-height: 0 !important; margin: 12px 0 0; padding: 4px 0 4px 12px; border: 0; border-left: 2px solid color-mix(in srgb, var(--accent) 62%, transparent); border-radius: 0; background: transparent !important; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; overflow: visible; }
+/* The app-wide `header` rule carries the iPhone safe-area padding. Reset every
+   layout property here so a status tail stays content-height inside a message. */
+.rp-status-card > header { box-sizing: border-box; position: static; z-index: auto; display: block; width: auto; height: auto !important; min-height: 0 !important; margin: 0 0 5px; padding: 0 !important; background: transparent; color: var(--accent); font-size: 11px; font-weight: 750; line-height: 1.4; letter-spacing: .08em; }
 .rp-status-row { display: grid; grid-template-columns: minmax(92px, max-content) minmax(0, 1fr); gap: 9px; align-items: start; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--border) 64%, transparent); font-size: .86em; line-height: 1.5; }
 .rp-status-row:first-of-type { border-top: 0; }
 .rp-status-row strong { color: var(--text-dim); font-size: .92em; }
@@ -33,6 +35,10 @@
 .rp-group-stats strong { font-size: 26px; color: var(--accent); }
 .rp-group-stats span { font-size: 12px; color: var(--text-dim); margin-top: 5px; }
 .rp-group-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.rp-group-head-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; margin-left: auto; }
+.rp-group-drawer .rp-section-fold { min-width: 58px; padding: 6px 10px; border-radius: 999px; color: var(--text-dim); background: transparent; font-size: 12px; line-height: 1.25; }
+.rp-group-collapsible.is-collapsed > :not(.rp-group-section-head) { display: none !important; }
+.rp-group-collapsible.is-collapsed { padding-bottom: 20px; }
 .rp-group-note { font-size: 13px; line-height: 1.7; color: var(--text-dim); }
 .rp-group-drawer label { display: block; font-size: 13px; line-height: 1.6; margin: 12px 0; }
 .rp-group-drawer input:not([type="checkbox"]), .rp-group-drawer textarea, .rp-group-drawer select { width: 100%; max-width: 100%; display: block; margin-top: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--bg); color: var(--text); font: inherit; font-size: 16px; line-height: 1.65; }
@@ -72,4 +78,4 @@
 .rp-group-drawer footer small { font-size: 11px; line-height: 1.5; color: var(--text-dim); }
 .rp-group-drawer footer button { flex-shrink: 0; background: var(--accent); color: var(--bg); border-color: var(--accent); }
 .rp-group-drawer :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (max-width: 480px) { .rp-group-drawer { width: 94vw; } .rp-group-scroll { padding: 16px 12px; } .rp-group-scroll > section { padding: 16px; } .rp-group-drawer header { padding-left: 20px; padding-right: 16px; } .rp-status-row { grid-template-columns: 1fr; gap: 2px; } .rp-status-row strong { font-size: 11px; } }
+@media (max-width: 480px) { .rp-group-drawer { width: 94vw; } .rp-group-scroll { padding: 16px 12px; } .rp-group-scroll > section { padding: 16px; } .rp-group-drawer > header { padding-left: 20px; padding-right: 16px; } .rp-status-row { grid-template-columns: 1fr; gap: 2px; } .rp-status-row strong { font-size: 11px; } }

@@ -15735,7 +15735,30 @@ window.JYCRoleplayBridge = {
     const models = await pullProviderModels(profile);
     return { id: profile.id, name: profile.name || "接口", models, model: profile.model || "", hasModelList: true };
   },
-  castLibrary: () => (settings.roles || []).map(role => ({ name: role.name || "角色", prompt: role.systemPrompt || "", avatar: role.aiAvatar || "" })),
+  castLibrary() {
+    const items = [], seen = new Set();
+    const push = (card, source) => {
+      const name = String(card?.name || "").trim();
+      if (!name) return;
+      const prompt = String(card?.prompt || "").trim();
+      const kind = card?.kind === "director" ? "director" : "actor";
+      const key = `${kind}\u0000${name.toLowerCase()}\u0000${prompt}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      items.push({ ...card, name, prompt, kind, label: source ? `${name} · ${source}` : name });
+    };
+    (settings.roles || []).forEach(role => push({
+      name: role.name || "角色", prompt: role.systemPrompt || "", avatar: role.aiAvatar || "", kind: "actor",
+    }, "本体角色"));
+    roleConvs().filter(isRoleplayConversation).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).forEach(conv => {
+      const project = normalizedRoleplayProject(conv.rpProject, conv);
+      const source = conv.title || project.title || "已有剧本";
+      push({ name: project.actorName, prompt: project.characterPrompt, avatar: project.actorAvatar, greeting: project.opening,
+        beautificationProtocol: project.beautificationProtocol || "", regexRules: project.regexRules, kind: "actor" }, source);
+      (project.members || []).forEach(member => push({ ...member }, source));
+    });
+    return items;
+  },
   inspectScene(id) {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
     if (!conv) return null;

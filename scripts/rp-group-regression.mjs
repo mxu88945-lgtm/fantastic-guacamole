@@ -72,7 +72,10 @@ assert.ok(groupUi.includes("!profile.hasModelList") && groupUi.includes("refresh
 assert.ok(html.includes("async function pullProviderModels(profile)") && html.includes("async pullChannelModels(profileId)"), "the RP drawer is not wired to the main provider model loader");
 assert.ok(groupUi.includes("data-refresh>提取新记忆") && groupUi.includes("bridge.extractSceneMemories(sceneId)"), "the memory action must run extraction instead of only repainting the drawer");
 assert.ok(groupUi.includes('id="rp-memory-action-status"') && groupUi.includes("这条剧情记忆已经保存"), "manual memory actions need visible success feedback");
+assert.ok(groupUi.includes("data-collapse-section") && groupUi.includes("rp-group-collapsible"), "major drawer sections need explicit collapse controls");
+assert.ok(groupUi.includes("记忆模型暂时不可用（503）") && !groupUi.includes('const message = error?.message || "剧情记忆提取失败"'), "raw memory 503 payloads must be translated into a readable retry hint");
 assert.ok(html.includes("async function extractRoleplaySceneMemories(conv)") && html.includes("async extractSceneMemories(id)"), "scene memory extraction is not exposed through the RP bridge");
+assert.ok(html.includes("roleConvs().filter(isRoleplayConversation)") && html.includes("label: source ? `${name} · ${source}` : name"), "the cast library must include roles from existing RP scenes");
 assert.ok(html.includes("本轮若产生会影响后续的新增既成事实，必须"), "RP replies must actively emit hidden memory markers when durable facts are created");
 
 Object.assign(context, {
