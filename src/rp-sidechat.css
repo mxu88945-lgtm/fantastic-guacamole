@@ -192,3 +192,15 @@
   cursor: pointer;
 }
 #rp-sidechat-pull:disabled { opacity: 0.5; }
+.rp-sidechat-clear {
+  margin-left: auto;
+  margin-right: 8px;
+  border: 1px solid var(--border, #e3e9f5);
+  background: #fff;
+  color: #8a94a8;
+  font-size: 12px;
+  border-radius: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.rp-sidechat-head { gap: 4px; }

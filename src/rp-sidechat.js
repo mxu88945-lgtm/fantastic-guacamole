@@ -218,7 +218,7 @@ panel.hidden = true;
 panel.innerHTML = `
 <header class="rp-sidechat-head">
 <div><strong>顾祁砚</strong><small>戏外小窗 · 台上在演，咱俩唠嗑</small></div>
-<button type="button" class="rp-sidechat-close" aria-label="关闭">×</button>
+<button type="button" class="rp-sidechat-clear" aria-label="清空记录">清空</button><button type="button" class="rp-sidechat-close" aria-label="关闭">×</button>
 </header>
 <div class="rp-sidechat-config">
 <select id="rp-sidechat-provider" aria-label="渠道"></select>
@@ -299,6 +299,13 @@ input.focus();
 
 tab.addEventListener("click", () => (panel.hidden? open(): close()));
 panel.querySelector(".rp-sidechat-close").addEventListener("click", close);
+panel.querySelector(".rp-sidechat-clear").addEventListener("click", () => {
+if (!history.length) return;
+if (!confirm("清空这个剧本的戏外聊天记录？")) return;
+history = [];
+saveHistory(history);
+render();
+});
 sendBtn.addEventListener("click", send);
 input.addEventListener("keydown", (e) => {
 if (e.key === "Enter" &&!e.isComposing) { e.preventDefault(); send();}
