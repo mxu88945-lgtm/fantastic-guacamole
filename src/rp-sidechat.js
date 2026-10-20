@@ -203,7 +203,7 @@ const tab = document.createElement("button");
 tab.type = "button";
 tab.className = "rp-sidechat-tab";
 tab.title = "跟顾祁砚戏外唠嗑";
-tab.innerHTML = "<span>戏外<br>小窗</span><i class=\"rp-sidechat-dot\" hidden></i>";
+tab.innerHTML = "<span class=\"rp-sidechat-tab-label\">戏</span><i class=\"rp-sidechat-dot\" hidden></i>";
 tab.hidden = true;
 document.body.append(tab);
 
