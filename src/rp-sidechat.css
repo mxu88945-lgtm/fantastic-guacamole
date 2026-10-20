@@ -131,3 +131,22 @@
   flex-shrink: 0;
 }
 .rp-sidechat-composer button:disabled { opacity: 0.5; }
+
+/* 未读红点：他主动找你说话时亮 */
+.rp-sidechat-tab { position: fixed; }
+.rp-sidechat-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ff5b6e;
+  box-shadow: 0 0 0 2px #fff;
+}
+.rp-sidechat-dot[hidden] { display: none; }
+.rp-sidechat-tab.has-new { animation: rp-sidechat-pulse 1.2s infinite; }
+@keyframes rp-sidechat-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
