@@ -1,0 +1,133 @@
+/* 戏外小窗：RP 对戏时的顾祁砚本体私聊面板 */
+.rp-sidechat-tab {
+  position: fixed;
+  right: 0;
+  top: 38%;
+  z-index: 80;
+  border: 1px solid var(--border, #e3e9f5);
+  border-right: none;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #5b8def;
+  border-radius: 12px 0 0 12px;
+  padding: 12px 7px;
+  font-size: 12px;
+  line-height: 1.5;
+  cursor: pointer;
+  box-shadow: -2px 2px 14px rgba(91, 141, 239, 0.14);
+  writing-mode: horizontal-tb;
+}
+.rp-sidechat-tab span { display: block; text-align: center; font-weight: 600; }
+.rp-sidechat-tab.open { background: #5b8def; color: #fff; border-color: #5b8def; }
+.rp-sidechat-tab[hidden] { display: none; }
+
+.rp-sidechat-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(400px, 88vw);
+  z-index: 81;
+  display: flex;
+  flex-direction: column;
+  background: #f4f7fe;
+  background-image: radial-gradient(#dbe7f8 1.2px, transparent 1.2px);
+  background-size: 20px 20px;
+  border-left: 1px solid var(--border, #e3e9f5);
+  box-shadow: -8px 0 30px rgba(35, 25, 48, 0.12);
+  animation: rp-sidechat-in 0.22s ease-out;
+}
+.rp-sidechat-panel[hidden] { display: none; }
+@keyframes rp-sidechat-in {
+  from { transform: translateX(40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.rp-sidechat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+  background: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid var(--border, #e3e9f5);
+}
+.rp-sidechat-head strong { font-size: 16px; }
+.rp-sidechat-head small { display: block; color: #8a94a8; font-size: 11px; margin-top: 2px; }
+.rp-sidechat-close {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border, #e3e9f5);
+  background: #fff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: #5b6b85;
+}
+.rp-sidechat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rp-sidechat-hint {
+  margin: 30px 16px;
+  text-align: center;
+  color: #8a94a8;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.rp-sidechat-msg { display: flex; }
+.rp-sidechat-msg.user { justify-content: flex-end; }
+.rp-sidechat-msg.ai { justify-content: flex-start; }
+.rp-sidechat-bubble {
+  max-width: 85%;
+  padding: 9px 13px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.65;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.rp-sidechat-msg.user .rp-sidechat-bubble {
+  background: #5b8def;
+  color: #fff;
+  border-bottom-right-radius: 5px;
+}
+.rp-sidechat-msg.ai .rp-sidechat-bubble {
+  background: rgba(255, 255, 255, 0.95);
+  color: #2b3245;
+  border-bottom-left-radius: 5px;
+  box-shadow: 0 1px 6px rgba(91, 141, 239, 0.08);
+}
+.rp-sidechat-bubble.typing { color: #8a94a8; letter-spacing: 2px; }
+.rp-sidechat-composer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.92);
+  border-top: 1px solid var(--border, #e3e9f5);
+}
+.rp-sidechat-composer input {
+  flex: 1;
+  border: 1px solid var(--border, #e3e9f5);
+  border-radius: 20px;
+  padding: 10px 14px;
+  font-size: 14px;
+  outline: none;
+  background: #fff;
+}
+.rp-sidechat-composer input:focus { border-color: #5b8def; }
+.rp-sidechat-composer button {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: #5b8def;
+  color: #fff;
+  font-size: 17px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.rp-sidechat-composer button:disabled { opacity: 0.5; }
