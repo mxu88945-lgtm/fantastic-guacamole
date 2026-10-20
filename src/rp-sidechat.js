@@ -222,5 +222,16 @@ else if (!panel.hidden) { history = loadHistory(); render();}
 for (const ev of ["jyc:chat-opened", "jyc:role-changed", "jyc:roleplay-updated"]) {
 window.addEventListener(ev, refreshVisibility);
 }
+function syncKeyboard() {
+if (panel.hidden || !window.visualViewport) return;
+const kb = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+panel.style.bottom = kb > 60 ? kb + "px" : "";
+}
+if (window.visualViewport) {
+window.visualViewport.addEventListener("resize", syncKeyboard);
+window.visualViewport.addEventListener("scroll", syncKeyboard);
+}
+input.addEventListener("focus", () => setTimeout(syncKeyboard, 100));
+input.addEventListener("blur", () => { panel.style.bottom = ""; });
 refreshVisibility();
 }
