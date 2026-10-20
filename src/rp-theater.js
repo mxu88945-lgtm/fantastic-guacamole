@@ -6,7 +6,7 @@ if (!bridge) {
   console.error("RP theater bridge is unavailable");
 } else {
   const $ = (id) => document.getElementById(id);
-  const state = { editingId: "", detailId: "", detailMemberId: "lead", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {} };
+  const state = { editingId: "", detailId: "", detailMemberId: "lead", librarySection: "hub", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {} };
   const openingState = { projectId: "", index: 0, forceNew: true };
 
   function safeText(value, max = 200000) {
@@ -269,10 +269,26 @@ function plainPreviewWithMedia(value) {
           </section>
 
           <section id="rp-library-view">
-            <div class="rp-section-title"><div><strong>你的剧场</strong><small id="rp-project-count">0 个剧本</small></div><button type="button" id="rp-import-project">导入角色卡</button></div>
             <input id="rp-import-file" type="file" accept=".json,.txt,.md,.markdown,application/json,text/*" hidden />
-            <div class="rp-project-grid" id="rp-project-list"></div>
-            <div class="rp-empty" id="rp-project-empty" hidden><span>◇</span><strong>还没有剧本</strong><p>新建一部，或直接导入惟镜使用的 JSON／文本角色卡。</p><button type="button" id="rp-empty-create">创建第一个剧本</button></div>
+            <section class="rp-library-hub" id="rp-library-hub">
+              <div class="rp-section-title"><div><strong>选择要进入的空间</strong><small>聊天、剧本和角色资料分开放</small></div></div>
+              <div class="rp-space-menu">
+                <button type="button" data-rp-space="main"><span class="rp-space-icon">💬</span><span><strong>主聊天</strong><small id="rp-main-chat-copy">回到本体聊天</small></span><i>›</i></button>
+                <button type="button" data-rp-space="projects"><span class="rp-space-icon">🎬</span><span><strong>剧本项目</strong><small id="rp-hub-project-count">0 部戏</small></span><i>›</i></button>
+                <button type="button" data-rp-space="roles"><span class="rp-space-icon">🦋</span><span><strong>角色库</strong><small id="rp-hub-role-count">0 张角色卡</small></span><i>›</i></button>
+              </div>
+            </section>
+            <section id="rp-projects-view" hidden>
+              <div class="rp-section-title"><div><strong>剧本项目</strong><small id="rp-project-count">0 个剧本</small></div><div class="rp-section-actions"><button type="button" data-rp-space="hub">返回分类</button><button type="button" id="rp-import-project">导入角色卡</button></div></div>
+              <div class="rp-project-grid" id="rp-project-list"></div>
+              <div class="rp-empty" id="rp-project-empty" hidden><span>◇</span><strong>还没有剧本</strong><p>新建一部，或直接导入惟镜使用的 JSON／文本角色卡。</p><button type="button" id="rp-empty-create">创建第一个剧本</button></div>
+            </section>
+            <section id="rp-roles-view" hidden>
+              <div class="rp-section-title"><div><strong>角色库</strong><small id="rp-role-count">0 张角色卡</small></div><button type="button" data-rp-space="hub">返回分类</button></div>
+              <p class="rp-library-note">这里汇总所有剧本里的主角、共演角色和导演卡。点开即可查看对应的人设、世界书、正则与开场白。</p>
+              <div class="rp-role-grid" id="rp-role-list"></div>
+              <div class="rp-empty" id="rp-role-empty" hidden><span>♧</span><strong>角色库还是空的</strong><p>导入或新建剧本后，角色会自动出现在这里。</p></div>
+            </section>
           </section>
 
           <section id="rp-detail-view" hidden>
@@ -432,13 +448,24 @@ function plainPreviewWithMedia(value) {
     $("rp-greeting-preview").open = false;
   }
 
-  function showLibrary() {
+  function setLibrarySection(section = "hub") {
+    const next = ["hub", "projects", "roles"].includes(section) ? section : "hub";
+    state.librarySection = next;
+    $("rp-library-hub").hidden = next !== "hub";
+    $("rp-projects-view").hidden = next !== "projects";
+    $("rp-roles-view").hidden = next !== "roles";
+    $("rp-theater-panel").dataset.librarySection = next;
+    $("rp-theater-panel").querySelector(".rp-theater-body").scrollTop = 0;
+  }
+
+  function showLibrary(section = "hub") {
     $("rp-library-view").hidden = false;
     $("rp-editor-view").hidden = true;
     $("rp-detail-view").hidden = true;
     $("rp-theater-panel").dataset.view = "library";
     state.editingId = "";
     state.detailId = "";
+    setLibrarySection(section);
     render();
   }
   function showDetail(projectId, memberId = "") {
@@ -538,7 +565,7 @@ function plainPreviewWithMedia(value) {
     const openMemberSettings = () => window.JYCRoleplayGroup?.openMember?.(selected.id);
     $("rp-detail-edit").textContent = isLead ? "编辑" : "编辑成员";
     $("rp-detail-edit").onclick = isLead ? () => showEditor(project, "main") : openMemberSettings;
-    $("rp-detail-back").onclick = showLibrary;
+    $("rp-detail-back").onclick = () => showLibrary(state.librarySection === "roles" ? "roles" : state.librarySection === "projects" ? "projects" : "hub");
     $("rp-detail-goto-main").onclick = isLead ? () => showEditor(project, "main") : openMemberSettings;
     $("rp-detail-goto-world").onclick = () => showEditor(project, "world");
     $("rp-detail-goto-regex").onclick = isLead ? () => showEditor(project, "regex") : openMemberSettings;
@@ -682,8 +709,10 @@ function plainPreviewWithMedia(value) {
     const projects = bridge.list();
     $("rp-hero-role").textContent = info.roleName || "TA";
     $("rp-theater-subtitle").textContent = `${info.roleName || "TA"} 本体在线 · 陪你入戏`;
+    $("rp-main-chat-copy").textContent = `回到 ${info.roleName || "TA"} 本体聊天`;
     $("rp-identity-copy").textContent = `开启“由 ${info.roleName || "TA"} 出演”时保留本体身份；关闭后只演角色自己。主角默认开启，其他成员和导演默认关闭，每张卡单独保存。`;
     $("rp-project-count").textContent = `${projects.length} 个剧本`;
+    $("rp-hub-project-count").textContent = `${projects.length} 部戏`;
     $("rp-project-empty").hidden = projects.length > 0;
     const list = $("rp-project-list");
     list.innerHTML = projects.map((project) => {
@@ -709,6 +738,18 @@ function plainPreviewWithMedia(value) {
       bridge.remove(project.id);
       render();
     }));
+    const roles = projects.flatMap((project) => detailCast(project).map((member) => ({ project, member })));
+    $("rp-hub-role-count").textContent = `${roles.length} 张角色卡`;
+    $("rp-role-count").textContent = `${roles.length} 张角色卡`;
+    $("rp-role-empty").hidden = roles.length > 0;
+    const roleList = $("rp-role-list");
+    roleList.innerHTML = roles.map(({ project, member }) => {
+      const avatar = /^(https?:\/\/|data:image\/)/.test(member.avatar || "") ? member.avatar : "";
+      const kind = member.id === "lead" ? "剧本主角" : member.kind === "director" ? "共演导演" : "共演角色";
+      const desc = plainPreview(member.description || member.prompt || "") || "暂无角色简介";
+      return `<button type="button" class="rp-role-card" data-rp-role-project="${escapeHtml(project.id)}" data-rp-role-member="${escapeHtml(member.id)}"><span class="rp-role-avatar">${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml([...(member.name || "角")][0])}</span><span class="rp-role-copy"><small>${escapeHtml(kind)} · ${escapeHtml(project.title || "未命名剧本")}</small><strong>${escapeHtml(member.name || "未命名角色")}</strong><em>${escapeHtml(desc.slice(0, 80))}${desc.length > 80 ? "…" : ""}</em></span><i>›</i></button>`;
+    }).join("");
+    roleList.querySelectorAll("[data-rp-role-project]").forEach((button) => button.addEventListener("click", () => showDetail(button.dataset.rpRoleProject, button.dataset.rpRoleMember)));
   }
 
   function open(projectId) {
@@ -967,6 +1008,12 @@ function plainPreviewWithMedia(value) {
     enter(started.id);
   });
   $("rp-home-exit").addEventListener("click", () => bridge.exitToHome());
+  $("rp-library-view").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-rp-space]");
+    if (!button) return;
+    if (button.dataset.rpSpace === "main") { close(); bridge.exitToHome(); return; }
+    setLibrarySection(button.dataset.rpSpace);
+  });
   $("rp-new-project").addEventListener("click", () => showEditor());
   $("rp-empty-create").addEventListener("click", () => showEditor());
   $("rp-tags-toggle").addEventListener("click", () => {

@@ -33,6 +33,8 @@ ok(js.includes("alternate_greetings") && js.includes("rp-greeting-list"), "alter
 ok(js.includes("rp-preview-greeting") && js.includes("greetingPreviewDocument"), "opening preview is missing");
 ok(js.includes("bridge.startWithGreeting") && js.includes("选择开场白"), "new scenes must start through the opening picker");
 ok(css.includes(".rp-theater-panel") && css.includes("@media (max-width: 680px)"), "RP theater responsive layout is missing");
+ok(js.includes('data-rp-space="main"') && js.includes('data-rp-space="projects"') && js.includes('data-rp-space="roles"'), "RP theater home is missing categorized entrances");
+ok(js.includes('id="rp-role-list"') && js.includes("detailCast(project).map"), "RP role library does not include the cast from every script");
 ok(css.includes("body.rp-chat-active #model-config-btn { display: none; }"), "RP composer still shows the redundant model pill");
 ok(css.includes("#rp-field-opening") && css.includes(".rp-greeting-card.selected"), "mobile-friendly opening editor is missing");
 ok(html.includes("roleplayRichFrameHtml") && html.includes('sandbox="allow-scripts"'), "rich HTML openings are not sandbox-rendered");

@@ -116,7 +116,7 @@ if (bridge) {
   }
   function memberHtml(member, index) {
     const lead = member.id === "lead";
-    return `<details class="rp-cast-member" data-member="${escape(member.id)}" ${index === 0 || member.newMember ? "open" : ""}>
+    return `<details class="rp-cast-member" data-member="${escape(member.id)}" ${member.newMember ? "open" : ""}>
       <summary><span class="rp-cast-avatar">${member.avatar ? `<img src="${escape(member.avatar)}" alt="">` : escape(member.kind === "director" ? "导" : member.name.slice(0, 1))}</span><span><strong>${escape(member.name)}</strong><small>${lead ? "剧本主角" : member.kind === "director" ? "共演导演" : "共演角色"}</small></span><span class="rp-cast-expand">⌄</span></summary>
       <div class="rp-cast-fields"><label class="rp-cast-check"><input type="checkbox" data-field="enabled" ${member.enabled !== false ? "checked" : ""}>参与每轮回复</label>
       <label class="rp-cast-check"><input type="checkbox" data-field="playedByOwner" ${(lead ? member.playedByOwner !== false : member.playedByOwner === true) ? "checked" : ""}>由 ${escape(bridge.role().roleName)} 出演</label><p class="rp-group-note">开启：保留本体身份和戏外记忆来扮演。关闭：只用这个角色自己的设定与本场剧情资料。主角默认开，其他成员默认关。</p>

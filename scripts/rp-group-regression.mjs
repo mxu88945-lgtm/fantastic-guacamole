@@ -77,6 +77,7 @@ assert.ok(html.includes("async function pullProviderModels(profile)") && html.in
 assert.ok(groupUi.includes("data-refresh>提取新记忆") && groupUi.includes("bridge.extractSceneMemories(sceneId)"), "the memory action must run extraction instead of only repainting the drawer");
 assert.ok(groupUi.includes('id="rp-memory-action-status"') && groupUi.includes("这条剧情记忆已经保存"), "manual memory actions need visible success feedback");
 assert.ok(groupUi.includes("data-collapse-section") && groupUi.includes("rp-group-collapsible"), "major drawer sections need explicit collapse controls");
+assert.ok(!groupUi.includes("index === 0 || member.newMember"), "existing cast cards should start collapsed when the drawer opens");
 assert.ok(groupUi.includes('openMember: memberId => open(memberId || "lead")'), "the group settings page must open directly on a selected cast member");
 assert.ok(html.includes('if (isRoleplayConversation())') && html.includes('window.JYCRoleplayGroup?.open?.();'), "the RP header more button must open the large group page directly instead of the small menu");
 assert.ok(groupUi.includes("记忆模型暂时不可用（503）") && !groupUi.includes('const message = error?.message || "剧情记忆提取失败"'), "raw memory 503 payloads must be translated into a readable retry hint");
