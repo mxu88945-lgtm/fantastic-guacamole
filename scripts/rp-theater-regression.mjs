@@ -50,6 +50,8 @@ ok(js.includes("function cardStructure(") && js.includes("patch.regexRules = ext
 ok(html.includes("function roleplayRegexDisplay(") && html.includes("answer = roleplayRegexDisplay(answer)"), "card regex must beautify RP chat messages at display time");
 ok(html.includes("async function continueRoleplayStory()") && html.includes("rp-continue-act") && html.includes("const hideStats = isRoleplayConversation()"), "RP chat needs a ▶ continue button and hides token/latency stats");
 ok(js.includes("showDetail(current.id)") && html.includes("情景与角色资料</button>"), "chat menu 情景与角色资料 opens the 惟镜-style character hub");
+ok(js.includes('id="rp-detail-cast-list"') && js.includes("data-detail-member") && js.includes("rp.groupEnabled && cast.length > 1"), "group role details need an 惟镜-style cast selector");
+ok(js.includes("window.JYCRoleplayGroup?.openMember?.(selected.id)"), "supporting cast details must open the selected member editor");
 ok(!js.includes("closePanel("), "detail continue button calls an undefined closePanel");
 ok(js.includes('showEditor(project, "world")') && js.includes('showEditor(project, "regex")'), "detail rows must open their own section page like 惟镜");
 ok(css.includes('#rp-editor-view[data-section="world"] [data-rp-sec]:not([data-rp-sec="world"])'), "section pages must hide other editor parts");

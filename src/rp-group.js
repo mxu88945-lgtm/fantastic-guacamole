@@ -162,7 +162,14 @@ if (bridge) {
       head.append(actions);
     });
   }
-  function open() {
+  function focusMember(memberId = "") {
+    if (!memberId) return;
+    const row = panel.querySelector(`[data-member="${CSS.escape(memberId)}"]`);
+    if (!row) return;
+    row.open = true;
+    requestAnimationFrame(() => row.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+  function open(memberId = "") {
     const current = bridge.current();
     if (!current) return;
     const scene = bridge.inspectScene(current.id);
@@ -193,6 +200,7 @@ if (bridge) {
     installSectionFolds();
     renderMembers(); renderMemory(); updateTemporaryPlotMode();
     panel.querySelector(".rp-group-drawer").focus();
+    focusMember(memberId);
     queueMicrotask(autoRefreshMissingModels);
   }
   function addMember(kind, card = {}) {
@@ -415,5 +423,5 @@ if (bridge) {
   });
   window.addEventListener("jyc:chat-opened", () => { if (bridge.current()?.id !== sceneId) panel.hidden = true; });
   window.addEventListener("jyc:role-changed", () => { panel.hidden = true; });
-  window.JYCRoleplayGroup = { open, close };
+  window.JYCRoleplayGroup = { open, close, openMember: memberId => open(memberId || "lead") };
 }

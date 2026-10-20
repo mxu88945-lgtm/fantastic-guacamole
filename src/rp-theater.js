@@ -6,7 +6,7 @@ if (!bridge) {
   console.error("RP theater bridge is unavailable");
 } else {
   const $ = (id) => document.getElementById(id);
-  const state = { editingId: "", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {} };
+  const state = { editingId: "", detailId: "", detailMemberId: "lead", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {} };
   const openingState = { projectId: "", index: 0, forceNew: true };
 
   function safeText(value, max = 200000) {
@@ -277,6 +277,10 @@ function plainPreviewWithMedia(value) {
 
           <section id="rp-detail-view" hidden>
             <div class="rp-detail-head"><button type="button" id="rp-detail-back">‹ 返回剧场</button><div><strong id="rp-detail-title">角色详情</strong></div><button type="button" id="rp-detail-edit">编辑</button></div>
+            <section class="rp-detail-cast" id="rp-detail-cast" hidden>
+              <div><strong>群聊角色资料</strong><small>选择要查看的成员</small></div>
+              <div class="rp-detail-cast-list" id="rp-detail-cast-list"></div>
+            </section>
             <div class="rp-detail-card3">
               <div class="rp-detail-avatar" id="rp-detail-avatar">🎭</div>
               <div class="rp-detail-meta"><span class="rp-card30">CHARACTER CARD 3.0</span><strong id="rp-detail-name">—</strong><p id="rp-detail-desc-short">—</p></div>
@@ -437,10 +441,11 @@ function plainPreviewWithMedia(value) {
     state.detailId = "";
     render();
   }
-  function showDetail(projectId) {
+  function showDetail(projectId, memberId = "") {
     const project = bridge.get(projectId);
     if (!project) return;
-    fillDetail(project);
+    if (memberId) state.detailMemberId = memberId;
+    fillDetail(project, state.detailMemberId);
     $("rp-library-view").hidden = true;
     $("rp-editor-view").hidden = true;
     $("rp-detail-view").hidden = false;
@@ -448,28 +453,72 @@ function plainPreviewWithMedia(value) {
     $("rp-theater-panel").querySelector(".rp-theater-body").scrollTop = 0;
   }
 
-  function fillDetail(project) {
+  function detailCast(project) {
+    const rp = project.rpProject || {};
+    const lead = {
+      id: "lead",
+      name: rp.actorName || project.title || "剧本主角",
+      kind: "lead",
+      avatar: rp.actorAvatar || project.actorAvatar || "",
+      prompt: rp.characterPrompt || "",
+      description: rp.description || "",
+      tags: Array.isArray(rp.tags) ? rp.tags : [],
+      greetings: greetingList(rp),
+      regexRules: Array.isArray(rp.regexRules) ? rp.regexRules : [],
+      worldEntries: Array.isArray(rp.worldEntries) ? rp.worldEntries : [],
+    };
+    const members = Array.isArray(rp.members) ? rp.members.filter((member) => member && member.name) : [];
+    return [lead, ...members.map((member) => ({
+      ...member,
+      id: safeText(member.id || member.name, 120),
+      name: safeText(member.name, 80),
+      kind: member.kind === "director" ? "director" : "actor",
+      prompt: safeText(member.prompt, 30000),
+      description: safeText(member.prompt, 30000),
+      tags: [member.kind === "director" ? "共演导演" : "共演角色"],
+      greetings: member.greeting ? [safeText(member.greeting, 300000)] : [],
+      regexRules: Array.isArray(member.regexRules) ? member.regexRules : [],
+      worldEntries: [],
+    }))];
+  }
+
+  function fillDetail(project, requestedMemberId = "lead") {
     const rp = project.rpProject || {};
     const data = { ...rp, ...project };
+    const cast = detailCast(project);
+    const selected = cast.find((member) => member.id === requestedMemberId) || cast[0];
+    const isLead = selected.id === "lead";
+    state.detailMemberId = selected.id;
+    const castSection = $("rp-detail-cast");
+    castSection.hidden = !(rp.groupEnabled && cast.length > 1);
+    $("rp-detail-cast-list").innerHTML = cast.map((member) => {
+      const avatar = /^(https?:\/\/|data:image\/)/.test(member.avatar || "") ? member.avatar : "";
+      const kind = member.id === "lead" ? "主角" : member.kind === "director" ? "导演" : "共演";
+      return `<button type="button" data-detail-member="${escapeHtml(member.id)}" class="${member.id === selected.id ? "selected" : ""}" aria-pressed="${member.id === selected.id}"><span>${avatar ? `<img src="${escapeHtml(avatar)}" alt="" />` : escapeHtml([...(member.name || "角")][0])}</span><strong>${escapeHtml(member.name)}</strong><small>${kind}</small></button>`;
+    }).join("");
+    $("rp-detail-cast-list").querySelectorAll("[data-detail-member]").forEach((button) => {
+      button.onclick = () => fillDetail(project, button.dataset.detailMember);
+    });
     $("rp-detail-title").textContent = data.title || "角色详情";
-    $("rp-detail-name").textContent = data.actorName || data.title || "—";
-    const desc = safeText(data.description || "", 20000);
+    $("rp-detail-name").textContent = selected.name || "—";
+    const desc = safeText(selected.description || selected.prompt || "", 30000);
     $("rp-detail-desc-short").textContent = desc ? desc.slice(0, 120) + (desc.length > 120 ? "…" : "") : "暂无简介";
     $("rp-detail-desc").innerHTML = escapeHtml(desc.length > 120 ? desc.slice(0, 120) + "…" : desc).replace(/\r?\n/g, "<br>");
     $("rp-detail-desc").dataset.expanded = "";
     $("rp-detail-desc-toggle").textContent = "展开";
     $("rp-detail-desc-toggle").hidden = desc.length <= 120;
     const avatarEl = $("rp-detail-avatar");
-    const img = /^(https?:\/\/|data:image\/)/.test(data.actorAvatar || data.avatar || "") ? data.actorAvatar || data.avatar : "";
-    avatarEl.innerHTML = img ? `<img src="${escapeHtml(img)}" alt="" />` : escapeHtml([...(data.actorName || data.title || "剧")][0]);
+    const img = /^(https?:\/\/|data:image\/)/.test(selected.avatar || "") ? selected.avatar : "";
+    avatarEl.innerHTML = img ? `<img src="${escapeHtml(img)}" alt="" />` : escapeHtml([...(selected.name || "剧")][0]);
     $("rp-detail-desc-block").hidden = !desc;
-    const tags = Array.isArray(data.tags) ? data.tags : [];
+    const tags = Array.isArray(selected.tags) ? selected.tags : [];
     $("rp-detail-tags").innerHTML = tags.map((t) => `<span class="rp-tag">${escapeHtml(t)}</span>`).join("");
-    const greetings = greetingList(rp);
-    $("rp-detail-greeting-count").textContent = `${greetings.length} 个开场 · ${rp.leadChannel?.playedByOwner === false ? "独立角色" : "由 " + bridge.role().roleName + " 出演"}`;
-    const wb = Array.isArray(data.worldEntries) ? data.worldEntries : [];
-    $("rp-detail-world-count").textContent = `${wb.length} 条 · 可编辑、启停和调整插入位置`;
-    const rx = Array.isArray(data.regexRules) ? data.regexRules : [];
+    const greetings = selected.greetings || [];
+    const owner = isLead ? rp.leadChannel?.playedByOwner !== false : selected.playedByOwner === true;
+    $("rp-detail-greeting-count").textContent = `${greetings.filter(Boolean).length} 个开场 · ${owner ? "由 " + bridge.role().roleName + " 出演" : "独立角色"}`;
+    const wb = isLead ? selected.worldEntries : (Array.isArray(data.worldEntries) ? data.worldEntries : []);
+    $("rp-detail-world-count").textContent = isLead ? `${wb.length} 条 · 可编辑、启停和调整插入位置` : `共用本剧本 ${wb.length} 条世界书`;
+    const rx = selected.regexRules || [];
     const rxOn = rx.filter((r) => !r.disabled).length;
     $("rp-detail-regex-count").textContent = `${rx.length} 条 · ${rxOn} 条启用`;
     const tw = safeText(data.theaterWorldBackground || "", 50000);
@@ -486,11 +535,13 @@ function plainPreviewWithMedia(value) {
       el.dataset.expanded = exp ? "" : "1";
       $("rp-detail-desc-toggle").textContent = exp ? "展开" : "收起";
     };
-    $("rp-detail-edit").onclick = () => showEditor(project, "main");
+    const openMemberSettings = () => window.JYCRoleplayGroup?.openMember?.(selected.id);
+    $("rp-detail-edit").textContent = isLead ? "编辑" : "编辑成员";
+    $("rp-detail-edit").onclick = isLead ? () => showEditor(project, "main") : openMemberSettings;
     $("rp-detail-back").onclick = showLibrary;
-    $("rp-detail-goto-main").onclick = () => showEditor(project, "main");
+    $("rp-detail-goto-main").onclick = isLead ? () => showEditor(project, "main") : openMemberSettings;
     $("rp-detail-goto-world").onclick = () => showEditor(project, "world");
-    $("rp-detail-goto-regex").onclick = () => showEditor(project, "regex");
+    $("rp-detail-goto-regex").onclick = isLead ? () => showEditor(project, "regex") : openMemberSettings;
     $("rp-detail-goto-theater").onclick = () => showEditor(project, "theater");
     $("rp-detail-continue").onclick = () => { enter(project.id); };
     $("rp-detail-new").onclick = () => chooseOpening(project.id, true);
