@@ -75,13 +75,13 @@ const convs = JSON.parse(localStorage.getItem("jyc_conversations") || "[]");
 conv = (Array.isArray(convs)? convs: []).find((c) => c.id === currentSceneId());
 } catch (_) {}
 const profiles = Array.isArray(s.providers)? s.providers: [];
-const profile = profiles.find((p) => p.id === conv?.providerId) || profiles.find((p) => p.id === s.activeProviderId) || null;
+const profile = profiles.find((p) => p.id === s.activeProviderId) || profiles[0] || null;
 const provider = profile?.provider || s.provider || "openai";
 return {
 kind: provider,
 base: (profile?.baseUrl || s.baseUrl || DEFAULT_BASE[provider] || "").replace(/\/$/, ""),
 key: profile?.apiKey || s.apiKey || "",
-model: conv?.model || profile?.model || s.model || "",
+model: profile?.model || s.model || "",
 temperature: s.temperature?? 0.8,
 maxTokens: 1500,
 };
