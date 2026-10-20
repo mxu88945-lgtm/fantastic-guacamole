@@ -18,9 +18,9 @@
 .rp-status-row strong { color: var(--text-dim); font-size: .92em; }
 .rp-status-row span { min-width: 0; }
 .rp-status-row-wide { display: block; }
-.rp-group-overlay { position: fixed; inset: 0; z-index: 85; background: var(--bg); color: var(--text); }
+.rp-group-overlay { position: fixed; inset: 0; z-index: 85; background: #0005; color: var(--text); }
 .rp-group-overlay[hidden] { display: none; }
-.rp-group-drawer { width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--bg); border-radius: 0; box-shadow: none; overflow: hidden; }
+.rp-group-drawer { margin-left: auto; width: min(560px, 94vw); height: 100%; display: flex; flex-direction: column; background: var(--bg); border-radius: 30px 0 0 30px; box-shadow: -12px 0 70px #0002; overflow: hidden; }
 .rp-group-drawer * { box-sizing: border-box; min-width: 0; }
 .rp-group-drawer header { padding: calc(22px + env(safe-area-inset-top)) 24px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border); }
 .rp-group-drawer header small { color: var(--accent); font-weight: 700; }
@@ -28,7 +28,7 @@
 .rp-group-drawer h3 { margin: 0; font-size: 18px; }
 .rp-group-drawer button { cursor: pointer; border: 1px solid var(--border); border-radius: 14px; padding: 10px 14px; color: var(--accent); background: var(--bg); font: inherit; font-size: 14px; }
 .rp-group-drawer header button { width: 42px; height: 42px; flex-shrink: 0; font-size: 25px; line-height: 1; padding: 0; }
-.rp-group-scroll { width: min(960px, 100%); margin: 0 auto; overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; padding: 22px 18px; }
+.rp-group-scroll { overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; padding: 22px 18px; }
 .rp-group-scroll > section { padding: 20px; margin-bottom: 18px; border-radius: 24px; border: 1px solid var(--border); background: var(--bg-panel); }
 .rp-group-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; background: linear-gradient(130deg, var(--accent-soft),var(--bg)) !important; text-align: center; }
 .rp-group-stats strong, .rp-group-stats span { display: block; }
@@ -74,8 +74,8 @@
 #rp-memory-action-status[data-state="error"] { color: var(--err-text); }
 .rp-group-links { display: grid; gap: 10px; }
 .rp-group-links button { text-align: left; }
-.rp-group-drawer footer { border-top: 1px solid var(--border); padding: 14px max(20px, calc((100vw - 920px) / 2)) calc(14px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rp-group-drawer footer { border-top: 1px solid var(--border); padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .rp-group-drawer footer small { font-size: 11px; line-height: 1.5; color: var(--text-dim); }
 .rp-group-drawer footer button { flex-shrink: 0; background: var(--accent); color: var(--bg); border-color: var(--accent); }
 .rp-group-drawer :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (max-width: 480px) { .rp-group-scroll { padding: 16px 12px; } .rp-group-scroll > section { padding: 16px; } .rp-group-drawer > header { padding-left: 20px; padding-right: 16px; } .rp-status-row { grid-template-columns: 1fr; gap: 2px; } .rp-status-row strong { font-size: 11px; } }
+@media (max-width: 480px) { .rp-group-drawer { width: 94vw; } .rp-group-scroll { padding: 16px 12px; } .rp-group-scroll > section { padding: 16px; } .rp-group-drawer > header { padding-left: 20px; padding-right: 16px; } .rp-status-row { grid-template-columns: 1fr; gap: 2px; } .rp-status-row strong { font-size: 11px; } }
