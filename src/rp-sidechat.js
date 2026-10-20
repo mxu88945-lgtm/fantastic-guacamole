@@ -27,6 +27,13 @@ function currentSceneId() {
 try { return bridge.current()?.id || "";} catch (_) { return "";}
 }
 function sidechatKey() { return "jyc_sidechat_" + currentSceneId();}
+function loadConfig() {
+try { return JSON.parse(localStorage.getItem("jyc_sidechat_config") || "{}"); }
+catch (_) { return {}; }
+}
+function saveConfig(cfg) {
+try { localStorage.setItem("jyc_sidechat_config", JSON.stringify(cfg)); } catch (_) {}
+}
 function loadHistory() {
 try { const h = JSON.parse(localStorage.getItem(sidechatKey()) || "[]"); return Array.isArray(h)? h: [];}
 catch (_) { return [];}
@@ -75,13 +82,14 @@ const convs = JSON.parse(localStorage.getItem("jyc_conversations") || "[]");
 conv = (Array.isArray(convs)? convs: []).find((c) => c.id === currentSceneId());
 } catch (_) {}
 const profiles = Array.isArray(s.providers)? s.providers: [];
-const profile = profiles.find((p) => p.id === s.activeProviderId) || profiles[0] || null;
+const cfg = loadConfig();
+const profile = profiles.find((p) => p.id === cfg.providerId) || profiles.find((p) => p.id === s.activeProviderId) || profiles[0] || null;
 const provider = profile?.provider || s.provider || "openai";
 return {
 kind: provider,
 base: (profile?.baseUrl || s.baseUrl || DEFAULT_BASE[provider] || "").replace(/\/$/, ""),
 key: profile?.apiKey || s.apiKey || "",
-model: profile?.model || s.model || "",
+model: cfg.model || profile?.model || s.model || "",
 temperature: s.temperature?? 0.8,
 maxTokens: 1500,
 };
@@ -207,6 +215,11 @@ panel.innerHTML = `
 <div><strong>顾祁砚</strong><small>戏外小窗 · 台上在演，咱俩唠嗑</small></div>
 <button type="button" class="rp-sidechat-close" aria-label="关闭">×</button>
 </header>
+<div class="rp-sidechat-config">
+<select id="rp-sidechat-provider" aria-label="渠道"></select>
+<select id="rp-sidechat-model" aria-label="模型"></select>
+<button type="button" id="rp-sidechat-pull" title="拉取模型列表">↻</button>
+</div>
 <div class="rp-sidechat-messages" id="rp-sidechat-messages"></div>
 <div class="rp-sidechat-composer">
 <input id="rp-sidechat-input" placeholder="跟他吐槽刚才的戏……" maxlength="2000" />
@@ -239,6 +252,7 @@ msgBox.scrollTop = msgBox.scrollHeight;
 }
 function open() {
 if (!currentSceneId()) return;
+initConfigUI();
 history = loadHistory();
 render();
 panel.hidden = false;
@@ -283,6 +297,63 @@ panel.querySelector(".rp-sidechat-close").addEventListener("click", close);
 sendBtn.addEventListener("click", send);
 input.addEventListener("keydown", (e) => {
 if (e.key === "Enter" &&!e.isComposing) { e.preventDefault(); send();}
+});
+
+// ---- 渠道/模型选择 ----
+const providerSel = panel.querySelector("#rp-sidechat-provider");
+const modelSel = panel.querySelector("#rp-sidechat-model");
+const pullBtn = panel.querySelector("#rp-sidechat-pull");
+let channelCache = [];
+function fillModelOptions(channel, chosen) {
+modelSel.replaceChildren();
+const models = [...new Set([...(channel?.models || []), channel?.model || "", chosen || ""].filter(Boolean))];
+for (const m of models) {
+const opt = document.createElement("option");
+opt.value = m; opt.textContent = m;
+modelSel.append(opt);
+}
+if (chosen && models.includes(chosen)) modelSel.value = chosen;
+else if (channel?.model) modelSel.value = channel.model;
+else if (models[0]) modelSel.value = models[0];
+}
+function initConfigUI() {
+try { channelCache = bridge.channels() || []; } catch (_) { channelCache = []; }
+const cfg = loadConfig();
+const s = readSettings();
+providerSel.replaceChildren();
+for (const ch of channelCache) {
+const opt = document.createElement("option");
+opt.value = ch.id; opt.textContent = ch.name || "接口";
+providerSel.append(opt);
+}
+const target = channelCache.find((c) => c.id === cfg.providerId) || channelCache.find((c) => c.id === s.activeProviderId) || channelCache[0];
+if (target) {
+providerSel.value = target.id;
+fillModelOptions(target, cfg.providerId === target.id ? cfg.model : "");
+}
+}
+providerSel.addEventListener("change", () => {
+const ch = channelCache.find((c) => c.id === providerSel.value);
+fillModelOptions(ch, "");
+saveConfig({ providerId: providerSel.value, model: modelSel.value });
+});
+modelSel.addEventListener("change", () => {
+saveConfig({ providerId: providerSel.value, model: modelSel.value });
+});
+pullBtn.addEventListener("click", async () => {
+const pid = providerSel.value;
+if (!pid) return;
+pullBtn.disabled = true;
+pullBtn.textContent = "…";
+try {
+const res = await bridge.pullChannelModels(pid);
+const idx = channelCache.findIndex((c) => c.id === pid);
+if (idx >= 0) channelCache[idx] = { ...channelCache[idx], ...res };
+fillModelOptions(res, modelSel.value);
+saveConfig({ providerId: pid, model: modelSel.value });
+} catch (_) {}
+pullBtn.disabled = false;
+pullBtn.textContent = "↻";
 });
 
 function refreshVisibility() {

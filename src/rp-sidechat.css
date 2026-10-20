@@ -150,3 +150,36 @@
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.06); }
 }
+
+/* 小窗独立渠道/模型选择 */
+.rp-sidechat-config {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.88);
+  border-bottom: 1px solid var(--border, #e3e9f5);
+}
+.rp-sidechat-config select {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border, #e3e9f5);
+  border-radius: 10px;
+  padding: 7px 8px;
+  font-size: 12px;
+  background: #fff;
+  color: #2b3245;
+  outline: none;
+}
+.rp-sidechat-config select:focus { border-color: #5b8def; }
+#rp-sidechat-pull {
+  width: 32px; height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border, #e3e9f5);
+  background: #fff;
+  color: #5b8def;
+  font-size: 15px;
+  cursor: pointer;
+}
+#rp-sidechat-pull:disabled { opacity: 0.5; }
