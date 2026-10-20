@@ -97,7 +97,12 @@ maxTokens: 1500,
 function buildSystemPrompt() {
 const s = readSettings();
 const role = activeRole();
-const base = String(role.systemPrompt || s.systemPrompt || "").trim();
+// 跟主聊天同款：全局预设（虚构框架等）必须带上，否则模型会拒答或变客服腔
+const presetText = (Array.isArray(s.globalPromptPresets)? s.globalPromptPresets: [])
+.filter((item) => item.enabled && String(item.content || "").trim())
+.map((item) => "【全局预设 · " + (item.name || "未命名预设") + "】\n" + String(item.content).trim())
+.join("\n\n");
+const base = [presetText, String(role.systemPrompt || s.systemPrompt || "").trim()].filter(Boolean).join("\n\n");
 const mem = memoryText();
 const scene = recentSceneText();
 return [
