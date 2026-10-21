@@ -6819,6 +6819,27 @@ function roleplayRichSource(value) {
   const fenced = source.match(/^```(?:html)?[^\S\r\n]*\r?\n([\s\S]*?)\r?\n```(?:\s|$)/i);
   return fenced ? fenced[1].trim() : source;
 }
+// Character cards often compose an opening from several independent HTML fences
+// with ordinary story text between them. Each fence is its own little page in
+// Weijing/Tavern. Merging those pages makes card CSS (floats, fixed buttons, body
+// widths) leak into the story and squeeze it into a narrow side column.
+function splitRoleplayHtmlFences(value) {
+  const source = String(value || "");
+  const fence = /```[ \t]*html[ \t]*\r?\n([\s\S]*?)```/gi;
+  const segments = [];
+  let last = 0;
+  for (let match = fence.exec(source); match; match = fence.exec(source)) {
+    if (!/<[a-z!][^>]*>/i.test(match[1])) continue;
+    const before = source.slice(last, match.index).trim();
+    if (before) segments.push({ kind: "text", value: before });
+    segments.push({ kind: "html", value: match[1].trim() });
+    last = match.index + match[0].length;
+  }
+  if (!segments.some(segment => segment.kind === "html")) return null;
+  const rest = source.slice(last).trim();
+  if (rest) segments.push({ kind: "text", value: rest });
+  return segments;
+}
 // 惟镜同款：角色卡正则只在显示时跑（存储和发给模型的仍是原文），产出 HTML（音乐播放器等）就整段进 iframe。
 function roleplayRegexDisplay(answer) {
   const text = String(answer || "");
@@ -6838,7 +6859,9 @@ function roleplayRegexDisplay(answer) {
     } catch (_) {}
   }
   if (out === text) return text;
-  out = out.replace(/```(?:html)?[^\S\r\n]*\r?\n?/gi, "");
+  // Keep HTML fence boundaries. They are layout boundaries, not decoration:
+  // each page must be sandboxed separately just like Weijing renders it.
+  if (splitRoleplayHtmlFences(out)) return out;
   if (looksLikeRoleplayRichHtml(out)) return out;
   if (/<(?:div|span|audio|img|section|table|details|p)\b/i.test(out)) return `<!doctype html><html><body style="font:15px/1.8 -apple-system,sans-serif;white-space:pre-wrap">${out}</body></html>`;
   return out;
@@ -6871,6 +6894,7 @@ function roleplaySemanticDisplay(answer) {
   return sceneHtml + (body ? `<div class="rp-story-body">${renderMarkdown(body)}</div>` : "") + statusHtml;
 }
 function looksLikeRoleplayRichHtml(value) {
+  if (splitRoleplayHtmlFences(value)) return true;
   return /<!doctype\s+html|<html\b|<head\b|<body\b|<style\b|<script\b/i.test(roleplayRichSource(value));
 }
 function roleplayRichDocument(value, token) {
@@ -6887,16 +6911,23 @@ function roleplayRichDocument(value, token) {
   return /<\/body>/i.test(documentHtml) ? documentHtml.replace(/<\/body>/i, `${reporter}</body>`) : `${documentHtml}${reporter}`;
 }
 function roleplayRichFrameHtml(value) {
-  const token = `rp-${uid()}`;
   const attribute = source => escapeHtml(String(source || "")).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  return `<div class="roleplay-html-card"><button type="button" class="rp-opening-reset" onclick="restoreRoleplayOpening(this.nextElementSibling)" title="仅恢复这张卡的初始画面，不清空聊天">↶ 重看原始开场</button><iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}" title="角色卡互动内容" sandbox="allow-scripts" srcdoc="${attribute(roleplayRichDocument(value, token))}"></iframe></div>`;
+  const segments = splitRoleplayHtmlFences(value) || [{ kind: "html", value }];
+  const content = segments.map(segment => {
+    if (segment.kind === "text") return `<div class="roleplay-opening-text">${renderMarkdown(segment.value)}</div>`;
+    const token = `rp-${uid()}`;
+    return `<iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}" title="角色卡互动内容" sandbox="allow-scripts" srcdoc="${attribute(roleplayRichDocument(segment.value, token))}"></iframe>`;
+  }).join("");
+  return `<div class="roleplay-html-card"><button type="button" class="rp-opening-reset" hidden onclick="restoreRoleplayOpeningCard(this.parentElement)" title="恢复原始开场">重看原始开场</button><div class="roleplay-html-stack">${content}</div></div>`;
+}
+function restoreRoleplayOpeningCard(card, index = 0) {
+  if (!card || !isRoleplayConversation()) return;
+  const opening = normalizedRoleplayProject(currentConv()?.rpProject, currentConv()).greetings[index];
+  if (opening) card.outerHTML = roleplayRichFrameHtml(opening);
 }
 function restoreRoleplayOpening(frame, index = 0) {
   if (!frame || !isRoleplayConversation()) return;
-  frame.dataset.greetingChangedAt = String(Date.now());
-  const p = normalizedRoleplayProject(currentConv()?.rpProject, currentConv());
-  const opening = p.greetings[index];
-  if (opening) frame.srcdoc = roleplayRichDocument(opening, frame.dataset.rpFrameToken);
+  restoreRoleplayOpeningCard(frame.closest(".roleplay-html-card"), index);
 }
 let lastRoleplayCardAction = { text: "", at: 0 };
 function enterRoleplayCardAction(text, label) {

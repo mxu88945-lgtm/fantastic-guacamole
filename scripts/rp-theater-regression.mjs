@@ -83,6 +83,9 @@ ok(context.buildSharedRoleplayExperienceText() === '', 'other RP projects must n
 ok(dashboard.includes('JYCRoleplayBridge?.exitToHome?.()') && js.includes('rp-home-exit'), 'RP must have a working backstage-home exit');
 ok(html.includes('box.dataset.conversationId === currentId') && html.includes('scroller.scrollTop = oldTop'), 'RP redraws must retain the current scroll position');
 ok(html.includes('window.getChatMessages=async') && html.includes('jyc-rp-select-greeting') && html.includes('重看原始开场'), 'original opening and Tavern swipe navigation must be recoverable');
+ok(html.includes('function splitRoleplayHtmlFences(') && html.includes('class="roleplay-html-stack"'), 'multi-page card openings must render as separate Weijing-style blocks');
+ok(html.includes('if (splitRoleplayHtmlFences(out)) return out'), 'display regex must preserve HTML fence layout boundaries');
+ok(css.includes('.roleplay-html-stack') && css.includes('.roleplay-opening-text'), 'opening HTML cards and story text must use a full-width single-column flow');
 const sceneContext = {
   conversations: [], currentId: 'other', messages: [],
   normalizedRoleplayProject: (p, conv) => ({ ...p, opening: p.greetings[p.openingIndex || 0], title: p.title || conv.title }),
