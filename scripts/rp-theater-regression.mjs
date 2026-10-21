@@ -86,6 +86,7 @@ ok(html.includes('window.getChatMessages=async') && html.includes('jyc-rp-select
 ok(html.includes('function splitRoleplayHtmlFences(') && html.includes('class="roleplay-html-stack"'), 'multi-page card openings must render as separate Weijing-style blocks');
 ok(html.includes('if (splitRoleplayHtmlFences(out)) return out'), 'display regex must preserve HTML fence layout boundaries');
 ok(css.includes('.roleplay-html-stack') && css.includes('.roleplay-opening-text'), 'opening HTML cards and story text must use a full-width single-column flow');
+ok(html.includes('roleplayRichDocument(segment.value, token, !!split)') && html.includes('#returnHomeText{position:static!important'), 'fenced opening pages must shrink to visible content instead of reserving a viewport');
 const sceneContext = {
   conversations: [], currentId: 'other', messages: [],
   normalizedRoleplayProject: (p, conv) => ({ ...p, opening: p.greetings[p.openingIndex || 0], title: p.title || conv.title }),
