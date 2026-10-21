@@ -210,12 +210,21 @@ if (bridge) {
       const title = head.querySelector("h3");
       const titleButton = document.createElement("button");
       titleButton.type = "button";
-      titleButton.className = "rp-section-title";
+      titleButton.className = "rp-group-section-title";
       titleButton.dataset.collapseSection = section.id;
       title.replaceWith(titleButton);
       titleButton.append(title);
+      const body = document.createElement("div");
+      body.className = "rp-group-section-body";
+      [...section.children].filter(child => child !== head).forEach(child => body.append(child));
+      section.append(body);
       setSectionCollapsed(section, true);
     });
+    const menu = document.createElement("div");
+    menu.className = "rp-group-menu";
+    const sections = [...panel.querySelectorAll(".rp-group-collapsible, .rp-memory-link-card")];
+    sections[0]?.before(menu);
+    sections.forEach(section => menu.append(section));
   }
   function focusMember(memberId = "") {
     if (!memberId) return;
@@ -255,6 +264,9 @@ if (bridge) {
     apiButton.textContent = "添加 / 管理 API 接口 ›";
     panel.querySelector(".rp-group-links").prepend(apiButton);
     panel.querySelector("[data-home]").textContent = `回到${bridge.role().roleName}本体主页 ›`;
+    panel.querySelectorAll(".rp-group-links button").forEach(button => {
+      button.textContent = button.textContent.replace(/\s*[›↓↑]\s*$/u, "");
+    });
     installSectionFolds();
     renderMembers(); renderMemory(); updateTemporaryPlotMode();
     panel.querySelector(".rp-group-drawer").focus();
