@@ -6901,7 +6901,10 @@ function roleplayRichDocument(value, token, compact = false) {
   const source = roleplayRichSource(value);
   const greetings = normalizedRoleplayProject(currentConv()?.rpProject, currentConv()).greetings;
   const greetingBridge = `<script>(()=>{const token=${JSON.stringify(token)},swipes=${JSON.stringify(greetings).replace(/</g, "\\u003c")};const pick=i=>{window.__jycGreetingPicked=true;parent.postMessage({type:'jyc-rp-select-greeting',token,index:Number(i)||0},'*');setTimeout(()=>{window.__jycGreetingPicked=false},100)};window.getChatMessages=async()=>[{message_id:0,role:'assistant',message:swipes[0],swipes}];window.setChatMessage=async(_m,_id,opts)=>pick(opts&&opts.swipe_id!=null?opts.swipe_id:0);window.jumpToSwipe=pick;addEventListener('DOMContentLoaded',()=>{const home=document.getElementById('returnHomeText');if(home)home.addEventListener('click',()=>pick(0))})})()<\/script>`;
-  const guard = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https:; media-src data: https:; font-src data: https:; style-src 'unsafe-inline' https:; script-src 'unsafe-inline'; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'">`;
+  // Some imported player cards fetch an HTTPS stream and turn it into a blob
+  // before assigning it to <audio>. The sandbox still cannot reach the parent
+  // page or its storage, but the media request itself must be allowed.
+  const guard = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob: https:; media-src data: blob: https:; font-src data: https:; style-src 'unsafe-inline' https:; script-src 'unsafe-inline'; connect-src https:; frame-src 'none'; form-action 'none'; base-uri 'none'">`;
   const compactCss = compact ? `body{padding:0!important;display:flow-root!important}#returnHomeText{position:static!important;inset:auto!important;transform:none!important;writing-mode:horizontal-tb!important;margin:12px auto!important}` : "";
   const base = `<style>html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}${compactCss}</style>`;
   const measure = compact
@@ -6921,7 +6924,7 @@ function roleplayRichFrameHtml(value) {
   const content = segments.map(segment => {
     if (segment.kind === "text") return `<div class="roleplay-opening-text">${renderMarkdown(segment.value)}</div>`;
     const token = `rp-${uid()}`;
-    return `<iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}" title="角色卡互动内容" sandbox="allow-scripts" srcdoc="${attribute(roleplayRichDocument(segment.value, token, !!split))}"></iframe>`;
+    return `<iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}" title="角色卡互动内容" sandbox="allow-scripts" allow="autoplay" srcdoc="${attribute(roleplayRichDocument(segment.value, token, !!split))}"></iframe>`;
   }).join("");
   return `<div class="roleplay-html-card"><button type="button" class="rp-opening-reset" hidden onclick="restoreRoleplayOpeningCard(this.parentElement)" title="恢复原始开场">重看原始开场</button><div class="roleplay-html-stack">${content}</div></div>`;
 }

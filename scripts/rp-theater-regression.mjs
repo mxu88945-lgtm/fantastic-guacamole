@@ -4,6 +4,7 @@ import vm from "node:vm";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../src/rp-theater.css", import.meta.url), "utf8");
 const groupCss = readFileSync(new URL("../src/rp-group.css", import.meta.url), "utf8");
+const group = readFileSync(new URL("../src/rp-group.js", import.meta.url), "utf8");
 const js = readFileSync(new URL("../src/rp-theater.js", import.meta.url), "utf8");
 const dashboard = readFileSync(new URL("../src/dashboard.js", import.meta.url), "utf8");
 
@@ -87,6 +88,8 @@ ok(html.includes('function splitRoleplayHtmlFences(') && html.includes('class="r
 ok(html.includes('if (splitRoleplayHtmlFences(out)) return out'), 'display regex must preserve HTML fence layout boundaries');
 ok(css.includes('.roleplay-html-stack') && css.includes('.roleplay-opening-text'), 'opening HTML cards and story text must use a full-width single-column flow');
 ok(html.includes('roleplayRichDocument(segment.value, token, !!split)') && html.includes('#returnHomeText{position:static!important'), 'fenced opening pages must shrink to visible content instead of reserving a viewport');
+ok(html.includes("media-src data: blob: https:") && html.includes('allow="autoplay"'), 'opening music cards must be allowed to load and play HTTPS/blob media');
+ok(group.includes('document.getElementById("header-more-btn")?.addEventListener("click"') && group.includes('event.stopImmediatePropagation()'), 'RP header menu must directly open the large settings drawer on iOS');
 const sceneContext = {
   conversations: [], currentId: 'other', messages: [],
   normalizedRoleplayProject: (p, conv) => ({ ...p, opening: p.greetings[p.openingIndex || 0], title: p.title || conv.title }),

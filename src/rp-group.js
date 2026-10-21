@@ -545,5 +545,16 @@ if (bridge) {
   });
   window.addEventListener("jyc:chat-opened", () => { if (bridge.current()?.id !== sceneId) panel.hidden = true; });
   window.addEventListener("jyc:role-changed", () => { panel.hidden = true; });
+  // Bind the RP header action in capture phase as well. The chat shell is an
+  // absolutely positioned, pointer-transparent header on iOS; after an iframe
+  // opening resizes, WebKit can otherwise drop the legacy onclick hit. This
+  // direct binding always opens the large共演 drawer and never the small menu.
+  document.getElementById("header-more-btn")?.addEventListener("click", event => {
+    const current = bridge.current();
+    if (!current?.id || !bridge.inspectScene(current.id)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    open();
+  }, true);
   window.JYCRoleplayGroup = { open, close, openMember: memberId => open(memberId || "lead") };
 }
