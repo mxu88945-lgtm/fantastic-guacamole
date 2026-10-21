@@ -6908,6 +6908,77 @@ function looksLikeRoleplayRichHtml(value) {
   if (splitRoleplayHtmlFences(value)) return true;
   return /<!doctype\s+html|<html\b|<head\b|<body\b|<style\b|<script\b/i.test(roleplayRichSource(value));
 }
+// Older imported player templates contain the controls but no JavaScript.
+// Run only in those templates, inside the existing isolated card iframe.
+function roleplayPlayerCompatibility() {
+  const audio = document.getElementById("musicPlayer");
+  const button = document.getElementById("playBtn");
+  if (!audio || !button) return;
+  const card = document.getElementById("playerCard");
+  const icon = document.getElementById("playBtnIcon");
+  const current = document.getElementById("currentTime");
+  const duration = document.getElementById("durationTime");
+  const fill = document.getElementById("progressFill");
+  const track = document.getElementById("progressTrack");
+  const status = document.createElement("p");
+  status.setAttribute("role", "status");
+  status.style.cssText = "font:12px/1.5 -apple-system,sans-serif;color:var(--text-secondary,#666);margin:8px 0 0";
+  status.hidden = true;
+  (card || audio.parentElement).append(status);
+  audio.preload = "metadata";
+  const message = text => { status.textContent = text; status.hidden = !text; };
+  const clock = value => {
+    const seconds = Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+  const update = () => {
+    const playing = !audio.paused && !audio.ended;
+    card?.classList.toggle("playing", playing);
+    icon?.classList.toggle("play-icon", !playing);
+    icon?.classList.toggle("pause-icon", playing);
+    button.setAttribute("aria-label", playing ? "暂停" : "播放");
+    button.setAttribute("aria-pressed", String(playing));
+    if (current) current.textContent = clock(audio.currentTime);
+    if (duration) duration.textContent = clock(audio.duration);
+    if (fill) fill.style.width = `${Number.isFinite(audio.duration) && audio.duration > 0 ? Math.max(0, Math.min(100, audio.currentTime / audio.duration * 100)) : 0}%`;
+    if (track) track.setAttribute("aria-valuenow", String(Math.floor(audio.currentTime || 0)));
+  };
+  const seek = value => {
+    if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+    audio.currentTime = Math.max(0, Math.min(audio.duration, value)); update();
+  };
+  const failure = () => { message("音源加载失败，请检查网络后点播放重试；若仍失败，需要更换音频地址。"); update(); };
+  button.type = "button";
+  button.addEventListener("click", event => {
+    event.preventDefault(); event.stopPropagation();
+    if (!audio.paused && !audio.ended) { audio.pause(); return; }
+    message("正在加载音乐…");
+    if (audio.error) audio.load();
+    // Keep play() in the user's click, so iOS retains the gesture permission.
+    try {
+      const pending = audio.play();
+      if (pending?.catch) pending.catch(error => {
+        if (error?.name === "AbortError") return;
+        if (error?.name === "NotAllowedError") { message("请再点一次播放，允许本次音乐播放。"); update(); }
+        else failure();
+      });
+    } catch { failure(); }
+  });
+  ["loadedmetadata", "durationchange", "timeupdate", "pause", "ended"].forEach(type => audio.addEventListener(type, update));
+  audio.addEventListener("playing", () => { message(""); update(); });
+  audio.addEventListener("waiting", () => message("正在缓冲音乐…"));
+  audio.addEventListener("error", failure);
+  if (track) {
+    track.setAttribute("role", "slider"); track.setAttribute("aria-label", "音乐播放进度"); track.setAttribute("aria-valuemin", "0"); track.tabIndex = 0;
+    audio.addEventListener("loadedmetadata", () => track.setAttribute("aria-valuemax", String(Math.floor(audio.duration || 0))));
+    track.addEventListener("click", event => { event.stopPropagation(); const rect = track.getBoundingClientRect(); if (rect.width) seek((event.clientX - rect.left) / rect.width * audio.duration); });
+    track.addEventListener("keydown", event => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault(); seek(event.key === "Home" ? 0 : event.key === "End" ? audio.duration : audio.currentTime + (event.key === "ArrowRight" ? 5 : -5));
+    });
+  }
+  update();
+}
 function roleplayRichDocument(value, token, compact = false) {
   const source = roleplayRichSource(value);
   const greetings = normalizedRoleplayProject(currentConv()?.rpProject, currentConv()).greetings;
@@ -6922,11 +6993,13 @@ function roleplayRichDocument(value, token, compact = false) {
     ? `var b=document.body;if(!b)return 120;var top=b.getBoundingClientRect().top,bottom=top;Array.from(b.querySelectorAll('*')).forEach(function(n){if(/^(SCRIPT|STYLE|META|LINK)$/i.test(n.tagName))return;var s=getComputedStyle(n);if(s.display==='none'||s.visibility==='hidden')return;var media=/^(IMG|AUDIO|VIDEO|CANVAS|SVG)$/i.test(n.tagName);if(n.childElementCount&&!media)return;var r=n.getBoundingClientRect();if(r.width&&r.height&&Number.isFinite(r.bottom))bottom=Math.max(bottom,r.bottom)});return Math.max(40,Math.ceil(bottom-top+16))`
     : `return Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0,120)`;
   const reporter = `<script>(function(){var token=${JSON.stringify(token)};var height=function(){${measure}};var send=function(){parent.postMessage({type:'jyc-rp-frame-height',token:token,height:Math.min(height(),6000)},'*')};var pick=function(node){if(!node)return null;var explicit=node.getAttribute('data-prompt')||node.getAttribute('data-message')||node.getAttribute('data-opening')||node.getAttribute('data-scene')||node.getAttribute('data-choice');var text=(explicit||node.innerText||node.textContent||'').replace(/\\s+/g,' ').trim();if(!text)return null;return{text:text.slice(0,4000),label:(node.innerText||node.textContent||text).replace(/\\s+/g,' ').trim().slice(0,160)}};document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-prompt],[data-message],[data-opening],[data-scene],[data-choice],button,[role="button"],a[href],[onclick],.script-card,.scene-card,.choice-card'):null;if(!node)return;var action=pick(node);if(!action)return;setTimeout(function(){parent.postMessage({type:'jyc-rp-card-action',token:token,text:action.text,label:action.label},'*')},0)},false);addEventListener('load',send);addEventListener('resize',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.documentElement);setTimeout(send,60);setTimeout(send,400)})()<\/script>`;
+  const playerBridge = /<audio\b[^>]*\bid=["']musicPlayer["']/i.test(source) && /\bid=["']playBtn["']/i.test(source) && !/<script\b/i.test(source)
+    ? `<script>(${roleplayPlayerCompatibility.toString()})()<\/script>` : "";
   let documentHtml = source;
   if (/<head\b[^>]*>/i.test(documentHtml)) documentHtml = documentHtml.replace(/<head\b[^>]*>/i, match => `${match}${guard}${base}${greetingBridge}`);
   else if (/<html\b[^>]*>/i.test(documentHtml)) documentHtml = documentHtml.replace(/<html\b[^>]*>/i, match => `${match}<head>${guard}${base}${greetingBridge}</head>`);
   else documentHtml = `<!doctype html><html><head>${guard}${base}${greetingBridge}</head><body>${documentHtml}</body></html>`;
-  return /<\/body>/i.test(documentHtml) ? documentHtml.replace(/<\/body>/i, `${reporter}</body>`) : `${documentHtml}${reporter}`;
+  return /<\/body>/i.test(documentHtml) ? documentHtml.replace(/<\/body>/i, `${playerBridge}${reporter}</body>`) : `${documentHtml}${playerBridge}${reporter}`;
 }
 function roleplayRichFrameHtml(value) {
   const attribute = source => escapeHtml(String(source || "")).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
