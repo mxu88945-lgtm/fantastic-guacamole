@@ -47,6 +47,20 @@ ok(css.includes('.roleplay-rich-message > .msg-head'), "flat-layout rich opening
 ok(html.includes("greetings, openingIndex, alternateGreetings"), "opening selection is not persisted");
 ok(html.includes('worldEntries: Array.isArray(raw.worldEntries)') && html.includes('regexRules: Array.isArray(raw.regexRules)') && html.includes('theaterWorldBackground: text("theaterWorldBackground")'), "saving an RP project drops worldbook, regex, tags or theater world");
 ok(html.includes("function activeRoleplayWorldText(") && html.includes("entry?.enabled !== false"), "live RP requests do not honor the current worldbook enable switch");
+ok(html.includes("function activeRoleplayTheaterWorldText(") && html.includes("stripDisabledRoleplayWorldFromContent"), "disabled worldbook text can still leak through theater world, memory or chat history");
+ok(html.includes('theaterWorldEnabled: raw.theaterWorldEnabled !== false') && js.includes('id="rp-theater-world-enabled"'), "theater world has no persisted on/off switch");
+ok(js.includes('const theaterSource = data.theaterWorldBackground || (!structuredWorldbook ? data.world : "")'), "character worldbook is still copied into the theater-world field");
+const worldContext = {};
+vm.createContext(worldContext);
+vm.runInContext(html.slice(html.indexOf("function roleplayWorldFragments("), html.indexOf("function roleplaySharedMemoryText(")), worldContext);
+const disabledWorldText = "当前故事为前世辜负后转世重逢，并保留跳楼重生的旧版设定。";
+const enabledWorldText = "当前故事从纯相亲开局，双方此前没有任何前世纠葛或重生经历。";
+const worldProject = { theaterWorldEnabled: true, theaterWorldBackground: `剧场独有背景。\n\n${enabledWorldText}\n\n${disabledWorldText}`,
+  worldEntries: [{ content: enabledWorldText, enabled: true }, { content: disabledWorldText, enabled: false }] };
+ok(worldContext.activeRoleplayTheaterWorldText(worldProject) === "剧场独有背景。", "legacy copied worldbook text survives in theater world");
+ok(!worldContext.stripDisabledRoleplayWorldFromContent(`摘要：${disabledWorldText}`, worldProject).includes("前世辜负"), "disabled worldbook survives in historical prompt content");
+worldProject.theaterWorldEnabled = false;
+ok(worldContext.activeRoleplayTheaterWorldText(worldProject) === "", "disabled theater world still reaches the prompt");
 ok(js.includes("function autosaveExistingDraft()") && js.includes("autosaveExistingDraft();"), "worldbook switches must persist immediately for existing scenes");
 ok(html.includes("【本剧本世界观（本剧场所有角色与 NPC 共用）】"), "theater world background never reaches the prompt");
 ok(js.includes("function displayGreeting(") && !js.includes("bridge.update(projectId, { ...rp, greetings: processed })"), "openings must be beautified only for display, never rewritten in storage");

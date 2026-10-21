@@ -13,6 +13,14 @@ if (!bridge) {
     return String(value || "").replace(/\u0000/g, "").slice(0, max);
   }
 
+  function stripWorldbookCopies(value, entries = state.worldEntries) {
+    let output = safeText(value, 120000).replace(/\r\n?/g, "\n");
+    const fragments = (entries || []).map(entry => safeText(entry?.content, 50000).replace(/\r\n?/g, "\n").trim())
+      .filter(Boolean).sort((a, b) => b.length - a.length);
+    for (const fragment of fragments) output = output.split(fragment).join("");
+    return output.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
   function escapeHtml(value) {
     return safeText(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
   }
@@ -336,8 +344,8 @@ function plainPreviewWithMedia(value) {
                 <div class="rp-entry-list" id="rp-regex-list"></div><p class="rp-files-empty" id="rp-regex-empty" hidden>这张角色卡没有正则与美化规则。</p>
               </section>
               <section class="rp-wide rp-card-block" id="rp-theater-world-block" data-rp-sec="theater">
-                <div class="rp-card-block-head"><div><strong>剧本世界观</strong><small>本剧场所有角色与 NPC 共用 · 对标惟镜长剧情</small></div></div>
-                <div class="rp-theater-world-desc">这份设定只属于这个剧本。开场后本剧场里的所有角色和 NPC 都会读取；切换到其他剧本时不会带过去。角色各自的人设、世界书与正则仍会叠加生效。</div>
+                <div class="rp-card-block-head"><div><strong>剧本世界观</strong><small>本剧场所有角色与 NPC 共用 · 对标惟镜长剧情</small></div><label class="rp-theater-world-switch"><input type="checkbox" id="rp-theater-world-enabled" checked><span>启用</span></label></div>
+                <div class="rp-theater-world-desc">开启时才会发送给本剧场里的所有角色和 NPC；关闭后内容仍保留，但不会进入模型请求。角色世界书由各条自己的开关控制。</div>
                 <textarea id="rp-field-world" rows="10" placeholder="填写本剧场的时代与地点、公共背景、人物关系、共同经历、势力结构和所有成员必须知道的事实……"></textarea>
                 <details class="rp-greeting-preview" id="rp-world-preview"><summary>世界观呈现预览</summary><div id="rp-world-preview-content"></div></details>
               </section>
@@ -385,7 +393,7 @@ function plainPreviewWithMedia(value) {
     // 角色世界书：启用的条目拼成 world
     const wbText = state.worldEntries.filter((e) => e.enabled && e.content).map((e) => e.content).join("\n\n");
     // 剧本世界观：独立字段，对标惟镜长剧情的 theaterWorldBackground
-    const theaterWorld = $("rp-field-world") ? $("rp-field-world").value.trim() : "";
+    const theaterWorld = $("rp-field-world") ? stripWorldbookCopies($("rp-field-world").value) : "";
     return {
       title: $("rp-field-title").value.trim(),
       actorName: $("rp-field-actor").value.trim(),
@@ -395,6 +403,7 @@ function plainPreviewWithMedia(value) {
       characterPrompt: $("rp-field-character").value.trim(),
       world: wbText,
       theaterWorldBackground: theaterWorld,
+      theaterWorldEnabled: $("rp-theater-world-enabled")?.checked !== false,
       scenario: $("rp-field-scenario").value.trim(),
       temporaryPlot: $("rp-field-temporary").value.trim(),
       opening: (state.greetings[state.selectedGreeting] || "").trim(),
@@ -437,7 +446,10 @@ function plainPreviewWithMedia(value) {
     renderActorAvatar();
     $("rp-field-user-role").value = safeText(data.userRole || "", 240);
     $("rp-field-character").value = safeText(data.characterPrompt);
-    $("rp-field-world").value = safeText(data.theaterWorldBackground || data.world);
+    const structuredWorldbook = Array.isArray(data.worldEntries) && data.worldEntries.length > 0;
+    const theaterSource = data.theaterWorldBackground || (!structuredWorldbook ? data.world : "");
+    $("rp-field-world").value = stripWorldbookCopies(theaterSource, Array.isArray(data.worldEntries) ? data.worldEntries : []);
+    $("rp-theater-world-enabled").checked = data.theaterWorldEnabled !== false;
     $("rp-field-scenario").value = safeText(data.scenario);
     $("rp-field-temporary").value = safeText(data.temporaryPlot);
     state.tags = Array.isArray(data.tags) ? data.tags.map((t) => safeText(t, 40)).filter(Boolean).slice(0, 24) : [];
@@ -555,8 +567,8 @@ function plainPreviewWithMedia(value) {
     const rx = selected.regexRules || [];
     const rxOn = rx.filter((r) => !r.disabled).length;
     $("rp-detail-regex-count").textContent = `${rx.length} 条 · ${rxOn} 条启用`;
-    const tw = safeText(data.theaterWorldBackground || "", 50000);
-    $("rp-detail-theater-count").textContent = tw ? "已填写" : "未填写";
+    const tw = stripWorldbookCopies(data.theaterWorldBackground || "", Array.isArray(data.worldEntries) ? data.worldEntries : []);
+    $("rp-detail-theater-count").textContent = tw ? (data.theaterWorldEnabled === false ? "已关闭" : "已启用") : "未填写";
     $("rp-detail-openings").innerHTML = greetings.map((g, i) => {
       const txt = plainPreviewWithMedia(g);
       const preview = txt.length > 200 ? txt.slice(0, 200) + "…" : txt;
@@ -1051,6 +1063,7 @@ function plainPreviewWithMedia(value) {
   $("rp-world-preview").addEventListener("toggle", () => {
     if ($("rp-world-preview").open) renderWorldPreview();
   });
+  $("rp-theater-world-enabled").addEventListener("change", () => autosaveExistingDraft());
   $("rp-field-opening").addEventListener("input", () => {
     state.greetings[state.selectedGreeting] = safeText($("rp-field-opening").value, 300000);
   });
