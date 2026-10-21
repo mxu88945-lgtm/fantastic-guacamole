@@ -61,6 +61,9 @@ assert.equal(writes, beforeWrites, "opening the library repeatedly must not rewr
 
 // Exercise the actual settings and deletion entry points, not a simulated filter.
 assert.ok(bridge.saveSceneSettings("original", { members: [] }));
+assert.ok(bridge.saveSceneSettings("original", { chatFontSize: "large", chatFontFamily: "song" }));
+assert.equal(scene.rpProject.chatFontSize, "large", "the actual scene settings save must persist the selected size");
+assert.equal(scene.rpProject.chatFontFamily, "song", "the actual scene settings save must persist the selected family");
 assert.ok(context.savedRoleplayCards().some(card => card.rpProject.actorName === "江屹琛"), "removing a member must retain its card");
 context.deleteConversation("original");
 await context.roleplayCardWriteQueue;

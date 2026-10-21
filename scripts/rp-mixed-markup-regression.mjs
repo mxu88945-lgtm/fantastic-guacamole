@@ -28,6 +28,10 @@ const frame = context.roleplayRichFrameHtml(display);
 assert.ok(frame.includes('sandbox="allow-scripts"'));
 assert.ok(frame.includes('class=&quot;rp-mixed-paragraph&quot;'), "the real iframe srcdoc must contain the paragraph markup");
 assert.ok(frame.includes('class=&quot;chat-quote&quot;'));
+project.chatFontSize = "large"; project.chatFontFamily = "kai";
+const largeKaiFrame = context.roleplayRichFrameHtml(display);
+assert.ok(largeKaiFrame.includes('--rp-story-font-size:16.5px') && largeKaiFrame.includes('STKaiti'), "HTML stories must receive the saved scene font and size");
+assert.ok(largeKaiFrame.includes('jyc-rp-typography'), "an already-open HTML story must accept live typography previews from its parent");
 assert.equal(opening.includes("rp-mixed"), false, "original message text stays untouched");
 
 const style = '<style>.card::before{content:"原始样式"} .card{white-space:pre-wrap}</style>';

@@ -6206,13 +6206,17 @@ function updateConversationSpaceUI() {
 
 function applyRoleplayTextTheme(box = $("messages"), projectOverride = null) {
   if (!box) return;
-  ["--system-text-color", "--narration-text-color", "--quote-text-color"].forEach(name => box.style.removeProperty(name));
+  ["--system-text-color", "--narration-text-color", "--quote-text-color", "--msg-font", "--msg-font-family"].forEach(name => box.style.removeProperty(name));
   if (!isRoleplayConversation()) return;
   const project = projectOverride || normalizedRoleplayProject(currentConv()?.rpProject, currentConv());
   const body = project.chatTextColor;
   if (body) box.style.setProperty("--system-text-color", body);
   if (project.chatNarrationColor || body) box.style.setProperty("--narration-text-color", project.chatNarrationColor || body);
   if (project.chatQuoteColor || body) box.style.setProperty("--quote-text-color", project.chatQuoteColor || body);
+  const typography = roleplayTypography(project);
+  if (project.chatFontSize) box.style.setProperty("--msg-font", typography.size);
+  if (project.chatFontFamily) box.style.setProperty("--msg-font-family", typography.family);
+  box.querySelectorAll(".roleplay-html-frame").forEach(frame => frame.contentWindow?.postMessage({ type: "jyc-rp-typography", ...typography }, "*"));
 }
 
 // ---------- Minimal markdown ----------
@@ -7024,6 +7028,12 @@ function roleplayPlayerCompatibility() {
   }
   update();
 }
+function roleplayTypography(project = {}) {
+  const global = typeof settings === "object" ? settings : {};
+  const sizes = { small: "13px", medium: "14.5px", large: "16.5px" };
+  const families = { default: '-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif', kai: '"Kaiti SC","STKaiti",KaiTi,serif', song: '"Songti SC","STSong",serif' };
+  return { size: sizes[project.chatFontSize || global.fontSize] || sizes.medium, family: families[project.chatFontFamily || global.fontFamily] || families.default };
+}
 function normalizeRoleplayMixedMarkup(value) {
   // Like Weijing's normalizeMixedMarkup, format text BETWEEN tags, never tag
   // attributes, CSS or scripts. A scene/status regex must not flatten prose.
@@ -7055,6 +7065,7 @@ function normalizeRoleplayMixedMarkup(value) {
 }
 function roleplayRichDocument(value, token, compact = false) {
   const source = normalizeRoleplayMixedMarkup(roleplayRichSource(value));
+  const typography = roleplayTypography(normalizedRoleplayProject(currentConv()?.rpProject, currentConv()));
   const greetings = normalizedRoleplayProject(currentConv()?.rpProject, currentConv()).greetings;
   const greetingBridge = `<script>(()=>{const token=${JSON.stringify(token)},swipes=${JSON.stringify(greetings).replace(/</g, "\\u003c")};const pick=i=>{window.__jycGreetingPicked=true;parent.postMessage({type:'jyc-rp-select-greeting',token,index:Number(i)||0},'*');setTimeout(()=>{window.__jycGreetingPicked=false},100)};window.getChatMessages=async()=>[{message_id:0,role:'assistant',message:swipes[0],swipes}];window.setChatMessage=async(_m,_id,opts)=>pick(opts&&opts.swipe_id!=null?opts.swipe_id:0);window.jumpToSwipe=pick;addEventListener('DOMContentLoaded',()=>{const home=document.getElementById('returnHomeText');if(home)home.addEventListener('click',()=>pick(0))})})()<\/script>`;
   // Some imported player cards fetch an HTTPS stream and turn it into a blob
@@ -7062,7 +7073,7 @@ function roleplayRichDocument(value, token, compact = false) {
   // page or its storage, but the media request itself must be allowed.
   const guard = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob: https:; media-src data: blob: https:; font-src data: https:; style-src 'unsafe-inline' https:; script-src 'unsafe-inline'; connect-src https:; frame-src 'none'; form-action 'none'; base-uri 'none'">`;
   const compactCss = compact ? `body{padding:0!important;display:flow-root!important}#returnHomeText{position:static!important;inset:auto!important;transform:none!important;writing-mode:horizontal-tb!important;margin:12px auto!important}` : "";
-  const base = `<style>html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}.rp-mixed-paragraph{display:block;margin:0 0 1.15em;line-height:1.9;white-space:normal;overflow-wrap:anywhere}.chat-quote{padding:.18em .45em;border-radius:8px;background:rgba(120,110,128,.12);color:#50739a;box-decoration-break:clone;-webkit-box-decoration-break:clone;line-height:1.65}${compactCss}</style>`;
+  const base = `<style>:root{--rp-story-font-size:${typography.size};--rp-story-font-family:${typography.family}}html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}.rp-mixed-paragraph{display:block;margin:0 0 1.15em;font-size:var(--rp-story-font-size);font-family:var(--rp-story-font-family);line-height:1.9;white-space:normal;overflow-wrap:anywhere}.chat-quote{padding:.18em .45em;border-radius:8px;background:rgba(120,110,128,.12);color:#50739a;box-decoration-break:clone;-webkit-box-decoration-break:clone;line-height:1.65}${compactCss}</style><script>addEventListener('message',function(e){if(e.source!==parent||e.data?.type!=='jyc-rp-typography')return;document.documentElement.style.setProperty('--rp-story-font-size',e.data.size);document.documentElement.style.setProperty('--rp-story-font-family',e.data.family)})<\/script>`;
   const measure = compact
     ? `var b=document.body;if(!b)return 120;var top=b.getBoundingClientRect().top,bottom=top;Array.from(b.querySelectorAll('*')).forEach(function(n){if(/^(SCRIPT|STYLE|META|LINK)$/i.test(n.tagName))return;var s=getComputedStyle(n);if(s.display==='none'||s.visibility==='hidden')return;var media=/^(IMG|AUDIO|VIDEO|CANVAS|SVG)$/i.test(n.tagName);if(n.childElementCount&&!media)return;var r=n.getBoundingClientRect();if(r.width&&r.height&&Number.isFinite(r.bottom))bottom=Math.max(bottom,r.bottom)});return Math.max(40,Math.ceil(bottom-top+16))`
     : `return Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0,120)`;
@@ -8119,6 +8130,8 @@ function normalizedRoleplayProject(value, conv) {
     title: text("title", 80) || String(conv?.title || "未命名剧本").slice(0, 80),
     actorName: text("actorName", 80), userRole: text("userRole", 240), userIdentity: text("userIdentity", 30000),
     chatTextColor: color("chatTextColor"), chatNarrationColor: color("chatNarrationColor"), chatQuoteColor: color("chatQuoteColor"),
+    chatFontSize: ["small", "medium", "large"].includes(raw.chatFontSize) ? raw.chatFontSize : "",
+    chatFontFamily: ["default", "kai", "song"].includes(raw.chatFontFamily) ? raw.chatFontFamily : "",
     actorAvatar: /^(https?:\/\/|data:image\/)/.test(raw.actorAvatar || raw.avatar || "") ? String(raw.actorAvatar || raw.avatar).slice(0, 2000000) : "",
     characterPrompt: text("characterPrompt"), beautificationProtocol: text("beautificationProtocol", 30000), world: text("world"), scenario: text("scenario"),
     temporaryPlot: String(legacyPlot?.text ?? raw.temporaryPlot ?? "").replace(/\u0000/g, "").slice(0, 120000),
@@ -16518,15 +16531,15 @@ window.JYCRoleplayBridge = {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
     if (!conv || abortController || replyBooting || roleplayGroupRun) { showToast("等当前回复结束后再保存设置"); return null; }
     const allowed = {};
-    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
+    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor", "chatFontSize", "chatFontFamily"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
     const previousPortraits = JSON.stringify(roleplayMembers(normalizedRoleplayProject(conv.rpProject, conv)).map(member => [member.id, member.avatar]));
-    const previousTextTheme = JSON.stringify([conv.rpProject?.chatTextColor, conv.rpProject?.chatNarrationColor, conv.rpProject?.chatQuoteColor]);
+    const previousTextTheme = JSON.stringify([conv.rpProject?.chatTextColor, conv.rpProject?.chatNarrationColor, conv.rpProject?.chatQuoteColor, conv.rpProject?.chatFontSize, conv.rpProject?.chatFontFamily]);
     rememberRoleplayCards([conv]);
     conv.rpProject = normalizedRoleplayProject({ ...conv.rpProject, ...allowed }, conv);
     conv.updatedAt = Date.now(); saveConversations();
     rememberRoleplayCards([conv]);
     const portraitsChanged = previousPortraits !== JSON.stringify(roleplayMembers(conv.rpProject).map(member => [member.id, member.avatar]));
-    const textThemeChanged = previousTextTheme !== JSON.stringify([conv.rpProject.chatTextColor, conv.rpProject.chatNarrationColor, conv.rpProject.chatQuoteColor]);
+    const textThemeChanged = previousTextTheme !== JSON.stringify([conv.rpProject.chatTextColor, conv.rpProject.chatNarrationColor, conv.rpProject.chatQuoteColor, conv.rpProject.chatFontSize, conv.rpProject.chatFontFamily]);
     if (conv.id === currentId && (portraitsChanged || textThemeChanged)) renderMessages();
     if (conv.id === currentId) updateConversationSpaceUI();
     window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: id } }));

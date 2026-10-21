@@ -77,6 +77,7 @@ if (bridge) {
       chatTextColor: draft.chatTextColor || "",
       chatNarrationColor: draft.chatNarrationColor || "",
       chatQuoteColor: draft.chatQuoteColor || "",
+      chatFontSize: draft.chatFontSize || "", chatFontFamily: draft.chatFontFamily || "",
     });
   }
   function save() {
@@ -94,6 +95,7 @@ if (bridge) {
       temporaryPlotRemainingUses: draft.temporaryPlotRemainingUses,
       temporaryPlotRecipientIds: draft.temporaryPlotRecipientIds,
       chatTextColor: draft.chatTextColor, chatNarrationColor: draft.chatNarrationColor, chatQuoteColor: draft.chatQuoteColor,
+      chatFontSize: draft.chatFontSize, chatFontFamily: draft.chatFontFamily,
     });
     if (result) { dirty = false; return true; }
     return false;
@@ -252,7 +254,7 @@ if (bridge) {
       <div class="rp-group-scroll"><section class="rp-group-stats" aria-label="本次共演"><div><strong>${scene.turns}</strong><span>对话轮数</span></div><div><strong>${scene.replies}</strong><span>角色回复</span></div><div><strong>${scene.messageCount}</strong><span>消息总数</span></div></section>
       <section id="rp-members-section"><div class="rp-group-section-head"><h3>成员（<span id="rp-cast-count"></span>）</h3><label class="rp-cast-check"><input id="rp-group-enabled" type="checkbox" ${draft.groupEnabled ? "checked" : ""}>开启群聊</label></div><label>发言方式<select id="rp-group-reply-mode"><option value="mention" ${draft.replyMode !== "round" ? "selected" : ""}>按 @ 指定；未指定时只由主角回复</option><option value="round" ${draft.replyMode === "round" ? "selected" : ""}>勾选的成员依次回复</option></select></label><p class="rp-group-note">输入 @ 后点选成员，本轮只让选中的人发言。只有选择“依次回复”时，下方的“参与每轮回复”勾选才会生效。</p><div id="rp-cast-list"></div><div class="rp-cast-add"><button type="button" data-add="actor">＋ 添加角色</button><button type="button" data-add="director">＋ 新建导演卡</button><button type="button" data-import>导入角色卡</button></div><label class="rp-cast-library">从角色库添加<select id="rp-cast-library"><option value="">选择已有角色…</option>${library.map((role, index) => `<option value="${index}">${escape(role.label || role.name)}</option>`).join("")}</select></label><input type="file" id="rp-cast-file" accept=".json,.txt,.md,application/json,text/plain" hidden></section>
       <section id="rp-user-profile"><div class="rp-group-section-head"><h3>用户身份</h3><span class="rp-group-note">仅本剧本</span></div><p class="rp-group-note">这份身份只发给本场共演角色，不会改动顾祁砚本体里的“周惟惟”，也不会串进其他剧本。</p><label>姓名 / 戏内身份<input id="rp-user-role" maxlength="240" value="${escape(draft.userRole || "")}" placeholder="例如：宁梦曦"></label><label>用户身份资料<textarea id="rp-user-identity" rows="8" maxlength="30000" placeholder="填写背景、经历、关系、外貌或这条剧情里需要角色知道的身份资料……">${escape(draft.userIdentity || "")}</textarea></label></section>
-      <section id="rp-display-section"><div class="rp-group-section-head"><h3>文字显示主题</h3><span class="rp-group-note">仅本剧本</span></div><p class="rp-group-note">单独调整这个剧情窗口里角色回复的正文、旁白与引用颜色，不影响顾祁砚本体和其他剧本。</p><div class="rp-text-theme-grid">${textThemeRow("chatTextColor", "正文", textDefaults.chatTextColor)}${textThemeRow("chatNarrationColor", "旁白", textDefaults.chatNarrationColor)}${textThemeRow("chatQuoteColor", "引用", textDefaults.chatQuoteColor)}</div><button type="button" data-reset-text-theme>全部跟随本体主题</button></section>
+      <section id="rp-display-section"><div class="rp-group-section-head"><h3>文字显示主题</h3><span class="rp-group-note">仅本剧本</span></div><p class="rp-group-note">单独调整这个剧情窗口里角色回复的字体、字号及正文、旁白与引用颜色，不影响顾祁砚本体和其他剧本。</p><label>字体<select data-rp-font="chatFontFamily">${[["", "跟随本体字体"], ["default", "系统字体"], ["kai", "楷体"], ["song", "宋体"]].map(([value, label]) => `<option value="${value}" ${(draft.chatFontFamily || "") === value ? "selected" : ""}>${label}</option>`).join("")}</select></label><label>字体大小<select data-rp-font="chatFontSize">${[["", "跟随本体字号"], ["small", "小 · 13px"], ["medium", "中 · 14.5px"], ["large", "大 · 16.5px"]].map(([value, label]) => `<option value="${value}" ${(draft.chatFontSize || "") === value ? "selected" : ""}>${label}</option>`).join("")}</select></label><div class="rp-text-theme-grid">${textThemeRow("chatTextColor", "正文", textDefaults.chatTextColor)}${textThemeRow("chatNarrationColor", "旁白", textDefaults.chatNarrationColor)}${textThemeRow("chatQuoteColor", "引用", textDefaults.chatQuoteColor)}</div><button type="button" data-reset-text-theme>全部跟随本体主题</button></section>
       <section id="rp-temporary-section"><div class="rp-group-section-head"><h3>临时剧情</h3><span class="rp-group-note">正文不显示</span></div><p class="rp-group-note">仅本对话生效。群聊只有本轮被你 @ 且符合接收范围的角色能看到；单人剧情直接发送或续演即可。</p><label>生效时长<select id="rp-temporary-mode"><option value="once" ${draft.temporaryPlotMode === "once" ? "selected" : ""}>仅下一次（默认）</option><option value="counted" ${draft.temporaryPlotMode === "counted" ? "selected" : ""}>持续指定次数</option><option value="persistent" ${draft.temporaryPlotMode === "persistent" ? "selected" : ""}>持续到手动结束</option></select></label><label id="rp-temporary-uses-wrap">剩余成功次数<input id="rp-temporary-uses" type="number" min="1" max="100" value="${Number(draft.temporaryPlotRemainingUses) || 3}"></label><fieldset id="rp-plot-recipients" class="rp-plot-recipients"></fieldset><label>幕后安排<textarea id="rp-temporary-plot" rows="12" maxlength="120000" placeholder="例如：让他接到一通紧急电话；或保持缓慢对峙，不急着和解……">${escape(draft.temporaryPlot || "")}</textarea></label><div class="rp-cast-add"><button type="button" data-clear-plot>清空 / 结束</button></div><p class="rp-group-note">成功回复后按次数消耗；失败或停止时保留。持续方向会沿最新进展推进，不要求重复已经发生的事件。</p></section>
       <section id="rp-scene-memory" class="rp-memory-link-card"><button type="button" data-open-memory><span><strong>长期记忆</strong><small id="rp-scene-memory-count"></small></span><b>›</b></button><p class="rp-group-note">自动总结、关键词召回、角色私人核心记忆和注入位置都在这里设置。</p></section>
       <section class="rp-group-links"><button type="button" data-detail>情景与角色资料 ›</button><button type="button" data-export-scene>导出当前对话 TXT ↓</button><button type="button" data-import-scene>导入对话 TXT · 新建副本 ↑</button><input type="file" id="rp-scene-import-file" accept=".txt,.json,text/plain,application/json" hidden><button type="button" data-home>回到顾祁砚本体主页 ›</button></section></div>
@@ -379,6 +381,10 @@ if (bridge) {
     }
   });
   panel.addEventListener("change", async event => {
+    if (event.target.hasAttribute("data-rp-font")) {
+      draft[event.target.dataset.rpFont] = event.target.value;
+      markDirty(); previewTextTheme();
+    }
     if (["rp-group-enabled", "rp-group-reply-mode"].includes(event.target.id) || event.target.closest("[data-member]") || event.target.closest("#rp-user-profile") || event.target.closest("#rp-temporary-section")) markDirty();
     if (event.target.matches('[data-field="providerId"]')) {
       const id = event.target.closest("[data-member]")?.dataset.member;
@@ -506,6 +512,11 @@ if (bridge) {
         const state = panel.querySelector(`[data-rp-color-state="${field}"]`);
         if (input) input.value = defaults[field];
         if (state) state.textContent = "跟随本体主题";
+      });
+      ["chatFontSize", "chatFontFamily"].forEach(field => {
+        draft[field] = "";
+        const input = panel.querySelector(`[data-rp-font="${field}"]`);
+        if (input) input.value = "";
       });
       markDirty(); previewTextTheme();
     }
