@@ -12,7 +12,7 @@ const ok = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 
-ok(sw.includes('const CACHE = "role-chat-cache-v220";'), "service worker cache was not bumped for location sharing");
+ok(sw.includes('const CACHE = "role-chat-cache-v221";'), "service worker cache was not bumped for location sharing");
 
 // --- 位置 card in the composer "+" menu ---
 ok(html.includes('<button data-act="location" type="button">'), "位置 button missing from the + menu");

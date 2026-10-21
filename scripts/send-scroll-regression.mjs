@@ -37,7 +37,7 @@ if (!roleplayCss.includes('body.rp-chat-active .scroll-nav { display: flex !impo
   throw new Error('RP chat does not expose the same two-way scroll controls as the main chat')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v220";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v221";')) {
   throw new Error('service worker cache was not bumped for the scroll fix')
 }
 

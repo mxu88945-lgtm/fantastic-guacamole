@@ -287,6 +287,7 @@ if (bridge) {
     while (names.has(name)) name = `${baseName} ${suffix++}`;
     draft.members.push({ id: memberId(), name, kind, playedByOwner: false, prompt: card.prompt || (kind === "director" ? "负责环境、转场与未加入群聊的 NPC，承接现有剧情，不替用户或其他共演角色发言。" : ""), privateMemory: card.privateMemory || "", greeting: card.greeting || "", beautificationProtocol: card.beautificationProtocol || "", regexRules: Array.isArray(card.regexRules) ? card.regexRules : [], avatar: /^(https?:\/\/|data:image\/)/.test(card.avatar || "") ? card.avatar : "", enabled: true, providerId: "", model: "", newMember: true });
     draft.groupEnabled = true; panel.querySelector("#rp-group-enabled").checked = true;
+    bridge.rememberCast?.(sceneId, draft);
     markDirty(); renderMembers();
   }
   function markDirty() { dirty = true; panel.querySelector("#rp-group-save-state").textContent = "成员设置有修改，关闭时也会保存"; }
@@ -452,7 +453,7 @@ if (bridge) {
       markDirty(); renderMembers();
     }
     else if (button.hasAttribute("data-fetch-models")) refreshMemberModels(button.dataset.fetchModels);
-    else if (button.hasAttribute("data-remove")) { collect(); draft.members = draft.members.filter(member => member.id !== button.dataset.remove); markDirty(); renderMembers(); }
+    else if (button.hasAttribute("data-remove")) { collect(); bridge.rememberCast?.(sceneId, draft); draft.members = draft.members.filter(member => member.id !== button.dataset.remove); markDirty(); renderMembers(); }
     else if (button.hasAttribute("data-clear-plot")) {
       draft.temporaryPlot = ""; draft.temporaryPlotMode = "once"; draft.temporaryPlotRemainingUses = 3; draft.temporaryPlotRecipientIds = null;
       panel.querySelector("#rp-temporary-plot").value = "";

@@ -4496,6 +4496,8 @@ const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
   "reminderEnabled","companionFeaturesV1"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
+let roleplayCardLibrary = [];
+let roleplayCardWriteQueue = Promise.resolve();
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
 const expandedSummaryIds = new Set(); // runtime-only: continuity summaries the user opened from their divider
@@ -4683,6 +4685,7 @@ async function loadState() {
   // persistence domains. One malformed legacy value must never prevent a valid
   // IndexedDB conversation snapshot from loading.
   const legacyCurrent = readStoredText("jyc_current") || null;
+  const legacyRoleplaySource = readStoredJson("jyc_conversations");
   let stored = null;
   try { stored = await dbGet("conversations"); } catch (e) { console.warn("IndexedDB load failed", e); }
   if (Array.isArray(stored)) {
@@ -4795,6 +4798,10 @@ async function loadState() {
   }
   // give every message a stable id (for deleting and stable references)
   for (const c of conversations) for (const m of c.messages) if (!m.id) m.id = uid();
+  try { mergeRoleplayCardLibrary(await dbGet("roleplayCardLibrary")); }
+  catch (error) { console.warn("role card library load failed", error); }
+  rememberRoleplayCards(Array.isArray(legacyRoleplaySource) ? legacyRoleplaySource : []);
+  rememberRoleplayCards(conversations);
   saveSettings();
   saveConversations();
 }
@@ -5179,6 +5186,8 @@ async function pullCloud(navigationAtStart) {
   }
   {
     applyingCloud = true;
+    rememberRoleplayCards(conversations);
+    if (mergeRoleplayCardLibrary(payload.roleplayCards)) void persistRoleplayCardLibrary();
     conversations = payload.conversations;
     // remember local API keys so the (key-less) cloud copy doesn't wipe them
     const localKeys = {};
@@ -5208,6 +5217,7 @@ async function pullCloud(navigationAtStart) {
     if (!settings.roles.find(r => r.id === settings.activeRoleId)) settings.activeRoleId = settings.roles[0].id;
     settings.roles.forEach(ensureRoleCompanionData);
     conversations.forEach(c => { if (!c.roleId) c.roleId = settings.activeRoleId; });
+    rememberRoleplayCards(conversations);
     // keep the active role on the most recent conversation's role (for a sensible greeting)
     { const ne = conversations.filter(c => c.messages.length > 0).sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0))[0];
       if (ne && ne.roleId && settings.roles.find(r => r.id === ne.roleId)) {
@@ -5253,7 +5263,7 @@ function pushCloudNow() {
   // Capture an immutable payload now. Each queued upload runs after the previous one,
   // so network completion order can no longer roll the cloud back to older state.
   const clone = value => (typeof structuredClone === "function") ? structuredClone(value) : JSON.parse(JSON.stringify(value));
-  const payload = { conversations: clone(conversations), settings: clone(syncedSettings) };
+  const payload = { conversations: clone(conversations), settings: clone(syncedSettings), roleplayCards: clone(roleplayCardLibrary) };
   cloudPushQueue = cloudPushQueue.catch(() => undefined).then(async () => {
     if (!configAtQueueTime || cloudConfigSignature() !== configAtQueueTime) return;
     const client = await getSb();
@@ -5717,6 +5727,7 @@ function deleteConversation(id, ev) {
   const conv = conversations.find(c => c.id === id);
   if (conv && conv.messages.length && !confirm("确定删除这个对话？")) return;
   const deletingRoleplay = isRoleplayConversation(conv);
+  if (deletingRoleplay) rememberRoleplayCards([conv]);
   conversations = conversations.filter(c => c.id !== id);
   if (id === currentId) {
     let rc = deletingRoleplay ? roleConvs().filter(isRoleplayConversation) : privateRoleConvs();
@@ -7961,7 +7972,7 @@ function normalizedRoleplayProject(value, conv) {
     actorName: text("actorName", 80), userRole: text("userRole", 240), userIdentity: text("userIdentity", 30000),
     chatTextColor: color("chatTextColor"), chatNarrationColor: color("chatNarrationColor"), chatQuoteColor: color("chatQuoteColor"),
     actorAvatar: /^(https?:\/\/|data:image\/)/.test(raw.actorAvatar || raw.avatar || "") ? String(raw.actorAvatar || raw.avatar).slice(0, 2000000) : "",
-    characterPrompt: text("characterPrompt"), world: text("world"), scenario: text("scenario"),
+    characterPrompt: text("characterPrompt"), beautificationProtocol: text("beautificationProtocol", 30000), world: text("world"), scenario: text("scenario"),
     temporaryPlot: String(legacyPlot?.text ?? raw.temporaryPlot ?? "").replace(/\u0000/g, "").slice(0, 120000),
     temporaryPlotMode: ["once", "counted", "persistent"].includes(plotMode) ? plotMode : "once",
     temporaryPlotRemainingUses: Math.max(1, Math.min(100, Math.floor(Number(raw.temporaryPlotRemainingUses ?? legacyPlot?.remainingUses) || 3))),
@@ -11837,7 +11848,7 @@ async function exportBackup() {
   const album = window.JYCAlbum ? await window.JYCAlbum.exportSnapshot() : [];
   const readingRoom = window.JYCReadingRoom ? await window.JYCReadingRoom.exportSnapshot() : null;
   const out = { app: "jyc-chat", version: 1, exportedAt: new Date().toISOString(),
-    conversations, settings: { ...settings }, workbench: workbenchBackupSnapshot(), album, readingRoom };
+    conversations, settings: { ...settings }, roleplayCards: cloneChatData(roleplayCardLibrary), workbench: workbenchBackupSnapshot(), album, readingRoom };
   if (!$("exportWithKey").checked) out.settings = settingsWithoutSecrets(out.settings);
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -11859,6 +11870,8 @@ function importBackup(file) {
     if (!data || !Array.isArray(data.conversations)) { showToast("不是有效的备份文件"); return; }
     if (!confirm("恢复备份会覆盖当前所有对话和设置，确定吗？")) return;
     const previousCloudConfig = cloudConfigSignature();
+    rememberRoleplayCards(conversations);
+    if (mergeRoleplayCardLibrary(data.roleplayCards)) void persistRoleplayCardLibrary();
     conversations = data.conversations.length ? data.conversations : [newConversation()];
     if (data.settings) settings = mergeBackupSettings(data.settings, settings);
     if (!Array.isArray(settings.providers) || !settings.providers.length) settings.providers = [{
@@ -11875,6 +11888,7 @@ function importBackup(file) {
       if (!conv.model) conv.model = conversationModel(conv);
     });
     activateConversationRuntime(currentConv());
+    rememberRoleplayCards(conversations);
     const cloudConfigChanged = cloudConfigSignature() !== previousCloudConfig;
     if (cloudConfigChanged) resetCloudRuntime("备份中的云配置已载入，正在重新连接…");
     saveSettings();
@@ -15881,12 +15895,103 @@ function roleplayPublicProject(conv) {
     projectFiles: conversationProjectFiles(conv),
   });
 }
+// Card templates outlive scene membership. Never archive chat text, private
+// memories, API credentials, or temporary plot instructions with a reusable card.
+function roleplayCardTemplate(project, member = null) {
+  const raw = member ? {
+    title: member.name, actorName: member.name, actorAvatar: member.avatar,
+    characterPrompt: member.prompt, beautificationProtocol: member.beautificationProtocol,
+    greetings: [member.greeting || ""], regexRules: member.regexRules,
+    leadChannel: { playedByOwner: member.playedByOwner === true },
+  } : { ...project };
+  return normalizedRoleplayProject({ ...raw, members: [], groupEnabled: false,
+    leadChannel: { playedByOwner: raw.leadChannel?.playedByOwner !== false },
+    memory: "", memories: [], memoryScannedCount: 0, memoryCorePending: [],
+    temporaryPlot: "", temporaryPlotRecipientIds: null,
+  });
+}
+function mergeRoleplayCardLibrary(items) {
+  if (!Array.isArray(items)) return false;
+  let changed = false;
+  for (const item of items) {
+    if (!item?.id || !item.ownerRoleId || !item.rpProject?.actorName) continue;
+    const clean = { id: String(item.id), ownerRoleId: String(item.ownerRoleId),
+      sourceId: String(item.sourceId || ""), memberId: String(item.memberId || "lead"),
+      sourceTitle: String(item.sourceTitle || "").slice(0, 80),
+      kind: item.kind === "director" ? "director" : "actor",
+      updatedAt: Number(item.updatedAt) || 0, rpProject: roleplayCardTemplate(item.rpProject) };
+    const index = roleplayCardLibrary.findIndex(card => card.id === clean.id);
+    if (index >= 0 && roleplayCardLibrary[index].updatedAt >= clean.updatedAt) continue;
+    if (index < 0) roleplayCardLibrary.push(clean); else roleplayCardLibrary[index] = clean;
+    changed = true;
+  }
+  return changed;
+}
+function persistRoleplayCardLibrary() {
+  const snapshot = cloneChatData(roleplayCardLibrary);
+  roleplayCardWriteQueue = roleplayCardWriteQueue.catch(() => {}).then(async () => {
+    // Merge, rather than replace, so a failed startup read cannot erase cards.
+    mergeRoleplayCardLibrary(await dbGet("roleplayCardLibrary"));
+    mergeRoleplayCardLibrary(snapshot);
+    await dbPut("roleplayCardLibrary", cloneChatData(roleplayCardLibrary));
+  }).catch(error => { console.warn("role card library save failed", error); showToast("角色卡留存失败，请先导出备份"); });
+  return roleplayCardWriteQueue;
+}
+function rememberRoleplayCards(source = conversations) {
+  let changed = false;
+  for (const conv of source) {
+    if (!isRoleplayConversation(conv) || !conv.rpProject) continue;
+    const project = normalizedRoleplayProject(conv.rpProject, conv);
+    const ownerRoleId = String(conv.roleId || settings.activeRoleId || "");
+    if (!ownerRoleId) continue;
+    for (const member of roleplayMembers(project)) {
+      if (!String(member.name || "").trim() || (!String(member.prompt || "").trim() && member.id !== "lead")) continue;
+      const template = roleplayCardTemplate(project, member.id === "lead" ? null : member);
+      const id = JSON.stringify([ownerRoleId, conv.id, member.id, member.name]);
+      const previous = roleplayCardLibrary.find(card => card.id === id);
+      const sourceTitle = String(conv.title || project.title || "").slice(0, 80);
+      const updatedAt = Number(conv.updatedAt) || Date.now();
+      if (previous && previous.updatedAt > updatedAt) continue;
+      if (previous && JSON.stringify(previous.rpProject) === JSON.stringify(template) && previous.sourceTitle === sourceTitle) continue;
+      const card = { id, ownerRoleId, sourceId: conv.id, sourceTitle, memberId: member.id,
+        kind: member.kind === "director" ? "director" : "actor", updatedAt, rpProject: template };
+      if (previous) Object.assign(previous, card); else roleplayCardLibrary.push(card);
+      changed = true;
+    }
+  }
+  if (changed) void persistRoleplayCardLibrary();
+  return changed;
+}
+function savedRoleplayCards() {
+  rememberRoleplayCards();
+  const seen = new Set();
+  return roleplayCardLibrary.filter(card => card.ownerRoleId === settings.activeRoleId)
+    .sort((a, b) => b.updatedAt - a.updatedAt).filter(card => {
+      const key = JSON.stringify([card.kind, card.rpProject.actorName, card.rpProject.characterPrompt]);
+      if (seen.has(key)) return false;
+      seen.add(key); return true;
+    }).map(card => cloneChatData(card));
+}
+function restoreRoleplayCard(id) {
+  const card = roleplayCardLibrary.find(item => item.id === id && item.ownerRoleId === settings.activeRoleId);
+  if (!card) return null;
+  const conv = newConversation("roleplay");
+  conv.title = `${card.rpProject.actorName} · 角色卡`;
+  conv.rpProject = roleplayCardTemplate(card.rpProject);
+  if (conv.rpProject.opening) conv.messages.push({ id: uid(), role: "assistant", content: conv.rpProject.opening, ts: Date.now() });
+  conversations.unshift(conv); rememberRoleplayCards([conv]); saveConversations();
+  window.dispatchEvent(new CustomEvent("jyc:roleplay-updated"));
+  window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
+  return roleplayPublicProject(conv);
+}
 function roleplaySaveDraft(conv, draft) {
+  rememberRoleplayCards([conv]);
   const existing = normalizedRoleplayProject(conv.rpProject, conv);
   conv.rpProject = normalizedRoleplayProject({ ...existing, ...(draft || {}), memories: existing.memories }, conv);
   conv.title = conv.rpProject.title || conv.title || "未命名剧本";
   conv.projectFiles = Array.isArray(draft?.projectFiles) ? cloneChatData(draft.projectFiles).slice(0, CONVERSATION_PROJECT_FILE_LIMIT) : conversationProjectFiles(conv);
   conv.updatedAt = Date.now();
+  rememberRoleplayCards([conv]);
   saveConversations();
   renderConvList(); updateConvTitle(); updateConversationSpaceUI(); renderConversationProjectFiles();
   if (conv.id === currentId) renderMessages();
@@ -15975,6 +16080,7 @@ function importRoleplaySceneText(source, filename = "") {
   conv.reasoningEffort = normalizeReasoningEffort(parsed.reasoningEffort);
   conv.updatedAt = Date.now();
   conversations.unshift(conv);
+  rememberRoleplayCards([conv]);
   saveConversations(); renderConvList();
   window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: conv.id } }));
   window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
@@ -16229,7 +16335,18 @@ window.JYCRoleplayBridge = {
         beautificationProtocol: project.beautificationProtocol || "", regexRules: project.regexRules, kind: "actor" }, source);
       (project.members || []).forEach(member => push({ ...member }, source));
     });
+    savedRoleplayCards().forEach(card => {
+      const p = card.rpProject;
+      push({ name: p.actorName, prompt: p.characterPrompt, avatar: p.actorAvatar, greeting: p.opening,
+        beautificationProtocol: p.beautificationProtocol, regexRules: p.regexRules, kind: card.kind }, "已留存角色卡");
+    });
     return items;
+  },
+  savedCards: savedRoleplayCards,
+  restoreCard: restoreRoleplayCard,
+  rememberCast(id, project) {
+    const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
+    if (conv) rememberRoleplayCards([{ ...conv, updatedAt: Date.now(), rpProject: project }]);
   },
   inspectScene(id) {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
@@ -16247,8 +16364,10 @@ window.JYCRoleplayBridge = {
     ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
     const previousPortraits = JSON.stringify(roleplayMembers(normalizedRoleplayProject(conv.rpProject, conv)).map(member => [member.id, member.avatar]));
     const previousTextTheme = JSON.stringify([conv.rpProject?.chatTextColor, conv.rpProject?.chatNarrationColor, conv.rpProject?.chatQuoteColor]);
+    rememberRoleplayCards([conv]);
     conv.rpProject = normalizedRoleplayProject({ ...conv.rpProject, ...allowed }, conv);
     conv.updatedAt = Date.now(); saveConversations();
+    rememberRoleplayCards([conv]);
     const portraitsChanged = previousPortraits !== JSON.stringify(roleplayMembers(conv.rpProject).map(member => [member.id, member.avatar]));
     const textThemeChanged = previousTextTheme !== JSON.stringify([conv.rpProject.chatTextColor, conv.rpProject.chatNarrationColor, conv.rpProject.chatQuoteColor]);
     if (conv.id === currentId && (portraitsChanged || textThemeChanged)) renderMessages();
@@ -16345,7 +16464,7 @@ window.JYCRoleplayBridge = {
     conv.projectFiles = Array.isArray(draft?.projectFiles) ? cloneChatData(draft.projectFiles).slice(0, CONVERSATION_PROJECT_FILE_LIMIT) : [];
     const opening = String(conv.rpProject.opening || "").trim();
     if (opening) conv.messages.push({ id: uid(), role: "assistant", content: opening, ts: Date.now() });
-    conversations.unshift(conv); saveConversations();
+    conversations.unshift(conv); rememberRoleplayCards([conv]); saveConversations();
     window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: conv.id } }));
     window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
     return roleplayPublicProject(conv);
@@ -16363,6 +16482,7 @@ window.JYCRoleplayBridge = {
   remove(id) {
     const conv = conversations.find(item => item.id === id && isRoleplayConversation(item));
     if (!conv) return false;
+    rememberRoleplayCards([conv]);
     conversations = conversations.filter(item => item.id !== id);
     if (currentId === id) {
       let fallback = privateRoleConvs()[0];

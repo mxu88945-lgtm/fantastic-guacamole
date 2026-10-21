@@ -295,7 +295,7 @@ function plainPreviewWithMedia(value) {
               <div class="rp-section-title"><div><strong>角色库</strong><small id="rp-role-count">0 张角色卡</small></div><button type="button" data-rp-space="hub">返回分类</button></div>
               <p class="rp-library-note">这里汇总所有剧本里的主角、共演角色和导演卡。点开即可查看对应的人设、世界书、正则与开场白。</p>
               <div class="rp-role-grid" id="rp-role-list"></div>
-              <div class="rp-empty" id="rp-role-empty" hidden><span>♧</span><strong>角色库还是空的</strong><p>导入或新建剧本后，角色会自动出现在这里。</p></div>
+              <div class="rp-empty" id="rp-role-empty" hidden><span>♧</span><strong>角色库还是空的</strong><p>导入或新建剧本后，角色会自动留存在这里，移出共演或删除剧本也会保留角色卡。</p></div>
             </section>
           </section>
 
@@ -759,17 +759,32 @@ function plainPreviewWithMedia(value) {
       render();
     }));
     const roles = projects.flatMap((project) => detailCast(project).map((member) => ({ project, member })));
+    const cardKey = member => JSON.stringify([member.kind === "director" ? "director" : "actor", member.name, member.prompt || ""]);
+    const visibleCards = new Set(roles.map(({ member }) => cardKey(member)));
+    for (const card of bridge.savedCards?.() || []) {
+      const p = card.rpProject;
+      const member = { id: card.memberId, name: p.actorName, prompt: p.characterPrompt, avatar: p.actorAvatar, kind: card.kind };
+      if (visibleCards.has(cardKey(member))) continue;
+      visibleCards.add(cardKey(member));
+      roles.push({ project: { id: "", title: card.sourceTitle || "原剧本" }, member, savedCardId: card.id });
+    }
     $("rp-hub-role-count").textContent = `${roles.length} 张角色卡`;
     $("rp-role-count").textContent = `${roles.length} 张角色卡`;
     $("rp-role-empty").hidden = roles.length > 0;
     const roleList = $("rp-role-list");
-    roleList.innerHTML = roles.map(({ project, member }) => {
+    roleList.innerHTML = roles.map(({ project, member, savedCardId }) => {
       const avatar = /^(https?:\/\/|data:image\/)/.test(member.avatar || "") ? member.avatar : "";
       const kind = member.id === "lead" ? "剧本主角" : member.kind === "director" ? "共演导演" : "共演角色";
       const desc = plainPreview(member.description || member.prompt || "") || "暂无角色简介";
-      return `<button type="button" class="rp-role-card" data-rp-role-project="${escapeHtml(project.id)}" data-rp-role-member="${escapeHtml(member.id)}"><span class="rp-role-avatar">${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml([...(member.name || "角")][0])}</span><span class="rp-role-copy"><small>${escapeHtml(kind)} · ${escapeHtml(project.title || "未命名剧本")}</small><strong>${escapeHtml(member.name || "未命名角色")}</strong><em>${escapeHtml(desc.slice(0, 80))}${desc.length > 80 ? "…" : ""}</em></span><i>›</i></button>`;
+      const action = savedCardId ? `data-rp-saved-card="${escapeHtml(savedCardId)}"` : `data-rp-role-project="${escapeHtml(project.id)}" data-rp-role-member="${escapeHtml(member.id)}"`;
+      return `<button type="button" class="rp-role-card" ${action}><span class="rp-role-avatar">${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml([...(member.name || "角")][0])}</span><span class="rp-role-copy"><small>${savedCardId ? "已留存角色卡" : escapeHtml(kind)} · ${escapeHtml(project.title || "未命名剧本")}</small><strong>${escapeHtml(member.name || "未命名角色")}</strong><em>${escapeHtml(desc.slice(0, 80))}${desc.length > 80 ? "…" : ""}</em></span><i>›</i></button>`;
     }).join("");
     roleList.querySelectorAll("[data-rp-role-project]").forEach((button) => button.addEventListener("click", () => showDetail(button.dataset.rpRoleProject, button.dataset.rpRoleMember)));
+    roleList.querySelectorAll("[data-rp-saved-card]").forEach(button => button.addEventListener("click", () => {
+      if (!confirm("用这张已留存的角色卡新建剧本？原对话和原剧本不会改动。")) return;
+      const restored = bridge.restoreCard(button.dataset.rpSavedCard);
+      if (restored) { bridge.toast("角色卡已恢复为新剧本"); showDetail(restored.id); }
+    }));
   }
 
   function open(projectId) {
