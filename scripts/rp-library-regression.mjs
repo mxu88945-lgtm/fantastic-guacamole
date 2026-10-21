@@ -77,6 +77,21 @@ assert.equal(restored.rpProject.memory, "");
 assert.equal(restored.rpProject.leadChannel.playedByOwner, false, "restoring a guest must not enable the owner identity");
 assert.equal(restored.rpProject.regexRules[0].replaceString, "y");
 
+// A new opening creates a scene, not new identities in the role-library view.
+const theater = vm.createContext({ detailCast: project => project.cast });
+vm.runInContext(ui.slice(ui.indexOf("function roleLibraryEntries("), ui.indexOf("function render()", ui.indexOf("function roleLibraryEntries("))), theater);
+const cast = [{ id: "lead", kind: "lead", name: "周竞尧", prompt: "原始主角人设" },
+  { id: "jiang", kind: "actor", name: "江屹琛", prompt: "原始共演人设" }];
+const projects = ["new-2", "new-1", "original"].map(id => ({ id, cast: structuredClone(cast) }));
+const saved = [{ id: "saved-jiang", memberId: "jiang", kind: "actor", rpProject: { actorName: "江屹琛", characterPrompt: "原始共演人设" } }];
+const beforeScenes = JSON.stringify(projects);
+const uniqueRoles = theater.roleLibraryEntries(projects, saved);
+assert.equal(uniqueRoles.length, 2, "opening several scenes must not multiply the two role cards");
+assert.equal(uniqueRoles[0].project.id, "new-2", "the visible card must retain a live detail destination");
+assert.equal(JSON.stringify(projects), beforeScenes, "view deduplication must never remove scene cast");
+assert.equal(theater.roleLibraryEntries([...projects, { id: "variant", cast: [{ ...cast[1], prompt: "独立修改后的人设" }] }], saved).length, 3, "distinct card versions must remain visible");
+assert.equal(theater.roleLibraryEntries([], saved).length, 1, "a removed-scene role must remain recoverable from its archive");
+
 // Independent owner libraries must stay isolated; cloud/backup merges are additive.
 const count = context.roleplayCardLibrary.length;
 context.mergeRoleplayCardLibrary([{ ...guest, id: "foreign", ownerRoleId: "other", updatedAt: 200 }]);

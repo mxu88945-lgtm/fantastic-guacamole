@@ -729,6 +729,27 @@ function plainPreviewWithMedia(value) {
     }));
   }
 
+  function roleLibraryEntries(projects, savedCards = []) {
+    const roles = [], seen = new Set();
+    const key = member => JSON.stringify([
+      member.kind === "director" ? "director" : "actor",
+      String(member.name || "").trim().toLowerCase(),
+      String(member.prompt || "").replace(/\r\n?/g, "\n").trim(),
+    ]);
+    const add = entry => {
+      const identity = key(entry.member);
+      if (seen.has(identity)) return;
+      seen.add(identity); roles.push(entry);
+    };
+    projects.flatMap((project) => detailCast(project).map((member) => ({ project, member }))).forEach(add);
+    for (const card of savedCards) {
+      const p = card.rpProject;
+      add({ project: { id: "", title: card.sourceTitle || "原剧本" },
+        member: { id: card.memberId, name: p.actorName, prompt: p.characterPrompt, avatar: p.actorAvatar, kind: card.kind }, savedCardId: card.id });
+    }
+    return roles;
+  }
+
   function render() {
     const info = bridge.role();
     const projects = bridge.list();
@@ -763,16 +784,7 @@ function plainPreviewWithMedia(value) {
       bridge.remove(project.id);
       render();
     }));
-    const roles = projects.flatMap((project) => detailCast(project).map((member) => ({ project, member })));
-    const cardKey = member => JSON.stringify([member.kind === "director" ? "director" : "actor", member.name, member.prompt || ""]);
-    const visibleCards = new Set(roles.map(({ member }) => cardKey(member)));
-    for (const card of bridge.savedCards?.() || []) {
-      const p = card.rpProject;
-      const member = { id: card.memberId, name: p.actorName, prompt: p.characterPrompt, avatar: p.actorAvatar, kind: card.kind };
-      if (visibleCards.has(cardKey(member))) continue;
-      visibleCards.add(cardKey(member));
-      roles.push({ project: { id: "", title: card.sourceTitle || "原剧本" }, member, savedCardId: card.id });
-    }
+    const roles = roleLibraryEntries(projects, bridge.savedCards?.() || []);
     $("rp-hub-role-count").textContent = `${roles.length} 张角色卡`;
     $("rp-role-count").textContent = `${roles.length} 张角色卡`;
     $("rp-role-empty").hidden = roles.length > 0;
