@@ -842,13 +842,15 @@
     outline: none; border-color: var(--accent);
   }
   .field textarea { resize: vertical; min-height: 38px; }
-  /* password field with a show/hide eye toggle */
+  /* password field with text action buttons (show / copy / clear) */
   .pw-wrap { position: relative; }
-  .pw-wrap input { width: 100%; padding-right: 40px; }
-  .pw-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-    background: none; border: none; cursor: pointer; font-size: 16px; line-height: 1;
-    padding: 6px; opacity: .7; }
-  .pw-eye:hover { opacity: 1; }
+  .pw-wrap input { width: 100%; padding-right: 172px; }
+  .pw-actions { position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    display: flex; gap: 4px; }
+  .pw-eye { background: none; border: 1px solid var(--border); cursor: pointer;
+    font-size: 12px; line-height: 1; padding: 5px 8px; border-radius: 8px;
+    color: var(--text-dim); white-space: nowrap; }
+  .pw-eye:hover { opacity: 1; color: var(--text); border-color: var(--accent); }
   .field .row { display: flex; align-items: center; gap: 8px; }
   .field .row input[type="range"] { flex: 1; }
   .field .hint { font-size: 11px; color: var(--text-dim); }
@@ -3289,6 +3291,18 @@
             <button class="mini-btn" id="provider-add">＋ 新增</button>
             <button class="mini-btn" id="provider-rename">✏️ 重命名</button>
             <button class="mini-btn" id="provider-del">🗑️ 删除</button>
+            <button class="mini-btn" id="provider-duplicate">📄 拷贝渠道</button>
+            <button class="mini-btn" id="provider-manage">⚙️ 管理</button>
+          </div>
+          <div id="provider-manage-panel" hidden style="margin-top:10px; border:1px solid var(--border); border-radius:12px; padding:10px;">
+            <div class="hint" style="margin-bottom:8px;">勾选要清理的旧渠道，再点“删除选中”。至少保留一个渠道。</div>
+            <div id="provider-manage-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+            <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+              <button class="mini-btn" id="provider-manage-all">全选</button>
+              <button class="mini-btn" id="provider-manage-none">取消全选</button>
+              <button class="mini-btn" id="provider-manage-del">🗑️ 删除选中</button>
+              <button class="mini-btn" id="provider-manage-close">关闭</button>
+            </div>
           </div>
         </div>
         <div class="field">
@@ -3308,7 +3322,11 @@
           <label>API Key</label>
           <div class="pw-wrap">
             <input id="apiKey" type="password" placeholder="sk-..." />
-            <button type="button" class="pw-eye" onclick="togglePw('apiKey', this)" title="显示/隐藏">👁️</button>
+            <div class="pw-actions">
+              <button type="button" class="pw-eye" onclick="togglePw('apiKey', this)" title="显示/隐藏 Key">显示</button>
+              <button type="button" class="pw-eye" onclick="copyApiKey()" title="复制 Key 到剪贴板">复制</button>
+              <button type="button" class="pw-eye" onclick="clearApiKey()" title="清空当前渠道的 Key">清除</button>
+            </div>
           </div>
         </div>
         <div class="field">
@@ -12044,7 +12062,37 @@ function togglePw(id, btn) {
   const el = document.getElementById(id); if (!el) return;
   const hidden = el.type === "password";
   el.type = hidden ? "text" : "password";
-  if (btn) btn.textContent = hidden ? "🙈" : "👁️";
+  if (btn) btn.textContent = hidden ? "隐藏" : "显示";
+}
+// Copy the current channel's API Key to the clipboard (iOS-safe fallback included).
+async function copyApiKey() {
+  const el = $("apiKey"); if (!el) return;
+  const key = el.value.trim();
+  if (!key) { showToast("API Key 是空的，没什么可复制"); return; }
+  try {
+    await navigator.clipboard.writeText(key);
+    showToast("API Key 已复制");
+  } catch (e) {
+    const wasHidden = el.type === "password";
+    try {
+      el.type = "text"; el.focus(); el.select();
+      el.setSelectionRange(0, key.length);
+      if (document.execCommand("copy")) showToast("API Key 已复制");
+      else showToast("复制失败，请长按手动复制");
+    } catch (_) { showToast("复制失败，请长按手动复制"); }
+    if (wasHidden) el.type = "password";
+  }
+}
+// Clear the current channel's API Key (asks first, then saves).
+function clearApiKey() {
+  const el = $("apiKey"); if (!el) return;
+  if (!el.value.trim()) { showToast("API Key 已经是空的"); return; }
+  const ap = activeProvider();
+  if (!confirm("确定清空当前渠道「" + (ap ? ap.name : "") + "」的 API Key？")) return;
+  el.value = "";
+  readSettingsFromUI();
+  saveSettings();
+  showToast("API Key 已清除");
 }
 function markSeen() { try { localStorage.setItem("jyc_lastseen", String(Date.now())); } catch (_) {} }
 function latestRoleConversation() {
@@ -14047,6 +14095,7 @@ function addProvider() {
   saveSettings();
   saveConversations();
   syncSettingsToUI();
+  renderProviderManageList();
   showToast("已新增接口，填好下面的 Base URL 和 API Key 即可");
 }
 function renameProvider() {
@@ -14056,6 +14105,7 @@ function renameProvider() {
   ap.name = name.trim() || ap.name;
   saveSettings();
   renderProviderSelect();
+  renderProviderManageList();
   updateStatusLine();
 }
 function deleteProvider() {
@@ -14074,6 +14124,72 @@ function deleteProvider() {
   saveSettings();
   saveConversations();
   syncSettingsToUI();
+  renderProviderManageList();
+}
+// ---------- Channel management: duplicate + batch delete ----------
+function duplicateProvider() {
+  readSettingsFromUI();
+  const ap = activeProvider();
+  if (!ap) return;
+  const copy = JSON.parse(JSON.stringify(ap));
+  copy.id = uid();
+  copy.name = (ap.name || "接口") + " 副本";
+  settings.providers.push(copy);
+  settings.activeProviderId = copy.id;
+  mirrorActiveToFlat();
+  const conv = currentConv();
+  if (conv) { conv.providerId = copy.id; conv.model = copy.model || ""; }
+  saveSettings();
+  saveConversations();
+  syncSettingsToUI();
+  renderProviderManageList();
+  showToast("已拷贝为「" + copy.name + "」，改好直接用");
+}
+function renderProviderManageList() {
+  const list = $("provider-manage-list"); if (!list) return;
+  list.innerHTML = "";
+  for (const p of settings.providers) {
+    const row = document.createElement("label");
+    row.style.cssText = "display:flex;align-items:center;gap:8px;cursor:pointer;";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.style.width = "auto"; cb.dataset.providerId = p.id;
+    const name = document.createElement("span"); name.textContent = p.name;
+    const hint = document.createElement("span"); hint.className = "hint";
+    hint.textContent = (p.baseUrl || "未填地址") + (p.id === settings.activeProviderId ? " · 当前窗口在用" : "");
+    row.append(cb, name, hint);
+    list.appendChild(row);
+  }
+}
+function toggleProviderManage() {
+  const panel = $("provider-manage-panel"); if (!panel) return;
+  const opening = panel.hidden;
+  if (opening) renderProviderManageList();
+  panel.hidden = !opening;
+}
+function deleteSelectedProviders() {
+  const boxes = Array.from(document.querySelectorAll("#provider-manage-list input[type=checkbox]:checked"));
+  if (!boxes.length) { showToast("先勾选要删除的渠道"); return; }
+  const ids = new Set(boxes.map(b => b.dataset.providerId));
+  const remaining = settings.providers.filter(p => !ids.has(p.id));
+  if (!remaining.length) { showToast("至少要保留一个接口"); return; }
+  const names = settings.providers.filter(p => ids.has(p.id)).map(p => p.name).join("、");
+  if (!confirm("确定删除这 " + ids.size + " 个接口？\n" + names)) return;
+  const hadActive = ids.has(settings.activeProviderId);
+  settings.providers = remaining;
+  if (hadActive) {
+    settings.activeProviderId = remaining[0].id;
+    mirrorActiveToFlat();
+  }
+  conversations.forEach(conv => {
+    if (!ids.has(conv.providerId)) return;
+    conv.providerId = settings.activeProviderId;
+    conv.model = settings.model || DEFAULTS[settings.provider]?.model || "";
+  });
+  saveSettings();
+  saveConversations();
+  syncSettingsToUI();
+  renderProviderManageList();
+  showToast("已删除 " + ids.size + " 个接口");
 }
 // ---------- Per-provider TTS config (so switching service doesn't wipe the other's settings) ----------
 function saveTtsConfigFromUI(provider) {
@@ -15155,6 +15271,12 @@ async function init() {
   $("provider-add").onclick = addProvider;
   $("provider-rename").onclick = renameProvider;
   $("provider-del").onclick = deleteProvider;
+  $("provider-duplicate").onclick = duplicateProvider;
+  $("provider-manage").onclick = toggleProviderManage;
+  $("provider-manage-all").onclick = () => document.querySelectorAll("#provider-manage-list input[type=checkbox]").forEach(b => b.checked = true);
+  $("provider-manage-none").onclick = () => document.querySelectorAll("#provider-manage-list input[type=checkbox]").forEach(b => b.checked = false);
+  $("provider-manage-del").onclick = deleteSelectedProviders;
+  $("provider-manage-close").onclick = toggleProviderManage;
 
   ["userName","aiName"].forEach(id => {
     $(id).addEventListener("change", () => {
