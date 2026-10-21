@@ -6846,7 +6846,21 @@ function splitRoleplayHtmlFences(value) {
     segments.push({ kind: "html", value: match[1].trim() });
     last = match.index + match[0].length;
   }
-  if (!segments.some(segment => segment.kind === "html")) return null;
+  if (!segments.some(segment => segment.kind === "html")) {
+    // Repair display of openings saved by older versions after their fence
+    // markers were removed. Keep each complete HTML page out of the story.
+    const page = /(?:<!doctype[^>]*>\s*)?<html\b[^>]*>[\s\S]*?<\/html\s*>/gi;
+    let cursor = 0;
+    for (let match = page.exec(source); match; match = page.exec(source)) {
+      const before = source.slice(cursor, match.index).trim();
+      if (before) segments.push({ kind: "text", value: before });
+      segments.push({ kind: "html", value: match[0] });
+      cursor = match.index + match[0].length;
+    }
+    const tail = source.slice(cursor).trim();
+    if (tail) segments.push({ kind: "text", value: tail });
+    return segments.some(segment => segment.kind === "html") && segments.length > 1 ? segments : null;
+  }
   const rest = source.slice(last).trim();
   if (rest) segments.push({ kind: "text", value: rest });
   return segments;
@@ -7001,14 +7015,14 @@ function roleplayRichDocument(value, token, compact = false) {
   else documentHtml = `<!doctype html><html><head>${guard}${base}${greetingBridge}</head><body>${documentHtml}</body></html>`;
   return /<\/body>/i.test(documentHtml) ? documentHtml.replace(/<\/body>/i, `${playerBridge}${reporter}</body>`) : `${documentHtml}${playerBridge}${reporter}`;
 }
-function roleplayRichFrameHtml(value) {
+function roleplayRichFrameHtml(value, preview = false) {
   const attribute = source => escapeHtml(String(source || "")).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   const split = splitRoleplayHtmlFences(value);
   const segments = split || [{ kind: "html", value }];
   const content = segments.map(segment => {
     if (segment.kind === "text") return `<div class="roleplay-opening-text">${renderMarkdown(segment.value)}</div>`;
     const token = `rp-${uid()}`;
-    return `<iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}" title="角色卡互动内容" sandbox="allow-scripts" allow="autoplay" srcdoc="${attribute(roleplayRichDocument(segment.value, token, !!split))}"></iframe>`;
+    return `<iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}"${preview ? ' data-rp-preview="true"' : ""} title="角色卡互动内容" sandbox="allow-scripts" allow="autoplay" srcdoc="${attribute(roleplayRichDocument(segment.value, token, !!split))}"></iframe>`;
   }).join("");
   return `<div class="roleplay-html-card"><button type="button" class="rp-opening-reset" hidden onclick="restoreRoleplayOpeningCard(this.parentElement)" title="恢复原始开场">重看原始开场</button><div class="roleplay-html-stack">${content}</div></div>`;
 }
@@ -7036,6 +7050,7 @@ if (typeof window !== "undefined") window.addEventListener("message", event => {
   if (!data || !data.token) return;
   const frame = document.querySelector(`iframe[data-rp-frame-token="${CSS.escape(String(data.token))}"]`);
   if (!frame || frame.contentWindow !== event.source) return;
+  if (frame.dataset.rpPreview === "true" && data.type !== "jyc-rp-frame-height") return;
   if (data.type === "jyc-rp-select-greeting") {
     const index = Math.max(0, Math.floor(Number(data.index) || 0));
     const opening = normalizedRoleplayProject(currentConv()?.rpProject, currentConv()).greetings[index];
@@ -16372,6 +16387,7 @@ function roleplaySceneFromGreeting(source, index, forceNew = false) {
   return roleplayPublicProject(conv);
 }
 window.JYCRoleplayBridge = {
+  renderOpeningPreview: value => roleplayRichFrameHtml(value, true),
   openApiSettings() { openSettings(true); showSettingsTab("services"); },
   memoryRuntimeInfo() {
     const runtime = memoryRuntimeConfig();

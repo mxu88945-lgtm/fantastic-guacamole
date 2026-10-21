@@ -147,6 +147,17 @@ body.rp-opening-picker-open { overflow: hidden; }
 .rp-opening-option strong { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; line-height: 1.7; font-weight: 500; }
 .rp-opening-option i { font-style: normal; color: var(--accent); }
 .rp-opening-option:disabled { opacity: .5; cursor: default; }
+.rp-opening-item { margin-bottom: 14px; border: 1px solid var(--border); border-radius: 24px; overflow: hidden; background: var(--bg-panel); }
+.rp-opening-item.selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent); }
+.rp-opening-row { display: flex; align-items: center; gap: 4px; padding-right: 8px; }
+.rp-opening-item .rp-opening-option { flex: 1; min-width: 0; width: auto; margin: 0; padding: 18px 0 18px 16px; border: 0; border-radius: 0; box-shadow: none; background: transparent; gap: 12px; }
+.rp-opening-option > span:first-child:not(:last-child) { flex: 0 0 48px; }
+.rp-opening-expand { flex: 0 0 44px; width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--text-dim); font: inherit; font-size: 24px; cursor: pointer; }
+.rp-opening-expand:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rp-opening-inline-preview { padding: 0 12px 18px; }
+.rp-opening-inline-preview[hidden] { display: none; }
+.rp-opening-inline-preview .roleplay-opening-text { padding: 0 4px; }
+.rp-opening-full[hidden], .rp-opening-reset[hidden] { display: none; }
 .rp-opening-full { margin-top: 28px; border: 1px solid var(--border); border-radius: 20px; overflow: hidden; background: var(--bg-panel); }
 .rp-opening-full h3 { margin: 0; padding: 16px 18px; border-bottom: 1px solid var(--border); font-size: 13px; }
 .roleplay-html-card { width: min(100%, 920px); overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }

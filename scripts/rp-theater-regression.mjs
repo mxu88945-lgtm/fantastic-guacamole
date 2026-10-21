@@ -131,6 +131,23 @@ const sourceContext = { uid: () => 'test-id', escapeHtml: value => String(value)
 vm.createContext(sourceContext);
 vm.runInContext(html.slice(html.indexOf('function roleplayRichSource('), html.indexOf('function looksLikeRoleplayRichHtml(')), sourceContext);
 ok(sourceContext.roleplayRichSource('```html\r\n<html><body>cover</body></html>\r\n```\r\n\r\n[播放: test]') === '<html><body>cover</body></html>', 'a card fence followed by an audio tag must still unwrap to its HTML document');
+const playerPage = '<!doctype html><html><head><style>body{display:flex}</style></head><body><audio id="musicPlayer"></audio><button id="playBtn">播放</button></body></html>';
+const returnPage = '<html><body><button id="returnHomeText">返回主页</button></body></html>';
+const story = '完整第一段。\n\n完整第二段。';
+const fencedOpening = `\`\`\`html\n${playerPage}\n\`\`\`\n${story}\n\`\`\`html\n${returnPage}\n\`\`\``;
+const legacyOpening = `${playerPage}\n${story}\n${returnPage}`;
+for (const value of [fencedOpening, legacyOpening]) {
+  const segments = sourceContext.splitRoleplayHtmlFences(value);
+  ok(segments.map(segment => segment.kind).join(',') === 'html,text,html', 'music, story and return card must remain separate vertical blocks');
+  ok(segments[1].value === story && !segments[0].value.includes(story), 'player flex styles must never contain the story');
+}
+ok(sourceContext.splitRoleplayHtmlFences(playerPage) === null, 'standalone HTML pages must preserve their original page rendering');
+const displayContext = vm.createContext({ safeText: value => String(value || ''), applyRegexRules: () => fencedOpening });
+vm.runInContext(js.slice(js.indexOf('function richGreetingSource('), js.indexOf('function isCorruptedGreeting(')), displayContext);
+ok(displayContext.displayGreeting('[播放: 示例]正文', []) === fencedOpening, 'opening selection must preserve the regex HTML fences');
+const confirmHandler = js.slice(js.indexOf('$("rp-opening-confirm").addEventListener'), js.indexOf('$("rp-home-exit").addEventListener'));
+ok(!confirmHandler.includes('bridge.update(') && !confirmHandler.includes('displayGreeting('), 'confirming an opening must not save display-only markup into scene messages');
+ok(js.includes('data-opening-expand') && js.includes('rp-opening-inline-preview') && html.includes('frame.dataset.rpPreview === "true"'), 'inline previews need a separate expansion action and cannot trigger scene changes');
 const semantic = sourceContext.roleplaySemanticDisplay('<scene>深夜｜休息室</scene>正文<director_status>【当前场景】休息室\n【待回应钩子】等她回应</director_status>');
 ok(semantic.includes('rp-scene-strip') && semantic.includes('rp-status-card') && semantic.includes('待回应钩子') && !semantic.includes('&lt;scene&gt;'), 'unmatched scene/status tags must render as native cards');
 ok(groupCss.includes('height: auto !important; min-height: 0 !important;') && groupCss.includes('.rp-status-card > header') && groupCss.includes('padding: 0 !important;') && groupCss.includes('background: transparent !important;'), 'native RP status must isolate the global safe-area header and render as a transparent content-height tail');

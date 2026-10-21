@@ -7,7 +7,7 @@ if (!bridge) {
 } else {
   const $ = (id) => document.getElementById(id);
   const state = { editingId: "", detailId: "", detailMemberId: "lead", librarySection: "hub", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {} };
-  const openingState = { projectId: "", index: 0, forceNew: true };
+  const openingState = { projectId: "", index: 0, expandedIndex: null, forceNew: true };
 
   function safeText(value, max = 200000) {
     return String(value || "").replace(/\u0000/g, "").slice(0, max);
@@ -165,7 +165,7 @@ function plainPreviewWithMedia(value) {
     const raw = safeText(value, 300000);
     if (!raw.trim() || looksLikeRichGreeting(raw)) return raw;
     const regexed = applyRegexRules(raw, rules);
-    if (looksLikeRichGreeting(regexed)) return regexed.replace(/```(?:html)?[^\S\r\n]*\r?\n?/gi, "");
+    if (looksLikeRichGreeting(regexed)) return regexed;
     if (/\[播放[:：]/.test(regexed) || /[“"「][^”"」]{2,}[”"」]/.test(regexed)) return beautifyOpeningHTML(regexed) || regexed;
     return regexed;
   }
@@ -183,6 +183,17 @@ function plainPreviewWithMedia(value) {
     if (/<head\b[^>]*>/i.test(source)) return source.replace(/<head\b[^>]*>/i, (match) => `${match}${guard}${base}`);
     if (/<html\b[^>]*>/i.test(source)) return source.replace(/<html\b[^>]*>/i, (match) => `${match}<head>${guard}${base}</head>`);
     return `<!doctype html><html><head>${guard}${base}</head><body>${source}</body></html>`;
+  }
+  function renderOpeningPreview(holder, value, rules) {
+    const shown = displayGreeting(value, rules);
+    if (looksLikeRichGreeting(shown) && bridge.renderOpeningPreview) {
+      holder.innerHTML = bridge.renderOpeningPreview(shown);
+    } else if (looksLikeRichGreeting(shown)) {
+      holder.innerHTML = '<iframe class="rp-greeting-preview-frame" title="开场白完整预览" sandbox="allow-scripts"></iframe>';
+      holder.querySelector("iframe").srcdoc = greetingPreviewDocument(shown);
+    } else {
+      holder.innerHTML = `<div class="rp-greeting-preview-text">${escapeHtml(shown).replace(/\n/g, "<br>")}</div>`;
+    }
   }
 
   function commitGreetingDraft() {
@@ -203,13 +214,7 @@ function plainPreviewWithMedia(value) {
     if (!value.trim()) {
       holder.innerHTML = '<div class="rp-greeting-preview-empty">这里还没有内容。</div>';
     } else {
-      const shown = displayGreeting(value, state.regexRules);
-      if (looksLikeRichGreeting(shown)) {
-        holder.innerHTML = '<iframe class="rp-greeting-preview-frame" title="开场白美化预览" sandbox="allow-scripts"></iframe>';
-        holder.querySelector("iframe").srcdoc = greetingPreviewDocument(shown);
-      } else {
-        holder.innerHTML = `<div class="rp-greeting-preview-text">${escapeHtml(shown).replace(/\n/g, "<br>")}</div>`;
-      }
+      renderOpeningPreview(holder, value, state.regexRules);
     }
   }
 
@@ -808,6 +813,7 @@ function plainPreviewWithMedia(value) {
 
   function closeOpeningPicker() {
     $("rp-opening-picker").hidden = true;
+    $("rp-opening-options").innerHTML = "";
     document.body.classList.remove("rp-opening-picker-open");
   }
 
@@ -824,20 +830,23 @@ function plainPreviewWithMedia(value) {
     const portrait = /^(https?:\/\/|data:image\/)/.test(avatar || "")
       ? `<img src="${escapeHtml(avatar)}" alt="" />` : `<span>${escapeHtml([...actor][0] || "剧")}</span>`;
     $("rp-opening-actor").innerHTML = `${portrait}<strong>${escapeHtml(actor)}</strong>`;
-    $("rp-opening-options").innerHTML = choices.map(({ value, index }) => `<button type="button" class="rp-opening-option${index === openingState.index ? " selected" : ""}" data-opening-index="${index}" aria-pressed="${index === openingState.index}" ${value.trim() ? "" : "disabled"}>${portrait}<span><small>${escapeHtml(actor)} · 开场 ${hasMenu ? index : index + 1}</small><strong>${escapeHtml(plainPreviewWithMedia(value).slice(0, 160) || "原卡中的空白开场")}</strong></span><i>${index === openingState.index ? "✓" : "›"}</i></button>`).join("");
+    $("rp-opening-options").innerHTML = choices.map(({ value, index }) => `<article class="rp-opening-item${index === openingState.index ? " selected" : ""}"><div class="rp-opening-row"><button type="button" class="rp-opening-option${index === openingState.index ? " selected" : ""}" data-opening-index="${index}" aria-pressed="${index === openingState.index}" ${value.trim() ? "" : "disabled"}>${portrait}<span><small>${escapeHtml(actor)} · 开场 ${hasMenu ? index : index + 1}</small><strong>${escapeHtml(plainPreviewWithMedia(value).slice(0, 160) || "原卡中的空白开场")}</strong></span><i>${index === openingState.index ? "✓" : ""}</i></button><button type="button" class="rp-opening-expand" data-opening-expand="${index}" aria-expanded="${index === openingState.expandedIndex}" aria-controls="rp-opening-preview-${index}" aria-label="${index === openingState.expandedIndex ? "收起" : "展开"}第 ${hasMenu ? index : index + 1} 条开场白">${index === openingState.expandedIndex ? "⌃" : "⌄"}</button></div><div class="rp-opening-inline-preview" id="rp-opening-preview-${index}" ${index === openingState.expandedIndex ? "" : "hidden"}></div></article>`).join("");
     $("rp-opening-options").querySelectorAll("[data-opening-index]").forEach(button => button.addEventListener("click", () => {
       openingState.index = Number(button.dataset.openingIndex);
+      if (openingState.expandedIndex !== null) openingState.expandedIndex = openingState.index;
       renderOpeningPicker();
     }));
     const value = greetings[openingState.index] || "";
     $("rp-opening-confirm").disabled = !value.trim() || (hasMenu && openingState.index === 0);
-    const holder = $("rp-opening-full-content");
-    const shown = displayGreeting(value, project.rpProject?.regexRules || []);
-    if (looksLikeRichGreeting(shown)) {
-      holder.innerHTML = '<iframe class="rp-greeting-preview-frame" title="所选开场白完整预览" sandbox="allow-scripts"></iframe>';
-      holder.querySelector("iframe").srcdoc = greetingPreviewDocument(shown);
-    } else {
-      holder.innerHTML = `<div class="rp-greeting-preview-text">${escapeHtml(shown).replace(/\n/g, "<br>")}</div>`;
+    $("rp-opening-options").querySelectorAll("[data-opening-expand]").forEach(button => button.addEventListener("click", () => {
+      const index = Number(button.dataset.openingExpand);
+      openingState.expandedIndex = openingState.expandedIndex === index ? null : index;
+      renderOpeningPicker();
+    }));
+    $("rp-opening-full-content").parentElement.hidden = true;
+    if (openingState.expandedIndex !== null) {
+      const holder = $(`rp-opening-preview-${openingState.expandedIndex}`);
+      if (holder) renderOpeningPreview(holder, greetings[openingState.expandedIndex] || "", project.rpProject?.regexRules || []);
     }
     if (greetings.some(isCorruptedGreeting)) $("rp-opening-note").textContent = "旧版本把开场白存坏了：请点「从原始 JSON 补全开场白」重新选一次角色卡 JSON。";
   }
@@ -846,6 +855,7 @@ function plainPreviewWithMedia(value) {
     const project = bridge.get(projectId);
     if (!project) return;
     openingState.projectId = projectId;
+    openingState.expandedIndex = null;
     openingState.index = Math.max(0, Number(project.rpProject?.openingIndex) || 0);
     const greetings = greetingList(project.rpProject);
     if (openingState.index === 0 && isOpeningMenu(greetings[0])) {
@@ -1020,24 +1030,7 @@ function plainPreviewWithMedia(value) {
       enter(project.id);
       return;
     }
-    let needRestore = null;
-    if (project) {
-      const rp = project.rpProject || {};
-      const greetings = greetingList(rp);
-      const raw = greetings[openingState.index] || "";
-      const rules = Array.isArray(rp.regexRules) ? rp.regexRules : [];
-      if (raw && !looksLikeRichGreeting(raw)) {
-        const html = displayGreeting(raw, rules);
-        if (html && html !== raw) {
-          needRestore = { rp, greetings };
-          const updated = greetings.slice();
-          updated[openingState.index] = html;
-          bridge.update(openingState.projectId, { ...rp, greetings: updated });
-        }
-      }
-    }
     const started = bridge.startWithGreeting(openingState.projectId, openingState.index, openingState.forceNew);
-    if (needRestore) bridge.update(openingState.projectId, { ...needRestore.rp, greetings: needRestore.greetings });
     if (!started) return;
     closeOpeningPicker();
     enter(started.id);
