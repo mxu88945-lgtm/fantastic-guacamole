@@ -81,6 +81,13 @@
 .rp-project-menu { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 7px; padding-top: 4px; }
 .rp-project-menu button { border: 0; border-radius: 9px; padding: 6px 9px; color: var(--text-dim); background: var(--bg-soft); cursor: pointer; font-size: 10px; }
 .rp-project-menu .danger { color: #c45c69; }
+.rp-project-sessions { grid-column: 1 / -1; min-width: 0; border-top: 1px solid var(--border); color: var(--text-dim); font-size: 12px; }
+.rp-project-sessions summary { padding: 12px 0 2px; cursor: pointer; }
+.rp-session-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.rp-session-row button { border: 0; background: transparent; color: var(--text); cursor: pointer; padding: 6px; text-align: left; font: inherit; }
+.rp-session-row button:first-child { flex: 1; min-width: 0; }
+.rp-session-row small { display: block; margin-top: 5px; color: var(--text-dim); }
+.rp-session-row .danger { color: #c45c69; }
 .rp-empty { padding: 55px 20px; text-align: center; border: 1px dashed var(--border); border-radius: 28px; background: color-mix(in srgb, var(--bg-panel) 55%, transparent); }
 .rp-empty span, .rp-empty strong { display: block; }
 .rp-empty span { color: var(--accent); font-size: 35px; }.rp-empty strong { margin-top: 8px; }.rp-empty p { color: var(--text-dim); font-size: 11px; }.rp-empty button { padding: 10px 15px; border-radius: 999px; }

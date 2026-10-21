@@ -750,26 +750,53 @@ function plainPreviewWithMedia(value) {
     return roles;
   }
 
+  function projectGroups(projects) {
+    const baseTitle = project => String(project.title || "未命名剧本").replace(/(?: · 新场次)+$/u, "");
+    const signature = project => JSON.stringify([baseTitle(project), project.rpProject?.actorName || "", project.rpProject?.characterPrompt || "", project.rpProject?.greetings || []]);
+    const originals = new Map(), byId = new Map(projects.map(project => [project.id, project]));
+    for (const project of projects) {
+      if (project.title !== baseTitle(project)) continue;
+      const key = signature(project);
+      originals.set(key, [...(originals.get(key) || []), project]);
+    }
+    const legacyKey = project => {
+      if (project.title === baseTitle(project)) return project.id;
+      const candidates = originals.get(signature(project)) || [];
+      return candidates.length === 1 ? candidates[0].id : candidates.length ? project.id : `legacy:${signature(project)}`;
+    };
+    const groups = new Map();
+    for (const project of projects) {
+      const parent = byId.get(project.familyId);
+      const key = parent ? legacyKey(parent) : project.familyId || legacyKey(project);
+      if (!groups.has(key)) groups.set(key, { title: baseTitle(project), sessions: [] });
+      groups.get(key).sessions.push(project);
+    }
+    return [...groups.values()].map(group => ({ ...group, sessions: group.sessions.sort((a, b) => b.updatedAt - a.updatedAt) }));
+  }
+
   function render() {
     const info = bridge.role();
     const projects = bridge.list();
+    const groups = projectGroups(projects);
     $("rp-hero-role").textContent = info.roleName || "TA";
     $("rp-theater-subtitle").textContent = `${info.roleName || "TA"} 本体在线 · 陪你入戏`;
     $("rp-main-chat-copy").textContent = `回到 ${info.roleName || "TA"} 本体聊天`;
     $("rp-identity-copy").textContent = `开启“由 ${info.roleName || "TA"} 出演”时保留本体身份；关闭后只演角色自己。主角默认开启，其他成员和导演默认关闭，每张卡单独保存。`;
-    $("rp-project-count").textContent = `${projects.length} 个剧本`;
-    $("rp-hub-project-count").textContent = `${projects.length} 部戏`;
+    $("rp-project-count").textContent = `${groups.length} 个剧本`;
+    $("rp-hub-project-count").textContent = `${groups.length} 部戏`;
     $("rp-project-empty").hidden = projects.length > 0;
     const list = $("rp-project-list");
-    list.innerHTML = projects.map((project) => {
+    list.innerHTML = groups.map((group) => {
+      const project = group.sessions[0];
       const actor = project.rpProject?.actorName || "未命名角色";
       const userRole = project.rpProject?.userRole ? `你演 ${project.rpProject.userRole}` : "你的戏内身份待定";
       const casting = project.rpProject?.leadChannel?.playedByOwner === false ? "独立角色" : `${info.roleName || "TA"} 演`;
       return `<article class="rp-project-card" data-rp-project="${escapeHtml(project.id)}">
         <span class="rp-project-mark">${project.rpProject?.actorAvatar ? `<img src="${escapeHtml(project.rpProject.actorAvatar)}" alt="">` : escapeHtml([...actor][0] || "剧")}</span>
-        <button type="button" class="rp-project-copy" data-rp-detail="${escapeHtml(project.id)}"><small>RP PROJECT · ${escapeHtml(formatTime(project.updatedAt))}</small><strong>${escapeHtml(project.title || "未命名剧本")}</strong><p>${escapeHtml(casting)} ${escapeHtml(actor)} · ${escapeHtml(userRole)}</p><em>${project.messageCount || 0} 条正文 · ${project.memoryCount || 0} 条剧情记忆</em></button>
+        <button type="button" class="rp-project-copy" data-rp-detail="${escapeHtml(project.id)}"><small>RP PROJECT · ${escapeHtml(formatTime(project.updatedAt))}</small><strong>${escapeHtml(group.title)}</strong><p>${escapeHtml(casting)} ${escapeHtml(actor)} · ${escapeHtml(userRole)}</p><em>${project.messageCount || 0} 条正文 · ${project.memoryCount || 0} 条剧情记忆 · ${group.sessions.length} 段对话</em></button>
         <button type="button" class="rp-continue" data-rp-open="${escapeHtml(project.id)}">继续对戏</button>
-        <div class="rp-project-menu"><button type="button" data-rp-edit="${escapeHtml(project.id)}">角色卡与开场白</button><button type="button" data-rp-duplicate="${escapeHtml(project.id)}">选择开场并新建对话</button><button type="button" class="danger" data-rp-delete="${escapeHtml(project.id)}">删除</button></div>
+        <div class="rp-project-menu"><button type="button" data-rp-edit="${escapeHtml(project.id)}">角色卡与开场白</button><button type="button" data-rp-duplicate="${escapeHtml(project.id)}">选择开场并新建对话</button></div>
+        <details class="rp-project-sessions"><summary>历史对话（${group.sessions.length}）</summary>${group.sessions.map(session => `<div class="rp-session-row"><button type="button" data-rp-open="${escapeHtml(session.id)}">开场 ${(session.rpProject?.openingIndex || 0) + 1} · ${escapeHtml(formatTime(session.updatedAt))}<small>${session.messageCount || 0} 条正文 · ${session.memoryCount || 0} 条剧情记忆</small></button><button type="button" class="danger" data-rp-delete="${escapeHtml(session.id)}">删除</button></div>`).join("")}</details>
       </article>`;
     }).join("");
     list.querySelectorAll("[data-rp-open]").forEach((button) => button.addEventListener("click", () => enter(button.dataset.rpOpen)));
@@ -780,7 +807,7 @@ function plainPreviewWithMedia(value) {
     }));
     list.querySelectorAll("[data-rp-delete]").forEach((button) => button.addEventListener("click", () => {
       const project = bridge.get(button.dataset.rpDelete);
-      if (!project || !confirm(`删除 RP 剧本「${project.title || "未命名剧本"}」？\n这会删除它的聊天正文和戏内记忆。`)) return;
+      if (!project || !confirm(`删除这段对话「${project.title || "未命名剧本"}」？\n这会删除这段对话的正文和戏内记忆，其他历史对话不受影响。`)) return;
       bridge.remove(project.id);
       render();
     }));
@@ -1037,7 +1064,7 @@ function plainPreviewWithMedia(value) {
   });
   $("rp-opening-confirm").addEventListener("click", () => {
     const project = bridge.get(openingState.projectId);
-    if (project && !openingState.forceNew && (project.messageCount || 0) > 0) {
+    if (project && !openingState.forceNew && (project.messageCount || 0) > 1) {
       closeOpeningPicker();
       enter(project.id);
       return;

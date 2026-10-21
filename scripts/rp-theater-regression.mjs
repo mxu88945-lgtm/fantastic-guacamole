@@ -125,6 +125,10 @@ ok(fresh.rpProject.memory === '' && fresh.rpProject.memories.length === 0 && fre
 ok(sceneContext.roleplaySceneFromGreeting(source, 99, true) === null, 'invalid greeting indexes must not create conversations');
 const pristine = { id: 'pristine', space: 'roleplay', title: '刚导入', messages: [{ role: 'assistant', content: '首页' }], rpProject: { greetings: ['首页', '正文开场'], memory: '', memories: [] } };
 ok(sceneContext.roleplaySceneFromGreeting(pristine, 1).id === 'pristine' && pristine.messages[0].content === '正文开场', 'selecting an untouched opening should replace its assistant turn in place');
+const beforeUnusedSelection = sceneContext.conversations.length;
+ok(sceneContext.roleplaySceneFromGreeting(pristine, 0, true).id === 'pristine', 'even the new-opening entry must reuse an untouched conversation');
+ok(sceneContext.conversations.length === beforeUnusedSelection && pristine.messages[0].content === '首页', 'repeated opening selection must not accumulate empty scenes');
+ok(fresh.rpProjectFamilyId === source.id, 'new conversations must retain their original project identity');
 const clickAction = html.slice(html.indexOf('function enterRoleplayCardAction('), html.indexOf('if (typeof window !== "undefined") window.addEventListener("message"', html.indexOf('function enterRoleplayCardAction(')));
 ok(!clickAction.includes('send()') && !clickAction.includes('input.value'), 'card choices must never send a user-authored message or call the model');
 const sourceContext = { uid: () => 'test-id', escapeHtml: value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), renderMarkdown: value => `<p>${value}</p>` };

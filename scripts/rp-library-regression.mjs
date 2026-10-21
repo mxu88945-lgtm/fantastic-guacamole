@@ -92,6 +92,23 @@ assert.equal(JSON.stringify(projects), beforeScenes, "view deduplication must ne
 assert.equal(theater.roleLibraryEntries([...projects, { id: "variant", cast: [{ ...cast[1], prompt: "独立修改后的人设" }] }], saved).length, 3, "distinct card versions must remain visible");
 assert.equal(theater.roleLibraryEntries([], saved).length, 1, "a removed-scene role must remain recoverable from its archive");
 
+const familyCard = { actorName: "周竞尧", characterPrompt: "原始主角人设", greetings: ["开场一", "开场二"] };
+const history = [
+  { id: "new-2", title: "周竞尧的故事 · 新场次", updatedAt: 3, rpProject: structuredClone(familyCard), messageCount: 1 },
+  { id: "original", title: "周竞尧的故事", updatedAt: 1, rpProject: structuredClone(familyCard), messageCount: 189, memoryCount: 12 },
+  { id: "new-1", title: "周竞尧的故事 · 新场次", updatedAt: 2, rpProject: structuredClone(familyCard), messageCount: 1 },
+];
+const beforeGrouping = JSON.stringify(history);
+const grouped = theater.projectGroups(history);
+assert.equal(grouped.length, 1, "legacy opening scenes must belong to a single visible project");
+assert.equal(grouped[0].sessions.length, 3, "all old conversations must stay reachable");
+assert.equal(grouped[0].sessions[0].id, "new-2", "continue must open the most recent conversation");
+assert.equal(grouped[0].sessions.find(s => s.id === "original").memoryCount, 12);
+assert.equal(JSON.stringify(history), beforeGrouping, "grouping must never mutate old chat or memory data");
+assert.equal(theater.projectGroups([...history, { ...history[1], id: "independent", title: "另一部故事" }]).length, 2);
+assert.equal(theater.projectGroups([...history, { ...history[1], id: "ambiguous" }]).length, 4, "ambiguous independent originals must not be merged");
+assert.equal(theater.projectGroups([...history, { ...history[0], id: "future", familyId: "original", title: "改名的对话" }]).length, 1, "explicit lineage must survive conversation renaming");
+
 // Independent owner libraries must stay isolated; cloud/backup merges are additive.
 const count = context.roleplayCardLibrary.length;
 context.mergeRoleplayCardLibrary([{ ...guest, id: "foreign", ownerRoleId: "other", updatedAt: 200 }]);

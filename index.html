@@ -15976,7 +15976,7 @@ function roleplayPublicProject(conv) {
   if (!isRoleplayConversation(conv)) return null;
   const p = normalizedRoleplayProject(conv.rpProject, conv);
   return cloneChatData({
-    id: conv.id, title: conv.title || p.title, updatedAt: conv.updatedAt || 0,
+    id: conv.id, familyId: conv.rpProjectFamilyId || "", title: conv.title || p.title, updatedAt: conv.updatedAt || 0,
     messageCount: (conv.messages || []).filter(isChatContentMessage).length,
     memoryCount: p.memories.length + (p.memory ? 1 : 0),
     privateMemoryCount: roleplayMembers(p).reduce((sum, member) => sum + String(member.privateMemory || "").split(/\n+/).filter(line => line.replace(/^[-*•]\s*/, "").trim()).length, 0), rpProject: p,
@@ -16356,10 +16356,18 @@ function roleplaySceneFromGreeting(source, index, forceNew = false) {
   if (!source || !isRoleplayConversation(source)) return null;
   const p = normalizedRoleplayProject(source.rpProject, source);
   if (!Number.isInteger(index) || index < 0 || index >= p.greetings.length || !p.greetings[index].trim()) return null;
-  const pristine = !forceNew && (source.messages || []).length <= 1
+  // Re-selecting an unused opening must not accumulate empty conversations.
+  const pristine = (source.messages || []).length <= 1
     && !(source.messages || []).some(m => m.role !== "assistant")
-    && !p.memory && !p.memories.length;
+    && !p.memory && !p.memories.length
+    && !p.leadChannel?.privateMemory && !(p.members || []).some(member => member.privateMemory);
   const conv = pristine ? source : newConversation("roleplay");
+  const baseTitle = String(source.title || p.title || "未命名剧本").replace(/(?: · 新场次)+$/u, "");
+  const originals = conversations.filter(candidate => candidate.roleId === source.roleId && isRoleplayConversation(candidate)
+    && candidate.title === baseTitle && candidate.rpProject?.actorName === p.actorName
+    && candidate.rpProject?.characterPrompt === p.characterPrompt
+    && JSON.stringify(candidate.rpProject?.greetings || []) === JSON.stringify(p.greetings));
+  conv.rpProjectFamilyId = source.rpProjectFamilyId || (originals.length === 1 ? originals[0].id : source.id);
   if (!pristine) {
     conv.title = `${String(source.title || p.title || "未命名剧本").replace(/(?: · 新场次)+$/u, "")} · 新场次`;
     conv.projectFiles = cloneChatData(conversationProjectFiles(source));
