@@ -410,6 +410,13 @@ function plainPreviewWithMedia(value) {
     };
   }
 
+  function autosaveExistingDraft() {
+    if (!state.editingId || state.avatarPending) return;
+    const draft = currentDraft();
+    if (!draft.title || !draft.actorName || (!draft.characterPrompt && !draft.projectFiles.length)) return;
+    bridge.update(state.editingId, draft);
+  }
+
   function renderActorAvatar() {
     $("rp-actor-avatar-preview").innerHTML = state.actorAvatar ? `<img src="${escapeHtml(state.actorAvatar)}" alt="戏内角色头像">` : escapeHtml([...($("rp-field-actor").value || "剧")][0]);
     $("rp-actor-avatar-pick").textContent = state.avatarPending ? "正在处理图片…" : "从相册选择图片";
@@ -653,7 +660,7 @@ function plainPreviewWithMedia(value) {
     $("rp-worldbook-list").querySelectorAll("[data-wb-switch]").forEach((btn) => btn.addEventListener("click", () => {
       const i = Number(btn.dataset.wbIdx);
       state.worldEntries[i][btn.dataset.wbSwitch] = !state.worldEntries[i][btn.dataset.wbSwitch];
-      renderCardBlocks();
+      autosaveExistingDraft(); renderCardBlocks();
     }));
     $("rp-worldbook-list").querySelectorAll("[data-wb-field]").forEach((input) => input.addEventListener("change", () => {
       const i = Number(input.dataset.wbIdx);
@@ -662,17 +669,18 @@ function plainPreviewWithMedia(value) {
       if (f === "keys" || f === "secondaryKeys") entry[f] = input.value.split(/[,，]/).map((s) => s.trim()).filter(Boolean).slice(0, 20);
       else if (f === "insertionOrder" || f === "depth" || f === "probability") entry[f] = Number(input.value) || 0;
       else entry[f] = input.value;
+      autosaveExistingDraft();
       if (f === "title") renderCardBlocks();
     }));
     $("rp-worldbook-list").querySelectorAll("[data-wb-delete]").forEach((btn) => btn.addEventListener("click", () => {
       if (!confirm("删除这条世界书？")) return;
       state.worldEntries.splice(Number(btn.dataset.wbDelete), 1);
-      renderCardBlocks();
+      autosaveExistingDraft(); renderCardBlocks();
     }));
     const wbAdd = $("rp-wb-add");
     if (wbAdd) wbAdd.addEventListener("click", () => {
       state.worldEntries.push({ id: `wb-${Date.now()}`, title: "新条目", keys: [], secondaryKeys: [], content: "", enabled: true, constant: false, selective: false, useRegex: true, position: "before_char", insertionOrder: 100, depth: 4, probability: 100, expanded: true });
-      renderCardBlocks();
+      autosaveExistingDraft(); renderCardBlocks();
     });
     // 正则与美化
     $("rp-regex-block").hidden = state.regexRules.length === 0 && $("rp-editor-view").dataset.section !== "regex";

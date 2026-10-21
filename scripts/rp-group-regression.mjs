@@ -17,7 +17,10 @@ const context = vm.createContext({
 vm.runInContext(source("function normalizedRoleplayProject(", "function addRoleplayMemory("), context);
 const project = context.normalizedRoleplayProject({
   actorName: "周竞尧", groupEnabled: true, replyMode: "round", memory: "已离婚", world: "现世背景",
-  worldEntries: [{ content: "顾屿修复的世界书" }], regexRules: [{ pattern: "保留正则" }],
+  worldEntries: [
+    { content: "顾屿修复的世界书", enabled: true, constant: true },
+    { content: "关闭的转世世界观", enabled: false, constant: true },
+  ], regexRules: [{ pattern: "保留正则" }],
   memories: [{ id: "fact", text: "已经签字", at: 1 }],
   members: [{ id: "director", name: "导演", kind: "director", providerId: "other", model: "director-model", prompt: "保持节奏" },
     { id: "guest", name: "江屿", enabled: false }],
@@ -84,13 +87,18 @@ assert.ok(groupUi.includes("记忆模型暂时不可用（503）") && !groupUi.i
 assert.ok(html.includes("async function extractRoleplaySceneMemories(conv)") && html.includes("async extractSceneMemories(id)"), "scene memory extraction is not exposed through the RP bridge");
 assert.ok(html.includes("roleConvs().filter(isRoleplayConversation)") && html.includes("label: source ? `${name} · ${source}` : name"), "the cast library must include roles from existing RP scenes");
 assert.ok(html.includes("本轮若产生会影响后续的新增既成事实，必须"), "RP replies must actively emit hidden memory markers when durable facts are created");
+assert.ok(groupUi.includes('data-field="privateMemory"') && groupUi.includes("角色私人核心记忆"), "each cast member needs an isolated private-memory editor");
+assert.ok(html.includes("ROLEPLAY_AUTO_MEMORY_INTERVAL = 12") && html.includes("memoryScannedCount"), "RP memory extraction must resume incrementally instead of rescanning or forgetting its cursor");
 
 Object.assign(context, {
   visibleAssistantText: text => text,
   memoryRuntimeConfig: () => ({ apiKey: "memory-key" }),
   isChatContentMessage: message => ["user", "assistant"].includes(message.role),
   isHiddenRoleplayMentionMessage: () => false,
-  completeOnce: async () => '["周竞尧已经把钥匙交给顾里", "顾里答应明早赴约"]',
+  completeOnce: async () => JSON.stringify({
+    shared: ["周竞尧已经把钥匙交给顾里", "顾里答应明早赴约"],
+    private: { director: ["导演已经知道密钥藏在书房"] },
+  }),
   saveConversations: () => { context.memorySaved = true; },
   window: { dispatchEvent() {} }, CustomEvent: class {},
 });
@@ -101,8 +109,11 @@ const extractConv = { ...context.conv, rpProject: structuredClone(context.conv.r
 ] };
 const extracted = await context.extractRoleplaySceneMemories(extractConv);
 assert.equal(extracted.added, 2, "manual extraction must persist newly derived scene facts");
+assert.equal(extracted.privateAdded, 1, "manual extraction must persist role-isolated private facts");
+assert.match(extractConv.rpProject.members[0].privateMemory, /密钥藏在书房/);
 assert.equal(extractConv.rpProject.memories.at(-1).sourceMessageId, "a1");
 assert.equal(context.memorySaved, true);
+project.members[0].privateMemory = "- 导演已经知道密钥藏在书房";
 
 const profiles = { base: { id: "base", provider: "openai", baseUrl: "https://base.test/v1", apiKey: "base-key", model: "profile-model" },
   other: { id: "other", provider: "gemini", baseUrl: "https://other.test/v1beta", apiKey: "other-key", model: "other-model" } };
@@ -211,7 +222,9 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
   for (const privateText of ["OWNER_PERSONA_ONLY", "OWNER_EXTRA_INSTRUCTION", "OWNER_PRIVATE_MEMORY_AND_DIARY", "OWNER_RECENT_LIFE", "OWNER_LOCK_SCREEN", "OWNER_PRIVATE_READING", "顾祁砚", "LEAD_CARD_ONLY"])
     assert.ok(!system.includes(privateText), `independent member received owner-only context: ${privateText}`);
   assert.ok(system.includes("OWNER_GLOBAL_PRESET"), "independent members must still receive enabled global writing presets");
-  for (const text of ["导演", "保持节奏", "现世背景", "已经签字", "已离婚", "较早摘要：签字后离开", "SCENE_REFERENCE_ONLY"]) assert.ok(system.includes(text), `missing shared stage input: ${text}`);
+  for (const text of ["导演", "保持节奏", "顾屿修复的世界书", "已经签字", "已离婚", "较早摘要：签字后离开", "SCENE_REFERENCE_ONLY"]) assert.ok(system.includes(text), `missing shared stage input: ${text}`);
+  assert.ok(system.includes("导演已经知道密钥藏在书房"), "a member must receive its own private core memory");
+  assert.ok(!system.includes("关闭的转世世界观"), "disabled worldbook entries must not reach the live model request");
   assert.equal(context.lastPromptAudit.memory.scope, "scene-only");
   director.playedByOwner = true;
   await assert.rejects(() => context.streamChat(() => {}, () => {}, config, director), /captured-request/);
@@ -227,6 +240,7 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
   await assert.rejects(() => context.streamChat(() => {}, () => {}, config), /captured-request/);
   system = requestSystem(captured.at(-1));
   assert.ok(system.includes("LEAD_CARD_ONLY"), "switching the solo lead off must keep its own character card");
+  assert.ok(!system.includes("导演已经知道密钥藏在书房"), "one member's private core memory must not leak to the lead");
   assert.ok(system.includes("OWNER_GLOBAL_PRESET"), "the independent lead keeps shared writing presets");
   for (const privateText of ["OWNER_PERSONA_ONLY", "OWNER_EXTRA_INSTRUCTION", "OWNER_PRIVATE_MEMORY_AND_DIARY", "OWNER_RECENT_LIFE", "OWNER_LOCK_SCREEN", "OWNER_PRIVATE_READING", "顾祁砚"])
     assert.ok(!system.includes(privateText), `the independent lead received owner-only context: ${privateText}`);
@@ -294,7 +308,7 @@ const completion = vm.createContext({
   streamChat: async emit => { emit("剧情正文 [搜索:本体][相册:私照][私记:污染][存档:污染][提醒:污染]【锁屏 5分钟】[工作台运行:污染][记忆:角色已签字]"); },
   extractMemorySaves: text => { completion.savedSceneFact = text.includes("[记忆:角色已签字]"); return text.replace(/\[记忆:[^\]]*\]/g, "").trim(); },
 });
-for (const name of ["clearError", "markSeen", "pinToBottom", "setSending", "mergeMessageHistoryRecall", "finishRunningTraces", "saveConversations", "renderMessages", "maybeAutoCompactConversation"]) completion[name] = () => {};
+for (const name of ["clearError", "markSeen", "pinToBottom", "setSending", "mergeMessageHistoryRecall", "finishRunningTraces", "saveConversations", "renderMessages", "maybeAutoCompactConversation", "maybeAutoExtractRoleplayMemories"]) completion[name] = () => {};
 for (const name of ["extractPrivateDiary", "extractNotionSaves", "extractReminders", "parseCharLockCommand", "consumeWorkbenchDirective", "searchHistoryRecall", "readHistoryOriginal", "inspectAlbumForModel", "webSearch"]) completion[name] = () => { throw new Error(`independent response invoked owner capability ${name}`); };
 vm.runInContext(source("async function generateSingleReply(", "function switchReplyVariant("), completion);
 assert.equal(await completion.generateSingleReply(), true);

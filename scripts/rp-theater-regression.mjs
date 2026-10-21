@@ -45,6 +45,8 @@ ok(html.includes('currentConv()?.rpProject?.actorName || settings.aiName'), "RP 
 ok(css.includes('.roleplay-rich-message > .msg-head'), "flat-layout rich openings still show a duplicate backstage author header");
 ok(html.includes("greetings, openingIndex, alternateGreetings"), "opening selection is not persisted");
 ok(html.includes('worldEntries: Array.isArray(raw.worldEntries)') && html.includes('regexRules: Array.isArray(raw.regexRules)') && html.includes('theaterWorldBackground: text("theaterWorldBackground")'), "saving an RP project drops worldbook, regex, tags or theater world");
+ok(html.includes("function activeRoleplayWorldText(") && html.includes("entry?.enabled !== false"), "live RP requests do not honor the current worldbook enable switch");
+ok(js.includes("function autosaveExistingDraft()") && js.includes("autosaveExistingDraft();"), "worldbook switches must persist immediately for existing scenes");
 ok(html.includes("【本剧本世界观（本剧场所有角色与 NPC 共用）】"), "theater world background never reaches the prompt");
 ok(js.includes("function displayGreeting(") && !js.includes("bridge.update(projectId, { ...rp, greetings: processed })"), "openings must be beautified only for display, never rewritten in storage");
 ok(js.includes("if (looksLikeRichGreeting(regexed)) return regexed"), "regex-produced HTML openings must render as HTML, not be re-bubbled");

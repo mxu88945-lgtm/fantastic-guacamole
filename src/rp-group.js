@@ -121,6 +121,7 @@ if (bridge) {
       <div class="rp-cast-fields"><label class="rp-cast-check"><input type="checkbox" data-field="enabled" ${member.enabled !== false ? "checked" : ""}>参与每轮回复</label>
       <label class="rp-cast-check"><input type="checkbox" data-field="playedByOwner" ${(lead ? member.playedByOwner !== false : member.playedByOwner === true) ? "checked" : ""}>由 ${escape(bridge.role().roleName)} 出演</label><p class="rp-group-note">开启：保留本体身份和戏外记忆来扮演。关闭：只用这个角色自己的设定与本场剧情资料。主角默认开，其他成员默认关。</p>
       ${lead ? `<p class="rp-group-note">主角人设沿用角色卡，可在“情景与角色资料”中修改。</p>` : `<label>成员名字<input data-field="name" maxlength="80" value="${escape(member.name)}"></label><label>共演身份<select data-field="kind"><option value="actor" ${member.kind !== "director" ? "selected" : ""}>角色</option><option value="director" ${member.kind === "director" ? "selected" : ""}>导演</option></select></label><label>角色卡 / 导演资料<textarea data-field="prompt" rows="6" maxlength="30000" placeholder="人物背景、说话方式、关系或导演分工">${escape(member.prompt)}</textarea></label>`}
+      <label>角色私人核心记忆 · 仅本人<textarea data-field="privateMemory" rows="5" maxlength="16000" placeholder="只写这个角色在本剧本里已经知道、已经经历或已经确认的事实；不会发给其他成员。">${escape(member.privateMemory || "")}</textarea></label><p class="rp-group-note">这层记忆固定发给当前角色本人，优先保住已完成事件、关系结论与个人知情边界；不会串进其他剧本。</p>
       <div class="rp-cast-add"><button type="button" data-avatar-pick="${escape(member.id)}">从相册选择头像</button><button type="button" data-avatar-clear="${escape(member.id)}">移除头像</button><input type="file" accept="image/*" data-avatar-file="${escape(member.id)}" hidden></div>
       ${channelFields(member, index)}${lead ? "" : `<button type="button" class="rp-cast-remove" data-remove="${escape(member.id)}">移出本场共演</button>`}</div></details>`;
   }
@@ -148,7 +149,7 @@ if (bridge) {
     const scene = bridge.inspectScene(sceneId);
     if (!scene) return;
     const p = scene.rpProject;
-    panel.querySelector("#rp-scene-memory-count").textContent = `${scene.memoryCount} 条档案${scene.summary ? " · 已有较早剧情摘要" : ""}`;
+    panel.querySelector("#rp-scene-memory-count").textContent = `${scene.memoryCount} 条共享档案 · ${scene.privateMemoryCount || 0} 条角色私人记忆${scene.summary ? " · 已有较早剧情摘要" : ""}`;
     panel.querySelector("#rp-memory-manual").value = p.memory || "";
     panel.querySelector("#rp-memory-list").innerHTML = p.memories.length ? p.memories.map(entry => `<article class="rp-memory-entry" data-memory="${escape(entry.id)}"><small>${escape(new Date(entry.at).toLocaleString())} · ${entry.sourceMessageId ? "演出中保存" : "手动补充"}</small><textarea rows="3" maxlength="1200" aria-label="剧情记忆">${escape(entry.text)}</textarea><div><button type="button" data-memory-save="${escape(entry.id)}">保存修改</button><button type="button" data-memory-delete="${escape(entry.id)}">删除这条</button></div></article>`).join("") : '<p class="rp-group-note">这场戏还没有保存自动记忆。正文仍会按上下文范围发送；你也可以在下面补充重要事实。</p>';
     panel.querySelector("#rp-memory-summary").textContent = scene.summary || "尚未压缩较早剧情。生成摘要后会在这里显示，并随本窗口的后续请求带上。";
@@ -238,7 +239,7 @@ if (bridge) {
     const names = new Set([draft.actorName, ...draft.members.map(member => member.name)]);
     let name = baseName, suffix = 2;
     while (names.has(name)) name = `${baseName} ${suffix++}`;
-    draft.members.push({ id: memberId(), name, kind, playedByOwner: false, prompt: card.prompt || (kind === "director" ? "负责环境、转场与未加入群聊的 NPC，承接现有剧情，不替用户或其他共演角色发言。" : ""), greeting: card.greeting || "", beautificationProtocol: card.beautificationProtocol || "", regexRules: Array.isArray(card.regexRules) ? card.regexRules : [], avatar: /^(https?:\/\/|data:image\/)/.test(card.avatar || "") ? card.avatar : "", enabled: true, providerId: "", model: "", newMember: true });
+    draft.members.push({ id: memberId(), name, kind, playedByOwner: false, prompt: card.prompt || (kind === "director" ? "负责环境、转场与未加入群聊的 NPC，承接现有剧情，不替用户或其他共演角色发言。" : ""), privateMemory: card.privateMemory || "", greeting: card.greeting || "", beautificationProtocol: card.beautificationProtocol || "", regexRules: Array.isArray(card.regexRules) ? card.regexRules : [], avatar: /^(https?:\/\/|data:image\/)/.test(card.avatar || "") ? card.avatar : "", enabled: true, providerId: "", model: "", newMember: true });
     draft.groupEnabled = true; panel.querySelector("#rp-group-enabled").checked = true;
     markDirty(); renderMembers();
   }
@@ -407,9 +408,10 @@ if (bridge) {
       try {
         const result = await bridge.extractSceneMemories(sceneId);
         renderMemory();
-        const message = result.added
-          ? `已提取并保存 ${result.added} 条新记忆。`
-          : "已检查最近剧情，没有需要新增的记忆。";
+        const totalAdded = (result.added || 0) + (result.privateAdded || 0);
+        const message = totalAdded
+          ? `已提取并保存 ${result.added || 0} 条共享记忆、${result.privateAdded || 0} 条角色私人记忆。`
+          : "已检查尚未提炼的新剧情，没有需要新增的记忆。";
         setMemoryStatus(message, "success");
         bridge.toast(message);
       } catch (error) {
