@@ -174,8 +174,26 @@ if (bridge) {
     if (/fetch|network|load failed/i.test(raw)) return "记忆接口暂时无法连接，请检查网络或接口地址后重试。";
     return raw || "剧情记忆提取失败";
   }
+  function setSectionCollapsed(section, collapsed) {
+    section.classList.toggle("is-collapsed", collapsed);
+    section.querySelectorAll("[data-collapse-section]").forEach(button => {
+      button.setAttribute("aria-expanded", String(!collapsed));
+      if (button.classList.contains("rp-section-fold")) button.textContent = collapsed ? "›" : "收起";
+    });
+    if (collapsed) section.querySelectorAll("details[open]").forEach(row => { row.open = false; });
+  }
+  function expandSection(section) {
+    panel.querySelectorAll(".rp-group-collapsible").forEach(other => setSectionCollapsed(other, other !== section));
+  }
+  panel.addEventListener("toggle", event => {
+    const row = event.target;
+    if (!row.matches?.(".rp-cast-member") || !row.open) return;
+    panel.querySelectorAll(".rp-cast-member[open]").forEach(other => {
+      if (other !== row) other.open = false;
+    });
+  }, true);
   function installSectionFolds() {
-    panel.querySelectorAll("#rp-members-section, #rp-user-profile, #rp-display-section, #rp-temporary-section, #rp-scene-memory").forEach(section => {
+    panel.querySelectorAll("#rp-members-section, #rp-user-profile, #rp-display-section, #rp-temporary-section").forEach(section => {
       section.classList.add("rp-group-collapsible");
       const head = section.querySelector(":scope > .rp-group-section-head");
       if (!head || head.querySelector("[data-collapse-section]")) return;
@@ -186,16 +204,24 @@ if (bridge) {
       button.type = "button";
       button.className = "rp-section-fold";
       button.dataset.collapseSection = section.id;
-      button.setAttribute("aria-expanded", "true");
-      button.textContent = "收起";
+      button.setAttribute("aria-label", `展开或收起${head.querySelector("h3").textContent}`);
       actions.append(button);
       head.append(actions);
+      const title = head.querySelector("h3");
+      const titleButton = document.createElement("button");
+      titleButton.type = "button";
+      titleButton.className = "rp-section-title";
+      titleButton.dataset.collapseSection = section.id;
+      title.replaceWith(titleButton);
+      titleButton.append(title);
+      setSectionCollapsed(section, true);
     });
   }
   function focusMember(memberId = "") {
     if (!memberId) return;
     const row = panel.querySelector(`[data-member="${CSS.escape(memberId)}"]`);
     if (!row) return;
+    expandSection(row.closest(".rp-group-collapsible"));
     row.open = true;
     requestAnimationFrame(() => row.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
@@ -438,9 +464,8 @@ if (bridge) {
     else if (button.hasAttribute("data-collapse-section")) {
       const section = button.closest(".rp-group-collapsible");
       if (!section) return;
-      const collapsed = section.classList.toggle("is-collapsed");
-      button.textContent = collapsed ? "展开" : "收起";
-      button.setAttribute("aria-expanded", String(!collapsed));
+      if (section.classList.contains("is-collapsed")) expandSection(section);
+      else setSectionCollapsed(section, true);
     }
     else if (button.hasAttribute("data-save")) { if (save()) { bridge.toast("共演设置已保存"); close(); } }
     else if (button.hasAttribute("data-add")) addMember(button.dataset.add);

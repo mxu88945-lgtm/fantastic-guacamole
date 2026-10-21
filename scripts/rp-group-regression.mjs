@@ -80,6 +80,26 @@ assert.ok(html.includes("async function pullProviderModels(profile)") && html.in
 assert.ok(groupUi.includes("data-refresh>立即总结当前对话") && groupUi.includes("bridge.extractSceneMemories(sceneId)"), "the memory action must run extraction instead of only repainting the drawer");
 assert.ok(groupUi.includes('id="rp-memory-action-status"') && groupUi.includes("这条剧情记忆已经保存"), "manual memory actions need visible success feedback");
 assert.ok(groupUi.includes("data-collapse-section") && groupUi.includes("rp-group-collapsible"), "major drawer sections need explicit collapse controls");
+// Exercise the accordion against retained form controls: folding must preserve
+// input values and close sibling sections and member details together.
+const sectionFixture = () => {
+  const classes = new Set();
+  const controls = [false, true].map(arrow => ({ expanded: null, textContent: "", classList: { contains: () => arrow }, setAttribute(key, value) { this.expanded = value; } }));
+  const row = { open: true };
+  return { controls, row, value: "尚未保存的人设", classList: { contains: name => classes.has(name), toggle(name, on) { if (on) classes.add(name); else classes.delete(name); } },
+    querySelectorAll: selector => selector === "[data-collapse-section]" ? controls : [row] };
+};
+const folds = [sectionFixture(), sectionFixture()];
+const foldContext = vm.createContext({ panel: { querySelectorAll: () => folds } });
+vm.runInContext(groupUi.slice(groupUi.indexOf("function setSectionCollapsed("), groupUi.indexOf('  panel.addEventListener("toggle"')), foldContext);
+folds.forEach(section => foldContext.setSectionCollapsed(section, true));
+assert.ok(folds.every(section => section.classList.contains("is-collapsed") && section.controls.every(button => button.expanded === "false")));
+foldContext.expandSection(folds[0]); folds[0].row.open = true;
+foldContext.expandSection(folds[1]);
+assert.ok(folds[0].classList.contains("is-collapsed") && !folds[1].classList.contains("is-collapsed"), "opening a second section must fold the first automatically");
+assert.equal(folds[0].row.open, false);
+assert.equal(folds[0].value, "尚未保存的人设", "folding must not rebuild or erase the form");
+assert.equal(folds[1].controls[1].textContent, "收起");
 assert.ok(!groupUi.includes("index === 0 || member.newMember"), "existing cast cards should start collapsed when the drawer opens");
 assert.ok(groupUi.includes('openMember: memberId => open(memberId || "lead")'), "the group settings page must open directly on a selected cast member");
 assert.ok(html.includes('if (isRoleplayConversation())') && html.includes('window.JYCRoleplayGroup?.open?.();'), "the RP header more button must open the large group page directly instead of the small menu");
