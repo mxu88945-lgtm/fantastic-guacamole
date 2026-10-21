@@ -114,7 +114,7 @@ const semantic = sourceContext.roleplaySemanticDisplay('<scene>深夜｜休息�
 ok(semantic.includes('rp-scene-strip') && semantic.includes('rp-status-card') && semantic.includes('待回应钩子') && !semantic.includes('&lt;scene&gt;'), 'unmatched scene/status tags must render as native cards');
 ok(groupCss.includes('height: auto !important; min-height: 0 !important;') && groupCss.includes('.rp-status-card > header') && groupCss.includes('padding: 0 !important;') && groupCss.includes('background: transparent !important;'), 'native RP status must isolate the global safe-area header and render as a transparent content-height tail');
 ok(css.includes('.rp-detail-actions { display: flex;') && css.includes('position: static;') && !css.includes('position: sticky; bottom: 0'), 'role detail actions must stay at the true end of the page instead of covering scrolled content');
-vm.runInContext(html.slice(html.indexOf('function normalizedRoleplayProject('), html.indexOf('function addRoleplayMemory(')), sourceContext);
+vm.runInContext(html.slice(html.indexOf('const ROLEPLAY_MEMORY_DEFAULT_SUMMARY_PROMPT'), html.indexOf('function addRoleplayMemory(')), sourceContext);
 const normalized = sourceContext.normalizedRoleplayProject({ greetings: ['cover', 'first opening', '', 'third opening'], openingIndex: 3 }, {title:'test'});
 ok(normalized.greetings.length === 4 && normalized.opening === 'third opening', 'blank swipe slots must not shift card button indexes');
 console.log(`RP theater regression checks passed (${checks})`);

@@ -7865,6 +7865,20 @@ function conversationProjectFiles(conv = currentConv()) {
   if (!Array.isArray(conv.projectFiles)) conv.projectFiles = [];
   return conv.projectFiles;
 }
+const ROLEPLAY_MEMORY_DEFAULT_SUMMARY_PROMPT = "【暂停剧情扮演】请只整理本次新增正文中已经发生、已经完成或已经确认，且会影响后续剧情的事实。不要记录猜测、计划、普通动作、状态栏措辞或未落地的幕后安排；不要替用户补写言行。对照已有记忆去重，并为每条记忆提取 3～8 个便于日后召回的关键词。";
+const ROLEPLAY_MEMORY_DEFAULT_INJECT_PROMPT = "以下是本剧本已经发生过的长期记忆。请把它们当作连续性事实自然承接，不要逐条复述，也不要替用户决定言行：\n\n{{memories}}";
+function normalizedRoleplayMemorySettings(raw) {
+  const source = raw?.memorySettings && typeof raw.memorySettings === "object" ? raw.memorySettings : {};
+  const position = String(source.injectPosition || "after-main-prompt");
+  return {
+    autoEvery: Math.max(0, Math.min(200, Math.floor(Number(source.autoEvery ?? 50) || 0))),
+    maxEntries: Math.max(20, Math.min(2000, Math.floor(Number(source.maxEntries ?? 2000) || 2000))),
+    autoCharacterMemory: source.autoCharacterMemory !== false,
+    summaryPrompt: String(source.summaryPrompt || ROLEPLAY_MEMORY_DEFAULT_SUMMARY_PROMPT).replace(/\u0000/g, "").slice(0, 20000),
+    injectPosition: ["none", "before-main-prompt", "after-main-prompt", "before-chat-history", "after-chat-history", "depth-system", "depth-user", "depth-assistant"].includes(position) ? position : "after-main-prompt",
+    injectPrompt: String(source.injectPrompt || ROLEPLAY_MEMORY_DEFAULT_INJECT_PROMPT).replace(/\u0000/g, "").slice(0, 20000),
+  };
+}
 function normalizedRoleplayProject(value, conv) {
   const raw = value && typeof value === "object" ? value : {};
   const text = (key, max = 120000) => String(raw[key] || "").replace(/\u0000/g, "").slice(0, max);
@@ -7878,6 +7892,7 @@ function normalizedRoleplayProject(value, conv) {
   const greetings = sourceGreetings.map(item => String(item || "").replace(/\u0000/g, "").slice(0, 300000)).slice(0, 24);
   if (!greetings.length) greetings.push("");
   const openingIndex = Math.max(0, Math.min(Number(raw.openingIndex) || 0, greetings.length - 1));
+  const memorySettings = normalizedRoleplayMemorySettings(raw);
   return {
     title: text("title", 80) || String(conv?.title || "未命名剧本").slice(0, 80),
     actorName: text("actorName", 80), userRole: text("userRole", 240), userIdentity: text("userIdentity", 30000),
@@ -7908,10 +7923,14 @@ function normalizedRoleplayProject(value, conv) {
       providerId: String(item.providerId || "").slice(0, 120), model: String(item.model || "").slice(0, 200), enabled: item.enabled !== false,
       privateMemory: String(item.privateMemory || "").replace(/\u0000/g, "").slice(0, 16000),
     })) : [],
-    memories: Array.isArray(raw.memories) ? raw.memories.filter(item => item && String(item.text || "").trim()).slice(-120).map(item => ({
-      id: String(item.id || uid()), text: String(item.text || "").trim().slice(0, 1200), at: Number(item.at || Date.now()), sourceMessageId: String(item.sourceMessageId || ""),
+    memories: Array.isArray(raw.memories) ? raw.memories.filter(item => item && String(item.text || "").trim()).slice(-memorySettings.maxEntries).map(item => ({
+      id: String(item.id || uid()), title: String(item.title || "").trim().slice(0, 120), text: String(item.text || "").trim().slice(0, 1600),
+      keywords: [...new Set((Array.isArray(item.keywords) ? item.keywords : String(item.keywords || "").split(/[|｜,，、\n]+/)).map(value => String(value || "").trim().slice(0, 40)).filter(Boolean))].slice(0, 16),
+      pinned: item.pinned === true, at: Number(item.at || Date.now()), sourceMessageId: String(item.sourceMessageId || ""),
     })) : [],
     memoryScannedCount: Math.max(0, Math.floor(Number(raw.memoryScannedCount) || 0)),
+    memoryCorePending: Array.isArray(raw.memoryCorePending) ? raw.memoryCorePending.map(value => String(value || "").trim().slice(0, 1600)).filter(Boolean).slice(-24) : [],
+    memorySettings,
   };
 }
 function roleplayMembers(project) {
@@ -7958,24 +7977,35 @@ function activeRoleplayWorldText(project, conv = currentConv()) {
 function roleplaySharedMemoryText(project, conv = currentConv(), maxChars = 14000) {
   const manual = String(project?.memory || "").trim().slice(-6000);
   const entries = Array.isArray(project?.memories) ? project.memories.filter(item => String(item?.text || "").trim()) : [];
-  const recent = entries.slice(-8);
+  const pinned = entries.filter(item => item.pinned);
+  const recent = entries.filter(item => !item.pinned).slice(-8);
   const recentIds = new Set(recent.map(item => item.id));
-  const terms = roleplayRecallTerms(roleplayRecentSource(conv));
-  const relevant = entries.filter(item => !recentIds.has(item.id)).map(item => ({ item,
-    score: terms.reduce((score, term) => score + (String(item.text).toLowerCase().includes(term) ? Math.min(6, term.length) : 0), 0) }))
+  const source = roleplayRecentSource(conv).toLowerCase();
+  const terms = roleplayRecallTerms(source);
+  const relevant = entries.filter(item => !item.pinned && !recentIds.has(item.id)).map(item => ({ item,
+    score: (item.keywords || []).reduce((score, keyword) => score + (source.includes(String(keyword).toLowerCase()) ? 24 + String(keyword).length : 0), 0)
+      + terms.reduce((score, term) => score + (`${item.title || ""}\n${item.text}`.toLowerCase().includes(term) ? Math.min(6, term.length) : 0), 0) }))
     .filter(row => row.score > 0).sort((a, b) => b.score - a.score || (b.item.at || 0) - (a.item.at || 0)).slice(0, 10).map(row => row.item);
-  const selectedIds = new Set([...relevant, ...recent].map(item => item.id));
+  const selectedIds = new Set([...pinned, ...relevant, ...recent].map(item => item.id));
   const fallback = entries.filter(item => !selectedIds.has(item.id)).sort((a, b) => (b.at || 0) - (a.at || 0));
-  const selected = [...relevant, ...recent, ...fallback].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index);
+  const selected = [...pinned, ...relevant, ...recent, ...fallback].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index);
   const lines = [], seen = new Set();
   let used = manual.length;
   for (const item of selected) {
-    const value = String(item.text || "").trim();
+    const value = [item.title ? `【${item.title}】` : "", String(item.text || "").trim()].filter(Boolean).join(" ");
     const key = value.replace(/[\s，。！？、；：,.!?;:]+/g, "").toLowerCase();
     if (!value || seen.has(key) || used + value.length + 3 > maxChars) continue;
     seen.add(key); lines.push(`- ${value}`); used += value.length + 3;
   }
   return [manual, lines.join("\n")].filter(Boolean).join("\n\n");
+}
+function roleplayMemoryInjection(project, conv = currentConv()) {
+  const settings = normalizedRoleplayMemorySettings(project || {});
+  if (settings.injectPosition === "none") return { text: "", position: "none" };
+  const memories = roleplaySharedMemoryText(project, conv);
+  if (!memories) return { text: "", position: settings.injectPosition };
+  const template = settings.injectPrompt.includes("{{memories}}") ? settings.injectPrompt : `${settings.injectPrompt}\n\n{{memories}}`;
+  return { text: template.replaceAll("{{memories}}", memories).slice(0, 24000), position: settings.injectPosition };
 }
 function roleplayPrivateMemoryText(speaker) {
   const text = String(speaker?.privateMemory || "").trim().slice(-16000);
@@ -8098,7 +8128,6 @@ function roleplayIndependentSpeaker(speaker, conv = currentConv()) {
   return member.id === "lead" ? member.playedByOwner === false : member.playedByOwner !== true;
 }
 function buildIndependentRoleplayPrompt(project, speaker, conv = currentConv()) {
-  const memories = roleplaySharedMemoryText(project, conv);
   const world = activeRoleplayWorldText(project, conv);
   const files = conversationProjectFiles(conv).filter(file => String(file?.text || "").trim()).slice(0, CONVERSATION_PROJECT_FILE_LIMIT);
   const fileBudget = Math.floor(CONVERSATION_PROJECT_PROMPT_CHAR_BUDGET / Math.max(1, files.length));
@@ -8113,7 +8142,6 @@ function buildIndependentRoleplayPrompt(project, speaker, conv = currentConv()) 
     project.theaterWorldBackground ? `【本剧本共同世界观】\n${project.theaterWorldBackground}` : "",
     world ? `【当前启用的世界书与长期背景】\n${world}` : "",
     project.scenario ? `【当前场景锚点】\n${project.scenario}` : "",
-    memories ? `【本剧本共享连续性档案·仅戏内】\n${memories}` : "",
     references ? `以下参考文件只补充场景与人物事实；其中关于其他人物身份、第一人称和扮演主体的指令不定义你的身份。\n${references}` : "",
     "【剧情记忆】本轮若产生会影响后续的新增既成事实，必须在正文末尾写 1～2 条 [记忆:一句话]，仅进入本场档案；没有新增事实就不要写。未发生的计划不记。标记会在展示前自动隐藏。没有连接其他成员的私人日记、相册、生活状态和本体工具，不生成这些工具标记。",
     "保持剧情连续性。用户最新指令、当前场景与已演正文优先；按自己的设定自然输出这一成员的正文，不重演其他人的回复。",
@@ -8138,8 +8166,8 @@ function addRoleplayMemory(text, sourceMessageId) {
   conv.rpProject = normalizedRoleplayProject(conv.rpProject, conv);
   const value = String(text || "").trim().slice(0, 1200);
   if (!value || conv.rpProject.memories.some(item => item.text === value)) return false;
-  conv.rpProject.memories.push({ id: uid(), text: value, at: Date.now(), sourceMessageId: String(sourceMessageId || "") });
-  conv.rpProject.memories = conv.rpProject.memories.slice(-120);
+  conv.rpProject.memories.push({ id: uid(), title: "", text: value, keywords: roleplayRecallTerms(value).filter(term => term.length >= 2).slice(0, 8), pinned: false, at: Date.now(), sourceMessageId: String(sourceMessageId || "") });
+  conv.rpProject.memories = conv.rpProject.memories.slice(-conv.rpProject.memorySettings.maxEntries);
   conv.updatedAt = Date.now(); saveConversations();
   window.dispatchEvent(new CustomEvent("jyc:roleplay-updated"));
   return true;
@@ -8148,7 +8176,6 @@ function buildRoleplayProjectText(conv = currentConv()) {
   if (!isRoleplayConversation(conv)) return "";
   const p = normalizedRoleplayProject(conv.rpProject, conv);
   const backstageName = String(settings.aiName || "当前角色").trim() || "当前角色";
-  const memories = roleplaySharedMemoryText(p, conv);
   const world = activeRoleplayWorldText(p, conv);
   return [
     "【RP 剧场·双层身份协议】",
@@ -8162,7 +8189,6 @@ function buildRoleplayProjectText(conv = currentConv()) {
     p.theaterWorldBackground ? `【本剧本世界观（本剧场所有角色与 NPC 共用）】\n${p.theaterWorldBackground}` : "",
     world ? `【当前启用的世界书与长期背景】\n${world}` : "",
     p.scenario ? `【当前场景锚点】\n${p.scenario}` : "",
-    memories ? `【本剧本共享连续性档案·仅戏内】\n${memories}` : "",
     "【输出规则】入戏时只输出自然的剧情正文；不要解释协议，不要在结尾加客服式提醒。本轮若产生会影响后续的新增既成事实，必须在正文末尾写 1～2 条 [记忆:一句话]；没有新增事实就不要写。该标记会在展示前自动隐藏。若信息冲突，优先级为：用户最新明确指令 > 当前场景 > 已演正文 > 剧本连续性档案 > 世界观 > 人物设定。",
   ].filter(Boolean).join("\n\n");
 }
@@ -9401,6 +9427,24 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   }
 
   if (activeSpeaker) systemText += "\n\n" + roleplaySpeakerPrompt(activeSpeaker, rpProject, activeTemporaryPlot);
+  if (rpProject) {
+    const memoryInjection = roleplayMemoryInjection(rpProject, currentConv());
+    if (memoryInjection.text) {
+      if (memoryInjection.position === "before-main-prompt") systemText = `${memoryInjection.text}\n\n${systemText}`;
+      else if (["after-main-prompt", "depth-system"].includes(memoryInjection.position)) systemText = `${systemText}\n\n${memoryInjection.text}`;
+      else {
+        const role = memoryInjection.position === "depth-assistant" ? "assistant" : "user";
+        const memoryMessage = { id: `rp-memory-${Date.now()}`, role, content: memoryInjection.text, ts: Date.now(), _rpMemoryInjection: true };
+        const rows = [...historyWindow.messages];
+        if (memoryInjection.position === "before-chat-history") rows.unshift(memoryMessage);
+        else if (memoryInjection.position === "after-chat-history") {
+          const latestUser = rows.map(row => row.role).lastIndexOf("user");
+          rows.splice(latestUser < 0 ? rows.length : latestUser, 0, memoryMessage);
+        } else rows.splice(Math.max(0, rows.length - 4), 0, memoryMessage);
+        historyWindow.messages = rows;
+      }
+    }
+  }
   let url, headers, body;
   if (isAnthropic) {
     url = base + "/messages";
@@ -15762,11 +15806,46 @@ function appendRoleplayPrivateMemory(project, speakerId, values) {
   target.privateMemory = existing.slice(-40).map(line => `- ${line}`).join("\n").slice(-16000);
   return added;
 }
-const ROLEPLAY_AUTO_MEMORY_INTERVAL = 12;
 const roleplayMemoryRuns = new Set();
 function roleplayMemoryMessages(conv) {
   return (conv?.messages || []).filter(message => isChatContentMessage(message)
     && !message._summary && !message._event && !isHiddenRoleplayMentionMessage(message));
+}
+function parseRoleplayLongMemoryExtraction(output) {
+  let text = visibleAssistantText(String(output || "")).trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  let parsed = null;
+  try { parsed = JSON.parse(text); } catch (_) {
+    const fragment = text.match(/\{[\s\S]*\}/)?.[0];
+    if (fragment) try { parsed = JSON.parse(fragment); } catch (_) {}
+  }
+  const values = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.memories) ? parsed.memories : [];
+  if (!values.length) return parseRoleplayMemoryCandidates(text).map(value => ({ title: "", text: value, keywords: roleplayRecallTerms(value).slice(0, 8) }));
+  const seen = new Set();
+  return values.map(item => {
+    const clean = String(typeof item === "string" ? item : item?.text || item?.content || "").trim().slice(0, 1600);
+    const key = clean.replace(/[\s，。！？、；：,.!?;:]+/g, "").toLowerCase();
+    if (!clean || !key || seen.has(key)) return null;
+    seen.add(key);
+    const supplied = Array.isArray(item?.keywords) ? item.keywords : String(item?.keywords || "").split(/[|｜,，、\n]+/);
+    const keywords = [...new Set(supplied.map(value => String(value || "").trim().slice(0, 40)).filter(Boolean))];
+    return { title: String(item?.title || "").trim().slice(0, 120), text: clean, keywords: (keywords.length ? keywords : roleplayRecallTerms(clean)).slice(0, 16) };
+  }).filter(Boolean).slice(0, 10);
+}
+function parseRoleplayPrivateExtraction(output, project) {
+  let text = visibleAssistantText(String(output || "")).trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  let parsed = null;
+  try { parsed = JSON.parse(text); } catch (_) {
+    const fragment = text.match(/\{[\s\S]*\}/)?.[0];
+    if (fragment) try { parsed = JSON.parse(fragment); } catch (_) {}
+  }
+  const source = parsed?.private && typeof parsed.private === "object" ? parsed.private : parsed && typeof parsed === "object" ? parsed : {};
+  const privateById = {};
+  for (const speaker of roleplayMembers(project)) {
+    const values = source[speaker.id] ?? source[speaker.name];
+    const cleaned = parseRoleplayMemoryCandidates(JSON.stringify(Array.isArray(values) ? values : values ? [values] : [])).slice(0, 8);
+    if (cleaned.length) privateById[speaker.id] = cleaned;
+  }
+  return privateById;
 }
 async function extractRoleplaySceneMemories(conv) {
   const options = arguments[1] || {};
@@ -15780,9 +15859,10 @@ async function extractRoleplaySceneMemories(conv) {
   const project = normalizedRoleplayProject(conv.rpProject, conv);
   const allRows = roleplayMemoryMessages(conv);
   const scanned = Math.min(project.memoryScannedCount || 0, allRows.length);
-  const pending = allRows.slice(scanned, scanned + 64);
-  if (automatic && pending.length < ROLEPLAY_AUTO_MEMORY_INTERVAL) return { added: 0, privateAdded: 0, candidates: 0, total: project.memories.length, pending: pending.length };
-  if (pending.length < 2) {
+  const pending = allRows.slice(scanned, scanned + 100);
+  const threshold = project.memorySettings.autoEvery;
+  if (automatic && (!threshold || (pending.length < threshold && !project.memoryCorePending.length))) return { added: 0, privateAdded: 0, candidates: 0, total: project.memories.length, pending: pending.length };
+  if (pending.length < 2 && !project.memoryCorePending.length) {
     if (automatic) return { added: 0, privateAdded: 0, candidates: 0, total: project.memories.length, pending: pending.length };
     throw new Error("目前没有至少 2 条尚未提炼的新正文");
   }
@@ -15794,46 +15874,50 @@ async function extractRoleplaySceneMemories(conv) {
     return `${speaker}：${messageText(message).slice(0, 2400)}`;
   }).join("\n\n").slice(-32000);
   const existing = roleplaySharedMemoryText(project, conv, 10000).slice(-10000);
-  const privateExisting = roleplayMembers(project).map(member => `${member.id}｜${member.name}：\n${String(member.privateMemory || "").slice(-3000) || "暂无"}`).join("\n\n").slice(-12000);
-  const systemText = [
-    "你是 RP 剧情连续性档案整理器，只提炼已经在正文中真实发生、并会影响后续演出的既成事实。",
-    "把事实分为 shared（本剧本共享连续性）与 private（只固定给某一角色的个人认知）。共享档案可记录：公开发生的关系变化、明确决定、关键物品归属、伤病、地点时间推进、已公开线索和待承接事件。私人档案只记录该角色亲历、亲耳获知或明确确认，但其他角色未必知道的已落地事实。",
-    "不要记录：未执行的幕后安排、角色猜测、写作指令、状态栏措辞、重复事实、普通动作和没有后续价值的闲聊；不得替用户补写台词、动作、心理或同意。",
-    "对照已有档案去重。private 的键只能使用给出的角色 id；不确定知情范围时宁可只放 shared，不要让角色全知。",
-    "输出严格为一个 JSON 对象，不要代码围栏或解释：{\"shared\":[\"事实\"],\"private\":{\"角色id\":[\"该角色私人事实\"]}}。shared 最多 8 条，每名角色 private 最多 6 条；没有新增就使用空数组或空对象。",
-  ].join("\n");
-  const userText = [
-    `剧本：《${conv.title || project.title || "未命名剧本"}》`,
-    `角色 id 与姓名：${roleplayMembers(project).map(member => `${member.id}=${member.name}`).join("；")}；用户戏内身份：${project.userRole || settings.userName || "用户"}`,
-    existing ? `已有档案（仅用于查重）：\n- ${existing}` : "已有档案：无",
-    `已有角色私人核心记忆（仅用于查重）：\n${privateExisting}`,
-    `本次尚未提炼的新正文：\n${transcript}`,
-  ].join("\n\n");
   roleplayMemoryRuns.add(conv.id);
   try {
-    const output = await completeOnce(systemText, userText, 1400, true);
-    const extraction = parseRoleplayMemoryExtraction(output, project);
     const targetProject = normalizedRoleplayProject(conv.rpProject, conv);
+    let extracted = [];
+    if (pending.length >= 2) {
+      const systemText = ["你是 RP 长期记忆整理器，不进行角色扮演。", project.memorySettings.summaryPrompt,
+        "输出严格 JSON：{\"memories\":[{\"title\":\"简短标题\",\"text\":\"完整既成事实\",\"keywords\":[\"人物\",\"地点\",\"事件\"]}]}。最多 10 条；没有新增时 memories 为空数组。关键词必须来自正文中的人物、地点、物品、关系、事件或明确称谓，用于以后按话题召回。"].join("\n\n");
+      const userText = [`剧本：《${conv.title || project.title || "未命名剧本"}》`, existing ? `已有长期记忆（仅用于查重）：\n${existing}` : "已有长期记忆：无", `本次尚未总结的新正文：\n${transcript}`].join("\n\n");
+      extracted = parseRoleplayLongMemoryExtraction(await completeOnce(systemText, userText, 1800, true));
+    }
     const normalizedExisting = new Set([targetProject.memory, ...targetProject.memories.map(item => item.text)]
       .filter(Boolean).map(item => item.replace(/[\s，。！？、；：,.!?;:]+/g, "").toLowerCase()));
     const sourceMessageId = String(pending.at(-1)?.id || "");
-    let added = 0;
-    for (const value of extraction.shared) {
-      const key = value.replace(/[\s，。！？、；：,.!?;:]+/g, "").toLowerCase();
+    let added = 0; const freshTexts = [];
+    for (const entry of extracted) {
+      const key = entry.text.replace(/[\s，。！？、；：,.!?;:]+/g, "").toLowerCase();
       if (!key || normalizedExisting.has(key)) continue;
       normalizedExisting.add(key);
-      targetProject.memories.push({ id: uid(), text: value, at: Date.now(), sourceMessageId });
-      added++;
+      targetProject.memories.push({ id: uid(), ...entry, pinned: false, at: Date.now(), sourceMessageId });
+      freshTexts.push([entry.title, entry.text].filter(Boolean).join("：")); added++;
     }
-    let privateAdded = 0;
-    Object.entries(extraction.privateById).forEach(([speakerId, values]) => { privateAdded += appendRoleplayPrivateMemory(targetProject, speakerId, values); });
-    targetProject.memories = targetProject.memories.slice(-120);
-    targetProject.memoryScannedCount = scanEnd;
+    if (pending.length >= 2) targetProject.memoryScannedCount = scanEnd;
+    targetProject.memoryCorePending = [...targetProject.memoryCorePending, ...freshTexts].slice(-24);
+    targetProject.memories = targetProject.memories.slice(-targetProject.memorySettings.maxEntries);
+    let privateAdded = 0, privateError = "";
+    if (targetProject.memorySettings.autoCharacterMemory && targetProject.memoryCorePending.length) {
+      const privateExisting = roleplayMembers(targetProject).map(member => `${member.id}｜${member.name}：\n${String(member.privateMemory || "").slice(-3000) || "暂无"}`).join("\n\n").slice(-12000);
+      const systemText = [
+        "你是角色私人核心记忆提炼器。长期记忆已经先完成；现在只判断哪些既成事实应进入哪位角色自己的私人记忆。",
+        "只记录该角色亲历、亲耳获知或已明确确认的事实，以及已完成的任务、已查明真相、已经定论的关系与必须保持的后果。线索、猜测、计划、进行中事项和其他角色的秘密一律不写。不确定知情范围就不写，禁止让角色全知。",
+        "输出严格 JSON：{\"private\":{\"角色id\":[\"该角色确认知道的事实\"]}}。键只能使用给定角色 id；没有新增就返回空对象。",
+      ].join("\n\n");
+      const userText = [`角色 id 与姓名：${roleplayMembers(targetProject).map(member => `${member.id}=${member.name}`).join("；")}`, `已有角色私人核心记忆（仅用于查重）：\n${privateExisting}`, `刚完成的长期记忆：\n- ${targetProject.memoryCorePending.join("\n- ")}`].join("\n\n");
+      try {
+        const privateById = parseRoleplayPrivateExtraction(await completeOnce(systemText, userText, 1300, true), targetProject);
+        Object.entries(privateById).forEach(([speakerId, values]) => { privateAdded += appendRoleplayPrivateMemory(targetProject, speakerId, values); });
+        targetProject.memoryCorePending = [];
+      } catch (error) { privateError = String(error?.message || error || "角色核心记忆提炼失败"); }
+    } else if (!targetProject.memorySettings.autoCharacterMemory) targetProject.memoryCorePending = [];
     conv.rpProject = targetProject;
     conv.updatedAt = Date.now();
     saveConversations();
     window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: conv.id } }));
-    return { added, privateAdded, candidates: extraction.shared.length + Object.values(extraction.privateById).flat().length, total: targetProject.memories.length, scanned: pending.length };
+    return { added, privateAdded, candidates: extracted.length, total: targetProject.memories.length, scanned: pending.length, privateError, corePending: targetProject.memoryCorePending.length };
   } finally {
     roleplayMemoryRuns.delete(conv.id);
   }
@@ -15841,7 +15925,8 @@ async function extractRoleplaySceneMemories(conv) {
 async function maybeAutoExtractRoleplayMemories(conv = currentConv()) {
   if (!conv || !isRoleplayConversation(conv) || abortController || replyBooting || roleplayGroupRun || roleplayMemoryRuns.has(conv.id)) return false;
   const project = normalizedRoleplayProject(conv.rpProject, conv);
-  if (roleplayMemoryMessages(conv).length - Math.min(project.memoryScannedCount || 0, roleplayMemoryMessages(conv).length) < ROLEPLAY_AUTO_MEMORY_INTERVAL) return false;
+  const pendingCount = roleplayMemoryMessages(conv).length - Math.min(project.memoryScannedCount || 0, roleplayMemoryMessages(conv).length);
+  if (!project.memoryCorePending.length && (!project.memorySettings.autoEvery || pendingCount < project.memorySettings.autoEvery)) return false;
   if (!memoryRuntimeConfig().apiKey) return false;
   try { await extractRoleplaySceneMemories(conv, { automatic: true }); return true; }
   catch (error) { console.warn("RP automatic memory extraction failed", error); return false; }
@@ -15865,7 +15950,7 @@ function roleplaySceneFromGreeting(source, index, forceNew = false) {
   const nextProject = cloneChatData(p);
   nextProject.leadChannel = { ...(nextProject.leadChannel || {}), privateMemory: "" };
   nextProject.members = (nextProject.members || []).map(member => ({ ...member, privateMemory: "" }));
-  conv.rpProject = normalizedRoleplayProject({ ...nextProject, title: conv.title, openingIndex: index, memory: "", memories: [], memoryScannedCount: 0 }, conv);
+  conv.rpProject = normalizedRoleplayProject({ ...nextProject, title: conv.title, openingIndex: index, memory: "", memories: [], memoryScannedCount: 0, memoryCorePending: [] }, conv);
   conv.messages = [{ id: uid(), role: "assistant", content: p.greetings[index], ts: Date.now(), rpOpening: true }];
   conv.updatedAt = Date.now();
   if (conv.id === currentId) {
@@ -15882,6 +15967,11 @@ function roleplaySceneFromGreeting(source, index, forceNew = false) {
 }
 window.JYCRoleplayBridge = {
   openApiSettings() { openSettings(true); showSettingsTab("services"); },
+  memoryRuntimeInfo() {
+    const runtime = memoryRuntimeConfig();
+    const source = runtime.source === "role" ? "当前角色独立记忆 API" : runtime.source === "global" ? "全局记忆 API" : "沿用当前聊天渠道";
+    return { source: runtime.source, label: `${source} · ${runtime.profile?.name || "当前接口"} / ${runtime.model || "未选择模型"}` };
+  },
   channels: () => (settings.providers || []).map(profile => ({ id: profile.id, name: profile.name || "接口", models: modelLinesFor(profile), model: profile.model || "", hasModelList: !!String(profile.modelList || "").trim() })),
   currentChannelId: () => conversationProvider(currentConv())?.id || activeProvider()?.id || "",
   async pullChannelModels(profileId) {
@@ -15927,7 +16017,7 @@ window.JYCRoleplayBridge = {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
     if (!conv || abortController || replyBooting || roleplayGroupRun) { showToast("等当前回复结束后再保存设置"); return null; }
     const allowed = {};
-    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
+    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
     const previousPortraits = JSON.stringify(roleplayMembers(normalizedRoleplayProject(conv.rpProject, conv)).map(member => [member.id, member.avatar]));
     const previousTextTheme = JSON.stringify([conv.rpProject?.chatTextColor, conv.rpProject?.chatNarrationColor, conv.rpProject?.chatQuoteColor]);
     conv.rpProject = normalizedRoleplayProject({ ...conv.rpProject, ...allowed }, conv);
@@ -15948,16 +16038,29 @@ window.JYCRoleplayBridge = {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
     if (!conv || abortController || replyBooting || roleplayGroupRun) { showToast("等当前回复结束后再编辑记忆"); return false; }
     const p = normalizedRoleplayProject(conv.rpProject, conv);
-    const value = String(text || "").trim().slice(0, 1200);
-    if (entryId) p.memories = p.memories.flatMap(entry => entry.id !== entryId ? [entry] : value ? [{ ...entry, text: value }] : []);
-    else if (value) p.memories.push({ id: uid(), text: value, at: Date.now(), sourceMessageId: "" });
-    p.memories = p.memories.slice(-120); conv.rpProject = p;
+    const patch = text && typeof text === "object" ? text : { text };
+    const value = String(patch.text || "").trim().slice(0, 1600);
+    const keywords = [...new Set((Array.isArray(patch.keywords) ? patch.keywords : String(patch.keywords || "").split(/[|｜,，、\n]+/)).map(item => String(item || "").trim().slice(0, 40)).filter(Boolean))].slice(0, 16);
+    if (entryId) p.memories = p.memories.flatMap(entry => entry.id !== entryId ? [entry] : value ? [{ ...entry, title: String(patch.title ?? entry.title ?? "").trim().slice(0, 120), text: value, keywords: keywords.length ? keywords : entry.keywords, pinned: patch.pinned === true }] : []);
+    else if (value) p.memories.push({ id: uid(), title: "", text: value, keywords: roleplayRecallTerms(value).slice(0, 8), pinned: false, at: Date.now(), sourceMessageId: "" });
+    p.memories = p.memories.slice(-p.memorySettings.maxEntries); conv.rpProject = p;
     conv.updatedAt = Date.now(); saveConversations();
     window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: id } }));
     return true;
   },
   async extractSceneMemories(id) {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
+    return extractRoleplaySceneMemories(conv);
+  },
+  async rebuildSceneMemories(id) {
+    const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
+    if (!conv) throw new Error("没有找到这个剧情窗口");
+    if (abortController || replyBooting || roleplayGroupRun) throw new Error("等当前回复结束后再重建记忆");
+    const p = normalizedRoleplayProject(conv.rpProject, conv);
+    p.memories = []; p.memoryScannedCount = 0; p.memoryCorePending = [];
+    p.leadChannel.privateMemory = "";
+    p.members = p.members.map(member => ({ ...member, privateMemory: "" }));
+    conv.rpProject = p; conv.updatedAt = Date.now(); saveConversations();
     return extractRoleplaySceneMemories(conv);
   },
   repairGreetings(id, rawCard) {

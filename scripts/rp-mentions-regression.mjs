@@ -61,7 +61,7 @@ for (const name of ["clearError", "renderAttachPreview", "autoResize", "dismissC
 context.appendLastMessageFast = () => true;
 context.renderMessages = () => { throw Error("unnecessary chat redraw"); };
 context.generateReply = async () => { context.sentSelection = [...context.messages.at(-1).rpReplyMemberIds]; };
-vm.runInContext(source("function normalizedRoleplayProject(", "function addRoleplayMemory("), context);
+vm.runInContext(source("const ROLEPLAY_MEMORY_DEFAULT_SUMMARY_PROMPT", "function addRoleplayMemory("), context);
 vm.runInContext(source("async function send(opts)", "// Show/hide a password input"), context);
 input.value += "我在这里。";
 await context.send();

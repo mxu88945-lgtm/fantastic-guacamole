@@ -28,6 +28,8 @@
 .rp-group-drawer h3 { margin: 0; font-size: 18px; }
 .rp-group-drawer button { cursor: pointer; border: 1px solid var(--border); border-radius: 14px; padding: 10px 14px; color: var(--accent); background: var(--bg); font: inherit; font-size: 14px; }
 .rp-group-drawer header button { width: 42px; height: 42px; flex-shrink: 0; font-size: 25px; line-height: 1; padding: 0; }
+.rp-memory-drawer > header > div { flex: 1; }
+.rp-memory-drawer > header [data-memory-defaults] { width: auto; min-width: 76px; height: auto; padding: 9px 11px; font-size: 12px; }
 .rp-group-scroll { overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; padding: 22px 18px; }
 .rp-group-scroll > section { padding: 20px; margin-bottom: 18px; border-radius: 24px; border: 1px solid var(--border); background: var(--bg-panel); }
 .rp-group-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; background: linear-gradient(130deg, var(--accent-soft),var(--bg)) !important; text-align: center; }
@@ -72,6 +74,23 @@
 .rp-group-drawer .rp-cast-remove { color: var(--err-text); margin-top: 12px; }
 #rp-scene-memory details { margin: 18px 0; }
 #rp-scene-memory summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+.rp-memory-link-card > button { width: 100%; border: 0; padding: 0; display: flex; align-items: center; justify-content: space-between; text-align: left; background: transparent; }
+.rp-memory-link-card > button span, .rp-memory-link-card > button strong, .rp-memory-link-card > button small { display: block; }
+.rp-memory-link-card > button strong { color: var(--text); font-size: 18px; }
+.rp-memory-link-card > button small { margin-top: 7px; color: var(--text-dim); font-size: 12px; line-height: 1.6; }
+.rp-memory-link-card > button b { font-size: 28px; font-weight: 400; }
+.rp-memory-settings code { padding: 2px 5px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+.rp-memory-settings details { margin: 16px 0; }
+.rp-memory-settings summary { cursor: pointer; font-weight: 700; }
+.rp-memory-settings label strong, .rp-memory-settings label small { display: block; }
+.rp-memory-settings label small { margin-top: 4px; }
+.rp-memory-toggle { display: flex !important; align-items: center; justify-content: space-between; gap: 16px; }
+.rp-memory-toggle span { flex: 1; }
+.rp-memory-toggle small { color: var(--text-dim); font-size: 12px; line-height: 1.65; }
+.rp-memory-toggle input { width: 48px; height: 28px; accent-color: var(--accent); flex: 0 0 auto; }
+.rp-memory-actions { display: grid; gap: 9px; }
+.rp-memory-actions button:first-child, .rp-memory-actions button:nth-child(2) { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.rp-private-memory-card { border: 1px solid var(--border); border-radius: 15px; padding: 12px; background: var(--bg); }
 .rp-memory-entry { margin: 14px 0; padding: 12px; border: 1px solid var(--border); border-radius: 14px; }
 .rp-memory-entry small { color: var(--text-dim); font-size: 11px; }
 .rp-memory-entry > div { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }

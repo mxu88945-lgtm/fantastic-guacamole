@@ -14,7 +14,7 @@ const context = vm.createContext({
   conversationModel: () => "window-model", messageText: message => message.content || "",
   setSending() {}, showToast(message) { context.toast = message; },
 });
-vm.runInContext(source("function normalizedRoleplayProject(", "function addRoleplayMemory("), context);
+vm.runInContext(source("const ROLEPLAY_MEMORY_DEFAULT_SUMMARY_PROMPT", "function addRoleplayMemory("), context);
 const project = context.normalizedRoleplayProject({
   actorName: "周竞尧", groupEnabled: true, replyMode: "round", memory: "已离婚", world: "现世背景",
   worldEntries: [
@@ -77,7 +77,7 @@ assert.ok(groupUi.includes('<select data-field="model">') && !groupUi.includes("
 assert.ok(groupUi.includes("data-fetch-models") && groupUi.includes("pullChannelModels"), "member channels cannot fetch their own model lists");
 assert.ok(groupUi.includes("!profile.hasModelList") && groupUi.includes("refreshMemberModels(id, true)"), "changing to an uncached interface must pull models automatically");
 assert.ok(html.includes("async function pullProviderModels(profile)") && html.includes("async pullChannelModels(profileId)"), "the RP drawer is not wired to the main provider model loader");
-assert.ok(groupUi.includes("data-refresh>提取新记忆") && groupUi.includes("bridge.extractSceneMemories(sceneId)"), "the memory action must run extraction instead of only repainting the drawer");
+assert.ok(groupUi.includes("data-refresh>立即总结当前对话") && groupUi.includes("bridge.extractSceneMemories(sceneId)"), "the memory action must run extraction instead of only repainting the drawer");
 assert.ok(groupUi.includes('id="rp-memory-action-status"') && groupUi.includes("这条剧情记忆已经保存"), "manual memory actions need visible success feedback");
 assert.ok(groupUi.includes("data-collapse-section") && groupUi.includes("rp-group-collapsible"), "major drawer sections need explicit collapse controls");
 assert.ok(!groupUi.includes("index === 0 || member.newMember"), "existing cast cards should start collapsed when the drawer opens");
@@ -87,18 +87,22 @@ assert.ok(groupUi.includes("记忆模型暂时不可用（503）") && !groupUi.i
 assert.ok(html.includes("async function extractRoleplaySceneMemories(conv)") && html.includes("async extractSceneMemories(id)"), "scene memory extraction is not exposed through the RP bridge");
 assert.ok(html.includes("roleConvs().filter(isRoleplayConversation)") && html.includes("label: source ? `${name} · ${source}` : name"), "the cast library must include roles from existing RP scenes");
 assert.ok(html.includes("本轮若产生会影响后续的新增既成事实，必须"), "RP replies must actively emit hidden memory markers when durable facts are created");
-assert.ok(groupUi.includes('data-field="privateMemory"') && groupUi.includes("角色私人核心记忆"), "each cast member needs an isolated private-memory editor");
-assert.ok(html.includes("ROLEPLAY_AUTO_MEMORY_INTERVAL = 12") && html.includes("memoryScannedCount"), "RP memory extraction must resume incrementally instead of rescanning or forgetting its cursor");
+assert.ok(groupUi.includes('data-private-member') && groupUi.includes("角色私人核心记忆"), "the long-memory page needs an isolated private-memory editor for each role");
+assert.ok(groupUi.includes("data-open-memory") && groupUi.includes("记忆注入位置") && groupUi.includes("提取关键词"), "long memory must open as a dedicated settings page with real recall controls");
+assert.ok(html.includes("memorySettings.autoEvery") && html.includes("memoryScannedCount"), "RP memory extraction must resume incrementally with a configurable threshold");
+assert.ok(html.includes("keywords") && html.includes("roleplayMemoryInjection"), "memory keywords and injection placement must affect real request construction");
 
 Object.assign(context, {
   visibleAssistantText: text => text,
   memoryRuntimeConfig: () => ({ apiKey: "memory-key" }),
   isChatContentMessage: message => ["user", "assistant"].includes(message.role),
   isHiddenRoleplayMentionMessage: () => false,
-  completeOnce: async () => JSON.stringify({
-    shared: ["周竞尧已经把钥匙交给顾里", "顾里答应明早赴约"],
-    private: { director: ["导演已经知道密钥藏在书房"] },
-  }),
+  completeOnce: async system => system.includes("私人核心记忆提炼器")
+    ? JSON.stringify({ private: { director: ["导演已经知道密钥藏在书房"] } })
+    : JSON.stringify({ memories: [
+      { title: "交付钥匙", text: "周竞尧已经把钥匙交给顾里", keywords: ["周竞尧", "顾里", "钥匙"] },
+      { title: "明早赴约", text: "顾里答应明早赴约", keywords: ["顾里", "赴约"] },
+    ] }),
   saveConversations: () => { context.memorySaved = true; },
   window: { dispatchEvent() {} }, CustomEvent: class {},
 });
@@ -112,6 +116,7 @@ assert.equal(extracted.added, 2, "manual extraction must persist newly derived s
 assert.equal(extracted.privateAdded, 1, "manual extraction must persist role-isolated private facts");
 assert.match(extractConv.rpProject.members[0].privateMemory, /密钥藏在书房/);
 assert.equal(extractConv.rpProject.memories.at(-1).sourceMessageId, "a1");
+assert.deepEqual(Array.from(extractConv.rpProject.memories.at(-2).keywords), ["周竞尧", "顾里", "钥匙"]);
 assert.equal(context.memorySaved, true);
 project.members[0].privateMemory = "- 导演已经知道密钥藏在书房";
 
