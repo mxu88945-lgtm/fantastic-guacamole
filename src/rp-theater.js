@@ -286,7 +286,7 @@ function plainPreviewWithMedia(value) {
             <section class="rp-library-hub" id="rp-library-hub">
               <div class="rp-section-title"><div><strong>选择要进入的空间</strong><small>聊天、剧本和角色资料分开放</small></div></div>
               <div class="rp-space-menu">
-                <button type="button" data-rp-space="main"><span class="rp-space-icon">💬</span><span><strong>主聊天</strong><small id="rp-main-chat-copy">回到本体聊天</small></span><i>›</i></button>
+                <button type="button" data-rp-space="main"><span class="rp-space-icon">💬</span><span><strong>主聊天</strong><small id="rp-main-chat-copy">继续剧情对话</small></span><i>›</i></button>
                 <button type="button" data-rp-space="projects"><span class="rp-space-icon">🎬</span><span><strong>剧本项目</strong><small id="rp-hub-project-count">0 部戏</small></span><i>›</i></button>
                 <button type="button" data-rp-space="roles"><span class="rp-space-icon">🦋</span><span><strong>角色库</strong><small id="rp-hub-role-count">0 张角色卡</small></span><i>›</i></button>
               </div>
@@ -780,7 +780,7 @@ function plainPreviewWithMedia(value) {
     const groups = projectGroups(projects);
     $("rp-hero-role").textContent = info.roleName || "TA";
     $("rp-theater-subtitle").textContent = `${info.roleName || "TA"} 本体在线 · 陪你入戏`;
-    $("rp-main-chat-copy").textContent = `回到 ${info.roleName || "TA"} 本体聊天`;
+    $("rp-main-chat-copy").textContent = "继续当前或最近的剧情对话";
     $("rp-identity-copy").textContent = `开启“由 ${info.roleName || "TA"} 出演”时保留本体身份；关闭后只演角色自己。主角默认开启，其他成员和导演默认关闭，每张卡单独保存。`;
     $("rp-project-count").textContent = `${groups.length} 个剧本`;
     $("rp-hub-project-count").textContent = `${groups.length} 部戏`;
@@ -848,6 +848,16 @@ function plainPreviewWithMedia(value) {
   function enter(id) {
     close();
     bridge.openConversation(id);
+  }
+
+  function openStoryChat() {
+    const projects = bridge.list();
+    const current = bridge.current();
+    const target = projects.find(project => project.id === current?.id)
+      || [...projects].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+    if (target) { enter(target.id); return; }
+    setLibrarySection("projects");
+    bridge.toast("先新建或导入一个剧本，就能开始剧情对话");
   }
 
   function closeOpeningPicker() {
@@ -1078,7 +1088,7 @@ function plainPreviewWithMedia(value) {
   $("rp-library-view").addEventListener("click", (event) => {
     const button = event.target.closest("[data-rp-space]");
     if (!button) return;
-    if (button.dataset.rpSpace === "main") { close(); bridge.exitToHome(); return; }
+    if (button.dataset.rpSpace === "main") { openStoryChat(); return; }
     setLibrarySection(button.dataset.rpSpace);
   });
   $("rp-new-project").addEventListener("click", () => showEditor());

@@ -35,6 +35,18 @@ ok(js.includes("rp-preview-greeting") && js.includes("greetingPreviewDocument"),
 ok(js.includes("bridge.startWithGreeting") && js.includes("选择开场白"), "new scenes must start through the opening picker");
 ok(css.includes(".rp-theater-panel") && css.includes("@media (max-width: 680px)"), "RP theater responsive layout is missing");
 ok(js.includes('data-rp-space="main"') && js.includes('data-rp-space="projects"') && js.includes('data-rp-space="roles"'), "RP theater home is missing categorized entrances");
+const navigation = { bridge: { list: () => [{ id: 'recent', updatedAt: 20 }, { id: 'current-story', updatedAt: 10 }], current: () => ({ id: 'current-story' }), toast: () => {} }, enter: id => { navigation.opened = id; }, setLibrarySection: section => { navigation.section = section; } };
+vm.createContext(navigation);
+vm.runInContext(js.slice(js.indexOf('function openStoryChat('), js.indexOf('function closeOpeningPicker(', js.indexOf('function openStoryChat('))), navigation);
+navigation.openStoryChat();
+ok(navigation.opened === 'current-story', 'main chat must resume the current story even if another story is newer');
+navigation.bridge.current = () => null;
+navigation.openStoryChat();
+ok(navigation.opened === 'recent', 'entering from the owner home must resume the most recent story');
+navigation.bridge.list = () => [];
+navigation.opened = null;
+navigation.openStoryChat();
+ok(navigation.opened === null && navigation.section === 'projects', 'without a story the entrance must show projects instead of opening the owner chat');
 ok(js.includes('id="rp-role-list"') && js.includes("detailCast(project).map"), "RP role library does not include the cast from every script");
 ok(css.includes("body.rp-chat-active #model-config-btn { display: none; }"), "RP composer still shows the redundant model pill");
 ok(css.includes("#rp-field-opening") && css.includes(".rp-greeting-card.selected"), "mobile-friendly opening editor is missing");
