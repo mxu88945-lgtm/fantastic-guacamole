@@ -7024,8 +7024,37 @@ function roleplayPlayerCompatibility() {
   }
   update();
 }
+function normalizeRoleplayMixedMarkup(value) {
+  // Like Weijing's normalizeMixedMarkup, format text BETWEEN tags, never tag
+  // attributes, CSS or scripts. A scene/status regex must not flatten prose.
+  const stack = [];
+  const protectedTag = /^(?:head|style|script|pre|code|textarea|svg|details|summary|button|a|audio|video|select|option|scene|plot|status|[a-z][\w-]*_status)$/i;
+  const voidTag = /^(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i;
+  return String(value || "").split(/(\x3c!--[\s\S]*?-->|<(?:style|script|pre|code|textarea|svg|head)\b[^>]*>[\s\S]*?<\/(?:style|script|pre|code|textarea|svg|head)\s*>|<(?:[^>"']|"[^"]*"|'[^']*')+>)/gi).map(part => {
+    if (part.startsWith("<")) {
+      if (/^\x3c!--|^<(?:style|script|pre|code|textarea|svg|head)\b/i.test(part)) return part;
+      const tag = part.match(/^<\s*(\/?)\s*([a-z][\w-]*)\b/i);
+      if (tag) {
+        const name = tag[2].toLowerCase();
+        if (tag[1]) {
+          const index = stack.map(item => item.name).lastIndexOf(name);
+          if (index >= 0) stack.length = index;
+        } else if (!voidTag.test(name) && !/\/\s*>$/.test(part)) {
+          stack.push({ name, protected: protectedTag.test(name) || /class\s*=\s*["'][^"']*(?:status|scene|player|music|rp-mixed-paragraph|chat-quote)[^"']*["']/i.test(part) });
+        }
+      }
+      return part;
+    }
+    if (!part.trim() || stack.some(item => item.protected) || part.includes("```")) return part;
+    const paragraphs = roleplayStoryParagraphs(part).split(/\n+/).map(line => line.trim()).filter(Boolean);
+    const inline = line => renderMarkdown(line, true).replace(/^<p(?: class="[^"]*")?>|<\/p>$/g, "")
+      .replace(/&amp;((?:#\d+|#x[\da-f]+|[a-z][\da-z]+);)/gi, "&$1");
+    if (paragraphs.length < 2 && part.trim().length < 100) return inline(part);
+    return paragraphs.map(line => `<span class="rp-mixed-paragraph">${inline(line)}</span>`).join("");
+  }).join("");
+}
 function roleplayRichDocument(value, token, compact = false) {
-  const source = roleplayRichSource(value);
+  const source = normalizeRoleplayMixedMarkup(roleplayRichSource(value));
   const greetings = normalizedRoleplayProject(currentConv()?.rpProject, currentConv()).greetings;
   const greetingBridge = `<script>(()=>{const token=${JSON.stringify(token)},swipes=${JSON.stringify(greetings).replace(/</g, "\\u003c")};const pick=i=>{window.__jycGreetingPicked=true;parent.postMessage({type:'jyc-rp-select-greeting',token,index:Number(i)||0},'*');setTimeout(()=>{window.__jycGreetingPicked=false},100)};window.getChatMessages=async()=>[{message_id:0,role:'assistant',message:swipes[0],swipes}];window.setChatMessage=async(_m,_id,opts)=>pick(opts&&opts.swipe_id!=null?opts.swipe_id:0);window.jumpToSwipe=pick;addEventListener('DOMContentLoaded',()=>{const home=document.getElementById('returnHomeText');if(home)home.addEventListener('click',()=>pick(0))})})()<\/script>`;
   // Some imported player cards fetch an HTTPS stream and turn it into a blob
@@ -7033,7 +7062,7 @@ function roleplayRichDocument(value, token, compact = false) {
   // page or its storage, but the media request itself must be allowed.
   const guard = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob: https:; media-src data: blob: https:; font-src data: https:; style-src 'unsafe-inline' https:; script-src 'unsafe-inline'; connect-src https:; frame-src 'none'; form-action 'none'; base-uri 'none'">`;
   const compactCss = compact ? `body{padding:0!important;display:flow-root!important}#returnHomeText{position:static!important;inset:auto!important;transform:none!important;writing-mode:horizontal-tb!important;margin:12px auto!important}` : "";
-  const base = `<style>html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}${compactCss}</style>`;
+  const base = `<style>html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}.rp-mixed-paragraph{display:block;margin:0 0 1.15em;line-height:1.9;white-space:normal;overflow-wrap:anywhere}.chat-quote{padding:.18em .45em;border-radius:8px;background:rgba(120,110,128,.12);color:#50739a;box-decoration-break:clone;-webkit-box-decoration-break:clone;line-height:1.65}${compactCss}</style>`;
   const measure = compact
     ? `var b=document.body;if(!b)return 120;var top=b.getBoundingClientRect().top,bottom=top;Array.from(b.querySelectorAll('*')).forEach(function(n){if(/^(SCRIPT|STYLE|META|LINK)$/i.test(n.tagName))return;var s=getComputedStyle(n);if(s.display==='none'||s.visibility==='hidden')return;var media=/^(IMG|AUDIO|VIDEO|CANVAS|SVG)$/i.test(n.tagName);if(n.childElementCount&&!media)return;var r=n.getBoundingClientRect();if(r.width&&r.height&&Number.isFinite(r.bottom))bottom=Math.max(bottom,r.bottom)});return Math.max(40,Math.ceil(bottom-top+16))`
     : `return Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0,120)`;

@@ -75,3 +75,9 @@
 - 参考惟镜 MessageContent.tsx 的 plainTextParagraphs，仅在显示时将长中文正文按完整句子分段，约112字一段；保留已有换行、代码围栏与列表，保护引号内部标点不切断台词。
 - 普通剧情回复、scene/status 中间正文、HTML分页之间正文和纯文字开场预览统一走 renderRoleplayStoryText。引号台词显示浅底圆角小气泡，长台词可跨行。
 - 不改消息存储、模型上下文、本体聊天及原卡自带的HTML页面/播放器脚本。
+
+## 2026-10-22：补齐正则混合HTML正文（v230）
+- 用户提供凌亦峥原卡后确认：透明场景栏正则输出 div，状态正则输出 style，整段普通正文随它们进入 iframe，HTML 折叠原文换行。v229 的原生正文分段因此未覆盖实际路径。
+- 参考惟镜 normalizeMixedMarkup，在 roleplayRichDocument 内处理标签之间的正文，恢复段落并包台词气泡；iframe 内同步注入样式。保护样式、脚本、属性、播放器、交互控件、状态与已格式化节点。
+- 以用户原卡第六开场实跑：原124行从0个显示段落恢复53段、30处台词气泡，场景栏保留，原文不变。原卡仅本次排查读取，不提交仓库。
+- 新增 rp-mixed-markup-regression.mjs 走实际 scene正则→iframe srcdoc，覆盖换行、台词、原始控件/样式/脚本和重复处理。
