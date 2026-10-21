@@ -6219,7 +6219,7 @@ function applyRoleplayTextTheme(box = $("messages"), projectOverride = null) {
 function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-function renderMarkdown(text) {
+function renderMarkdown(text, storyQuotes = false) {
   const blocks = [];
   text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const i = blocks.length;
@@ -6228,7 +6228,9 @@ function renderMarkdown(text) {
   });
   text = escapeHtml(text);
   // Tavo-like quote recognition. Run before Markdown injects tags with quoted attributes.
-  text = text.replace(/(^|[\s(（])"([^"\n]+)"/g, '$1<span class="chat-quote">"$2"</span>');
+  text = storyQuotes
+    ? text.replace(/"([^"\n]+)"/g, '<span class="chat-quote">"$1"</span>')
+    : text.replace(/(^|[\s(（])"([^"\n]+)"/g, '$1<span class="chat-quote">"$2"</span>');
   text = text.replace(/“([^”\n]+)”/g, '<span class="chat-quote">“$1”</span>');
   text = text.replace(/「([^」\n]+)」/g, '<span class="chat-quote">「$1」</span>');
   text = text.replace(/『([^』\n]+)』/g, '<span class="chat-quote">『$1』</span>');
@@ -6891,6 +6893,35 @@ function roleplayRegexDisplay(answer) {
   if (/<(?:div|span|audio|img|section|table|details|p)\b/i.test(out)) return `<!doctype html><html><body style="font:15px/1.8 -apple-system,sans-serif;white-space:pre-wrap">${out}</body></html>`;
   return out;
 }
+// Visual paragraphing only: keep saved messages and model context unchanged.
+function roleplayStoryParagraphs(value) {
+  const segment = line => {
+    if (line.length < 100 || /^\s*(?:[-*+]\s|\d+[.)]\s|>|#|\||~~~)/u.test(line)) return [line];
+    // Quoted speech is one token, so punctuation inside it never cuts a bubble.
+    const tokens = line.match(/“[^”]*”|「[^」]*」|『[^』]*』|"[^"\n]*"|[。！？!?]+|…{2,}|[^“「『"。！？!?…]+|./gu) || [line];
+    const sentences = [];
+    let sentence = "";
+    for (const token of tokens) {
+      sentence += token;
+      if (/^(?:[。！？!?]+|…{2,})$/u.test(token)) { sentences.push(sentence.trim()); sentence = ""; }
+    }
+    if (sentence.trim()) sentences.push(sentence.trim());
+    const paragraphs = [];
+    let current = "";
+    for (const item of sentences) {
+      if (current && current.length + item.length > 112) { paragraphs.push(current); current = ""; }
+      current += item;
+    }
+    if (current) paragraphs.push(current);
+    return paragraphs;
+  };
+  // Fenced code must retain its exact whitespace and line structure.
+  return String(value || "").replace(/\r\n?/g, "\n").split(/(```[^\n]*\n[\s\S]*?(?:```|$))/g)
+    .map((part, index) => index % 2 ? part : part.split("\n").flatMap(segment).join("\n")).join("");
+}
+function renderRoleplayStoryText(value) {
+  return `<div class="rp-story-text">${renderMarkdown(roleplayStoryParagraphs(value), true)}</div>`;
+}
 function roleplaySemanticDisplay(answer) {
   const source = String(answer || "");
   if (!/<(?:scene|plot|status|[a-z][\w-]*_status)\b/i.test(source)) return "";
@@ -6916,7 +6947,7 @@ function roleplaySemanticDisplay(answer) {
     const title = tag.toLowerCase() === "director_status" ? "剧情状态" : "状态更新";
     return `<section class="rp-status-card"><header>${title}</header>${rows || '<div class="rp-status-row rp-status-row-wide"><span>本轮状态等待更新</span></div>'}</section>`;
   }).join("");
-  return sceneHtml + (body ? `<div class="rp-story-body">${renderMarkdown(body)}</div>` : "") + statusHtml;
+  return sceneHtml + (body ? `<div class="rp-story-body">${renderRoleplayStoryText(body)}</div>` : "") + statusHtml;
 }
 function looksLikeRoleplayRichHtml(value) {
   if (splitRoleplayHtmlFences(value)) return true;
@@ -7018,9 +7049,9 @@ function roleplayRichDocument(value, token, compact = false) {
 function roleplayRichFrameHtml(value, preview = false) {
   const attribute = source => escapeHtml(String(source || "")).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   const split = splitRoleplayHtmlFences(value);
-  const segments = split || [{ kind: "html", value }];
+  const segments = split || [{ kind: looksLikeRoleplayRichHtml(value) || /<(?:div|p|section|article|table|details|audio|img)\b/i.test(value) ? "html" : "text", value }];
   const content = segments.map(segment => {
-    if (segment.kind === "text") return `<div class="roleplay-opening-text">${renderMarkdown(segment.value)}</div>`;
+    if (segment.kind === "text") return `<div class="roleplay-opening-text">${roleplaySemanticDisplay(segment.value) || renderRoleplayStoryText(segment.value)}</div>`;
     const token = `rp-${uid()}`;
     return `<iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}"${preview ? ' data-rp-preview="true"' : ""} title="角色卡互动内容" sandbox="allow-scripts" allow="autoplay" srcdoc="${attribute(roleplayRichDocument(segment.value, token, !!split))}"></iframe>`;
   }).join("");
@@ -7100,7 +7131,7 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState) 
   const semanticRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && !useRoleplayHtml
     ? roleplaySemanticDisplay(answer) : "";
   let textHtml = answer
-    ? (useRoleplayHtml ? roleplayRichFrameHtml(answer) : (semanticRoleplayHtml || (role === "assistant" ? renderMarkdown(answer) : escapeHtml(answer).replace(/\n/g, "<br>"))))
+    ? (useRoleplayHtml ? roleplayRichFrameHtml(answer) : (semanticRoleplayHtml || (role === "assistant" ? (isRoleplayConversation() ? renderRoleplayStoryText(answer) : renderMarkdown(answer)) : escapeHtml(answer).replace(/\n/g, "<br>"))))
     : "";
   // turn [贴纸:名字] tokens in the assistant's reply into the actual sticker image
   if (role === "assistant" && !useRoleplayHtml) {

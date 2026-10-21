@@ -158,6 +158,18 @@ for (const value of [fencedOpening, legacyOpening]) {
   ok(segments[1].value === story && !segments[0].value.includes(story), 'player flex styles must never contain the story');
 }
 ok(sourceContext.splitRoleplayHtmlFences(playerPage) === null, 'standalone HTML pages must preserve their original page rendering');
+vm.runInContext(html.slice(html.indexOf('function renderMarkdown('), html.indexOf('// ---------- Rendering messages ----------')), sourceContext);
+const denseStory = '六月的晨光透过窗帘，落在床边。'.repeat(30) + '他说：“先别走。再陪我一会儿。”她轻轻点了点头。';
+const visualStory = sourceContext.renderRoleplayStoryText(denseStory);
+ok((visualStory.match(/<p>/g) || []).length > 3, 'dense Chinese openings must become readable visual paragraphs');
+ok(visualStory.includes('class="chat-quote">“先别走。再陪我一会儿。”</span>'), 'sentence punctuation inside speech must not split its bubble');
+ok(sourceContext.renderRoleplayStoryText('他说:"还不醒？"').includes('class="chat-quote">"还不醒？"</span>'), 'straight-quoted speech must receive the same bubble');
+ok(sourceContext.renderMarkdown('他说:"还不醒？"').includes('他说:"还不醒？"'), 'owner chat must keep its existing quote behavior');
+const fencedCode = '```js\n' + 'const quote = "原样保留。";\n'.repeat(12) + '```';
+ok(sourceContext.roleplayStoryParagraphs(fencedCode) === fencedCode, 'code fences must never be auto-paragraphed');
+const existingParagraphs = '第一段。\n\n第二段。';
+ok(sourceContext.roleplayStoryParagraphs(existingParagraphs) === existingParagraphs, 'explicit paragraph breaks must remain intact');
+ok(!sourceContext.renderRoleplayStoryText('<img src=x onerror=alert(1)>').includes('<img'), 'plain story text must remain HTML-escaped');
 const displayContext = vm.createContext({ safeText: value => String(value || ''), applyRegexRules: () => fencedOpening });
 vm.runInContext(js.slice(js.indexOf('function richGreetingSource('), js.indexOf('function isCorruptedGreeting(')), displayContext);
 ok(displayContext.displayGreeting('[播放: 示例]正文', []) === fencedOpening, 'opening selection must preserve the regex HTML fences');

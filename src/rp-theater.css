@@ -173,6 +173,10 @@ body.rp-opening-picker-open { overflow: hidden; }
 .roleplay-opening-text { display: block; float: none !important; clear: both; width: 100%; min-width: 0; padding: 0 14px; color: var(--text); font-size: var(--msg-font, 15.5px); line-height: 1.9; overflow-wrap: anywhere; }
 .roleplay-opening-text > :first-child { margin-top: 0; }
 .roleplay-opening-text > :last-child { margin-bottom: 0; }
+.rp-story-text { line-height: 1.9; overflow-wrap: anywhere; }
+.bubble .rp-story-text > p, .rp-story-text > p { margin: 0 0 1.15em; }
+.rp-story-text > :last-child { margin-bottom: 0; }
+.rp-story-text .chat-quote { display: inline; padding: .18em .45em; border-radius: 8px; background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--quote-text-color, var(--accent)); box-decoration-break: clone; -webkit-box-decoration-break: clone; line-height: 1.65; }
 .rp-opening-reset { display: block; width: 100%; padding: 10px 14px; border: 0; border-bottom: 1px solid var(--border); background: var(--bg-panel); color: var(--text-dim); text-align: right; cursor: pointer; font-size: 12px; }
 .rp-opening-reset[hidden] { display: none !important; }
 .msg.assistant .bubble:has(.roleplay-html-card) { width: min(100%, 920px); max-width: 100%; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; overflow: visible; }
