@@ -7241,10 +7241,16 @@ function scrollToTop() {
 }
 function scrollToBottom() {
   const c = $("chat");
+  if (!c) return;
   c.scrollTop = c.scrollHeight;
   requestAnimationFrame(() => {
     c.scrollTop = c.scrollHeight; // again after layout settles
     updateScrollControls();
+    // iOS Safari 在滚动容器大改 DOM + 程序滚动后，有时不重绘，留下一片空白，
+    // 直到用户手动滚动才恢复。这里强制一次重排并复位滚动，逼它把内容画出来。
+    void c.offsetHeight;
+    const max = c.scrollHeight - c.clientHeight;
+    if (c.scrollTop < max - 2) c.scrollTop = c.scrollHeight;
   });
 }
 // Sending changes several heights in quick succession on iOS: the textarea
@@ -13093,6 +13099,15 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     saveConversations();
     renderMessages();   // re-render so per-message actions (copy / regenerate) show
     if (stickBottom) scrollToBottom();   // respect the user reading history
+    // 整片重建后 iOS 可能留白：两帧后再确认一次底部位置并强制重绘
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!stickBottom) return;
+      const c = $("chat");
+      if (!c) return;
+      c.scrollTop = c.scrollHeight;
+      void c.offsetHeight;
+      if (c.scrollTop < c.scrollHeight - c.clientHeight - 2) c.scrollTop = c.scrollHeight;
+    }));
   }
 
   if (replied && currentId === replyConversationId && chatNavigationRevision === replyRevision) {
