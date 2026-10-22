@@ -6,7 +6,7 @@ if (!bridge) {
   console.error("RP theater bridge is unavailable");
 } else {
   const $ = (id) => document.getElementById(id);
-  const state = { editingId: "", detailId: "", detailMemberId: "lead", librarySection: "hub", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {}, roleManage: false, roleQuery: "", roleSelected: [] };
+  const state = { editingId: "", detailId: "", detailMemberId: "lead", librarySection: "hub", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {}, roleManage: false, roleQuery: "", roleSelected: [], importReturnSection: "" };
   // 角色库折叠的组键（视图偏好，关掉剧场即清掉）
   const collapsedRoleGroups = new Set();
   let roleSheetEntry = null;
@@ -306,12 +306,12 @@ function plainPreviewWithMedia(value) {
               </div>
             </section>
             <section id="rp-projects-view" hidden>
-              <div class="rp-section-title"><div><strong>剧本项目</strong><small id="rp-project-count">0 个剧本</small></div><div class="rp-section-actions"><button type="button" data-rp-space="hub">返回分类</button><button type="button" id="rp-import-project">导入角色卡</button></div></div>
+              <div class="rp-section-title"><div><strong>剧本项目</strong><small id="rp-project-count">0 个剧本</small></div><div class="rp-section-actions"><button type="button" data-rp-space="hub">返回分类</button></div></div>
               <div class="rp-project-grid" id="rp-project-list"></div>
-              <div class="rp-empty" id="rp-project-empty" hidden><span>◇</span><strong>还没有剧本</strong><p>新建一部，或直接导入惟镜使用的 JSON／文本角色卡。</p><button type="button" id="rp-empty-create">创建第一个剧本</button></div>
+              <div class="rp-empty" id="rp-project-empty" hidden><span>◇</span><strong>还没有剧本</strong><p>新建一部剧本，角色会自动出现在角色库里。</p><button type="button" id="rp-empty-create">创建第一个剧本</button></div>
             </section>
             <section id="rp-roles-view" hidden>
-              <div class="rp-section-title"><div><strong id="rp-role-title">角色库</strong><small id="rp-role-count">0 张角色卡</small></div><div class="rp-section-actions"><button type="button" id="rp-role-manage">管理</button><button type="button" id="rp-roles-back">返回分类</button></div></div>
+              <div class="rp-section-title"><div><strong id="rp-role-title">角色库</strong><small id="rp-role-count">0 张角色卡</small></div><div class="rp-section-actions"><button type="button" id="rp-role-manage">管理</button><button type="button" id="rp-import-project">导入角色卡</button><button type="button" id="rp-roles-back">返回分类</button></div></div>
               <p class="rp-library-note">按剧本分组存放：主角、共演角色和导演卡都在各自剧本的组里，剧本删了剩下的卡会归到原剧本的组里，久了也不会分不清谁是谁的 npc。点开即可查看对应的人设、世界书、正则与开场白。</p>
               <div class="rp-role-search"><span>⌕</span><input id="rp-role-query" type="text" placeholder="搜索名字、标签或简介" autocomplete="off" /><button type="button" id="rp-role-query-clear" hidden>×</button></div>
               <div class="rp-role-bulk" id="rp-role-bulk" hidden><button type="button" id="rp-role-select-all">全选</button><span id="rp-role-selected">已选 0</span><button type="button" class="danger" id="rp-role-delete-selected">删除所选</button></div>
@@ -634,7 +634,9 @@ function plainPreviewWithMedia(value) {
   }
   function leaveEditor() {
     const id = state.editingId;
-    if (id && state.detailId === id && bridge.get(id)) showDetail(id); else showLibrary();
+    const returnSection = state.importReturnSection || "";
+    state.importReturnSection = "";
+    if (id && state.detailId === id && bridge.get(id)) showDetail(id); else showLibrary(returnSection || "hub");
   }
 
   function renderCardBlocks() {
@@ -1621,7 +1623,7 @@ function plainPreviewWithMedia(value) {
     } catch (error) { bridge.toast(error.message); }
     finally { if (revision === state.avatarRevision) { state.avatarPending = false; renderActorAvatar(); } }
   });
-  $("rp-import-project").addEventListener("click", () => { state.repairTargetId = ""; $("rp-import-file").click(); });
+  $("rp-import-project").addEventListener("click", () => { state.repairTargetId = ""; state.importReturnSection = "roles"; $("rp-import-file").click(); });
   $("rp-import-file").addEventListener("change", async (event) => { await readFiles(event.target.files, true); event.target.value = ""; });
   $("rp-add-files").addEventListener("click", () => $("rp-files-input").click());
   $("rp-files-input").addEventListener("change", async (event) => { await readFiles(event.target.files, false); event.target.value = ""; });

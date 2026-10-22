@@ -273,6 +273,11 @@ ok(js.includes('rp-role-row-main') && js.includes('rp-role-badge') && js.include
 ok(js.includes('groupRoleEntries(roles, projects)') && js.includes('rp-role-group-head') && js.includes('（原剧本）'), 'role library must group cards by their source剧本, with orphaned cards under their original剧本');
 ok(js.includes('collapsedRoleGroups') && js.includes('rp-role-group-toggle'), 'role library groups must be collapsible');
 ok(css.includes('.rp-role-group') && css.includes('.rp-role-group-head'), 'role library groups must be styled');
+const projectsSlice = js.slice(js.indexOf('rp-projects-view'), js.indexOf('rp-roles-view'));
+const rolesSlice = js.slice(js.indexOf('rp-roles-view'), js.indexOf('rp-detail-view'));
+ok(!projectsSlice.includes('rp-import-project') && rolesSlice.includes('id="rp-import-project"'), 'character import must live in the role library, not in the projects view');
+ok(css.includes('.rp-role-bulk[hidden]'), 'role bulk toolbar must actually hide when manage mode is off');
+ok(js.includes('importReturnSection') && js.includes('showLibrary(returnSection || "hub")'), 'leaving the editor after a library import must return to the role library');
 ok(js.includes('rp-role-select') && js.includes('选择角色') && js.includes('已选择 '), 'role library manage mode must show selection circles and a selected-characters title');
 ok(js.includes('角色操作') && js.includes('编辑角色卡') && js.includes('复制角色') && js.includes('导出 Character Card V3 JSON') && js.includes('删除角色及相关数据'), 'role ••• sheet must offer edit, duplicate, V3 export and delete');
 ok(js.includes('· 副本') && js.includes('bridge.create(draft)') && js.includes('groupEnabled: false'), 'duplicating a role must create a standalone copy named “· 副本”');
