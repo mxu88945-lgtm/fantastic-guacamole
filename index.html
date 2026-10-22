@@ -244,6 +244,10 @@
     20%,60% { box-shadow: 0 0 0 3px var(--accent); } }
   .msg .bubble.summary { border-style: dashed; opacity: .92; }
   audio.chat-audio { width: 100%; max-width: 320px; margin: 4px 0; }
+  details.chat-details { margin: 6px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--bg-panel) 70%, transparent); }
+  details.chat-details > summary { cursor: pointer; font-weight: 600; }
+  details.chat-details p { margin: 0 0 .4em; }
+  details.chat-details > :last-child { margin-bottom: 0; }
   .conv-item {
     display: flex; align-items: center; gap: 8px;
     padding: 9px 10px; border-radius: 9px; cursor: pointer;
@@ -6287,6 +6291,29 @@ function extractAudioPlayers(text) {
   });
   return { text: stripped, players };
 }
+// Same whitelist idea as audio: model replies wrap status bars in
+// <details><summary>…</summary>…</details>, and 惟境 renders those as a real
+// collapsible card. Pull the block out before escaping, render its body through
+// the normal markdown pipeline, and restore it as a real <details> element.
+// The summary is plain text (any markup inside it is escaped, never injected).
+// Status bars stay expanded by default — their content used to be fully visible
+// as text, so collapsing them would hide information; the triangle collapses it.
+function detailsHtml(block, storyQuotes) {
+  const summaryMatch = block.match(/<summary\b[^>]*>([\s\S]*?)<\/summary\s*>/i);
+  const summaryText = (summaryMatch ? summaryMatch[1].replace(/<[^>]*>/g, "") : "").trim() || "详情";
+  const bodyStart = summaryMatch ? block.indexOf(summaryMatch[0]) + summaryMatch[0].length : block.indexOf(">") + 1;
+  const bodyEnd = block.search(/<\/details\s*>/i);
+  const body = bodyEnd === -1 ? "" : block.slice(bodyStart, bodyEnd);
+  return `<details class="chat-details" open><summary>${escapeHtml(summaryText)}</summary>${renderMarkdown(body, storyQuotes)}</details>`;
+}
+function extractDetailsBlocks(text, storyQuotes) {
+  const blocks = [];
+  const stripped = String(text || "").replace(/<details\b[^>]*>([\s\S]*?)<\/details\s*>/gi, (match) => {
+    blocks.push(detailsHtml(match, storyQuotes));
+    return ` RPDETAILS${blocks.length - 1} `;
+  });
+  return { text: stripped, blocks };
+}
 function renderMarkdown(text, storyQuotes = false) {
   const blocks = [];
   text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
@@ -6296,6 +6323,8 @@ function renderMarkdown(text, storyQuotes = false) {
   });
   const audio = extractAudioPlayers(text);
   text = audio.text;
+  const details = extractDetailsBlocks(text, storyQuotes);
+  text = details.text;
   text = escapeHtml(text);
   // Tavo-like quote recognition. Run before Markdown injects tags with quoted attributes.
   text = storyQuotes
@@ -6306,7 +6335,13 @@ function renderMarkdown(text, storyQuotes = false) {
   text = text.replace(/『([^』\n]+)』/g, '<span class="chat-quote">『$1』</span>');
   text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  text = text.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+  // In roleplay, *…* marks an action/narration beat, not emphasis: render it as
+  // upright narration (like parenthesized narration), not slanted <em> — otherwise
+  // whole paragraphs tilt whenever the model wraps them in asterisks. Main-chat
+  // Markdown keeps real italics.
+  text = storyQuotes
+    ? text.replace(/(^|[^*])\*([^*]+)\*/g, '$1<span class="chat-narration">$2</span>')
+    : text.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
   // URL may not carry quotes, whitespace or brackets, so it can never break out of href.
   text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s"'<>`]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   const lines = text.split("\n");
@@ -6330,6 +6365,7 @@ function renderMarkdown(text, storyQuotes = false) {
   if (inUl) html += "</ul>";
   html = html.replace(/ B(\d+) /g, (_, i) => blocks[+i]);
   html = html.replace(/ RPAUDIO(\d+) /g, (_, i) => audio.players[+i] ?? "");
+  html = html.replace(/ RPDETAILS(\d+) /g, (_, i) => details.blocks[+i] ?? "");
   return html;
 }
 

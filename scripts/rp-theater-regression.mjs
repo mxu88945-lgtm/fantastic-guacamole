@@ -310,6 +310,16 @@ const guHuangOpening = `*主线剧情*\n<audio controls autoplay loop>\n    <sou
 const ordered = sourceContext.roleplaySemanticDisplay(guHuangOpening);
 ok(ordered && !ordered.includes('rp-scene-strip') && !ordered.includes('&lt;plot'), 'plot chapters must not be hoisted to the scene strip or leak their tags');
 ok(ordered.indexOf('主线剧情') < ordered.indexOf('chat-audio') && ordered.indexOf('chat-audio') < ordered.indexOf('顾荒，23岁') && ordered.indexOf('顾荒，23岁') < ordered.indexOf('一头张扬的红发'), 'greeting header, player and intro must stay above the story in the author\'s original order');
+ok(html.includes('function detailsHtml(') && html.includes('function extractDetailsBlocks(') && html.includes('RPDETAILS'), 'chat markdown must whitelist details/summary blocks into real collapsible cards');
+ok(html.includes('details.chat-details'), 'chat details cards must be styled');
+const statusBar = `<details>\n<summary>顾荒的状态栏</summary>\n▸心理：她今晚不对劲。\n▸好感度：20\n</details>`;
+const statusHtml = sourceContext.renderMarkdown(`正文第一句。\n${statusBar}`);
+ok(statusHtml.includes('<details class="chat-details" open><summary>顾荒的状态栏</summary>') && statusHtml.includes('好感度：20') && !statusHtml.includes('&lt;details') && !statusHtml.includes('&lt;summary'), 'status bars must render as real collapsible cards, expanded, with no leaked tags');
+ok(!sourceContext.renderMarkdown('<details>未闭合的标签', true).includes('<details class="chat-details"'), 'unclosed details blocks must stay escaped text');
+const slanted = sourceContext.renderMarkdown('*他脚步顿了一瞬。*', true);
+ok(slanted.includes('chat-narration') && !slanted.includes('<em>'), 'roleplay asterisk beats must render as upright narration, not slanted emphasis');
+ok(sourceContext.renderMarkdown('*斜体*', false).includes('<em>斜体</em>'), 'main-chat markdown must keep real italics');
+ok(sourceContext.renderMarkdown('**顾荒，23岁。**', true).includes('<strong>'), 'roleplay bold must be untouched');
 const sceneFirst = sourceContext.roleplaySemanticDisplay('<scene>雨夜天台</scene>\n正文第一句。');
 ok(sceneFirst.includes('rp-scene-strip') && sceneFirst.indexOf('雨夜天台') < sceneFirst.indexOf('正文第一句'), 'real scene labels must still hoist to the strip above the body');
 console.log(`RP theater regression checks passed (${checks})`);
