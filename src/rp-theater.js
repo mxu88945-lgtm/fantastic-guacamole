@@ -7,8 +7,8 @@ if (!bridge) {
 } else {
   const $ = (id) => document.getElementById(id);
   const state = { editingId: "", detailId: "", detailMemberId: "lead", librarySection: "hub", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {}, roleManage: false, roleQuery: "", roleSelected: [] };
-  // 角色库行索引：行键 → 角色条目（每次 render 重建，供 ••• 菜单与批量操作查条目）
-  const roleRowMap = new Map();
+  // 角色库折叠的组键（视图偏好，关掉剧场即清掉）
+  const collapsedRoleGroups = new Set();
   let roleSheetEntry = null;
   const openingState = { projectId: "", index: 0, expandedIndex: null, forceNew: true };
 
@@ -312,7 +312,7 @@ function plainPreviewWithMedia(value) {
             </section>
             <section id="rp-roles-view" hidden>
               <div class="rp-section-title"><div><strong id="rp-role-title">角色库</strong><small id="rp-role-count">0 张角色卡</small></div><div class="rp-section-actions"><button type="button" id="rp-role-manage">管理</button><button type="button" id="rp-roles-back">返回分类</button></div></div>
-              <p class="rp-library-note">这里汇总所有剧本里的主角、共演角色和导演卡。点开即可查看对应的人设、世界书、正则与开场白。</p>
+              <p class="rp-library-note">按剧本分组存放：主角、共演角色和导演卡都在各自剧本的组里，剧本删了剩下的卡会归到原剧本的组里，久了也不会分不清谁是谁的 npc。点开即可查看对应的人设、世界书、正则与开场白。</p>
               <div class="rp-role-search"><span>⌕</span><input id="rp-role-query" type="text" placeholder="搜索名字、标签或简介" autocomplete="off" /><button type="button" id="rp-role-query-clear" hidden>×</button></div>
               <div class="rp-role-bulk" id="rp-role-bulk" hidden><button type="button" id="rp-role-select-all">全选</button><span id="rp-role-selected">已选 0</span><button type="button" class="danger" id="rp-role-delete-selected">删除所选</button></div>
               <div class="rp-role-list" id="rp-role-list"></div>
@@ -832,6 +832,34 @@ function plainPreviewWithMedia(value) {
     ]);
   }
 
+  // 角色库按剧本自动分组：剧本还在的卡归到它那个剧本的组里；剧本删了剩下的卡按原剧本标题另起一组。
+  // 组键只用来记折叠状态，取标题即可，撞标题也只影响折叠，不影响卡本身的归属。
+  function groupRoleEntries(entries, projects) {
+    const groups = projectGroups(projects);
+    const sessionGroup = new Map();
+    groups.forEach((group, index) => group.sessions.forEach((session) => sessionGroup.set(session.id, index)));
+    const savedCards = bridge.savedCards?.() || [];
+    const result = [];
+    const byKey = new Map();
+    const push = (key, title) => {
+      if (!byKey.has(key)) { const group = { key, title, entries: [] }; byKey.set(key, group); result.push(group); }
+      return byKey.get(key);
+    };
+    entries.forEach((entry) => {
+      if (entry.savedCardId) {
+        const card = savedCards.find((item) => item.id === entry.savedCardId);
+        const groupIndex = card ? sessionGroup.get(card.sourceId) : undefined;
+        if (groupIndex !== undefined) push(`live:${groups[groupIndex].title}`, groups[groupIndex].title).entries.push(entry);
+        else push(`orphan:${card?.sourceTitle || "原剧本"}`, `${card?.sourceTitle || "原剧本"}（原剧本）`).entries.push(entry);
+      } else {
+        const groupIndex = sessionGroup.get(entry.project.id);
+        if (groupIndex !== undefined) push(`live:${groups[groupIndex].title}`, groups[groupIndex].title).entries.push(entry);
+        else push(`orphan:${entry.project.title || "原剧本"}`, `${entry.project.title || "原剧本"}（原剧本）`).entries.push(entry);
+      }
+    });
+    return result;
+  }
+
   function roleEntryGreetings(entry) {
     if (entry.savedCardId) {
       const card = bridge.savedCards?.().find((item) => item.id === entry.savedCardId);
@@ -1086,30 +1114,41 @@ function plainPreviewWithMedia(value) {
       render();
     };
     $("rp-role-delete-selected").onclick = () => deleteSelectedRoles(allRoles);
+    const roleGroups = groupRoleEntries(roles, projects);
     const roleList = $("rp-role-list");
-    roleList.innerHTML = roles.map((entry, index) => {
-      const { project, member, savedCardId } = entry;
-      const key = roleEntryKey(entry);
-      const avatar = /^(https?:\/\/|data:image\/)/.test(member.avatar || "") ? member.avatar : "";
-      const badge = savedCardId ? "已留存角色卡" : member.id === "lead" ? "剧本主角" : member.kind === "director" ? "共演导演" : "共演角色";
-      const desc = plainPreview(member.description || member.prompt || "") || "暂无角色简介";
-      const quote = roleEntryGreetings(entry).find((text) => text.trim());
-      const selected = state.roleManage && state.roleSelected.includes(key);
-      const source = savedCardId ? "" : `来自《${project.title || "未命名剧本"}》`;
-      return `<div class="rp-role-row${selected ? " selected" : ""}"><button type="button" class="rp-role-row-main" data-rp-role-row="${index}"><span class="rp-role-avatar">${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml([...(member.name || "角")][0])}</span><span class="rp-role-copy"><span class="rp-role-title"><strong>${escapeHtml(member.name || "未命名角色")}</strong><span class="rp-role-badge">${escapeHtml(badge)}</span>${source ? `<span class="rp-role-source">${escapeHtml(source)}</span>` : ""}</span><em>${escapeHtml(desc)}</em>${quote ? `<small>“${escapeHtml(plainPreview(quote))}”</small>` : ""}</span></button>${state.roleManage ? `<button type="button" class="rp-role-select${selected ? " selected" : ""}" aria-label="${selected ? "取消选择" : "选择"}${escapeHtml(member.name || "角色")}" data-rp-role-select="${index}">${selected ? "✓" : ""}</button>` : `<button type="button" class="rp-role-more" aria-label="管理${escapeHtml(member.name || "角色")}" data-rp-role-more="${index}">•••</button>`}</div>`;
+    roleList.innerHTML = roleGroups.map((group, groupIndex) => {
+      const collapsed = collapsedRoleGroups.has(group.key);
+      const rows = collapsed ? "" : group.entries.map((entry, index) => {
+        const { member, savedCardId } = entry;
+        const key = roleEntryKey(entry);
+        const avatar = /^(https?:\/\/|data:image\/)/.test(member.avatar || "") ? member.avatar : "";
+        const badge = savedCardId ? "已留存角色卡" : member.id === "lead" ? "剧本主角" : member.kind === "director" ? "共演导演" : "共演角色";
+        const desc = plainPreview(member.description || member.prompt || "") || "暂无角色简介";
+        const quote = roleEntryGreetings(entry).find((text) => text.trim());
+        const selected = state.roleManage && state.roleSelected.includes(key);
+        return `<div class="rp-role-row${selected ? " selected" : ""}"><button type="button" class="rp-role-row-main" data-rp-role-group="${groupIndex}" data-rp-role-row="${index}"><span class="rp-role-avatar">${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml([...(member.name || "角")][0])}</span><span class="rp-role-copy"><span class="rp-role-title"><strong>${escapeHtml(member.name || "未命名角色")}</strong><span class="rp-role-badge">${escapeHtml(badge)}</span></span><em>${escapeHtml(desc)}</em>${quote ? `<small>“${escapeHtml(plainPreview(quote))}”</small>` : ""}</span></button>${state.roleManage ? `<button type="button" class="rp-role-select${selected ? " selected" : ""}" aria-label="${selected ? "取消选择" : "选择"}${escapeHtml(member.name || "角色")}" data-rp-role-group="${groupIndex}" data-rp-role-select="${index}">${selected ? "✓" : ""}</button>` : `<button type="button" class="rp-role-more" aria-label="管理${escapeHtml(member.name || "角色")}" data-rp-role-group="${groupIndex}" data-rp-role-more="${index}">•••</button>`}</div>`;
+      }).join("");
+      return `<section class="rp-role-group"><button type="button" class="rp-role-group-head" data-rp-role-group-head="${groupIndex}"><span class="rp-role-group-toggle">${collapsed ? "▸" : "▾"}</span><strong>${escapeHtml(group.title)}</strong><span>${group.entries.length} 张</span></button>${rows}</section>`;
     }).join("");
+    const roleEntryAt = (button) => roleGroups[Number(button.dataset.rpRoleGroup)]?.entries[Number(button.dataset.rpRoleRow ?? button.dataset.rpRoleSelect ?? button.dataset.rpRoleMore)];
+    roleList.querySelectorAll("[data-rp-role-group-head]").forEach((button) => button.addEventListener("click", () => {
+      const group = roleGroups[Number(button.dataset.rpRoleGroupHead)];
+      if (!group) return;
+      if (collapsedRoleGroups.has(group.key)) collapsedRoleGroups.delete(group.key); else collapsedRoleGroups.add(group.key);
+      render();
+    }));
     roleList.querySelectorAll("[data-rp-role-row]").forEach((button) => button.addEventListener("click", () => {
-      const entry = roles[Number(button.dataset.rpRoleRow)];
+      const entry = roleEntryAt(button);
       if (!entry) return;
       if (state.roleManage) { toggleRoleSelect(roleEntryKey(entry)); return; }
       openRoleEntry(entry);
     }));
     roleList.querySelectorAll("[data-rp-role-select]").forEach((button) => button.addEventListener("click", () => {
-      const entry = roles[Number(button.dataset.rpRoleSelect)];
+      const entry = roleEntryAt(button);
       if (entry) toggleRoleSelect(roleEntryKey(entry));
     }));
     roleList.querySelectorAll("[data-rp-role-more]").forEach((button) => button.addEventListener("click", () => {
-      const entry = roles[Number(button.dataset.rpRoleMore)];
+      const entry = roleEntryAt(button);
       if (entry) openRoleSheet(entry);
     }));
   }

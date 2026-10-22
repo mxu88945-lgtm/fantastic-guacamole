@@ -269,7 +269,10 @@ ok(html.includes('removeCard: removeRoleplayCard') && html.includes('roleplayCar
 ok(js.includes('rp-role-manage') && js.includes('rp-role-search') && js.includes('rp-role-bulk'), 'role library must have a manage button, a search box and a bulk toolbar');
 ok(js.includes('rp-role-select-all') && js.includes('rp-role-delete-selected') && js.includes('已选 '), 'role library manage mode must offer select-all, a selected count and batch delete');
 ok(!js.slice(js.indexOf('rp-role-bulk'), js.indexOf('rp-role-bulk') + 400).includes('分组'), 'role library bulk toolbar must not offer grouping (the port has no card groups)');
-ok(js.includes('rp-role-row-main') && js.includes('rp-role-badge') && js.includes('rp-role-source') && js.includes('rp-role-more'), 'role library rows must carry a badge, a source剧本 and a ••• menu button');
+ok(js.includes('rp-role-row-main') && js.includes('rp-role-badge') && js.includes('rp-role-more'), 'role library rows must carry a badge and a ••• menu button');
+ok(js.includes('groupRoleEntries(roles, projects)') && js.includes('rp-role-group-head') && js.includes('（原剧本）'), 'role library must group cards by their source剧本, with orphaned cards under their original剧本');
+ok(js.includes('collapsedRoleGroups') && js.includes('rp-role-group-toggle'), 'role library groups must be collapsible');
+ok(css.includes('.rp-role-group') && css.includes('.rp-role-group-head'), 'role library groups must be styled');
 ok(js.includes('rp-role-select') && js.includes('选择角色') && js.includes('已选择 '), 'role library manage mode must show selection circles and a selected-characters title');
 ok(js.includes('角色操作') && js.includes('编辑角色卡') && js.includes('复制角色') && js.includes('导出 Character Card V3 JSON') && js.includes('删除角色及相关数据'), 'role ••• sheet must offer edit, duplicate, V3 export and delete');
 ok(js.includes('· 副本') && js.includes('bridge.create(draft)') && js.includes('groupEnabled: false'), 'duplicating a role must create a standalone copy named “· 副本”');

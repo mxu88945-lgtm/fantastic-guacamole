@@ -76,7 +76,11 @@
 .rp-role-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .rp-role-title strong { flex-shrink: 0; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-role-badge { flex-shrink: 0; color: #8b7cc9; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.rp-role-source { min-width: 0; color: var(--text-dim); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-role-group { display: grid; gap: 12px; }
+.rp-role-group-head { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 4px 2px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.rp-role-group-toggle { color: var(--text-dim); font-size: 13px; }
+.rp-role-group-head strong { flex: 1; min-width: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-role-group-head span:last-child { flex-shrink: 0; color: var(--text-dim); font-size: 11px; }
 .rp-role-copy em { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 5px; color: var(--text-dim); font: normal 12px/1.5 inherit; }
 .rp-role-copy small { display: block; margin-top: 5px; color: var(--text-dim); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-role-more { flex-shrink: 0; width: 44px; height: 44px; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--text-dim) 12%, transparent); color: var(--text-dim); font-size: 18px; letter-spacing: 1px; cursor: pointer; }
