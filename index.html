@@ -9763,9 +9763,10 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
       + `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
     try { injectedTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (_) {}
     injectedLocalTime = now;
-    const note = "【本轮唯一当前时间】" + now
+    let note = "【本轮唯一当前时间】" + now
       + (injectedTimeZone ? "（" + injectedTimeZone + "）" : "")
       + "。提到现在/今天/今晚时只能以此为准；历史消息里的时间都属于过去。";
+    if (rpProject) note += "但这是在剧场里：上面这个时间是用户现实世界的本地时间，只用来理解她话里指现实的时间；剧情里的时间仍以剧本和场景为准，演剧情时仍按剧情时间演，不要把现实时间当成剧情时间，也不要用现实时间去改写剧情时间。";
     systemText = systemText ? systemText + "\n\n" + note : note;
   }
   let wxNote = "";

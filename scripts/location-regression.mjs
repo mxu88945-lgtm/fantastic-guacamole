@@ -82,5 +82,6 @@ ok(!/\d+\.\d{3}/.test(note), "prompt note must not include coordinates");
 ok(note.includes("不要提“定位”“系统”"), "prompt note does not tell him to keep it natural");
 ctx.settings.locationAware = false;
 ok(!t.buildWxPromptNote().includes("她现在在"), "toggle off still injects the place");
+ok(html.includes("剧情里的时间仍以剧本和场景为准") && html.includes("不要把现实时间当成剧情时间"), "roleplay time note must separate the user's real local time from scene time");
 
 console.log(`location regression passed (${checks} checks)`);
