@@ -159,6 +159,7 @@ for (const value of [fencedOpening, legacyOpening]) {
   ok(segments[1].value === story && !segments[0].value.includes(story), 'player flex styles must never contain the story');
 }
 ok(sourceContext.splitRoleplayHtmlFences(playerPage) === null, 'standalone HTML pages must preserve their original page rendering');
+vm.runInContext(html.slice(html.indexOf('function audioPlayerHtml('), html.indexOf('function renderMarkdown(')), sourceContext);
 vm.runInContext(html.slice(html.indexOf('function renderMarkdown('), html.indexOf('// ---------- Rendering messages ----------')), sourceContext);
 const denseStory = '六月的晨光透过窗帘，落在床边。'.repeat(30) + '他说：“先别走。再陪我一会儿。”她轻轻点了点头。';
 const visualStory = sourceContext.renderRoleplayStoryText(denseStory);
@@ -293,4 +294,16 @@ mergeContext.mergeRoleplayCardLibrary([
   { id: 'new', ownerRoleId: 'r1', rpProject: { actorName: '新卡' } },
 ]);
 ok(mergeContext.roleplayCardLibrary.length === 1 && mergeContext.roleplayCardLibrary[0].id === 'new', 'deleted card ids must not be merged back into the role library');
+ok(html.includes('function audioPlayerHtml(') && html.includes('function extractAudioPlayers(') && html.includes('RPAUDIO'), 'chat markdown must whitelist audio blocks into real players');
+ok(html.includes('audio.chat-audio'), 'chat audio players must be styled');
+const audioContext = vm.createContext({ escapeHtml: (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') });
+vm.runInContext(html.slice(html.indexOf('function audioPlayerHtml('), html.indexOf('function renderMarkdown(')), audioContext);
+const cardBlock = '<audio controls autoplay loop>\n    <source src="https://link.hhtjim.com/163/2645500113.mp3" type="audio/mpeg">\n    Your browser does not support the audio element.\n</audio>';
+const cardPlayer = audioContext.audioPlayerHtml(cardBlock);
+ok(cardPlayer.includes('<audio class="chat-audio" controls preload="none" loop src="https://link.hhtjim.com/163/2645500113.mp3">'), 'card greeting audio must become a real player with its source and loop');
+ok(!cardPlayer.includes('autoplay') && !cardPlayer.includes('Your browser'), 'audio players must drop autoplay and the fallback text');
+ok(audioContext.audioPlayerHtml('<audio src="https://files.catbox.moe/0oe114.mp3"></audio>').includes('src="https://files.catbox.moe/0oe114.mp3"'), 'direct audio src must also become a player');
+ok(audioContext.audioPlayerHtml('<audio controls><source src="javascript:alert(1)"></audio>') === '', 'non-http audio sources must never become players');
+const extracted = audioContext.extractAudioPlayers(`*主线剧情*\n${cardBlock}\n**顾荒，23岁。**`);
+ok(extracted.players.length === 1 && extracted.text.includes(' RPAUDIO0 ') && !extracted.text.includes('<audio'), 'audio blocks must be pulled out before escaping with a restorable placeholder');
 console.log(`RP theater regression checks passed (${checks})`);

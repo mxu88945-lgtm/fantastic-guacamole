@@ -243,6 +243,7 @@
   @keyframes flashmsg { 0%,100% { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
     20%,60% { box-shadow: 0 0 0 3px var(--accent); } }
   .msg .bubble.summary { border-style: dashed; opacity: .92; }
+  audio.chat-audio { width: 100%; max-width: 320px; margin: 4px 0; }
   .conv-item {
     display: flex; align-items: center; gap: 8px;
     padding: 9px 10px; border-radius: 9px; cursor: pointer;
@@ -6249,6 +6250,43 @@ function applyRoleplayTextTheme(box = $("messages"), projectOverride = null) {
 function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+// Card greetings (e.g. 顾荒's openings) embed BGM as <audio controls autoplay loop>
+// with a <source src>. 惟境 renders those as players; this pipeline escapes
+// everything, so audio blocks are pulled out before escaping and restored as real
+// players afterwards. Only the audio element is whitelisted — every other tag
+// stays escaped text, and only http(s) sources are accepted.
+// Autoplay is deliberately dropped: browsers block autoplay with sound until the
+// user interacts anyway, so the player starts paused like 惟境's; loop is kept.
+function audioPlayerHtml(block) {
+  const pickSrc = (tag) => {
+    const m = tag.match(/\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)')/i);
+    return (m && (m[1] || m[2])) || "";
+  };
+  let src = "";
+  const sources = block.match(/<source\b[^>]*>/gi) || [];
+  for (const tag of sources) {
+    const candidate = pickSrc(tag);
+    if (/^https?:\/\//i.test(candidate)) { src = candidate; break; }
+  }
+  if (!src) {
+    const direct = (block.match(/<audio\b[^>]*>/i) || [""])[0];
+    const candidate = pickSrc(direct);
+    if (/^https?:\/\//i.test(candidate)) src = candidate;
+  }
+  if (!src) return "";
+  const loop = /\bloop\b/i.test(block) ? " loop" : "";
+  return `<audio class="chat-audio" controls preload="none"${loop} src="${escapeHtml(src)}"></audio>`;
+}
+function extractAudioPlayers(text) {
+  const players = [];
+  const stripped = String(text || "").replace(/<audio\b[^>]*>([\s\S]*?)<\/audio\s*>/gi, (match) => {
+    const html = audioPlayerHtml(match);
+    if (!html) return match;
+    players.push(html);
+    return ` RPAUDIO${players.length - 1} `;
+  });
+  return { text: stripped, players };
+}
 function renderMarkdown(text, storyQuotes = false) {
   const blocks = [];
   text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
@@ -6256,6 +6294,8 @@ function renderMarkdown(text, storyQuotes = false) {
     blocks.push('<pre><code>' + escapeHtml(code.replace(/\n$/, "")) + '</code></pre>');
     return " B" + i + " ";
   });
+  const audio = extractAudioPlayers(text);
+  text = audio.text;
   text = escapeHtml(text);
   // Tavo-like quote recognition. Run before Markdown injects tags with quoted attributes.
   text = storyQuotes
@@ -6289,6 +6329,7 @@ function renderMarkdown(text, storyQuotes = false) {
   }
   if (inUl) html += "</ul>";
   html = html.replace(/ B(\d+) /g, (_, i) => blocks[+i]);
+  html = html.replace(/ RPAUDIO(\d+) /g, (_, i) => audio.players[+i] ?? "");
   return html;
 }
 
