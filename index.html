@@ -9575,7 +9575,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
   const model = requestSettings?.model || conversationModel();
   const routeProfile = requestSettings
-    ? providerById(speaker?.providerId) || conversationProvider()
+    ? providerById(requestSettings._routeProfileId || speaker?.providerId) || conversationProvider()
     : conversationProvider();
   const requestRoute = [activeSpeaker?.name, routeProfile?.name || "当前接口", model].filter(Boolean).join(" / ");
   const reasoningEffort = conversationReasoningEffort();
@@ -13142,10 +13142,18 @@ async function generateReply() {
   const members = roleplayReplyMembers(project, latestUser ? messageText(latestUser) : "", latestUser?.rpReplyMemberIds || []);
   if (!members.length) { showToast("先在群聊设置里勾选本轮发言成员"); return; }
   const requests = members.map(speaker => {
-    const profile = speaker.providerId ? providerById(speaker.providerId) : conversationProvider(conv);
+    // A member performed by the current owner follows this conversation's route.
+    // This prevents an old per-member binding from silently overriding a channel/model
+    // that the user just selected for the RP window. Independent cast members may
+    // still keep their own provider and model.
+    const followsWindow = !roleplayIndependentSpeaker(speaker, conv);
+    const profile = followsWindow ? conversationProvider(conv)
+      : speaker.providerId ? providerById(speaker.providerId) : conversationProvider(conv);
     return { speaker, profile, config: { ...settings, provider: profile?.provider || settings.provider,
       baseUrl: profile?.baseUrl || "", apiKey: profile?.apiKey || "",
-      model: speaker.model || (speaker.providerId ? profile?.model : conversationModel(conv)) } };
+      model: followsWindow ? conversationModel(conv)
+        : speaker.model || (speaker.providerId ? profile?.model : conversationModel(conv)),
+      _routeProfileId: profile?.id || "" } };
   });
   const unavailable = requests.find(request => !request.profile || !request.config.apiKey || !request.config.model);
   if (unavailable) { showToast(`请为「${unavailable.speaker.name}」选择有效的接口和模型`); return; }

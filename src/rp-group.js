@@ -107,8 +107,10 @@ if (bridge) {
   }
   function channelFields(member, index) {
     const profiles = channels();
+    const followsWindow = member.id === "lead" ? member.playedByOwner !== false : member.playedByOwner === true;
     const effectiveId = member.providerId || bridge.currentChannelId?.() || "";
     const selected = profiles.find(profile => profile.id === effectiveId);
+    if (followsWindow) return `<div class="rp-group-note"><strong>接口与模型：</strong>沿用本窗口${selected ? ` · ${escape(selected.name)}${selected.model ? ` / ${escape(selected.model)}` : ""}` : ""}<br>由本体出演时，不会再使用角色卡里以前保存的固定线路。</div>`;
     const missing = member.providerId && !selected;
     const models = [...new Set(selected?.models || [])];
     const custom = member.model && !models.includes(member.model) ? `<option value="${escape(member.model)}" selected>${escape(member.model)}（当前）</option>` : "";
@@ -386,6 +388,9 @@ if (bridge) {
       markDirty(); previewTextTheme();
     }
     if (["rp-group-enabled", "rp-group-reply-mode"].includes(event.target.id) || event.target.closest("[data-member]") || event.target.closest("#rp-user-profile") || event.target.closest("#rp-temporary-section")) markDirty();
+    if (event.target.matches('[data-field="playedByOwner"]')) {
+      collect(); renderMembers(); return;
+    }
     if (event.target.matches('[data-field="providerId"]')) {
       const id = event.target.closest("[data-member]")?.dataset.member;
       collect(); renderMembers();
