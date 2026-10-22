@@ -293,7 +293,7 @@ function plainPreviewWithMedia(value) {
           </section>
 
           <section id="rp-library-view">
-            <input id="rp-import-file" type="file" accept=".json,.txt,.md,.markdown,application/json,text/*" hidden />
+            <input id="rp-import-file" type="file" accept=".json,.txt,.md,.markdown,.png,.zip,application/json,text/*,image/png,application/zip,application/x-zip-compressed" hidden />
             <section class="rp-library-hub" id="rp-library-hub">
               <div class="rp-section-title"><div><strong>选择要进入的空间</strong><small>聊天、剧本和角色资料分开放</small></div></div>
               <div class="rp-space-menu">
@@ -1096,14 +1096,170 @@ function plainPreviewWithMedia(value) {
     return { worldEntries, regexRules };
   }
 
+  function readU16LE(bytes, offset) {
+    return bytes[offset] | (bytes[offset + 1] << 8);
+  }
+
+  function readU32LE(bytes, offset) {
+    return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
+  }
+
+  function readU32BE(bytes, offset) {
+    return ((bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) >>> 0;
+  }
+
+  function base64ToUtf8Text(value) {
+    const cleaned = String(value || "").replace(/\s/g, "").replace(/-/g, "+").replace(/_/g, "/");
+    if (!cleaned) return "";
+    const padded = cleaned + "=".repeat((4 - (cleaned.length % 4)) % 4);
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  async function inflateBytes(data, format) {
+    if (typeof DecompressionStream === "undefined") throw new Error("no DecompressionStream");
+    const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream(format));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  function cardJsonCandidate(text) {
+    try {
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+      const data = parsed.data && typeof parsed.data === "object" ? parsed.data : parsed;
+      const score = (data === parsed ? 0 : 2)
+        + (typeof data.name === "string" && data.name ? 1 : 0)
+        + (typeof data.description === "string" && data.description ? 1 : 0)
+        + (typeof (data.first_mes || data.greeting) === "string" && (data.first_mes || data.greeting) ? 1 : 0);
+      return { text, score };
+    } catch (_) { return null; }
+  }
+
+  async function pngCardJsonFromBytes(bytes) {
+    const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+    if (!bytes || bytes.length < 8 || !signature.every((byte, index) => bytes[index] === byte)) return null;
+    const latin1 = (start, end) => {
+      let out = "";
+      for (let i = start; i < end; i++) out += String.fromCharCode(bytes[i]);
+      return out;
+    };
+    let offset = 8;
+    while (offset + 8 <= bytes.length) {
+      const length = readU32BE(bytes, offset);
+      const type = latin1(offset + 4, offset + 8);
+      if (length < 0 || offset + 12 + length > bytes.length) break;
+      const dataStart = offset + 8;
+      const dataEnd = dataStart + length;
+      if (type === "tEXt" || type === "iTXt" || type === "zTXt") {
+        let keywordEnd = dataStart;
+        while (keywordEnd < dataEnd && bytes[keywordEnd] !== 0) keywordEnd++;
+        const keyword = latin1(dataStart, keywordEnd);
+        if (keyword.toLowerCase() === "chara") {
+          let raw = "";
+          try {
+            if (type === "tEXt") {
+              raw = latin1(keywordEnd + 1, dataEnd);
+            } else if (type === "zTXt") {
+              const inflated = await inflateBytes(bytes.slice(keywordEnd + 2, dataEnd), "deflate");
+              raw = new TextDecoder().decode(inflated);
+            } else {
+              let cursor = keywordEnd + 1;
+              const compressionFlag = bytes[cursor] || 0;
+              cursor += 2;
+              while (cursor < dataEnd && bytes[cursor] !== 0) cursor++;
+              cursor++;
+              while (cursor < dataEnd && bytes[cursor] !== 0) cursor++;
+              cursor++;
+              const textBytes = bytes.slice(cursor, dataEnd);
+              raw = compressionFlag === 1
+                ? new TextDecoder().decode(await inflateBytes(textBytes, "deflate"))
+                : new TextDecoder().decode(textBytes);
+            }
+          } catch (_) { raw = ""; }
+          if (raw) {
+            let decoded = "";
+            try { decoded = base64ToUtf8Text(raw); } catch (_) { decoded = ""; }
+            const candidate = cardJsonCandidate(decoded) || cardJsonCandidate(raw);
+            if (candidate) return candidate.text;
+          }
+        }
+      }
+      if (type === "IEND") break;
+      offset = dataEnd + 4;
+    }
+    return null;
+  }
+
+  async function zipCardJsonFromBytes(bytes) {
+    if (!bytes || bytes.length < 22) return null;
+    let eocd = -1;
+    const scanStart = Math.max(0, bytes.length - 65557);
+    for (let i = bytes.length - 22; i >= scanStart; i--) {
+      if (readU32LE(bytes, i) === 0x06054b50 && i + 22 + readU16LE(bytes, i + 20) === bytes.length) { eocd = i; break; }
+    }
+    if (eocd < 0) return null;
+    const count = readU16LE(bytes, eocd + 10);
+    let offset = readU32LE(bytes, eocd + 16);
+    let best = null;
+    const decoder = new TextDecoder();
+    for (let entry = 0; entry < count; entry++) {
+      if (offset + 46 > bytes.length || readU32LE(bytes, offset) !== 0x02014b50) break;
+      const method = readU16LE(bytes, offset + 10);
+      const compressedSize = readU32LE(bytes, offset + 20);
+      const nameLength = readU16LE(bytes, offset + 28);
+      const extraLength = readU16LE(bytes, offset + 30);
+      const commentLength = readU16LE(bytes, offset + 32);
+      const localOffset = readU32LE(bytes, offset + 42);
+      const nameStart = offset + 46;
+      const name = decoder.decode(bytes.slice(nameStart, nameStart + nameLength));
+      offset = nameStart + nameLength + extraLength + commentLength;
+      const lowerName = name.toLowerCase();
+      if (lowerName.endsWith("/") || !lowerName.endsWith(".json") || lowerName.includes("__macosx")) continue;
+      if (compressedSize === 0xffffffff || localOffset === 0xffffffff) continue;
+      if (localOffset + 30 > bytes.length || readU32LE(bytes, localOffset) !== 0x04034b50) continue;
+      const localNameLength = readU16LE(bytes, localOffset + 26);
+      const localExtraLength = readU16LE(bytes, localOffset + 28);
+      const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+      if (dataStart + compressedSize > bytes.length) continue;
+      const rawData = bytes.slice(dataStart, dataStart + compressedSize);
+      let text = "";
+      try {
+        if (method === 0) text = decoder.decode(rawData);
+        else if (method === 8) text = decoder.decode(await inflateBytes(rawData, "deflate-raw"));
+        else continue;
+      } catch (_) { continue; }
+      const candidate = cardJsonCandidate(text);
+      if (candidate && (!best || candidate.score > best.score)) best = candidate;
+    }
+    return best ? best.text : null;
+  }
+
   async function readFiles(files, asImport) {
     for (const file of [...(files || [])]) {
-      if (file.size > 1024 * 1024) { bridge.toast(`${file.name} 超过 1MB，请拆分后再导入`); continue; }
-      const text = await file.text();
       if (asImport) {
+        const lowerName = (file.name || "").toLowerCase();
+        const isPng = lowerName.endsWith(".png") || file.type === "image/png";
+        const isZip = lowerName.endsWith(".zip") || file.type === "application/zip" || file.type === "application/x-zip-compressed";
+        if (isPng || isZip) {
+          let cardText = null;
+          try {
+            const buffer = new Uint8Array(await file.arrayBuffer());
+            cardText = isPng ? await pngCardJsonFromBytes(buffer) : await zipCardJsonFromBytes(buffer);
+          } catch (_) { cardText = null; }
+          if (!cardText) { bridge.toast(isPng ? "这张 PNG 里没有找到角色卡数据，换一张带卡数据的角色卡图试试" : "这个 ZIP 里没有找到角色卡 JSON，换成里面的 JSON 直传"); continue; }
+          if (cardText.length > 1024 * 1024) { bridge.toast("角色卡内容超过 1MB，请拆分后再导入"); continue; }
+          importCharacterCard(cardText, file.name || "角色卡");
+          return;
+        }
+        if (file.size > 1024 * 1024) { bridge.toast(`${file.name} 超过 1MB，请拆分后再导入`); continue; }
+        const text = await file.text();
         importCharacterCard(text, file.name || "角色卡");
         return;
       }
+      if (file.size > 1024 * 1024) { bridge.toast(`${file.name} 超过 1MB，请拆分后再导入`); continue; }
+      const text = await file.text();
       const existing = state.files.findIndex((item) => item.name === file.name);
       const entry = { id: existing >= 0 ? state.files[existing].id : (crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`), name: file.name || "未命名资料.txt", size: file.size || text.length, mediaType: file.type || "text/plain", text, updatedAt: Date.now() };
       if (existing >= 0) state.files.splice(existing, 1, entry); else state.files.push(entry);

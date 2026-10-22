@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { deflateRawSync } from "node:zlib";
 import vm from "node:vm";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -189,4 +190,79 @@ ok(groupCss.includes('.rp-status-card') && groupCss.includes('font-size: var(--r
 vm.runInContext(html.slice(html.indexOf('const ROLEPLAY_MEMORY_DEFAULT_SUMMARY_PROMPT'), html.indexOf('function addRoleplayMemory(')), sourceContext);
 const normalized = sourceContext.normalizedRoleplayProject({ greetings: ['cover', 'first opening', '', 'third opening'], openingIndex: 3 }, {title:'test'});
 ok(normalized.greetings.length === 4 && normalized.opening === 'third opening', 'blank swipe slots must not shift card button indexes');
+ok(js.includes('id="rp-import-file"') && js.includes('.png') && js.includes('.zip'), 'RP import input must accept PNG and ZIP character cards');
+ok(js.includes('pngCardJsonFromBytes') && js.includes('zipCardJsonFromBytes'), 'RP import must extract cards from PNG and ZIP files');
+const cardContext = vm.createContext({ TextDecoder, atob, Blob, Response, DecompressionStream });
+vm.runInContext(js.slice(js.indexOf('function readU16LE('), js.indexOf('async function readFiles(')), cardContext);
+const cardJsonText = JSON.stringify({ spec: 'chara_card_v3', spec_version: '3.0', data: { name: '周竞尧', description: '测试', first_mes: '你好' } });
+const cardBase64 = Buffer.from(cardJsonText, 'utf8').toString('base64');
+const pngChunk = (type, data) => {
+  const out = new Uint8Array(12 + data.length);
+  const view = new DataView(out.buffer);
+  view.setUint32(0, data.length);
+  for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+  out.set(data, 8);
+  return out;
+};
+const buildPng = (chunks) => {
+  const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), pngChunk('IHDR', new Uint8Array(13)), ...chunks, pngChunk('IEND', new Uint8Array(0))];
+  const png = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let offset = 0;
+  for (const part of parts) { png.set(part, offset); offset += part.length; }
+  return png;
+};
+const charaText = new Uint8Array([...Buffer.from('chara\0', 'latin1'), ...Buffer.from(cardBase64, 'latin1')]);
+ok(await cardContext.pngCardJsonFromBytes(buildPng([pngChunk('tEXt', charaText)])) === cardJsonText, 'PNG import must read the card JSON from its chara text chunk');
+ok(await cardContext.pngCardJsonFromBytes(buildPng([])) === null, 'a PNG without card data must not be mistaken for a card');
+const buildZip = (entries) => {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const nameBytes = Buffer.from(entry.name, 'utf8');
+    const stored = entry.method === 0 ? entry.data : deflateRawSync(entry.data);
+    const local = new Uint8Array(30 + nameBytes.length + stored.length);
+    const localView = new DataView(local.buffer);
+    localView.setUint32(0, 0x04034b50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(8, entry.method, true);
+    localView.setUint32(18, stored.length, true);
+    localView.setUint32(22, entry.data.length, true);
+    localView.setUint16(26, nameBytes.length, true);
+    local.set(nameBytes, 30);
+    local.set(stored, 30 + nameBytes.length);
+    const central = new Uint8Array(46 + nameBytes.length);
+    const centralView = new DataView(central.buffer);
+    centralView.setUint32(0, 0x02014b50, true);
+    centralView.setUint16(4, 20, true);
+    centralView.setUint16(6, 20, true);
+    centralView.setUint16(10, entry.method, true);
+    centralView.setUint32(20, stored.length, true);
+    centralView.setUint32(24, entry.data.length, true);
+    centralView.setUint16(28, nameBytes.length, true);
+    centralView.setUint32(42, offset, true);
+    central.set(nameBytes, 46);
+    localParts.push(local);
+    centralParts.push(central);
+    offset += local.length;
+  }
+  const cdSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const eocd = new Uint8Array(22);
+  const eocdView = new DataView(eocd.buffer);
+  eocdView.setUint32(0, 0x06054b50, true);
+  eocdView.setUint16(8, entries.length, true);
+  eocdView.setUint16(10, entries.length, true);
+  eocdView.setUint32(12, cdSize, true);
+  eocdView.setUint32(16, offset, true);
+  const parts = [...localParts, ...centralParts, eocd];
+  const zip = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let at = 0;
+  for (const part of parts) { zip.set(part, at); at += part.length; }
+  return zip;
+};
+const cardBytes = Buffer.from(cardJsonText, 'utf8');
+ok(await cardContext.zipCardJsonFromBytes(buildZip([{ name: 'card.json', data: cardBytes, method: 0 }])) === cardJsonText, 'ZIP import must read a stored card JSON');
+ok(await cardContext.zipCardJsonFromBytes(buildZip([{ name: 'card.json', data: cardBytes, method: 8 }])) === cardJsonText, 'ZIP import must inflate a deflated card JSON');
+ok(await cardContext.zipCardJsonFromBytes(buildZip([{ name: 'meta.json', data: Buffer.from('{"version":1}', 'utf8'), method: 0 }, { name: 'card.json', data: cardBytes, method: 0 }])) === cardJsonText, 'ZIP import must prefer the entry that actually looks like a card');
+ok(await cardContext.zipCardJsonFromBytes(buildZip([{ name: 'notes.txt', data: Buffer.from('hello', 'utf8'), method: 0 }])) === null, 'a ZIP without a card JSON must yield nothing');
 console.log(`RP theater regression checks passed (${checks})`);
