@@ -24,7 +24,9 @@ ok(html.includes("function privateRoleConvs()"), "private chats are not separate
 ok(html.includes("function sidebarRoleConvs()") && html.includes("roleConvs().filter(isRoleplayConversation)"), "RP and private sidebars are not separated by conversation space");
 ok(html.includes("sidebarRoleConvs().filter(c => c.messages.length > 0)"), "sidebar does not use the active conversation space");
 ok(html.includes("return privateRoleConvs().filter(c => Array.isArray(c.messages)"), "main-chat continuation can still select RP");
-ok(html.includes("【RP 剧场·双层身份协议】"), "RP identity-layer prompt is missing");
+ok(html.includes("【剧场认知｜") && html.includes("清醒陪") && html.includes("演戏】"), "RP actor-and-mask identity prompt is missing");
+ok(html.includes("本名、旧名、曾用名、隐藏身份、过去经历或另一重人格"), "RP prompt must forbid merging the owner name into a stage identity");
+ok(html.includes("立刻暂停剧情、摘下面具") && html.includes("本人以自身关系、口吻和记忆回应她"), "calling the owner by name must pause the performance");
 ok(html.includes("戏内事件、感情和人物关系只属于本剧本档案"), "fiction memory isolation rule is missing");
 ok(html.includes("不代替用户说话、行动、作决定、下心理结论或预设同意"), "user agency rule is missing");
 ok(html.includes("addRoleplayMemory(t, sourceMessageId)"), "RP memory tokens are not routed to project memory");

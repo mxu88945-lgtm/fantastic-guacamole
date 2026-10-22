@@ -53,6 +53,9 @@ const legacy = context.normalizedRoleplayProject({ actorName: "旧角色" }, { t
 assert.equal(legacy.groupEnabled, false);
 assert.equal(legacy.sceneSystemPromptEnabled, true, "existing scenes should receive the late scene preset by default");
 assert.equal(legacy.sceneSystemPrompt, "SCENE_ADULT_PRESET_DEFAULT");
+const finalScenePrompt = context.roleplayFinalSystemInstruction(legacy);
+assert.match(finalScenePrompt, /SCENE_ADULT_PRESET_DEFAULT/, "the per-scene writing preset must remain last");
+assert.doesNotMatch(finalScenePrompt, /后台主体身份锁|本轮身份终检|顾祁砚/, "the late scene slot must not add a second owner/stage identity contract");
 assert.equal(legacy.chatTextColor, "");
 assert.equal(context.normalizedRoleplayProject({ chatTextColor: "#AABBCC", chatNarrationColor: "invalid", chatQuoteColor: "#123456" }, {}).chatTextColor, "#aabbcc");
 assert.equal(context.roleplayMembers(legacy).length, 1);
@@ -250,7 +253,8 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
   assert.match(system, /仅由「导演」发言/);
   assert.match(system, /SCENE_ADULT_PRESET_DEFAULT/, "the scene-specific system preset must reach every member request");
   assert.ok(system.lastIndexOf("SCENE_ADULT_PRESET_DEFAULT") > system.lastIndexOf("仅由「导演」发言"), "the scene preset must be appended after the role card and speaker prompt");
-  assert.match(system, /唯一的身份是「导演」/, "independent speakers need a final identity lock");
+  assert.match(system, /本条消息唯一的发言身份是「导演」/, "independent speakers keep the original single identity boundary");
+  assert.doesNotMatch(system, /后台主体身份锁|本轮身份终检/, "wire prompts must not repeat a conflicting late identity contract");
   assert.equal(request.init.headers[provider === "anthropic" ? "x-api-key" : provider === "gemini" ? "x-goog-api-key" : "authorization"], provider === "openai" ? "Bearer member-key" : "member-key");
   assert.match(request.url, /member\.test/);
   const wireHistory = request.body.contents || request.body.messages;
@@ -291,8 +295,10 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
   await assert.rejects(() => context.streamChat(() => {}, () => {}, config, director), /captured-request/);
   system = requestSystem(captured.at(-1));
   for (const text of ["OWNER_PERSONA_ONLY", "OWNER_EXTRA_INSTRUCTION", "OWNER_PRIVATE_MEMORY_AND_DIARY", "OWNER_GLOBAL_PRESET", "顾祁砚"]) assert.ok(system.includes(text), `owner switch on must restore: ${text}`);
-  assert.match(system, /后台主体唯一是「顾祁砚」/, "owner-performed scenes need a late backstage identity lock");
-  assert.ok(system.lastIndexOf("后台主体唯一是「顾祁砚」") > system.lastIndexOf("LEAD_CARD_ONLY"), "the backstage identity lock must follow the character card");
+  assert.match(system, /被「用户」唤醒[\s\S]*本体身份/, "owner-performed scenes must preserve the awakened owner identity");
+  assert.match(system, /舞台面具[\s\S]*不是你本人/, "the stage character must remain an explicit mask");
+  assert.match(system, /直接喊出“顾祁砚”[\s\S]*暂停剧情、摘下面具/, "calling the owner by name must pause the stage role");
+  assert.doesNotMatch(system, /后台主体唯一是「顾祁砚」|后台主体身份锁|本轮身份终检/, "owner-performed scenes must not receive a duplicate late identity lock");
   director.playedByOwner = false;
   await assert.rejects(() => context.streamChat(() => {}, () => {}, config, director), /captured-request/);
   system = requestSystem(captured.at(-1));

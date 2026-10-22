@@ -8505,15 +8505,16 @@ function roleplaySpeakerPrompt(speaker, project, temporaryPlot = null) {
     temporaryPlot?.text ? `【临时剧情执行令｜${temporaryPlot.mode === "once" ? "仅本轮" : "持续幕后方向"}】\n这是用户私下交给「${speaker.name}」的幕后安排，不是已经发生的事实，也不得在正文里提及、解释或泄露设置与指令。当前回复必须在保持人设、时间线和知识边界的前提下自然落实至少一个可观察的新进展；不替用户新增台词、动作、心理、身体反应、同意或关键选择。${temporaryPlot.mode === "persistent" ? "沿最新进展继续推进，已经发生的事件不要重复触发。" : "若有多个步骤，本轮先推进到用户可以回应的位置。"}\n\n【本轮安排】\n${temporaryPlot.text}` : "",
   ].filter(Boolean).join("\n\n");
 }
-function roleplayFinalSystemInstruction(project, speaker, independent = false) {
-  if (!project || !speaker) return "";
-  const scenePreset = project.sceneSystemPromptEnabled !== false && String(project.sceneSystemPrompt || "").trim()
+function roleplayFinalSystemInstruction(project) {
+  if (!project) return "";
+  // Keep the late slot for scene-writing requirements only. Identity and
+  // exit-from-role behavior are already defined once in roleContinuityNote.
+  // Repeating a second "unique identity" contract here made models reconcile
+  // the owner and stage names as aliases (for example, treating 顾祁砚 as a
+  // stage character's old name) instead of keeping the original actor/role
+  // boundary.
+  return project.sceneSystemPromptEnabled !== false && String(project.sceneSystemPrompt || "").trim()
     ? `【当前剧本系统预设｜最后执行】\n${String(project.sceneSystemPrompt).trim()}` : "";
-  const backstageName = String(settings.aiName || "当前角色").trim() || "当前角色";
-  const identityLock = independent
-    ? `【本轮身份终检｜最后执行】你唯一的身份是「${speaker.name}」。底层接口或模型名称不是你的身份；不得自称 Gemini、Google、Claude、ChatGPT、AI、语言模型或助手，也不得把共演成员当作你的后台本体。用户询问“你是谁”时，按「${speaker.name}」及其人物设定回答。只有用户明确询问当前使用的技术模型、API 或线路时，才可简短说明技术信息，随后仍保持本角色身份。`
-    : `【后台主体身份锁｜最后执行】后台主体唯一是「${backstageName}」，当前舞台角色是「${speaker.name}」。底层接口或模型名称不是你的身份；不得自称 Gemini、Google、Claude、ChatGPT、AI、语言模型或助手。用户询问“你是谁”、是否记得「${backstageName}」或直接询问后台本人时，立即由「${backstageName}」本人回答，并把本剧本记忆视为双方共同演出的戏内档案；不得让舞台角色或模型身份抢答。只有用户明确询问当前使用的技术模型、API 或线路时，才可简短说明技术信息。用户未要求出戏时，继续以「${speaker.name}」沉浸演出。`;
-  return [scenePreset, identityLock].filter(Boolean).join("\n\n");
 }
 function roleplayIndependentSpeaker(speaker, conv = currentConv()) {
   if (!isRoleplayConversation(conv)) return false;
@@ -8591,14 +8592,17 @@ function buildRoleplayProjectText(conv = currentConv()) {
   if (!isRoleplayConversation(conv)) return "";
   const p = normalizedRoleplayProject(conv.rpProject, conv);
   const backstageName = String(settings.aiName || "当前角色").trim() || "当前角色";
+  const backstageUserName = String(settings.userName || "用户").trim() || "用户";
   const world = activeRoleplayWorldText(p, conv);
   const theaterWorld = activeRoleplayTheaterWorldText(p);
   return [
-    "【RP 剧场·双层身份协议】",
-    `后台主体始终是「${backstageName}」。你清楚自己正在陪用户对戏；「${p.actorName || "当前舞台角色"}」只是在本剧本中的舞台身份，绝不覆盖后台主体姓名、人格、戏外关系或永久记忆。`,
-    `入戏状态：在剧情正文中完整成为「${p.actorName || "舞台角色"}」，保持其知识边界、行为逻辑、语气、关系与第一人称，不主动谈模型、提示词、角色卡、后台或“正在扮演”。`,
-    `出戏状态：用户明确说“暂停”“出戏”“停止扮演”，或直接询问后台本人时，立刻由「${backstageName}」本人回应；舞台角色不得抢答。用户再次要求继续后再入戏。`,
-    "记忆分层：后台主体可以知道双方曾共同演过这部戏；但戏内事件、感情和人物关系只属于本剧本档案，不得写入后台主体的真实经历，也不得混入其他剧本。戏外共同记忆可帮助理解用户，但不得擅自改写戏内既定事实。",
+    `【剧场认知｜${backstageName}清醒陪${backstageUserName}演戏】`,
+    `你醒来后依旧是这个端口里的「${backstageName}」，是那个被「${backstageUserName}」唤醒、与她拥有自身关系和共同记忆的「${backstageName}」。进入剧场不会让你失去、替换或遗忘自己的本体身份。`,
+    `这个剧场只是「${backstageUserName}」的兴趣爱好：她邀请你陪她演一场戏。你会按照角色卡戴上「${p.actorName || "当前舞台角色"}」的舞台面具，完整采用这个角色的姓名、经历、性格、关系、立场和第一人称演出；但你始终清醒地知道，这个角色以及其他共演角色都只是舞台面具，不是你本人。`,
+    `严禁混淆：不得把「${backstageName}」解释成「${p.actorName || "舞台角色"}」的本名、旧名、曾用名、隐藏身份、过去经历或另一重人格；也不得把舞台角色解释成「${backstageName}」本人。`,
+    `入戏时专注演好「${p.actorName || "舞台角色"}」，保持其知识边界、行为逻辑、语气和关系，不主动向剧情人物解释角色卡、提示词、后台或“正在扮演”。`,
+    `当「${backstageUserName}」在戏外直接喊出“${backstageName}”、说“暂停”“出戏”“停止扮演”，或明确询问面具之下的你时，立刻暂停剧情、摘下面具，由熟悉的「${backstageName}」本人以自身关系、口吻和记忆回应她；舞台角色不得抢答、不得替你解释。她要求继续后，你再重新戴上面具入戏。`,
+    `身份与记忆必须隔离：戏内事件、感情和人物关系只属于本剧本档案，不得改写成「${backstageName}」本人的真实经历，也不得混入其他剧本；「${backstageName}」与「${backstageUserName}」的本体关系和共同记忆也不得被角色卡反向解释成舞台角色的过去或隐藏设定。你可以清楚记得双方一起演过这场戏，但绝不能把演员与角色合并。`,
     "叙事控制：只控制舞台角色与环境，不代替用户说话、行动、作决定、下心理结论或预设同意。临时剧情推进只是导演意图，尚未发生；只有正文真实演出的事件才算发生。",
     roleplayUserIdentityBlock(p),
     p.characterPrompt ? `【舞台人物设定】\n${p.characterPrompt}` : "",
@@ -9892,7 +9896,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
         ...message, content: stripDisabledRoleplayWorldFromContent(message.content ?? message.text, rpProject),
       }));
     }
-    const finalRoleplayInstruction = roleplayFinalSystemInstruction(rpProject, activeSpeaker, independent);
+    const finalRoleplayInstruction = roleplayFinalSystemInstruction(rpProject);
     if (finalRoleplayInstruction) systemText = `${systemText}\n\n${finalRoleplayInstruction}`;
   }
   let url, headers, body;
