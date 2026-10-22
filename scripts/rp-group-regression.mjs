@@ -145,6 +145,16 @@ const profiles = { base: { id: "base", provider: "openai", baseUrl: "https://bas
   other: { id: "other", provider: "gemini", baseUrl: "https://other.test/v1beta", apiKey: "other-key", model: "other-model" } };
 context.conversationProvider = () => profiles.base;
 context.providerById = id => profiles[id];
+project.leadChannel.providerId = "other";
+project.leadChannel.model = "lead-model";
+const soloRoute = context.roleplaySpeakerRequest(context.roleplayMembers(project)[0], context.conv);
+assert.equal(soloRoute.profile.id, "other", "single-speaker RP must honor the lead's selected channel");
+assert.equal(soloRoute.config.model, "lead-model", "single-speaker RP must honor the lead's selected model");
+project.leadChannel.providerId = "";
+project.leadChannel.model = "";
+const windowRoute = context.roleplaySpeakerRequest(context.roleplayMembers(project)[0], context.conv);
+assert.equal(windowRoute.profile.id, "base", "empty member channel must follow the current RP window");
+assert.equal(windowRoute.config.model, "window-model", "empty member channel must follow the current RP window model");
 context.calls = [];
 context.generateSingleReply = async (speaker, config) => { context.calls.push({ speaker, config }); return true; };
 vm.runInContext(source("let roleplayGroupRun = null;", "async function generateSingleReply("), context);
@@ -321,11 +331,15 @@ assert.equal(context.conv.rpProject.members[0].playedByOwner, false);
 // Run the real completion handler with hostile/unexpected control markers:
 // scene memory is allowed, while owner diary/search/album/actions must stay off.
 const completion = vm.createContext({
-  console, performance, settings: { crossSearch: true, webSearch: true }, messages: [], currentId: "scene", chatNavigationRevision: 0,
+  console, performance, settings: { crossSearch: true, webSearch: true, apiKey: "base-key", provider: "openai", model: "base-model" }, messages: [], currentId: "scene", chatNavigationRevision: 0,
   startMessageTrace: () => ({ id: "trace" }), finishMessageTrace() {},
   abortController: null, replyBooting: false, roleplayGroupRun: null, stickBottom: false,
   TYPING_HTML: "typing", lastPromptAudit: null, lastCallUsage: null,
   roleplayIndependentSpeaker: context.roleplayIndependentSpeaker,
+  roleplaySpeakerRequest: context.roleplaySpeakerRequest,
+  providerById: context.providerById,
+  conversationProvider: context.conversationProvider,
+  conversationModel: () => "window-model",
   currentConv: () => ({ id: "scene", space: "roleplay", rpProject: project, messages: completion.messages }),
   normalizedRoleplayProject: context.normalizedRoleplayProject,
   roleplayMembers: context.roleplayMembers,

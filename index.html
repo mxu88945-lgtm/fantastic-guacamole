@@ -8406,6 +8406,27 @@ function roleplayIndependentSpeaker(speaker, conv = currentConv()) {
   const member = speaker || roleplayMembers(normalizedRoleplayProject(conv.rpProject, conv))[0];
   return member.id === "lead" ? member.playedByOwner === false : member.playedByOwner !== true;
 }
+// A stage member's API route is independent from whether the owner's identity
+// is used in the prompt. An explicit provider/model must work in single-speaker
+// scenes as well as in group mode; an empty providerId follows the RP window.
+function roleplaySpeakerRequest(speaker, conv = currentConv()) {
+  const explicitProviderId = String(speaker?.providerId || "").trim();
+  const profile = explicitProviderId ? providerById(explicitProviderId) : conversationProvider(conv);
+  const model = explicitProviderId
+    ? String(speaker?.model || profile?.model || "").trim()
+    : conversationModel(conv);
+  return {
+    profile,
+    config: {
+      ...settings,
+      provider: profile?.provider || settings.provider,
+      baseUrl: profile?.baseUrl || "",
+      apiKey: profile?.apiKey || "",
+      model,
+      _routeProfileId: profile?.id || "",
+    },
+  };
+}
 function buildIndependentRoleplayPrompt(project, speaker, conv = currentConv()) {
   const world = activeRoleplayWorldText(project, conv);
   const theaterWorld = activeRoleplayTheaterWorldText(project);
@@ -13142,11 +13163,8 @@ async function generateReply() {
   const members = roleplayReplyMembers(project, latestUser ? messageText(latestUser) : "", latestUser?.rpReplyMemberIds || []);
   if (!members.length) { showToast("先在群聊设置里勾选本轮发言成员"); return; }
   const requests = members.map(speaker => {
-    const profile = speaker.providerId ? providerById(speaker.providerId) : conversationProvider(conv);
-    return { speaker, profile, config: { ...settings, provider: profile?.provider || settings.provider,
-      baseUrl: profile?.baseUrl || "", apiKey: profile?.apiKey || "",
-      model: speaker.model || (speaker.providerId ? profile?.model : conversationModel(conv)),
-      _routeProfileId: profile?.id || "" } };
+    const route = roleplaySpeakerRequest(speaker, conv);
+    return { speaker, ...route };
   });
   const unavailable = requests.find(request => !request.profile || !request.config.apiKey || !request.config.model);
   if (unavailable) { showToast(`请为「${unavailable.speaker.name}」选择有效的接口和模型`); return; }
@@ -13171,6 +13189,14 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
   const replyConv = currentConv();
   const replyProject = isRoleplayConversation(replyConv) ? normalizedRoleplayProject(replyConv.rpProject, replyConv) : null;
   const replySpeaker = replyProject ? speaker || roleplayMembers(replyProject)[0] : null;
+  if (!requestSettings && replyProject && replySpeaker) {
+    requestSettings = roleplaySpeakerRequest(replySpeaker, replyConv).config;
+    const routeProfile = providerById(requestSettings._routeProfileId);
+    if (!routeProfile || !requestSettings.apiKey || !requestSettings.model) {
+      showToast(`请为「${replySpeaker.name}」选择有效的接口和模型`);
+      return false;
+    }
+  }
   const capturedPlot = !roleplayGroupRun && replyProject ? roleplayTemporaryPlotFor(replyProject, replySpeaker) : null;
   const independent = roleplayIndependentSpeaker(speaker);
   const captureDiary = text => independent ? stripIndependentRoleplayControls(text) : extractPrivateDiary(text, assistantMsg.id);
