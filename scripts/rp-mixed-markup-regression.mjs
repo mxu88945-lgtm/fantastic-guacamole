@@ -19,7 +19,7 @@ const opening = `<scene>清晨 · 中央公园公寓主卧</scene>\r\n\r\n${para
 const display = context.roleplayRegexDisplay(opening);
 assert.equal(context.looksLikeRoleplayRichHtml(display), true);
 const normalized = context.normalizeRoleplayMixedMarkup(display);
-assert.ok((normalized.match(/class="rp-mixed-paragraph"/g) || []).length >= 4);
+assert.equal((normalized.match(/class="rp-mixed-paragraph"/g) || []).length, 3, "mixed markup must preserve the three prose paragraphs without splitting the long first paragraph");
 assert.ok(normalized.includes('<span class="chat-quote">"还不醒？"</span>'));
 assert.ok(normalized.includes('<span class="chat-quote">“再陪我一会儿。”</span>'));
 assert.ok(normalized.includes('<div class="weijing-workshop-scene" style="white-space:pre-wrap">清晨 · 中央公园公寓主卧</div>'));

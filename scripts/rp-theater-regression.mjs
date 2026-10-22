@@ -161,7 +161,7 @@ ok(sourceContext.splitRoleplayHtmlFences(playerPage) === null, 'standalone HTML 
 vm.runInContext(html.slice(html.indexOf('function renderMarkdown('), html.indexOf('// ---------- Rendering messages ----------')), sourceContext);
 const denseStory = '六月的晨光透过窗帘，落在床边。'.repeat(30) + '他说：“先别走。再陪我一会儿。”她轻轻点了点头。';
 const visualStory = sourceContext.renderRoleplayStoryText(denseStory);
-ok((visualStory.match(/<p>/g) || []).length > 3, 'dense Chinese openings must become readable visual paragraphs');
+ok((visualStory.match(/<p>/g) || []).length === 1, 'dense Chinese story lines must stay intact just like main-chat lines');
 ok(visualStory.includes('class="chat-quote">“先别走。再陪我一会儿。”</span>'), 'sentence punctuation inside speech must not split its bubble');
 ok(sourceContext.renderRoleplayStoryText('他说:"还不醒？"').includes('class="chat-quote">"还不醒？"</span>'), 'straight-quoted speech must receive the same bubble');
 ok(sourceContext.renderMarkdown('他说:"还不醒？"').includes('他说:"还不醒？"'), 'owner chat must keep its existing quote behavior');
@@ -169,6 +169,10 @@ const fencedCode = '```js\n' + 'const quote = "原样保留。";\n'.repeat(12) +
 ok(sourceContext.roleplayStoryParagraphs(fencedCode) === fencedCode, 'code fences must never be auto-paragraphed');
 const existingParagraphs = '第一段。\n\n第二段。';
 ok(sourceContext.roleplayStoryParagraphs(existingParagraphs) === existingParagraphs, 'explicit paragraph breaks must remain intact');
+const longStoryLine = '这是一整行没有主动换段的剧情正文。'.repeat(16);
+ok(sourceContext.roleplayStoryParagraphs(longStoryLine) === longStoryLine, 'RP display must not invent extra paragraphs inside a long model line');
+ok(css.includes('.rp-story-text {') && css.includes('line-height: inherit;') && css.includes('.rp-story-text > p { margin: 0 0 14px; }'), 'RP story spacing must match the main chat rhythm');
+ok(html.includes('.rp-mixed-paragraph{display:block;margin:0 0 14px;') && html.includes('line-height:1.7;white-space:normal'), 'mixed RP markup paragraphs must match the main chat rhythm');
 ok(!sourceContext.renderRoleplayStoryText('<img src=x onerror=alert(1)>').includes('<img'), 'plain story text must remain HTML-escaped');
 const displayContext = vm.createContext({ safeText: value => String(value || ''), applyRegexRules: () => fencedOpening });
 vm.runInContext(js.slice(js.indexOf('function richGreetingSource('), js.indexOf('function isCorruptedGreeting(')), displayContext);
