@@ -266,8 +266,18 @@ ok(await cardContext.zipCardJsonFromBytes(buildZip([{ name: 'card.json', data: c
 ok(await cardContext.zipCardJsonFromBytes(buildZip([{ name: 'meta.json', data: Buffer.from('{"version":1}', 'utf8'), method: 0 }, { name: 'card.json', data: cardBytes, method: 0 }])) === cardJsonText, 'ZIP import must prefer the entry that actually looks like a card');
 ok(await cardContext.zipCardJsonFromBytes(buildZip([{ name: 'notes.txt', data: Buffer.from('hello', 'utf8'), method: 0 }])) === null, 'a ZIP without a card JSON must yield nothing');
 ok(html.includes('removeCard: removeRoleplayCard') && html.includes('roleplayCardLibraryDeleted'), 'role library must expose a saved-card removal that survives reloads');
-ok(js.includes('data-rp-delete-saved-card') && js.includes('bridge.removeCard'), 'saved role cards in the library grid must have a delete action');
-ok(css.includes('.rp-role-delete'), 'saved role card delete action must be styled');
+ok(js.includes('rp-role-manage') && js.includes('rp-role-search') && js.includes('rp-role-bulk'), 'role library must have a manage button, a search box and a bulk toolbar');
+ok(js.includes('rp-role-select-all') && js.includes('rp-role-delete-selected') && js.includes('已选 '), 'role library manage mode must offer select-all, a selected count and batch delete');
+ok(!js.slice(js.indexOf('rp-role-bulk'), js.indexOf('rp-role-bulk') + 400).includes('分组'), 'role library bulk toolbar must not offer grouping (the port has no card groups)');
+ok(js.includes('rp-role-row-main') && js.includes('rp-role-badge') && js.includes('rp-role-source') && js.includes('rp-role-more'), 'role library rows must carry a badge, a source剧本 and a ••• menu button');
+ok(js.includes('rp-role-select') && js.includes('选择角色') && js.includes('已选择 '), 'role library manage mode must show selection circles and a selected-characters title');
+ok(js.includes('角色操作') && js.includes('编辑角色卡') && js.includes('复制角色') && js.includes('导出 Character Card V3 JSON') && js.includes('删除角色及相关数据'), 'role ••• sheet must offer edit, duplicate, V3 export and delete');
+ok(js.includes('· 副本') && js.includes('bridge.create(draft)') && js.includes('groupEnabled: false'), 'duplicating a role must create a standalone copy named “· 副本”');
+ok(js.includes('chara_card_v3') && js.includes('-character-card-v3.json') && js.includes('character_book'), 'role export must produce a Character Card V3 JSON download');
+ok(js.includes('bridge.removeCard') && js.includes('card.sourceId') && js.includes('card.memberId'), 'role delete must clean saved cards by source conversation and member, not by name');
+ok(js.includes('deleteSelectedRoles') && js.includes('等 ') && js.includes('个角色'), 'batch role delete must confirm with a name preview and a count');
+ok(css.includes('.rp-role-list') && css.includes('.rp-role-row') && css.includes('.rp-role-sheet'), 'role library rows and action sheet must be styled');
+ok(css.includes('.rp-role-select') && css.includes('.rp-role-bulk'), 'role library selection circles and bulk toolbar must be styled');
 const mergeContext = vm.createContext({ roleplayCardLibrary: [], roleplayCardLibraryDeleted: ['gone'], roleplayCardTemplate: (project) => project || {} });
 vm.runInContext(html.slice(html.indexOf('function mergeRoleplayCardLibrary('), html.indexOf('function persistRoleplayCardLibrary(')), mergeContext);
 mergeContext.mergeRoleplayCardLibrary([

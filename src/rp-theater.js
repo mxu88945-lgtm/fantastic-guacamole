@@ -6,7 +6,10 @@ if (!bridge) {
   console.error("RP theater bridge is unavailable");
 } else {
   const $ = (id) => document.getElementById(id);
-  const state = { editingId: "", detailId: "", detailMemberId: "lead", librarySection: "hub", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {} };
+  const state = { editingId: "", detailId: "", detailMemberId: "lead", librarySection: "hub", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {}, roleManage: false, roleQuery: "", roleSelected: [] };
+  // 角色库行索引：行键 → 角色条目（每次 render 重建，供 ••• 菜单与批量操作查条目）
+  const roleRowMap = new Map();
+  let roleSheetEntry = null;
   const openingState = { projectId: "", index: 0, expandedIndex: null, forceNew: true };
 
   function safeText(value, max = 200000) {
@@ -308,9 +311,11 @@ function plainPreviewWithMedia(value) {
               <div class="rp-empty" id="rp-project-empty" hidden><span>◇</span><strong>还没有剧本</strong><p>新建一部，或直接导入惟镜使用的 JSON／文本角色卡。</p><button type="button" id="rp-empty-create">创建第一个剧本</button></div>
             </section>
             <section id="rp-roles-view" hidden>
-              <div class="rp-section-title"><div><strong>角色库</strong><small id="rp-role-count">0 张角色卡</small></div><button type="button" data-rp-space="hub">返回分类</button></div>
+              <div class="rp-section-title"><div><strong id="rp-role-title">角色库</strong><small id="rp-role-count">0 张角色卡</small></div><div class="rp-section-actions"><button type="button" id="rp-role-manage">管理</button><button type="button" id="rp-roles-back">返回分类</button></div></div>
               <p class="rp-library-note">这里汇总所有剧本里的主角、共演角色和导演卡。点开即可查看对应的人设、世界书、正则与开场白。</p>
-              <div class="rp-role-grid" id="rp-role-list"></div>
+              <div class="rp-role-search"><span>⌕</span><input id="rp-role-query" type="text" placeholder="搜索名字、标签或简介" autocomplete="off" /><button type="button" id="rp-role-query-clear" hidden>×</button></div>
+              <div class="rp-role-bulk" id="rp-role-bulk" hidden><button type="button" id="rp-role-select-all">全选</button><span id="rp-role-selected">已选 0</span><button type="button" class="danger" id="rp-role-delete-selected">删除所选</button></div>
+              <div class="rp-role-list" id="rp-role-list"></div>
               <div class="rp-empty" id="rp-role-empty" hidden><span>♧</span><strong>角色库还是空的</strong><p>导入或新建剧本后，角色会自动留存在这里，移出共演或删除剧本也会保留角色卡。</p></div>
             </section>
           </section>
@@ -817,6 +822,201 @@ function plainPreviewWithMedia(value) {
     return [...groups.values()].map(group => ({ ...group, sessions: group.sessions.sort((a, b) => b.updatedAt - a.updatedAt) }));
   }
 
+  // 角色库行键：与 roleLibraryEntries 去重键一致，同一角色在不同渲染里是同一行
+  function roleEntryKey(entry) {
+    const member = entry.member || {};
+    return JSON.stringify([
+      member.kind === "director" ? "director" : "actor",
+      String(member.name || "").trim().toLowerCase(),
+      String(member.prompt || "").replace(/\r\n?/g, "\n").trim(),
+    ]);
+  }
+
+  function roleEntryGreetings(entry) {
+    if (entry.savedCardId) {
+      const card = bridge.savedCards?.().find((item) => item.id === entry.savedCardId);
+      return card ? greetingList(card.rpProject || {}) : [];
+    }
+    if (entry.member.id === "lead") return greetingList(bridge.get(entry.project.id)?.rpProject || {});
+    return entry.member.greetings || [];
+  }
+
+  function openRoleEntry(entry) {
+    if (entry.savedCardId) {
+      if (!confirm("用这张已留存的角色卡新建剧本？原对话和原剧本不会改动。")) return;
+      const restored = bridge.restoreCard(entry.savedCardId);
+      if (restored) { bridge.toast("角色卡已恢复为新剧本"); showDetail(restored.id); }
+      return;
+    }
+    showDetail(entry.project.id, entry.member.id);
+  }
+
+  function toggleRoleSelect(key) {
+    state.roleSelected = state.roleSelected.includes(key)
+      ? state.roleSelected.filter((item) => item !== key)
+      : [...state.roleSelected, key];
+    render();
+  }
+
+  function editRoleEntry(entry) {
+    if (entry.savedCardId) {
+      const restored = bridge.restoreCard(entry.savedCardId);
+      if (restored) showEditor(restored, "main");
+      return;
+    }
+    if (entry.member.id === "lead") {
+      const project = bridge.get(entry.project.id);
+      if (project) showEditor(project, "main");
+      return;
+    }
+    showDetail(entry.project.id, entry.member.id);
+  }
+
+  function draftFromRpProject(rp, copyName) {
+    const greetings = greetingList(rp);
+    return { title: `${copyName} · 角色卡`, actorName: copyName, actorAvatar: rp.actorAvatar || "", characterPrompt: rp.characterPrompt || "", description: rp.description || "", scenario: rp.scenario || "", world: rp.world || "", worldEntries: rp.worldEntries || [], tags: rp.tags || [], regexRules: rp.regexRules || [], greetings, opening: greetings[0] || "", members: [], groupEnabled: false };
+  }
+
+  function duplicateRoleEntry(entry) {
+    const copyName = `${entry.member.name || "未命名角色"} · 副本`;
+    let draft;
+    if (entry.savedCardId) {
+      const card = bridge.savedCards?.().find((item) => item.id === entry.savedCardId);
+      draft = draftFromRpProject(card?.rpProject || {}, copyName);
+    } else if (entry.member.id === "lead") {
+      draft = draftFromRpProject(bridge.get(entry.project.id)?.rpProject || {}, copyName);
+    } else {
+      const member = entry.member;
+      draft = { title: `${copyName} · 角色卡`, actorName: copyName, actorAvatar: member.avatar || "", characterPrompt: member.prompt || "", greetings: member.greetings || [], opening: (member.greetings || [])[0] || "", regexRules: member.regexRules || [], members: [], groupEnabled: false };
+    }
+    const created = bridge.create(draft);
+    if (!created) { bridge.toast("复制失败，请重试"); return null; }
+    bridge.toast(`已复制为「${copyName}」`);
+    return created;
+  }
+
+  // 删除一条角色：已留存卡只删卡；主角连同整部剧本的历史对话一起删；共演成员只移出共演。
+  // 清理只按来源（会话 id＋成员 id）删留存卡，不按名字删，避免误删别的剧本里同名角色的卡。
+  function deleteRoleEntry(entry, silent = false) {
+    const { project, member, savedCardId } = entry;
+    const name = member.name || "未命名角色";
+    if (savedCardId) {
+      if (!silent && !confirm(`删除已留存的角色卡「${name}」？只删库里的这张卡，不会影响任何剧本和对话。`)) return false;
+      if (bridge.removeCard?.(savedCardId)) { if (!silent) bridge.toast("已删除这张角色卡"); return true; }
+      return false;
+    }
+    if (member.id === "lead") {
+      const groups = projectGroups(bridge.list());
+      const group = groups.find((item) => item.sessions.some((session) => session.id === project.id));
+      const sessions = group ? group.sessions : [project];
+      if (!silent && !confirm(`删除角色「${name}」？这会连同「${project.title || "未命名剧本"}」这部剧本的全部 ${sessions.length} 段历史对话一起删掉，库里已留存的同名角色卡也会一并删掉。此操作无法撤销。`)) return false;
+      const sessionIds = new Set(sessions.map((session) => session.id));
+      sessions.forEach((session) => bridge.remove(session.id));
+      bridge.savedCards?.().forEach((card) => {
+        if (sessionIds.has(card.sourceId) && card.memberId === "lead") bridge.removeCard?.(card.id);
+      });
+      if (!silent) bridge.toast(`已删除「${name}」及这部剧本`);
+      return true;
+    }
+    const full = bridge.get(project.id);
+    if (!full) return false;
+    if (!silent && !confirm(`把「${name}」从「${project.title || "未命名剧本"}」的共演里移出，并删掉库里已留存的同名角色卡？剧本正文和对话不受影响。`)) return false;
+    const members = (full.rpProject?.members || []).filter((item) => (item.id || item.name) !== member.id);
+    bridge.update(project.id, { members });
+    bridge.savedCards?.().forEach((card) => {
+      if (card.sourceId === project.id && card.memberId === member.id) bridge.removeCard?.(card.id);
+    });
+    if (!silent) bridge.toast(`已把「${name}」移出共演`);
+    return true;
+  }
+
+  function deleteSelectedRoles(allRoles) {
+    const selected = allRoles.filter((entry) => state.roleSelected.includes(roleEntryKey(entry)));
+    if (!selected.length) return;
+    const preview = selected.slice(0, 3).map((entry) => `“${entry.member.name || "未命名角色"}”`).join("、");
+    const remaining = selected.length > 3 ? `等 ${selected.length} 个角色` : "";
+    if (!confirm(`删除${preview}${remaining}以及相关的全部对话、记忆和角色卡？此操作无法撤销。`)) return;
+    // 先清共演成员、再清主角整部剧本、最后清已留存卡：同部剧本的主角和成员一起选时，成员的卡也不会漏
+    let done = 0;
+    selected.filter((entry) => !entry.savedCardId && entry.member.id !== "lead").forEach((entry) => { if (deleteRoleEntry(entry, true)) done += 1; });
+    selected.filter((entry) => !entry.savedCardId && entry.member.id === "lead").forEach((entry) => { if (deleteRoleEntry(entry, true)) done += 1; });
+    selected.filter((entry) => entry.savedCardId).forEach((entry) => { if (deleteRoleEntry(entry, true)) done += 1; });
+    state.roleManage = false; state.roleSelected = [];
+    bridge.toast(done ? `已删除 ${done} 张角色卡` : "没有删掉任何角色卡");
+    render();
+  }
+
+  function roleExportSource(entry) {
+    if (entry.savedCardId) {
+      const card = bridge.savedCards?.().find((item) => item.id === entry.savedCardId);
+      const rp = card?.rpProject || {};
+      return { name: rp.actorName || entry.member.name, prompt: rp.characterPrompt || "", description: rp.description || "", scenario: rp.scenario || "", tags: rp.tags || [], greetings: greetingList(rp), worldEntries: rp.worldEntries || [], regexRules: rp.regexRules || [] };
+    }
+    if (entry.member.id === "lead") {
+      const rp = bridge.get(entry.project.id)?.rpProject || {};
+      return { name: rp.actorName || entry.member.name, prompt: rp.characterPrompt || "", description: rp.description || "", scenario: rp.scenario || "", tags: rp.tags || [], greetings: greetingList(rp), worldEntries: rp.worldEntries || [], regexRules: rp.regexRules || [] };
+    }
+    const member = entry.member;
+    return { name: member.name, prompt: member.prompt || "", description: member.description || "", scenario: "", tags: [], greetings: member.greetings || [], worldEntries: member.worldEntries || [], regexRules: member.regexRules || [] };
+  }
+
+  function exportRoleV3(entry) {
+    const src = roleExportSource(entry);
+    const name = src.name || "未命名角色";
+    const payload = { spec: "chara_card_v3", spec_version: "3.0", data: {
+      name, description: src.description || src.prompt, personality: "", scenario: src.scenario,
+      first_mes: src.greetings[0] || "", alternate_greetings: src.greetings.slice(1),
+      mes_example: "", creator_notes: "", system_prompt: "", post_history_instructions: "",
+      tags: src.tags, creator: "", character_version: "",
+      character_book: { entries: src.worldEntries.map((item) => ({ keys: item.keys || [], secondary_keys: item.secondaryKeys || [], content: item.content || "", enabled: item.enabled !== false, constant: !!item.constant, selective: !!item.selective, comment: item.title || "", position: item.position || "before_char", insertion_order: item.insertionOrder ?? 100, extensions: { depth: item.depth ?? 4, probability: item.probability ?? 100 } })) },
+      extensions: { regex_scripts: src.regexRules.map((rule) => ({ scriptName: rule.name || "", findRegex: rule.findRegex || "", replaceString: rule.replaceString || "" })) },
+    } };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${name}-character-card-v3.json`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    bridge.toast("已导出 Character Card V3 JSON");
+  }
+
+  function roleSheetLayer() {
+    let layer = $("rp-role-sheet-layer");
+    if (!layer) {
+      layer = document.createElement("div");
+      layer.id = "rp-role-sheet-layer";
+      layer.className = "rp-role-sheet-layer";
+      layer.hidden = true;
+      document.body.appendChild(layer);
+    }
+    return layer;
+  }
+
+  function closeRoleSheet() {
+    const layer = $("rp-role-sheet-layer");
+    if (layer) layer.hidden = true;
+    roleSheetEntry = null;
+  }
+
+  function openRoleSheet(entry) {
+    roleSheetEntry = entry;
+    const layer = roleSheetLayer();
+    const name = entry.member.name || "未命名角色";
+    layer.innerHTML = `<button type="button" class="rp-sheet-backdrop" aria-label="关闭角色菜单"></button><section class="rp-role-sheet"><header><div><small>角色操作</small><strong>${escapeHtml(name)}</strong></div><button type="button" class="rp-sheet-close">×</button></header><button type="button" data-rp-sheet-action="edit">编辑角色卡</button><button type="button" data-rp-sheet-action="duplicate">复制角色</button><button type="button" data-rp-sheet-action="export">导出 Character Card V3 JSON</button><button type="button" class="danger" data-rp-sheet-action="delete">删除角色及相关数据</button></section>`;
+    layer.hidden = false;
+    layer.querySelector(".rp-sheet-backdrop").onclick = closeRoleSheet;
+    layer.querySelector(".rp-sheet-close").onclick = closeRoleSheet;
+    layer.querySelectorAll("[data-rp-sheet-action]").forEach((button) => button.addEventListener("click", () => {
+      const current = roleSheetEntry;
+      const action = button.dataset.rpSheetAction;
+      closeRoleSheet();
+      if (!current) return;
+      if (action === "edit") editRoleEntry(current);
+      else if (action === "duplicate") { if (duplicateRoleEntry(current)) render(); }
+      else if (action === "export") exportRoleV3(current);
+      else if (action === "delete") { if (deleteRoleEntry(current)) render(); }
+    }));
+  }
+
   function render() {
     const info = bridge.role();
     const projects = bridge.list();
@@ -854,31 +1054,63 @@ function plainPreviewWithMedia(value) {
       bridge.remove(project.id);
       render();
     }));
-    const roles = roleLibraryEntries(projects, bridge.savedCards?.() || []);
-    $("rp-hub-role-count").textContent = `${roles.length} 张角色卡`;
-    $("rp-role-count").textContent = `${roles.length} 张角色卡`;
+    const allRoles = roleLibraryEntries(projects, bridge.savedCards?.() || []);
+    // 剪掉已不存在的行的旧选中键（比如管理中途有角色被改了人设，行键变了）
+    state.roleSelected = state.roleSelected.filter((key) => allRoles.some((entry) => roleEntryKey(entry) === key));
+    const roleQuery = (state.roleQuery || "").trim().toLowerCase();
+    const roles = !roleQuery ? allRoles : allRoles.filter(({ member }) =>
+      [member.name || "", ...(member.tags || []), member.description || member.prompt || ""].join("\n").toLowerCase().includes(roleQuery));
+    $("rp-hub-role-count").textContent = `${allRoles.length} 张角色卡`;
+    $("rp-role-title").textContent = state.roleManage ? "选择角色" : "角色库";
+    $("rp-role-count").textContent = state.roleManage ? `已选择 ${state.roleSelected.length} 个角色` : `${allRoles.length} 张角色卡`;
+    $("rp-role-manage").textContent = state.roleManage ? "完成" : "管理";
+    $("rp-role-bulk").hidden = !state.roleManage;
+    $("rp-role-query-clear").hidden = !state.roleQuery;
+    const allFilteredSelected = roles.length > 0 && roles.every((entry) => state.roleSelected.includes(roleEntryKey(entry)));
+    $("rp-role-select-all").textContent = allFilteredSelected ? "取消全选" : roleQuery ? "全选结果" : "全选";
+    $("rp-role-select-all").disabled = roles.length === 0;
+    $("rp-role-selected").textContent = `已选 ${state.roleSelected.length}`;
+    $("rp-role-delete-selected").disabled = state.roleSelected.length === 0;
     $("rp-role-empty").hidden = roles.length > 0;
+    $("rp-role-empty").querySelector("strong").textContent = roleQuery ? "没有找到匹配的角色" : "角色库还是空的";
+    $("rp-role-manage").onclick = () => { state.roleManage = !state.roleManage; state.roleSelected = []; render(); };
+    $("rp-roles-back").onclick = () => {
+      if (state.roleManage) { state.roleManage = false; state.roleSelected = []; render(); return; }
+      setLibrarySection("hub");
+    };
+    $("rp-role-query").oninput = (event) => { state.roleQuery = event.target.value; render(); };
+    $("rp-role-query-clear").onclick = () => { state.roleQuery = ""; $("rp-role-query").value = ""; render(); };
+    $("rp-role-select-all").onclick = () => {
+      const keys = roles.map((entry) => roleEntryKey(entry));
+      state.roleSelected = allFilteredSelected ? state.roleSelected.filter((key) => !keys.includes(key)) : [...new Set([...state.roleSelected, ...keys])];
+      render();
+    };
+    $("rp-role-delete-selected").onclick = () => deleteSelectedRoles(allRoles);
     const roleList = $("rp-role-list");
-    roleList.innerHTML = roles.map(({ project, member, savedCardId }) => {
+    roleList.innerHTML = roles.map((entry, index) => {
+      const { project, member, savedCardId } = entry;
+      const key = roleEntryKey(entry);
       const avatar = /^(https?:\/\/|data:image\/)/.test(member.avatar || "") ? member.avatar : "";
-      const kind = member.id === "lead" ? "剧本主角" : member.kind === "director" ? "共演导演" : "共演角色";
+      const badge = savedCardId ? "已留存角色卡" : member.id === "lead" ? "剧本主角" : member.kind === "director" ? "共演导演" : "共演角色";
       const desc = plainPreview(member.description || member.prompt || "") || "暂无角色简介";
-      const action = savedCardId ? `data-rp-saved-card="${escapeHtml(savedCardId)}"` : `data-rp-role-project="${escapeHtml(project.id)}" data-rp-role-member="${escapeHtml(member.id)}"`;
-      const cardButton = `<button type="button" class="rp-role-card" ${action}><span class="rp-role-avatar">${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml([...(member.name || "角")][0])}</span><span class="rp-role-copy"><small>${savedCardId ? "已留存角色卡" : escapeHtml(kind)} · ${escapeHtml(project.title || "未命名剧本")}</small><strong>${escapeHtml(member.name || "未命名角色")}</strong><em>${escapeHtml(desc.slice(0, 80))}${desc.length > 80 ? "…" : ""}</em></span><i>›</i></button>`;
-      if (!savedCardId) return cardButton;
-      return `<div class="rp-role-card-wrap">${cardButton}<button type="button" class="rp-role-delete" data-rp-delete-saved-card="${escapeHtml(savedCardId)}" data-rp-delete-saved-name="${escapeHtml(member.name || "未命名角色")}">删除</button></div>`;
+      const quote = roleEntryGreetings(entry).find((text) => text.trim());
+      const selected = state.roleManage && state.roleSelected.includes(key);
+      const source = savedCardId ? "" : `来自《${project.title || "未命名剧本"}》`;
+      return `<div class="rp-role-row${selected ? " selected" : ""}"><button type="button" class="rp-role-row-main" data-rp-role-row="${index}"><span class="rp-role-avatar">${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml([...(member.name || "角")][0])}</span><span class="rp-role-copy"><span class="rp-role-title"><strong>${escapeHtml(member.name || "未命名角色")}</strong><span class="rp-role-badge">${escapeHtml(badge)}</span>${source ? `<span class="rp-role-source">${escapeHtml(source)}</span>` : ""}</span><em>${escapeHtml(desc)}</em>${quote ? `<small>“${escapeHtml(plainPreview(quote))}”</small>` : ""}</span></button>${state.roleManage ? `<button type="button" class="rp-role-select${selected ? " selected" : ""}" aria-label="${selected ? "取消选择" : "选择"}${escapeHtml(member.name || "角色")}" data-rp-role-select="${index}">${selected ? "✓" : ""}</button>` : `<button type="button" class="rp-role-more" aria-label="管理${escapeHtml(member.name || "角色")}" data-rp-role-more="${index}">•••</button>`}</div>`;
     }).join("");
-    roleList.querySelectorAll("[data-rp-role-project]").forEach((button) => button.addEventListener("click", () => showDetail(button.dataset.rpRoleProject, button.dataset.rpRoleMember)));
-    roleList.querySelectorAll("[data-rp-saved-card]").forEach(button => button.addEventListener("click", () => {
-      if (!confirm("用这张已留存的角色卡新建剧本？原对话和原剧本不会改动。")) return;
-      const restored = bridge.restoreCard(button.dataset.rpSavedCard);
-      if (restored) { bridge.toast("角色卡已恢复为新剧本"); showDetail(restored.id); }
+    roleList.querySelectorAll("[data-rp-role-row]").forEach((button) => button.addEventListener("click", () => {
+      const entry = roles[Number(button.dataset.rpRoleRow)];
+      if (!entry) return;
+      if (state.roleManage) { toggleRoleSelect(roleEntryKey(entry)); return; }
+      openRoleEntry(entry);
     }));
-    roleList.querySelectorAll("[data-rp-delete-saved-card]").forEach(button => button.addEventListener("click", () => {
-      const name = button.dataset.rpDeleteSavedName || "这张角色卡";
-      if (!confirm(`删除已留存的角色卡「${name}」？只删库里的这张卡，不会影响任何剧本和对话。`)) return;
-      if (bridge.removeCard?.(button.dataset.rpDeleteSavedCard)) { bridge.toast("已删除这张角色卡"); render(); }
-      else render();
+    roleList.querySelectorAll("[data-rp-role-select]").forEach((button) => button.addEventListener("click", () => {
+      const entry = roles[Number(button.dataset.rpRoleSelect)];
+      if (entry) toggleRoleSelect(roleEntryKey(entry));
+    }));
+    roleList.querySelectorAll("[data-rp-role-more]").forEach((button) => button.addEventListener("click", () => {
+      const entry = roles[Number(button.dataset.rpRoleMore)];
+      if (entry) openRoleSheet(entry);
     }));
   }
 
@@ -894,6 +1126,8 @@ function plainPreviewWithMedia(value) {
     $("rp-theater-panel").classList.remove("open");
     $("rp-theater-panel").hidden = true;
     document.body.classList.remove("rp-theater-open");
+    state.roleManage = false; state.roleSelected = [];
+    closeRoleSheet();
   }
 
   function enter(id) {
