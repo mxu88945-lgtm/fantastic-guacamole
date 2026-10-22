@@ -9447,6 +9447,22 @@ async function responseErrorDetail(resp) {
   try { return await resp.text(); }
   catch (e) { return ""; }
 }
+function chatRequestError(status, detail, route, apiKey) {
+  let text = String(detail || "");
+  try {
+    const data = JSON.parse(text);
+    const value = data.error?.message || data.error?.detail || data.message || data.detail || data.error;
+    if (value) text = typeof value === "string" ? value : JSON.stringify(value);
+  } catch (_) {}
+  if (apiKey) text = text.split(apiKey).join("[密钥已隐藏]");
+  text = text.replace(/Bearer\s+[^\s"<>]+/gi, "Bearer [密钥已隐藏]")
+    .replace(/sk-[a-zA-Z0-9_-]+/g, "[密钥已隐藏]")
+    .replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const label = ({ 429: "请求限流或额度限制", 500: "服务端处理失败", 502: "上游网关错误",
+    503: "服务暂不可用", 504: "上游响应超时" })[status] || "接口请求失败";
+  return `${label}（HTTP ${status}）｜${route}`
+    + `｜${text ? text.slice(0, 360) : "接口未提供错误详情"}`;
+}
 
 function completionContentText(value) {
   if (typeof value === "string") return value;
@@ -9558,6 +9574,10 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   const isGemini = settings.provider === "gemini";
   const base = (settings.baseUrl || DEFAULTS[settings.provider].baseUrl).replace(/\/$/, "");
   const model = requestSettings?.model || conversationModel();
+  const routeProfile = requestSettings
+    ? providerById(speaker?.providerId) || conversationProvider()
+    : conversationProvider();
+  const requestRoute = [activeSpeaker?.name, routeProfile?.name || "当前接口", model].filter(Boolean).join(" / ");
   const reasoningEffort = conversationReasoningEffort();
   const historyWindow = buildApiHistoryWindow();
   if (independent) historyWindow.messages = historyWindow.messages.map(message => message.role === "assistant" && !message.rpSpeakerName
@@ -9861,6 +9881,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     });
     if (resp.ok) { headersAt = performance.now(); break; }
     lastDetail = await responseErrorDetail(resp);
+    const requestError = chatRequestError(resp.status, lastDetail, requestRoute, settings.apiKey);
     // Compatibility fallback: a nominally OpenAI-compatible relay may not
     // implement the reasoning option. Retry once without it; successful Claude
     // routes keep the structured split, unrelated channels remain unaffected.
@@ -9888,15 +9909,20 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     }
     if (TRANSIENT.has(resp.status) && attempt < MAX_ATTEMPTS) {
       const wait = attempt * 1500; // 1.5s, then 3s
-      showToast(`接口繁忙(${resp.status})，${wait/1000}秒后自动重试…(${attempt}/${MAX_ATTEMPTS - 1})`, wait + 400);
+      showError(requestError + `｜正在重试（${attempt}/${MAX_ATTEMPTS - 1}）`);
+      showToast(`HTTP ${resp.status} · ${requestRoute}，${wait/1000}秒后重试（${attempt}/${MAX_ATTEMPTS - 1}）`, wait + 400);
       await new Promise((res, rej) => {
         const t = setTimeout(res, wait);
         abortController.signal.addEventListener("abort", () => { clearTimeout(t); rej(new DOMException("Aborted", "AbortError")); }, { once: true });
       });
       continue;
     }
-    throw new Error(`HTTP ${resp.status} — ${lastDetail.slice(0, 400)}`);
+    throw new Error(requestError);
   }
+  // A final compatibility retry can exhaust the loop without a successful
+  // response. Never try to parse its already-consumed error body as a stream.
+  if (!resp?.ok) throw new Error(chatRequestError(resp?.status || 0, lastDetail, requestRoute, settings.apiKey));
+  clearError();
 
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
