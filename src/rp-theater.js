@@ -864,13 +864,21 @@ function plainPreviewWithMedia(value) {
       const kind = member.id === "lead" ? "剧本主角" : member.kind === "director" ? "共演导演" : "共演角色";
       const desc = plainPreview(member.description || member.prompt || "") || "暂无角色简介";
       const action = savedCardId ? `data-rp-saved-card="${escapeHtml(savedCardId)}"` : `data-rp-role-project="${escapeHtml(project.id)}" data-rp-role-member="${escapeHtml(member.id)}"`;
-      return `<button type="button" class="rp-role-card" ${action}><span class="rp-role-avatar">${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml([...(member.name || "角")][0])}</span><span class="rp-role-copy"><small>${savedCardId ? "已留存角色卡" : escapeHtml(kind)} · ${escapeHtml(project.title || "未命名剧本")}</small><strong>${escapeHtml(member.name || "未命名角色")}</strong><em>${escapeHtml(desc.slice(0, 80))}${desc.length > 80 ? "…" : ""}</em></span><i>›</i></button>`;
+      const cardButton = `<button type="button" class="rp-role-card" ${action}><span class="rp-role-avatar">${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml([...(member.name || "角")][0])}</span><span class="rp-role-copy"><small>${savedCardId ? "已留存角色卡" : escapeHtml(kind)} · ${escapeHtml(project.title || "未命名剧本")}</small><strong>${escapeHtml(member.name || "未命名角色")}</strong><em>${escapeHtml(desc.slice(0, 80))}${desc.length > 80 ? "…" : ""}</em></span><i>›</i></button>`;
+      if (!savedCardId) return cardButton;
+      return `<div class="rp-role-card-wrap">${cardButton}<button type="button" class="rp-role-delete" data-rp-delete-saved-card="${escapeHtml(savedCardId)}" data-rp-delete-saved-name="${escapeHtml(member.name || "未命名角色")}">删除</button></div>`;
     }).join("");
     roleList.querySelectorAll("[data-rp-role-project]").forEach((button) => button.addEventListener("click", () => showDetail(button.dataset.rpRoleProject, button.dataset.rpRoleMember)));
     roleList.querySelectorAll("[data-rp-saved-card]").forEach(button => button.addEventListener("click", () => {
       if (!confirm("用这张已留存的角色卡新建剧本？原对话和原剧本不会改动。")) return;
       const restored = bridge.restoreCard(button.dataset.rpSavedCard);
       if (restored) { bridge.toast("角色卡已恢复为新剧本"); showDetail(restored.id); }
+    }));
+    roleList.querySelectorAll("[data-rp-delete-saved-card]").forEach(button => button.addEventListener("click", () => {
+      const name = button.dataset.rpDeleteSavedName || "这张角色卡";
+      if (!confirm(`删除已留存的角色卡「${name}」？只删库里的这张卡，不会影响任何剧本和对话。`)) return;
+      if (bridge.removeCard?.(button.dataset.rpDeleteSavedCard)) { bridge.toast("已删除这张角色卡"); render(); }
+      else render();
     }));
   }
 

@@ -4517,6 +4517,7 @@ const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "reminderEnabled","companionFeaturesV1"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let roleplayCardLibrary = [];
+let roleplayCardLibraryDeleted = [];
 let roleplayCardWriteQueue = Promise.resolve();
 let currentId = null;
 let messages = [];      // live reference to current conversation's messages
@@ -4820,6 +4821,11 @@ async function loadState() {
   for (const c of conversations) for (const m of c.messages) if (!m.id) m.id = uid();
   try { mergeRoleplayCardLibrary(await dbGet("roleplayCardLibrary")); }
   catch (error) { console.warn("role card library load failed", error); }
+  try {
+    const deletedCardIds = await dbGet("roleplayCardLibraryDeleted");
+    if (Array.isArray(deletedCardIds)) roleplayCardLibraryDeleted = deletedCardIds.filter(id => typeof id === "string").slice(0, 1000);
+  }
+  catch (error) { console.warn("role card delete list load failed", error); }
   rememberRoleplayCards(Array.isArray(legacyRoleplaySource) ? legacyRoleplaySource : []);
   rememberRoleplayCards(conversations);
   saveSettings();
@@ -16174,6 +16180,7 @@ function mergeRoleplayCardLibrary(items) {
   let changed = false;
   for (const item of items) {
     if (!item?.id || !item.ownerRoleId || !item.rpProject?.actorName) continue;
+    if (roleplayCardLibraryDeleted.includes(String(item.id))) continue;
     const clean = { id: String(item.id), ownerRoleId: String(item.ownerRoleId),
       sourceId: String(item.sourceId || ""), memberId: String(item.memberId || "lead"),
       sourceTitle: String(item.sourceTitle || "").slice(0, 80),
@@ -16207,6 +16214,7 @@ function rememberRoleplayCards(source = conversations) {
       if (!String(member.name || "").trim() || (!String(member.prompt || "").trim() && member.id !== "lead")) continue;
       const template = roleplayCardTemplate(project, member.id === "lead" ? null : member);
       const id = JSON.stringify([ownerRoleId, conv.id, member.id, member.name]);
+      if (roleplayCardLibraryDeleted.includes(id)) continue;
       const previous = roleplayCardLibrary.find(card => card.id === id);
       const sourceTitle = String(conv.title || project.title || "").slice(0, 80);
       const updatedAt = Number(conv.updatedAt) || Date.now();
@@ -16242,6 +16250,16 @@ function restoreRoleplayCard(id) {
   window.dispatchEvent(new CustomEvent("jyc:roleplay-updated"));
   window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
   return roleplayPublicProject(conv);
+}
+function removeRoleplayCard(id) {
+  const card = roleplayCardLibrary.find(item => item.id === id && item.ownerRoleId === settings.activeRoleId);
+  if (!card) return false;
+  roleplayCardLibrary = roleplayCardLibrary.filter(item => item.id !== id);
+  if (!roleplayCardLibraryDeleted.includes(id)) roleplayCardLibraryDeleted.push(id);
+  void persistRoleplayCardLibrary();
+  void dbPut("roleplayCardLibraryDeleted", [...roleplayCardLibraryDeleted]).catch(error => console.warn("role card delete list save failed", error));
+  window.dispatchEvent(new CustomEvent("jyc:roleplay-updated"));
+  return true;
 }
 function roleplaySaveDraft(conv, draft) {
   rememberRoleplayCards([conv]);
@@ -16612,6 +16630,7 @@ window.JYCRoleplayBridge = {
   },
   savedCards: savedRoleplayCards,
   restoreCard: restoreRoleplayCard,
+  removeCard: removeRoleplayCard,
   rememberCast(id, project) {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
     if (conv) rememberRoleplayCards([{ ...conv, updatedAt: Date.now(), rpProject: project }]);

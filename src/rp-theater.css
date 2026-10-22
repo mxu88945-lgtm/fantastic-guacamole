@@ -59,6 +59,9 @@
 .rp-library-note { margin: -2px 4px 16px; color: var(--text-dim); font-size: 12px; line-height: 1.7; }
 .rp-role-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
 .rp-role-card { min-width: 0; display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: 23px; color: var(--text); background: var(--bg-panel); text-align: left; cursor: pointer; }
+.rp-role-card-wrap { min-width: 0; display: flex; flex-direction: column; }
+.rp-role-card-wrap .rp-role-card { width: 100%; }
+.rp-role-delete { align-self: flex-end; margin-top: 2px; padding: 4px 10px; border: 0; background: transparent; color: #c45c69; font-size: 12px; cursor: pointer; }
 .rp-role-avatar { width: 58px; height: 58px; display: grid; place-items: center; overflow: hidden; border-radius: 19px; color: var(--accent); background: var(--accent-soft); font: 600 23px/1 Georgia, serif; }
 .rp-role-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .rp-role-copy { min-width: 0; }

@@ -265,4 +265,14 @@ ok(await cardContext.zipCardJsonFromBytes(buildZip([{ name: 'card.json', data: c
 ok(await cardContext.zipCardJsonFromBytes(buildZip([{ name: 'card.json', data: cardBytes, method: 8 }])) === cardJsonText, 'ZIP import must inflate a deflated card JSON');
 ok(await cardContext.zipCardJsonFromBytes(buildZip([{ name: 'meta.json', data: Buffer.from('{"version":1}', 'utf8'), method: 0 }, { name: 'card.json', data: cardBytes, method: 0 }])) === cardJsonText, 'ZIP import must prefer the entry that actually looks like a card');
 ok(await cardContext.zipCardJsonFromBytes(buildZip([{ name: 'notes.txt', data: Buffer.from('hello', 'utf8'), method: 0 }])) === null, 'a ZIP without a card JSON must yield nothing');
+ok(html.includes('removeCard: removeRoleplayCard') && html.includes('roleplayCardLibraryDeleted'), 'role library must expose a saved-card removal that survives reloads');
+ok(js.includes('data-rp-delete-saved-card') && js.includes('bridge.removeCard'), 'saved role cards in the library grid must have a delete action');
+ok(css.includes('.rp-role-delete'), 'saved role card delete action must be styled');
+const mergeContext = vm.createContext({ roleplayCardLibrary: [], roleplayCardLibraryDeleted: ['gone'], roleplayCardTemplate: (project) => project || {} });
+vm.runInContext(html.slice(html.indexOf('function mergeRoleplayCardLibrary('), html.indexOf('function persistRoleplayCardLibrary(')), mergeContext);
+mergeContext.mergeRoleplayCardLibrary([
+  { id: 'gone', ownerRoleId: 'r1', rpProject: { actorName: '旧卡' } },
+  { id: 'new', ownerRoleId: 'r1', rpProject: { actorName: '新卡' } },
+]);
+ok(mergeContext.roleplayCardLibrary.length === 1 && mergeContext.roleplayCardLibrary[0].id === 'new', 'deleted card ids must not be merged back into the role library');
 console.log(`RP theater regression checks passed (${checks})`);
