@@ -8,6 +8,7 @@ const source = (start, end) => html.slice(html.indexOf(start), html.indexOf(end,
 let id = 0;
 const context = vm.createContext({
   uid: () => `id-${++id}`, cloneChatData: structuredClone, console,
+  ROLEPLAY_ADULT_SCENE_PRESET_CONTENT: "SCENE_ADULT_PRESET_DEFAULT",
   settings: { aiName: "顾祁砚", activeRoleId: "gu", provider: "openai", apiKey: "base-key", model: "base-model" },
   currentId: "scene", chatNavigationRevision: 0, abortController: null, replyBooting: false, roleplayGroupRun: null,
   messages: [{ role: "user", content: "继续" }],
@@ -49,6 +50,8 @@ assert.equal(context.roleplayStatusTag(actorWithStatus, project), "gts_status");
 assert.match(context.ensureRoleplayStatusOutput("<scene>深夜｜休息室</scene>\n他抬眼。", actorWithStatus, project), /<gts_status>[\s\S]*<\/gts_status>$/);
 const legacy = context.normalizedRoleplayProject({ actorName: "旧角色" }, { title: "旧场次" });
 assert.equal(legacy.groupEnabled, false);
+assert.equal(legacy.sceneSystemPromptEnabled, true, "existing scenes should receive the late scene preset by default");
+assert.equal(legacy.sceneSystemPrompt, "SCENE_ADULT_PRESET_DEFAULT");
 assert.equal(legacy.chatTextColor, "");
 assert.equal(context.normalizedRoleplayProject({ chatTextColor: "#AABBCC", chatNarrationColor: "invalid", chatQuoteColor: "#123456" }, {}).chatTextColor, "#aabbcc");
 assert.equal(context.roleplayMembers(legacy).length, 1);
@@ -79,6 +82,7 @@ vm.runInContext(source("function roleplayTypography(", "function normalizeRolepl
 assert.equal(context.roleplayTypography({ chatFontSize: "15.5" }).size, "15.5px");
 assert.equal(context.roleplayTypography({ chatFontSize: "medium" }).size, "14.5px");
 assert.equal(context.roleplayTypography({}).size, "14.5px");
+assert.ok(groupUi.includes('id="rp-scene-preset-section"') && groupUi.includes('id="rp-scene-system-prompt"') && groupUi.includes('data-fill-scene-preset="adult-fiction"'), "per-scene system preset editor is missing");
 assert.ok(html.includes("function applyRoleplayTextTheme(") && html.includes('"chatTextColor", "chatNarrationColor", "chatQuoteColor"'), "per-scene text colors are not persisted and applied");
 assert.ok(html.includes("--rp-msg-font") && html.includes("--rp-msg-font-family"), "RP typography must use story-scoped variables");
 assert.ok(html.includes("body.rp-chat-active #messages .bubble") && !html.includes('box.style.setProperty("--msg-font", typography.size)'), "RP typography must not overwrite main chat font variables");
@@ -238,6 +242,9 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
   assert.match(system, /已离婚/, "manual scene memory must reach every member");
   assert.match(system, /较早摘要：签字后离开/);
   assert.match(system, /仅由「导演」发言/);
+  assert.match(system, /SCENE_ADULT_PRESET_DEFAULT/, "the scene-specific system preset must reach every member request");
+  assert.ok(system.lastIndexOf("SCENE_ADULT_PRESET_DEFAULT") > system.lastIndexOf("仅由「导演」发言"), "the scene preset must be appended after the role card and speaker prompt");
+  assert.match(system, /唯一的身份是「导演」/, "independent speakers need a final identity lock");
   assert.equal(request.init.headers[provider === "anthropic" ? "x-api-key" : provider === "gemini" ? "x-goog-api-key" : "authorization"], provider === "openai" ? "Bearer member-key" : "member-key");
   assert.match(request.url, /member\.test/);
   const wireHistory = request.body.contents || request.body.messages;
@@ -278,6 +285,8 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
   await assert.rejects(() => context.streamChat(() => {}, () => {}, config, director), /captured-request/);
   system = requestSystem(captured.at(-1));
   for (const text of ["OWNER_PERSONA_ONLY", "OWNER_EXTRA_INSTRUCTION", "OWNER_PRIVATE_MEMORY_AND_DIARY", "OWNER_GLOBAL_PRESET", "顾祁砚"]) assert.ok(system.includes(text), `owner switch on must restore: ${text}`);
+  assert.match(system, /后台主体唯一是「顾祁砚」/, "owner-performed scenes need a late backstage identity lock");
+  assert.ok(system.lastIndexOf("后台主体唯一是「顾祁砚」") > system.lastIndexOf("LEAD_CARD_ONLY"), "the backstage identity lock must follow the character card");
   director.playedByOwner = false;
   await assert.rejects(() => context.streamChat(() => {}, () => {}, config, director), /captured-request/);
   system = requestSystem(captured.at(-1));
@@ -337,6 +346,8 @@ assert.ok(bridge.saveSceneSettings("scene", { leadChannel: flagged, members: con
 assert.equal(context.conv.rpProject.leadChannel.playedByOwner, false);
 assert.equal(context.conv.rpProject.leadChannel.model, "retained-model");
 assert.equal(context.conv.rpProject.members[0].playedByOwner, false);
+assert.ok(bridge.saveSceneSettings("scene", { sceneSystemPromptEnabled: true, sceneSystemPrompt: "仅本场使用的写作要求" }));
+assert.equal(context.conv.rpProject.sceneSystemPrompt, "仅本场使用的写作要求");
 
 // Run the real completion handler with hostile/unexpected control markers:
 // scene memory is allowed, while owner diary/search/album/actions must stay off.
