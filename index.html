@@ -7063,6 +7063,14 @@ function normalizeRoleplayMixedMarkup(value) {
     return paragraphs.map(line => `<span class="rp-mixed-paragraph">${inline(line)}</span>`).join("");
   }).join("");
 }
+function roleplayFrameContentHeight() {
+  const body = document.body;
+  if (!body) return 40;
+  // documentElement.scrollHeight has the iframe viewport as its minimum.
+  // Reading it back prevents a tall frame from shrinking after details close.
+  const box = body.getBoundingClientRect();
+  return Math.max(40, Math.ceil(Math.max(Number(body.scrollHeight) || 0, Number(box.height) || 0) + 8));
+}
 function roleplayRichDocument(value, token, compact = false) {
   const source = normalizeRoleplayMixedMarkup(roleplayRichSource(value));
   const typography = roleplayTypography(normalizedRoleplayProject(currentConv()?.rpProject, currentConv()));
@@ -7074,10 +7082,8 @@ function roleplayRichDocument(value, token, compact = false) {
   const guard = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob: https:; media-src data: blob: https:; font-src data: https:; style-src 'unsafe-inline' https:; script-src 'unsafe-inline'; connect-src https:; frame-src 'none'; form-action 'none'; base-uri 'none'">`;
   const compactCss = compact ? `body{padding:0!important;display:flow-root!important}#returnHomeText{position:static!important;inset:auto!important;transform:none!important;writing-mode:horizontal-tb!important;margin:12px auto!important}` : "";
   const base = `<style>:root{--rp-story-font-size:${typography.size};--rp-story-font-family:${typography.family}}html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}.rp-mixed-paragraph{display:block;margin:0 0 1.15em;font-size:var(--rp-story-font-size);font-family:var(--rp-story-font-family);line-height:1.9;white-space:normal;overflow-wrap:anywhere}.chat-quote{padding:.18em .45em;border-radius:8px;background:rgba(120,110,128,.12);color:#50739a;box-decoration-break:clone;-webkit-box-decoration-break:clone;line-height:1.65}${compactCss}</style><script>addEventListener('message',function(e){if(e.source!==parent||e.data?.type!=='jyc-rp-typography')return;document.documentElement.style.setProperty('--rp-story-font-size',e.data.size);document.documentElement.style.setProperty('--rp-story-font-family',e.data.family)})<\/script>`;
-  const measure = compact
-    ? `var b=document.body;if(!b)return 120;var top=b.getBoundingClientRect().top,bottom=top;Array.from(b.querySelectorAll('*')).forEach(function(n){if(/^(SCRIPT|STYLE|META|LINK)$/i.test(n.tagName))return;var s=getComputedStyle(n);if(s.display==='none'||s.visibility==='hidden')return;var media=/^(IMG|AUDIO|VIDEO|CANVAS|SVG)$/i.test(n.tagName);if(n.childElementCount&&!media)return;var r=n.getBoundingClientRect();if(r.width&&r.height&&Number.isFinite(r.bottom))bottom=Math.max(bottom,r.bottom)});return Math.max(40,Math.ceil(bottom-top+16))`
-    : `return Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0,120)`;
-  const reporter = `<script>(function(){var token=${JSON.stringify(token)};var height=function(){${measure}};var send=function(){parent.postMessage({type:'jyc-rp-frame-height',token:token,height:Math.min(height(),6000)},'*')};var pick=function(node){if(!node)return null;var explicit=node.getAttribute('data-prompt')||node.getAttribute('data-message')||node.getAttribute('data-opening')||node.getAttribute('data-scene')||node.getAttribute('data-choice');var text=(explicit||node.innerText||node.textContent||'').replace(/\\s+/g,' ').trim();if(!text)return null;return{text:text.slice(0,4000),label:(node.innerText||node.textContent||text).replace(/\\s+/g,' ').trim().slice(0,160)}};document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-prompt],[data-message],[data-opening],[data-scene],[data-choice],button,[role="button"],a[href],[onclick],.script-card,.scene-card,.choice-card'):null;if(!node)return;var action=pick(node);if(!action)return;setTimeout(function(){parent.postMessage({type:'jyc-rp-card-action',token:token,text:action.text,label:action.label},'*')},0)},false);addEventListener('load',send);addEventListener('resize',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.documentElement);setTimeout(send,60);setTimeout(send,400)})()<\/script>`;
+  const measure = `return (${roleplayFrameContentHeight.toString()})()`;
+  const reporter = `<script>(function(){var token=${JSON.stringify(token)};var height=function(){${measure}};var send=function(){parent.postMessage({type:'jyc-rp-frame-height',token:token,height:Math.min(height(),6000)},'*')};var pick=function(node){if(!node)return null;var explicit=node.getAttribute('data-prompt')||node.getAttribute('data-message')||node.getAttribute('data-opening')||node.getAttribute('data-scene')||node.getAttribute('data-choice');var text=(explicit||node.innerText||node.textContent||'').replace(/\\s+/g,' ').trim();if(!text)return null;return{text:text.slice(0,4000),label:(node.innerText||node.textContent||text).replace(/\\s+/g,' ').trim().slice(0,160)}};document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-prompt],[data-message],[data-opening],[data-scene],[data-choice],button,[role="button"],a[href],[onclick],.script-card,.scene-card,.choice-card'):null;if(!node)return;var action=pick(node);if(!action)return;setTimeout(function(){parent.postMessage({type:'jyc-rp-card-action',token:token,text:action.text,label:action.label},'*')},0)},false);addEventListener('load',send);addEventListener('resize',send);document.addEventListener('toggle',send,true);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,60);setTimeout(send,400)})()<\/script>`;
   const playerBridge = /<audio\b[^>]*\bid=["']musicPlayer["']/i.test(source) && /\bid=["']playBtn["']/i.test(source) && !/<script\b/i.test(source)
     ? `<script>(${roleplayPlayerCompatibility.toString()})()<\/script>` : "";
   let documentHtml = source;
@@ -7133,7 +7139,7 @@ if (typeof window !== "undefined") window.addEventListener("message", event => {
     return;
   }
   if (data.type === "jyc-rp-frame-height") {
-    frame.style.height = `${Math.max(120, Math.min(Number(data.height) || 120, 6000))}px`;
+    frame.style.height = `${Math.max(40, Math.min(Number(data.height) || 40, 6000))}px`;
     return;
   }
   if (["jyc-rp-card-action", "send", "send-message", "send_message", "select-opening", "select_script"].includes(data.type)) {

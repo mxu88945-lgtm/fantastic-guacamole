@@ -92,3 +92,8 @@
 - 修复填充编辑器时丢弃 placement、markdownOnly、promptOnly 等原始元数据的问题；expanded 仅用于界面，不写入规则。
 - 无效启用表达式显示错误且不覆盖已保存规则；禁用后可保留待修复内容。新规则默认关闭。
 - rp-regex-editor-regression.mjs 验证真实 currentDraft/autosave 数据流，覆盖HTML/捕获组保留、执行配置保留和非法正则保护。
+
+## 2026-10-22：状态卡收起后空白高度（v233）
+- iframe 旧高度上报包含 documentElement.scrollHeight，其下限是视口本身，导致折叠后的内容无法缩回；紧凑分支按叶节点测量也可能漏掉混合正文。
+- 统一按 body 实际内容高度上报，观察 body 并监听 details toggle。父页最小占位从120px降为40px，短场景栏不再留下额外80px。
+- 回归模拟旧视口6000px、状态内容从410→64→720px，验证缩小与展开；不修改原始正文、不补写模型未生成的内容。
