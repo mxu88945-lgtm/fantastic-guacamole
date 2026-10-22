@@ -89,6 +89,8 @@ assert.equal(context.roleplayTypography({ chatFontSize: "medium" }).size, "14.5p
 assert.equal(context.roleplayTypography({}).size, "14.5px");
 assert.ok(groupUi.includes('id="rp-scene-preset-section"') && groupUi.includes('id="rp-scene-system-prompt"') && groupUi.includes('data-fill-scene-preset="adult-fiction"'), "per-scene system preset editor is missing");
 assert.ok(html.includes("function applyRoleplayTextTheme(") && html.includes('"chatTextColor", "chatNarrationColor", "chatQuoteColor"'), "per-scene text colors are not persisted and applied");
+assert.ok(html.includes("function roleplayFinalIdentityDirective(") && html.includes("不要使用客服式开场") && html.includes("本轮只输出自然剧情正文"), "RP final identity directive is missing");
+assert.ok(html.includes("roleplayFinalIdentityDirective(rpProject, activeSpeaker)"), "RP final identity directive must be appended after other prompt modules");
 assert.ok(html.includes("--rp-msg-font") && html.includes("--rp-msg-font-family"), "RP typography must use story-scoped variables");
 assert.ok(html.includes("body.rp-chat-active #messages .bubble") && !html.includes('box.style.setProperty("--msg-font", typography.size)'), "RP typography must not overwrite main chat font variables");
 assert.ok(groupUi.includes("data-export-scene") && groupUi.includes("data-import-scene"), "right drawer TXT export/import actions are missing");
