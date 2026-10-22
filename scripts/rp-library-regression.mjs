@@ -10,7 +10,7 @@ let serial = 0, writes = 0, failReads = false;
 const noop = () => {};
 const context = vm.createContext({
   console, structuredClone, uid: () => `new-${++serial}`, cloneChatData: structuredClone,
-  roleplayCardLibrary: [], roleplayCardWriteQueue: Promise.resolve(),
+  roleplayCardLibrary: [], roleplayCardLibraryDeleted: [], roleplayCardWriteQueue: Promise.resolve(),
   settings: { activeRoleId: "gu", roles: [{ id: "gu", name: "顾祁砚" }] },
   conversations: [], currentId: "private", abortController: null, replyBooting: false, roleplayGroupRun: null,
   dbGet: async key => { if (failReads) throw new Error("temporarily unavailable"); return structuredClone(disk.get(key)); },
@@ -134,5 +134,5 @@ failReads = false;
 
 assert.ok(html.includes("roleplayCards: clone(roleplayCardLibrary)"), "cloud payload must carry the standalone library");
 assert.ok(html.includes("roleplayCards: cloneChatData(roleplayCardLibrary)"), "file backups must carry the standalone library");
-assert.ok(ui.includes("bridge.savedCards?.()") && ui.includes("bridge.restoreCard(button.dataset.rpSavedCard)"), "saved cards need a visible recovery action");
+assert.ok(ui.includes("bridge.savedCards?.()") && ui.includes("bridge.restoreCard(entry.savedCardId)"), "saved cards need a visible recovery action");
 console.log("RP library regression: removal, deletion, reload, recovery, owner isolation and failed-read protection passed");

@@ -11,6 +11,7 @@ const context = vm.createContext({
   ROLEPLAY_ADULT_SCENE_PRESET_CONTENT: "SCENE_ADULT_PRESET_DEFAULT",
   settings: { aiName: "顾祁砚", activeRoleId: "gu", provider: "openai", apiKey: "base-key", model: "base-model" },
   currentId: "scene", chatNavigationRevision: 0, abortController: null, replyBooting: false, roleplayGroupRun: null,
+  roleplayCardLibraryDeleted: [],
   messages: [{ role: "user", content: "继续" }],
   conversationModel: () => "window-model", messageText: message => message.content || "",
   setSending() {}, showToast(message) { context.toast = message; },
@@ -126,18 +127,22 @@ assert.ok(groupUi.includes('data-private-member') && groupUi.includes("角色私
 assert.ok(groupUi.includes("data-open-memory") && groupUi.includes("记忆注入位置") && groupUi.includes("提取关键词"), "long memory must open as a dedicated settings page with real recall controls");
 assert.ok(html.includes("memorySettings.autoEvery") && html.includes("memoryScannedCount"), "RP memory extraction must resume incrementally with a configurable threshold");
 assert.ok(html.includes("keywords") && html.includes("roleplayMemoryInjection"), "memory keywords and injection placement must affect real request construction");
+assert.ok(html.includes("planRoleplayMemoryScan") && html.includes("maxChars = 36000") && html.includes("maxMessages = 100"), "memory scans must be bounded without discarding unsummarized messages");
+assert.ok(html.includes("const totalPending = Math.max(0, allRows.length - scanned)") && html.includes("totalPending < threshold"), "the auto threshold must count every unsummarized message even when one scan is character-bounded");
+assert.ok(html.includes("ranked.slice(0, 8)") && html.includes("roleplaySharedMemoryText(project, conv, 6000)"), "live RP recall must stay bounded like Weijing");
 
 Object.assign(context, {
   visibleAssistantText: text => text,
   memoryRuntimeConfig: () => ({ apiKey: "memory-key" }),
   isChatContentMessage: message => ["user", "assistant"].includes(message.role),
   isHiddenRoleplayMentionMessage: () => false,
-  completeOnce: async system => system.includes("私人核心记忆提炼器")
-    ? JSON.stringify({ private: { director: ["导演已经知道密钥藏在书房"] } })
-    : JSON.stringify({ memories: [
+  completeOnce: async () => {
+    context.memoryCalls = (context.memoryCalls || 0) + 1;
+    return JSON.stringify({ memories: [
       { title: "交付钥匙", text: "周竞尧已经把钥匙交给顾里", keywords: ["周竞尧", "顾里", "钥匙"] },
       { title: "明早赴约", text: "顾里答应明早赴约", keywords: ["顾里", "赴约"] },
-    ] }),
+    ], private: { director: ["导演已经知道密钥藏在书房"] } });
+  },
   saveConversations: () => { context.memorySaved = true; },
   window: { dispatchEvent() {} }, CustomEvent: class {},
 });
@@ -149,6 +154,7 @@ const extractConv = { ...context.conv, rpProject: structuredClone(context.conv.r
 const extracted = await context.extractRoleplaySceneMemories(extractConv);
 assert.equal(extracted.added, 2, "manual extraction must persist newly derived scene facts");
 assert.equal(extracted.privateAdded, 1, "manual extraction must persist role-isolated private facts");
+assert.equal(context.memoryCalls, 1, "long memory and private core memory should normally be extracted in one request");
 assert.match(extractConv.rpProject.members[0].privateMemory, /密钥藏在书房/);
 assert.equal(extractConv.rpProject.memories.at(-1).sourceMessageId, "a1");
 assert.deepEqual(Array.from(extractConv.rpProject.memories.at(-2).keywords), ["周竞尧", "顾里", "钥匙"]);

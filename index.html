@@ -7090,7 +7090,7 @@ function roleplayRichDocument(value, token, compact = false) {
   // page or its storage, but the media request itself must be allowed.
   const guard = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob: https:; media-src data: blob: https:; font-src data: https:; style-src 'unsafe-inline' https:; script-src 'unsafe-inline'; connect-src https:; frame-src 'none'; form-action 'none'; base-uri 'none'">`;
   const compactCss = compact ? `body{padding:0!important;display:flow-root!important}#returnHomeText{position:static!important;inset:auto!important;transform:none!important;writing-mode:horizontal-tb!important;margin:12px auto!important}` : "";
-  const base = `<style>:root{--rp-story-font-size:${typography.size};--rp-story-font-family:${typography.family}}html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}.rp-mixed-paragraph{display:block;margin:0 0 14px;font-size:var(--rp-story-font-size);font-family:var(--rp-story-font-family);line-height:1.7;white-space:normal;overflow-wrap:anywhere}.chat-quote{padding:.18em .45em;border-radius:8px;background:rgba(120,110,128,.12);color:#50739a;box-decoration-break:clone;-webkit-box-decoration-break:clone;line-height:1.65}${compactCss}</style><script>addEventListener('message',function(e){if(e.source!==parent||e.data?.type!=='jyc-rp-typography')return;document.documentElement.style.setProperty('--rp-story-font-size',e.data.size);document.documentElement.style.setProperty('--rp-story-font-family',e.data.family)})<\/script>`;
+  const base = `<style>:root{--rp-story-font-size:${typography.size};--rp-story-font-family:${typography.family}}html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}.rp-mixed-paragraph{display:block;margin:0 0 .62em;font-size:var(--rp-story-font-size);font-family:var(--rp-story-font-family);line-height:1.7;white-space:normal;overflow-wrap:anywhere}.chat-quote{padding:.18em .45em;border-radius:8px;background:rgba(120,110,128,.12);color:#50739a;box-decoration-break:clone;-webkit-box-decoration-break:clone;line-height:1.65}${compactCss}</style><script>addEventListener('message',function(e){if(e.source!==parent||e.data?.type!=='jyc-rp-typography')return;document.documentElement.style.setProperty('--rp-story-font-size',e.data.size);document.documentElement.style.setProperty('--rp-story-font-family',e.data.family)})<\/script>`;
   const measure = `return (${roleplayFrameContentHeight.toString()})()`;
   const reporter = `<script>(function(){var token=${JSON.stringify(token)};var height=function(){${measure}};var send=function(){parent.postMessage({type:'jyc-rp-frame-height',token:token,height:Math.min(height(),6000)},'*')};var pick=function(node){if(!node)return null;var explicit=node.getAttribute('data-prompt')||node.getAttribute('data-message')||node.getAttribute('data-opening')||node.getAttribute('data-scene')||node.getAttribute('data-choice');var text=(explicit||node.innerText||node.textContent||'').replace(/\\s+/g,' ').trim();if(!text)return null;return{text:text.slice(0,4000),label:(node.innerText||node.textContent||text).replace(/\\s+/g,' ').trim().slice(0,160)}};document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-prompt],[data-message],[data-opening],[data-scene],[data-choice],button,[role="button"],a[href],[onclick],.script-card,.scene-card,.choice-card'):null;if(!node)return;var action=pick(node);if(!action)return;setTimeout(function(){parent.postMessage({type:'jyc-rp-card-action',token:token,text:action.text,label:action.label},'*')},0)},false);addEventListener('load',send);addEventListener('resize',send);document.addEventListener('toggle',send,true);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,60);setTimeout(send,400)})()<\/script>`;
   const playerBridge = /<audio\b[^>]*\bid=["']musicPlayer["']/i.test(source) && /\bid=["']playBtn["']/i.test(source) && !/<script\b/i.test(source)
@@ -8272,17 +8272,17 @@ function roleplaySharedMemoryText(project, conv = currentConv(), maxChars = 1400
   const manual = String(project?.memory || "").trim().slice(-6000);
   const entries = Array.isArray(project?.memories) ? project.memories.filter(item => String(item?.text || "").trim()) : [];
   const pinned = entries.filter(item => item.pinned);
-  const recent = entries.filter(item => !item.pinned).slice(-8);
-  const recentIds = new Set(recent.map(item => item.id));
   const source = roleplayRecentSource(conv).toLowerCase();
   const terms = roleplayRecallTerms(source);
-  const relevant = entries.filter(item => !item.pinned && !recentIds.has(item.id)).map(item => ({ item,
+  const newest = new Set(entries.filter(item => !item.pinned).slice(-3).map(item => item.id));
+  const ranked = entries.filter(item => !item.pinned).map(item => ({ item,
     score: (item.keywords || []).reduce((score, keyword) => score + (source.includes(String(keyword).toLowerCase()) ? 24 + String(keyword).length : 0), 0)
-      + terms.reduce((score, term) => score + (`${item.title || ""}\n${item.text}`.toLowerCase().includes(term) ? Math.min(6, term.length) : 0), 0) }))
-    .filter(row => row.score > 0).sort((a, b) => b.score - a.score || (b.item.at || 0) - (a.item.at || 0)).slice(0, 10).map(row => row.item);
-  const selectedIds = new Set([...pinned, ...relevant, ...recent].map(item => item.id));
-  const fallback = entries.filter(item => !selectedIds.has(item.id)).sort((a, b) => (b.at || 0) - (a.at || 0));
-  const selected = [...pinned, ...relevant, ...recent, ...fallback].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index);
+      + terms.reduce((score, term) => score + (`${item.title || ""}\n${item.text}`.toLowerCase().includes(term) ? Math.min(6, term.length) : 0), 0)
+      + (newest.has(item.id) ? 6 : 0) }))
+    .sort((a, b) => b.score - a.score || (b.item.at || 0) - (a.item.at || 0)).map(row => row.item);
+  // Keep live prompts small: pinned facts remain eligible, while ordinary
+  // memories are limited to the eight most relevant/recent entries.
+  const selected = [...pinned, ...ranked.slice(0, 8)].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index);
   const lines = [], seen = new Set();
   let used = manual.length;
   for (const item of selected) {
@@ -8296,7 +8296,7 @@ function roleplaySharedMemoryText(project, conv = currentConv(), maxChars = 1400
 function roleplayMemoryInjection(project, conv = currentConv()) {
   const settings = normalizedRoleplayMemorySettings(project || {});
   if (settings.injectPosition === "none") return { text: "", position: "none" };
-  const memories = roleplaySharedMemoryText(project, conv);
+  const memories = roleplaySharedMemoryText(project, conv, 6000);
   if (!memories) return { text: "", position: settings.injectPosition };
   const template = settings.injectPrompt.includes("{{memories}}") ? settings.injectPrompt : `${settings.injectPrompt}\n\n{{memories}}`;
   return { text: template.replaceAll("{{memories}}", memories).slice(0, 24000), position: settings.injectPosition };
@@ -16457,6 +16457,40 @@ function parseRoleplayPrivateExtraction(output, project) {
   }
   return privateById;
 }
+function hasRoleplayPrivatePayload(output) {
+  let text = visibleAssistantText(String(output || "")).trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  let parsed = null;
+  try { parsed = JSON.parse(text); } catch (_) {
+    const fragment = text.match(/\{[\s\S]*\}/)?.[0];
+    if (fragment) try { parsed = JSON.parse(fragment); } catch (_) {}
+  }
+  return Boolean(parsed && typeof parsed === "object" && parsed.private && typeof parsed.private === "object" && !Array.isArray(parsed.private));
+}
+function planRoleplayMemoryScan(rows, scannedCount, maxChars = 36000, maxMessages = 100) {
+  const start = Math.min(rows.length, Math.max(0, Number(scannedCount) || 0));
+  let end = start, chars = 0;
+  for (const message of rows.slice(start)) {
+    const length = messageText(message).length;
+    if (end > start && (chars + length > maxChars || end - start >= maxMessages)) break;
+    chars += length; end++;
+  }
+  return { start, end, pending: rows.slice(start, end), hasMore: end < rows.length };
+}
+function roleplayMemoryScanIsCurrent(conv, scan, signatures) {
+  if (!conv || !isRoleplayConversation(conv)) return false;
+  const rows = roleplayMemoryMessages(conv);
+  const project = normalizedRoleplayProject(conv.rpProject, conv);
+  if (Math.min(project.memoryScannedCount || 0, rows.length) !== scan.start) return false;
+  const current = rows.slice(scan.start, scan.end);
+  return current.length === signatures.length && current.every((message, index) => `${message.id || ""}\n${messageText(message)}` === signatures[index]);
+}
+function roleplayMemoryDedupeText(project, maxChars = 12000) {
+  const entries = Array.isArray(project?.memories) ? project.memories.filter(item => String(item?.text || "").trim()) : [];
+  const picked = [...entries.filter(item => item.pinned), ...entries.filter(item => !item.pinned).slice(-6)]
+    .filter((item, index, all) => all.findIndex(other => other.id === item.id) === index);
+  return [String(project?.memory || "").trim(), ...picked.map(item => [item.title ? `【${item.title}】` : "", item.text].filter(Boolean).join(" "))]
+    .filter(Boolean).join("\n\n").slice(-maxChars);
+}
 async function extractRoleplaySceneMemories(conv) {
   const options = arguments[1] || {};
   if (!conv || !isRoleplayConversation(conv)) throw new Error("没有找到这个剧情窗口");
@@ -16469,31 +16503,40 @@ async function extractRoleplaySceneMemories(conv) {
   const project = normalizedRoleplayProject(conv.rpProject, conv);
   const allRows = roleplayMemoryMessages(conv);
   const scanned = Math.min(project.memoryScannedCount || 0, allRows.length);
-  const pending = allRows.slice(scanned, scanned + 100);
+  const scan = planRoleplayMemoryScan(allRows, scanned);
+  const pending = scan.pending;
   const threshold = project.memorySettings.autoEvery;
-  if (automatic && (!threshold || (pending.length < threshold && !project.memoryCorePending.length))) return { added: 0, privateAdded: 0, candidates: 0, total: project.memories.length, pending: pending.length };
+  const totalPending = Math.max(0, allRows.length - scanned);
+  if (automatic && (!threshold || (totalPending < threshold && !project.memoryCorePending.length))) return { added: 0, privateAdded: 0, candidates: 0, total: project.memories.length, pending: totalPending };
   if (pending.length < 2 && !project.memoryCorePending.length) {
     if (automatic) return { added: 0, privateAdded: 0, candidates: 0, total: project.memories.length, pending: pending.length };
     throw new Error("目前没有至少 2 条尚未提炼的新正文");
   }
-  const scanEnd = scanned + pending.length;
+  const scanEnd = scan.end;
+  const scanSignatures = pending.map(message => `${message.id || ""}\n${messageText(message)}`);
   const transcript = pending.map(message => {
     const speaker = message.role === "user"
       ? (project.userRole || settings.userName || "用户")
       : (message.rpSpeakerName || project.actorName || "舞台角色");
-    return `${speaker}：${messageText(message).slice(0, 2400)}`;
-  }).join("\n\n").slice(-32000);
-  const existing = roleplaySharedMemoryText(project, conv, 10000).slice(-10000);
+    return `${speaker}：${messageText(message)}`;
+  }).join("\n\n");
+  const existing = roleplayMemoryDedupeText(project);
   roleplayMemoryRuns.add(conv.id);
   try {
     const targetProject = normalizedRoleplayProject(conv.rpProject, conv);
-    let extracted = [];
+    let extracted = [], inlinePrivateById = {}, inlinePrivateComplete = false;
     if (pending.length >= 2) {
       const systemText = ["你是 RP 长期记忆整理器，不进行角色扮演。", project.memorySettings.summaryPrompt,
-        "输出严格 JSON：{\"memories\":[{\"title\":\"简短标题\",\"text\":\"完整既成事实\",\"keywords\":[\"人物\",\"地点\",\"事件\"]}]}。最多 10 条；没有新增时 memories 为空数组。关键词必须来自正文中的人物、地点、物品、关系、事件或明确称谓，用于以后按话题召回。"].join("\n\n");
-      const userText = [`剧本：《${conv.title || project.title || "未命名剧本"}》`, existing ? `已有长期记忆（仅用于查重）：\n${existing}` : "已有长期记忆：无", `本次尚未总结的新正文：\n${transcript}`].join("\n\n");
-      extracted = parseRoleplayLongMemoryExtraction(await completeOnce(systemText, userText, 1800, true));
+        "请在同一次结果里完成长期记忆和角色私人核心记忆。私人记忆只记录该角色亲历、亲耳获知或明确确认的既成事实；严禁写入猜测、传闻、计划、进行中事项、角色不知道的幕后信息，禁止让角色全知。",
+        "输出严格 JSON：{\"memories\":[{\"title\":\"简短标题\",\"text\":\"完整既成事实\",\"keywords\":[\"人物\",\"地点\",\"事件\"]}],\"private\":{\"角色id\":[\"该角色确认知道的事实\"]}}。最多 10 条长期记忆；没有新增时 memories 为空数组、private 为空对象。private 的键只能使用给定角色 id。关键词必须来自正文中的人物、地点、物品、关系、事件或明确称谓，用于以后按话题召回。"].join("\n\n");
+      const privateExisting = roleplayMembers(project).map(member => `${member.id}｜${member.name}：\n${String(member.privateMemory || "").slice(-3000) || "暂无"}`).join("\n\n").slice(-12000);
+      const userText = [`剧本：《${conv.title || project.title || "未命名剧本"}》`, `角色 id 与姓名：${roleplayMembers(project).map(member => `${member.id}=${member.name}`).join("；")}`, existing ? `已有长期记忆（仅用于查重）：\n${existing}` : "已有长期记忆：无", `已有角色私人核心记忆（仅用于查重）：\n${privateExisting || "暂无"}`, project.memoryCorePending.length ? `此前待补提炼的长期记忆：\n- ${project.memoryCorePending.join("\n- ")}` : "", `本次尚未总结的新正文：\n${transcript}`].filter(Boolean).join("\n\n");
+      const combinedOutput = await completeOnce(systemText, userText, 2600, true);
+      extracted = parseRoleplayLongMemoryExtraction(combinedOutput);
+      inlinePrivateById = parseRoleplayPrivateExtraction(combinedOutput, project);
+      inlinePrivateComplete = hasRoleplayPrivatePayload(combinedOutput);
     }
+    if (!roleplayMemoryScanIsCurrent(conv, scan, scanSignatures)) throw new Error("总结期间剧情已改写，本次结果未写入；请重新总结当前正文");
     const normalizedExisting = new Set([targetProject.memory, ...targetProject.memories.map(item => item.text)]
       .filter(Boolean).map(item => item.replace(/[\s，。！？、；：,.!?;:]+/g, "").toLowerCase()));
     const sourceMessageId = String(pending.at(-1)?.id || "");
@@ -16509,6 +16552,10 @@ async function extractRoleplaySceneMemories(conv) {
     targetProject.memoryCorePending = [...targetProject.memoryCorePending, ...freshTexts].slice(-24);
     targetProject.memories = targetProject.memories.slice(-targetProject.memorySettings.maxEntries);
     let privateAdded = 0, privateError = "";
+    if (targetProject.memorySettings.autoCharacterMemory && inlinePrivateComplete) {
+      Object.entries(inlinePrivateById).forEach(([speakerId, values]) => { privateAdded += appendRoleplayPrivateMemory(targetProject, speakerId, values); });
+      targetProject.memoryCorePending = [];
+    }
     if (targetProject.memorySettings.autoCharacterMemory && targetProject.memoryCorePending.length) {
       const privateExisting = roleplayMembers(targetProject).map(member => `${member.id}｜${member.name}：\n${String(member.privateMemory || "").slice(-3000) || "暂无"}`).join("\n\n").slice(-12000);
       const systemText = [
@@ -16523,6 +16570,7 @@ async function extractRoleplaySceneMemories(conv) {
         targetProject.memoryCorePending = [];
       } catch (error) { privateError = String(error?.message || error || "角色核心记忆提炼失败"); }
     } else if (!targetProject.memorySettings.autoCharacterMemory) targetProject.memoryCorePending = [];
+    if (!roleplayMemoryScanIsCurrent(conv, scan, scanSignatures)) throw new Error("总结期间剧情已改写，本次结果未写入；请重新总结当前正文");
     conv.rpProject = targetProject;
     conv.updatedAt = Date.now();
     saveConversations();
