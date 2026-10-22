@@ -19,10 +19,10 @@ requireText('projectFiles: []', "new conversations do not isolate their own proj
 requireText('const CONVERSATION_PROJECT_FILE_LIMIT = 12;', "project file count is unbounded");
 requireText('else if (a === "files") openConversationProjectFiles()', "project file manager cannot be opened");
 requireText('await addConversationProjectFile(file)', "selected project files are not persisted");
-requireText('const conversationProjectText = [buildRoleplayProjectText(), buildConversationProjectText()].filter(Boolean).join', "project files are not injected into chat requests");
+requireText('buildConversationProjectText()].filter(Boolean).join', "project files are not injected into chat requests");
 requireText('projectFiles: conversationProjectFiles().length', "prompt audit does not report project files");
 requireText('只绑定当前对话', "the UI does not explain conversation isolation");
-if (!sw.includes('const CACHE = "role-chat-cache-v240";')) throw new Error("service worker cache was not bumped");
+if (!sw.includes('const CACHE = "role-chat-cache-v241";')) throw new Error("service worker cache was not bumped");
 
 const start = html.indexOf("function conversationProjectFiles(");
 const end = html.indexOf("function filePromptText(", start);

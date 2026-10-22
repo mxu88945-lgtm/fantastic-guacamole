@@ -17,6 +17,7 @@ const context = vm.createContext({
   setSending() {}, showToast(message) { context.toast = message; },
 });
 vm.runInContext(source("const ROLEPLAY_MEMORY_DEFAULT_SUMMARY_PROMPT", "function addRoleplayMemory("), context);
+vm.runInContext(source("function roleplayBackstageControl(", "function buildRoleplayProjectText("), context);
 const project = context.normalizedRoleplayProject({
   actorName: "周竞尧", groupEnabled: true, replyMode: "round", memory: "已离婚", world: "现世背景",
   worldEntries: [
@@ -192,6 +193,20 @@ assert.equal(context.calls[1].config.apiKey, "other-key");
 assert.equal(context.calls[1].config.provider, "gemini");
 assert.equal(JSON.stringify(context.settings), beforeSettings, "member channels must not mutate the main identity or API settings");
 context.calls = [];
+context.messages[0].content = "暂停扮演！！！顾祁砚！！！";
+await context.generateReply();
+assert.equal(context.calls.map(call => call.speaker.id).join(","), "lead", "calling the owner must route exactly one owner-performed reply");
+assert.equal(context.conv.rpProject.backstagePaused, true, "calling the owner must persist backstage mode");
+context.calls = [];
+context.messages[0].content = "你现在听见了吗";
+await context.generateReply();
+assert.equal(context.calls.map(call => call.speaker.id).join(","), "lead", "backstage chat must remain with the owner until explicitly resumed");
+context.calls = [];
+context.messages[0].content = "继续扮演，回到剧情";
+await context.generateReply();
+assert.equal(context.conv.rpProject.backstagePaused, false, "an explicit resume command must put the mask back on");
+assert.equal(context.calls.map(call => call.speaker.name).join(","), "周竞尧,导演", "resuming must restore normal scene routing");
+context.calls = [];
 context.messages[0].content = "@导演 继续";
 await context.generateReply();
 assert.equal(context.calls.length, 1);
@@ -299,6 +314,12 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
   assert.match(system, /舞台面具[\s\S]*不是你本人/, "the stage character must remain an explicit mask");
   assert.match(system, /直接喊出“顾祁砚”[\s\S]*暂停剧情、摘下面具/, "calling the owner by name must pause the stage role");
   assert.doesNotMatch(system, /后台主体唯一是「顾祁砚」|后台主体身份锁|本轮身份终检/, "owner-performed scenes must not receive a duplicate late identity lock");
+  project.backstagePaused = true;
+  await assert.rejects(() => context.streamChat(() => {}, () => {}, config, director), /captured-request/);
+  system = requestSystem(captured.at(-1));
+  assert.match(system, /剧场已经暂停[\s\S]*顾祁砚本人回应/, "backstage mode needs a program-level owner prompt");
+  assert.doesNotMatch(system, /本条消息仅由「导演」发言|SCENE_ADULT_PRESET_DEFAULT|LEAD_CARD_ONLY/, "paused backstage replies must not receive stage speaker, scene preset, or character-card instructions");
+  project.backstagePaused = false;
   director.playedByOwner = false;
   await assert.rejects(() => context.streamChat(() => {}, () => {}, config, director), /captured-request/);
   system = requestSystem(captured.at(-1));
@@ -378,6 +399,7 @@ const completion = vm.createContext({
   roleplayMembers: context.roleplayMembers,
   ensureRoleplayStatusOutput: text => text,
   roleplayTemporaryPlotFor: () => null,
+  roleplayBackstageControl: context.roleplayBackstageControl,
   stripIndependentRoleplayControls: context.stripIndependentRoleplayControls,
   isRoleplayConversation: () => true, uid: () => "independent-response",
   requestAnimationFrame: fn => { fn(); return 1; }, cancelAnimationFrame() {}, setTimeout,

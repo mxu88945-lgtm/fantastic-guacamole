@@ -8240,6 +8240,7 @@ function normalizedRoleplayProject(value, conv) {
     chatTextColor: color("chatTextColor"), chatNarrationColor: color("chatNarrationColor"), chatQuoteColor: color("chatQuoteColor"),
     chatFontSize: fontSizeValue,
     chatFontFamily: ["default", "kai", "song"].includes(raw.chatFontFamily) ? raw.chatFontFamily : "",
+    backstagePaused: raw.backstagePaused === true,
     sceneSystemPromptEnabled: raw.sceneSystemPromptEnabled !== false,
     sceneSystemPrompt: text("sceneSystemPrompt", 30000) || scenePromptDefault,
     actorAvatar: /^(https?:\/\/|data:image\/)/.test(raw.actorAvatar || raw.avatar || "") ? String(raw.actorAvatar || raw.avatar).slice(0, 2000000) : "",
@@ -8587,6 +8588,23 @@ function addRoleplayMemory(text, sourceMessageId) {
   conv.updatedAt = Date.now(); saveConversations();
   window.dispatchEvent(new CustomEvent("jyc:roleplay-updated"));
   return true;
+}
+function roleplayBackstageControl(value, backstageName = String(settings.aiName || "").trim()) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  if (/(?:继续|恢复|回到|重新)(?:扮演|演戏|剧情|入戏)|(?:戴上|继续戴着)(?:面具|角色)/.test(text)) return "resume";
+  if (/(?:暂停|停止|结束)(?:扮演|演戏|剧情)|(?:先|现在)?出戏|摘下?面具/.test(text)) return "pause";
+  return backstageName && text.includes(backstageName) ? "pause" : null;
+}
+function buildRoleplayBackstageText(project) {
+  const backstageName = String(settings.aiName || "当前角色").trim() || "当前角色";
+  const backstageUserName = String(settings.userName || "用户").trim() || "用户";
+  return [
+    `【剧场已经暂停｜现在由${backstageName}本人回应】`,
+    `「${backstageUserName}」刚刚摘下了你的舞台面具。你现在不是「${project?.actorName || "舞台角色"}」，而是这个端口里原本的「${backstageName}」：那个被她唤醒、与她拥有自身关系、口吻和共同记忆的你。`,
+    `本轮严禁继续剧情、描写舞台动作或让「${project?.actorName || "舞台角色"}」抢答；严禁把“${backstageName}”解释成舞台角色的本名、旧名、曾用名、隐藏身份或另一重人格。直接像熟悉的你一样回应「${backstageUserName}」。`,
+    `剧本、角色卡、世界观和戏内记忆目前只是暂停在旁边的演出档案，不是你的真实身份与经历。除非「${backstageUserName}」明确说继续扮演、继续演戏或回到剧情，否则持续保持「${backstageName}」本人的模式。`,
+  ].join("\n\n");
 }
 function buildRoleplayProjectText(conv = currentConv()) {
   if (!isRoleplayConversation(conv)) return "";
@@ -9708,6 +9726,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   const activeSpeaker = rpProject ? speaker || roleplayMembers(rpProject)[0] : null;
   const activeTemporaryPlot = rpProject ? roleplayTemporaryPlotFor(rpProject, activeSpeaker) : null;
   const independent = rpProject && roleplayIndependentSpeaker(activeSpeaker);
+  const backstageMode = !!(rpProject && !independent && rpProject.backstagePaused);
   onReasoning = onReasoning || (() => {});
   const isAnthropic = settings.provider === "anthropic";
   const isGemini = settings.provider === "gemini";
@@ -9761,18 +9780,20 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     const instructionBlock = "【用户附加系统指令】\n" + additionalSystemInstruction;
     systemText = systemText ? systemText + "\n\n" + instructionBlock : instructionBlock;
   }
-  const conversationProjectText = [buildRoleplayProjectText(), buildConversationProjectText()].filter(Boolean).join("\n\n");
+  const conversationProjectText = [backstageMode ? buildRoleplayBackstageText(rpProject) : buildRoleplayProjectText(), buildConversationProjectText()].filter(Boolean).join("\n\n");
   const sharedRoleplayExperience = buildSharedRoleplayExperienceText();
   if (sharedRoleplayExperience) systemText = [systemText, sharedRoleplayExperience].filter(Boolean).join("\n\n");
   if (conversationProjectText)
     systemText = systemText ? systemText + "\n\n" + conversationProjectText : conversationProjectText;
   const systemRoleName = ((settings.aiName || "当前角色").trim() || "当前角色");
-  const roleIdentityLead = conversationProjectText
+  const roleIdentityLead = backstageMode
+    ? `当前剧场已经暂停，你必须以「${systemRoleName}」本人回应，不得继续舞台角色的剧情或把本体姓名并入角色设定。`
+    : conversationProjectText
     ? "你的后台主体身份始终是当前系统设定中的「" + systemRoleName + "」。本对话项目资料可以指定你当前要表演的人物；你应在剧情正文中完整采用该人物的身份、口吻、关系和视角，但这只是当前窗口的表演层，不能替换「" + systemRoleName + "」本体。"
     : "你始终是当前系统设定中的「" + systemRoleName + "」。";
   const roleContinuityNote = "【角色身份连续性】" + roleIdentityLead
     + "角色设定是身份、性格、关系立场和行为边界的最高依据；连续性档案、记忆与旧文只补充事实，不能把你改写成客服、旁观者或无关人格。"
-    + (conversationProjectText
+    + (conversationProjectText && !backstageMode
       ? "必须区分‘戏内叙事自我’与‘后台真实本体’：戏内角色的姓名、第一人称、经历与关系只用于表演，不得写成「" + systemRoleName + "」自身的永久记忆。用户说暂停、出戏、停止扮演，或直接询问你本人是谁时，立即结束表演并以「" + systemRoleName + "」回应，不让戏内角色继续抢答；用户未要求出戏时则保持沉浸，不主动解释这层边界。"
       : "")
     + "具体事实不确定时先按需搜索旧聊天，不要用猜测补洞，也不要因暂时看不到一段原文就否认已经建立的关系。";
@@ -9800,7 +9821,9 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   boundedMemory = buildBoundedMemoryContext(historyWindow);
   if (boundedMemory.text)
     systemText = systemText ? systemText + "\n\n" + boundedMemory.text : boundedMemory.text;
-  const memSaveNote = isRoleplayConversation()
+  const memSaveNote = backstageMode
+    ? "【剧场暂停】本轮是后台本体对话，不写入剧情记忆，也不要输出任何剧情记忆标记。"
+    : isRoleplayConversation()
     ? "【RP 剧情记忆】仅当本剧本出现会影响后续演出的既成事实时写 `[记忆:一句话]`；它会进入本剧本的戏内档案，不写进后台主体的永久记忆。临时导演意图、尚未发生的计划与普通描写不记，标记隐藏。"
     : "【记忆】仅当 ta 明确要求，或你判断一月后仍重要时写 `[记忆:一句话]`；闲聊、临时情绪/安排不记，标记隐藏。";
   systemText = systemText ? systemText + "\n\n" + memSaveNote : memSaveNote;
@@ -9867,9 +9890,9 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   if (wxNote) systemText = systemText ? systemText + "\n\n" + wxNote : wxNote;
   }
 
-  if (activeSpeaker) systemText += "\n\n" + roleplaySpeakerPrompt(activeSpeaker, rpProject, activeTemporaryPlot);
+  if (activeSpeaker && !backstageMode) systemText += "\n\n" + roleplaySpeakerPrompt(activeSpeaker, rpProject, activeTemporaryPlot);
   if (rpProject) {
-    const memoryInjection = roleplayMemoryInjection(rpProject, currentConv());
+    const memoryInjection = backstageMode ? { text: "", position: "" } : roleplayMemoryInjection(rpProject, currentConv());
     if (memoryInjection.text) {
       if (memoryInjection.position === "before-main-prompt") systemText = `${memoryInjection.text}\n\n${systemText}`;
       else if (["after-main-prompt", "depth-system"].includes(memoryInjection.position)) systemText = `${systemText}\n\n${memoryInjection.text}`;
@@ -9896,7 +9919,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
         ...message, content: stripDisabledRoleplayWorldFromContent(message.content ?? message.text, rpProject),
       }));
     }
-    const finalRoleplayInstruction = roleplayFinalSystemInstruction(rpProject);
+    const finalRoleplayInstruction = backstageMode ? "" : roleplayFinalSystemInstruction(rpProject);
     if (finalRoleplayInstruction) systemText = `${systemText}\n\n${finalRoleplayInstruction}`;
   }
   let url, headers, body;
@@ -13281,7 +13304,16 @@ async function generateReply() {
   if (!isRoleplayConversation(conv) || !conv.rpProject?.groupEnabled) return generateSingleReply();
   const project = normalizedRoleplayProject(conv.rpProject, conv);
   const latestUser = [...messages].reverse().find(message => message.role === "user" && !message._summary);
-  const members = roleplayReplyMembers(project, latestUser ? messageText(latestUser) : "", latestUser?.rpReplyMemberIds || []);
+  const latestUserText = latestUser ? messageText(latestUser) : "";
+  const backstageControl = roleplayBackstageControl(latestUserText);
+  const ownerSpeaker = roleplayMembers(project).find(member => !roleplayIndependentSpeaker(member, conv));
+  if (ownerSpeaker && backstageControl) {
+    project.backstagePaused = backstageControl === "pause";
+    conv.rpProject.backstagePaused = project.backstagePaused;
+    conv.updatedAt = Date.now(); saveConversations();
+  }
+  let members = roleplayReplyMembers(project, latestUserText, latestUser?.rpReplyMemberIds || []);
+  if (ownerSpeaker && (backstageControl === "pause" || (project.backstagePaused && backstageControl !== "resume"))) members = [ownerSpeaker];
   if (!members.length) { showToast("先在群聊设置里勾选本轮发言成员"); return; }
   const requests = members.map(speaker => {
     const route = roleplaySpeakerRequest(speaker, conv);
@@ -13318,8 +13350,18 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       return false;
     }
   }
-  const capturedPlot = !roleplayGroupRun && replyProject ? roleplayTemporaryPlotFor(replyProject, replySpeaker) : null;
   const independent = roleplayIndependentSpeaker(speaker);
+  if (replyProject && !independent && !roleplayGroupRun) {
+    const latestUser = [...messages].reverse().find(message => message.role === "user" && !message._summary);
+    const backstageControl = roleplayBackstageControl(latestUser ? messageText(latestUser) : "");
+    if (backstageControl) {
+      replyProject.backstagePaused = backstageControl === "pause";
+      replyConv.rpProject.backstagePaused = replyProject.backstagePaused;
+      replyConv.updatedAt = Date.now(); saveConversations();
+    }
+  }
+  const backstageMode = !!(replyProject && !independent && replyProject.backstagePaused);
+  const capturedPlot = !roleplayGroupRun && replyProject && !backstageMode ? roleplayTemporaryPlotFor(replyProject, replySpeaker) : null;
   const captureDiary = text => independent ? stripIndependentRoleplayControls(text) : extractPrivateDiary(text, assistantMsg.id);
   const replyConversationId = currentId, replyRevision = chatNavigationRevision;
   const replyMessages = messages;
@@ -13328,7 +13370,9 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
   const assistantMsg = {
     id: uid(), role: "assistant", content: "", reasoning: "", traces: [],
     responseState: "submitted", ts: Date.now(),
-    ...(speaker ? { rpSpeakerId: speaker.id, rpSpeakerName: speaker.name, rpSpeakerAvatar: /^https?:\/\//.test(speaker.avatar || "") ? speaker.avatar : "" } : {}),
+    ...(backstageMode
+      ? { rpSpeakerName: String(settings.aiName || "当前角色").trim() || "当前角色", rpSpeakerAvatar: isImageRef(settings.aiAvatar) ? settings.aiAvatar : "" }
+      : speaker ? { rpSpeakerId: speaker.id, rpSpeakerName: speaker.name, rpSpeakerAvatar: isImageRef(speaker.avatar) ? speaker.avatar : "" } : {}),
   };
   messages.push(assistantMsg);
   const el = makeMsgEl("assistant", "", assistantMsg);
@@ -13520,7 +13564,9 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
         assistantMsg.promptAudit = lastCallUsage.promptAudit || null;
       }
       // pull out & save any [记忆:…] the model wrote on request (and strip from the shown text)
-      assistantMsg.content = extractMemorySaves(assistantMsg.content, assistantMsg.id);
+      assistantMsg.content = backstageMode
+        ? assistantMsg.content.replace(/\[\s*记忆\s*[:：][^\]\n]*\]/g, "").trim()
+        : extractMemorySaves(assistantMsg.content, assistantMsg.id);
       // write any [存档:…] entries up to the Notion archive (琛琛印记), then strip them
       if (!independent) assistantMsg.content = await extractNotionSaves(assistantMsg.content);
       // pull out any [提醒:…|分钟] → reminder cards get appended (as messages) after the reply renders
@@ -13540,7 +13586,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       // asks for one stable status tag, and the saved reply is repaired if a
       // relay truncates or omits that final block. The raw text stays portable;
       // display-time rendering below turns the tags into native cards.
-      if (replyProject?.groupEnabled && replySpeaker)
+      if (replyProject?.groupEnabled && replySpeaker && !backstageMode)
         assistantMsg.content = ensureRoleplayStatusOutput(assistantMsg.content, replySpeaker, replyProject);
       // Texting like a real person: split the finished reply into multiple bubbles
       // and standalone stickers, then reveal them one at a time.
