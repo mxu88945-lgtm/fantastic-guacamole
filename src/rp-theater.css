@@ -170,10 +170,10 @@ body.rp-opening-picker-open { overflow: hidden; }
 .roleplay-html-card { width: min(100%, 920px); overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .roleplay-html-stack { display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 0; }
 .roleplay-html-frame { display: block; float: none !important; clear: both; width: 100%; min-width: 0; min-height: 40px; height: 240px; border: 0; background: transparent; }
-.roleplay-opening-text { display: block; float: none !important; clear: both; width: 100%; min-width: 0; padding: 0 14px; color: var(--text); font-size: var(--msg-font, 15.5px); line-height: 1.9; overflow-wrap: anywhere; }
+.roleplay-opening-text { display: block; float: none !important; clear: both; width: 100%; min-width: 0; padding: 0 14px; color: var(--text); font-size: var(--rp-msg-font, var(--msg-font, 15.5px)); line-height: 1.9; overflow-wrap: anywhere; }
 .roleplay-opening-text > :first-child { margin-top: 0; }
 .roleplay-opening-text > :last-child { margin-bottom: 0; }
-.rp-story-text { font-size: var(--msg-font, 14.5px); font-family: var(--msg-font-family, inherit); line-height: 1.9; overflow-wrap: anywhere; }
+.rp-story-text { font-size: var(--rp-msg-font, var(--msg-font, 14.5px)); font-family: var(--rp-msg-font-family, var(--msg-font-family, inherit)); line-height: 1.9; overflow-wrap: anywhere; }
 .bubble .rp-story-text > p, .rp-story-text > p { margin: 0 0 1.15em; }
 .rp-story-text > :last-child { margin-bottom: 0; }
 .rp-story-text .chat-quote { display: inline; padding: .18em .45em; border-radius: 8px; background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--quote-text-color, var(--accent)); box-decoration-break: clone; -webkit-box-decoration-break: clone; line-height: 1.65; }

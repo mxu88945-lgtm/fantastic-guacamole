@@ -9,10 +9,10 @@
 .rp-mention-portrait img { width: 100%; height: 100%; object-fit: cover; }
 .rp-scene-strip { margin: 0 0 14px; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--accent-soft) 42%, transparent); color: var(--text-dim); font-size: .9em; line-height: 1.65; }
 .rp-story-body + .rp-status-card { margin-top: 12px; }
-.rp-status-card { box-sizing: border-box; display: block; position: static; width: 100%; height: auto !important; min-height: 0 !important; margin: 12px 0 0; padding: 4px 0 4px 12px; border: 0; border-left: 2px solid color-mix(in srgb, var(--accent) 62%, transparent); border-radius: 0; background: transparent !important; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; overflow: visible; }
+.rp-status-card { box-sizing: border-box; display: block; position: static; width: 100%; height: auto !important; min-height: 0 !important; margin: 12px 0 0; padding: 4px 0 4px 12px; border: 0; border-left: 2px solid color-mix(in srgb, var(--accent) 62%, transparent); border-radius: 0; background: transparent !important; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; overflow: visible; font-size: var(--rp-msg-font, var(--msg-font, 14.5px)); }
 /* The app-wide `header` rule carries the iPhone safe-area padding. Reset every
    layout property here so a status tail stays content-height inside a message. */
-.rp-status-card > header { box-sizing: border-box; position: static; z-index: auto; display: block; width: auto; height: auto !important; min-height: 0 !important; margin: 0 0 5px; padding: 0 !important; background: transparent; color: var(--accent); font-size: 11px; font-weight: 750; line-height: 1.4; letter-spacing: .08em; }
+.rp-status-card > header { box-sizing: border-box; position: static; z-index: auto; display: block; width: auto; height: auto !important; min-height: 0 !important; margin: 0 0 5px; padding: 0 !important; background: transparent; color: var(--accent); font-size: .78em; font-weight: 750; line-height: 1.4; letter-spacing: .08em; }
 .rp-status-row { display: grid; grid-template-columns: minmax(92px, max-content) minmax(0, 1fr); gap: 9px; align-items: start; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--border) 64%, transparent); font-size: .86em; line-height: 1.5; }
 .rp-status-row:first-of-type { border-top: 0; }
 .rp-status-row strong { color: var(--text-dim); font-size: .92em; }
