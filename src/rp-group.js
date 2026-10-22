@@ -107,16 +107,15 @@ if (bridge) {
   }
   function channelFields(member, index) {
     const profiles = channels();
-    const followsWindow = member.id === "lead" ? member.playedByOwner !== false : member.playedByOwner === true;
     const effectiveId = member.providerId || bridge.currentChannelId?.() || "";
     const selected = profiles.find(profile => profile.id === effectiveId);
-    if (followsWindow) return `<div class="rp-group-note"><strong>接口与模型：</strong>沿用本窗口${selected ? ` · ${escape(selected.name)}${selected.model ? ` / ${escape(selected.model)}` : ""}` : ""}<br>由本体出演时，不会再使用角色卡里以前保存的固定线路。</div>`;
     const missing = member.providerId && !selected;
     const models = [...new Set(selected?.models || [])];
     const custom = member.model && !models.includes(member.model) ? `<option value="${escape(member.model)}" selected>${escape(member.model)}（当前）</option>` : "";
     return `<label>接口<select data-field="providerId"><option value="">沿用本窗口接口${selected ? ` · ${escape(selected.name)}` : ""}</option>${missing ? `<option selected value="${escape(member.providerId)}">原接口已移除，请重新选择</option>` : ""}${profiles.map(profile => `<option value="${escape(profile.id)}" ${profile.id === member.providerId ? "selected" : ""}>${escape(profile.name)}</option>`).join("")}</select></label>
       <label>模型<select data-field="model"><option value="">沿用所选接口模型${selected?.model ? ` · ${escape(selected.model)}` : ""}</option>${custom}${models.map(model => `<option value="${escape(model)}" ${model === member.model ? "selected" : ""}>${escape(model)}</option>`).join("")}</select></label>
-      <div class="rp-model-tools"><button type="button" data-fetch-models="${escape(member.id)}">↻ 拉取 / 刷新模型</button><small data-model-status="${escape(member.id)}">${selected ? selected.hasModelList ? `已读取 ${models.length} 个模型` : "切换接口后会自动拉取" : "请先选择可用接口"}</small></div>`;
+      <div class="rp-model-tools"><button type="button" data-fetch-models="${escape(member.id)}">↻ 拉取 / 刷新模型</button><small data-model-status="${escape(member.id)}">${selected ? selected.hasModelList ? `已读取 ${models.length} 个模型` : "切换接口后会自动拉取" : "请先选择可用接口"}</small></div>
+      <p class="rp-group-note">这里是这位角色实际使用的线路。选择第一项会跟随本剧情窗口；固定选择其他接口后，主设置不会覆盖它。</p>`;
   }
   function memberHtml(member, index) {
     const lead = member.id === "lead";
@@ -388,13 +387,12 @@ if (bridge) {
       markDirty(); previewTextTheme();
     }
     if (["rp-group-enabled", "rp-group-reply-mode"].includes(event.target.id) || event.target.closest("[data-member]") || event.target.closest("#rp-user-profile") || event.target.closest("#rp-temporary-section")) markDirty();
-    if (event.target.matches('[data-field="playedByOwner"]')) {
-      collect(); renderMembers(); return;
-    }
     if (event.target.matches('[data-field="providerId"]')) {
       const id = event.target.closest("[data-member]")?.dataset.member;
-      collect(); renderMembers();
+      collect();
       const member = id === "lead" ? draft.leadChannel : draft.members.find(item => item.id === id);
+      if (member) member.model = "";
+      renderMembers();
       const profileId = member?.providerId || bridge.currentChannelId?.() || "";
       const profile = channels().find(item => item.id === profileId);
       if (id && profile && !profile.hasModelList) await refreshMemberModels(id, true);

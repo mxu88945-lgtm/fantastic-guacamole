@@ -13142,17 +13142,10 @@ async function generateReply() {
   const members = roleplayReplyMembers(project, latestUser ? messageText(latestUser) : "", latestUser?.rpReplyMemberIds || []);
   if (!members.length) { showToast("先在群聊设置里勾选本轮发言成员"); return; }
   const requests = members.map(speaker => {
-    // A member performed by the current owner follows this conversation's route.
-    // This prevents an old per-member binding from silently overriding a channel/model
-    // that the user just selected for the RP window. Independent cast members may
-    // still keep their own provider and model.
-    const followsWindow = !roleplayIndependentSpeaker(speaker, conv);
-    const profile = followsWindow ? conversationProvider(conv)
-      : speaker.providerId ? providerById(speaker.providerId) : conversationProvider(conv);
+    const profile = speaker.providerId ? providerById(speaker.providerId) : conversationProvider(conv);
     return { speaker, profile, config: { ...settings, provider: profile?.provider || settings.provider,
       baseUrl: profile?.baseUrl || "", apiKey: profile?.apiKey || "",
-      model: followsWindow ? conversationModel(conv)
-        : speaker.model || (speaker.providerId ? profile?.model : conversationModel(conv)),
+      model: speaker.model || (speaker.providerId ? profile?.model : conversationModel(conv)),
       _routeProfileId: profile?.id || "" } };
   });
   const unavailable = requests.find(request => !request.profile || !request.config.apiKey || !request.config.model);
