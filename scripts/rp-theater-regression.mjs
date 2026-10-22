@@ -320,6 +320,16 @@ const slanted = sourceContext.renderMarkdown('*他脚步顿了一瞬。*', true)
 ok(slanted.includes('chat-narration') && !slanted.includes('<em>'), 'roleplay asterisk beats must render as upright narration, not slanted emphasis');
 ok(sourceContext.renderMarkdown('*斜体*', false).includes('<em>斜体</em>'), 'main-chat markdown must keep real italics');
 ok(sourceContext.renderMarkdown('**顾荒，23岁。**', true).includes('<strong>'), 'roleplay bold must be untouched');
+const b2Story = sourceContext.renderMarkdown('他走到 B2 层。', true);
+ok(b2Story.includes('B2') && !b2Story.includes('undefined'), 'literal B-number text must survive, never become undefined');
+const loneB0 = sourceContext.renderMarkdown('<details><summary>顾荒的状态栏</summary>\n B0 \n</details>', true);
+ok(loneB0.includes('B0') && !loneB0.includes('undefined'), 'a lone B-number line inside a details body must stay literal text');
+const audioInDetails = sourceContext.renderMarkdown('<details><summary>栏</summary><audio controls><source src="https://x.example/y.mp3"></audio>\n▸好感度：20\n</details>', true);
+ok(audioInDetails.includes('chat-audio') && audioInDetails.includes('好感度：20'), 'audio nested inside a details body must survive');
+const fenceInDetails = sourceContext.renderMarkdown('<details><summary>栏</summary>\n```js\nconst a = 1;\n```\n▸好感度：20\n</details>', true);
+ok(fenceInDetails.includes('<pre><code>') && fenceInDetails.includes('好感度：20') && !fenceInDetails.includes('undefined'), 'fences nested inside a details body must survive');
+const fenceStandalone = sourceContext.renderMarkdown('```js\nconst a = 1;\n```', true);
+ok(fenceStandalone.includes('<pre><code>') && fenceStandalone.includes('const a = 1'), 'standalone code fences must still render');
 const sceneFirst = sourceContext.roleplaySemanticDisplay('<scene>雨夜天台</scene>\n正文第一句。');
 ok(sceneFirst.includes('rp-scene-strip') && sceneFirst.indexOf('雨夜天台') < sceneFirst.indexOf('正文第一句'), 'real scene labels must still hoist to the strip above the body');
 console.log(`RP theater regression checks passed (${checks})`);

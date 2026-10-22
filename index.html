@@ -6316,15 +6316,19 @@ function extractDetailsBlocks(text, storyQuotes) {
 }
 function renderMarkdown(text, storyQuotes = false) {
   const blocks = [];
+  // Extract details FIRST: fences/audio inside a details body must be handled by
+  // the body's own render pass. Extracting them in the outer pass first orphaned
+  // them — audio inside details vanished, and fences inside details restored to
+  // "undefined" in the inner pass (its block list was empty).
+  const details = extractDetailsBlocks(text, storyQuotes);
+  text = details.text;
   text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const i = blocks.length;
     blocks.push('<pre><code>' + escapeHtml(code.replace(/\n$/, "")) + '</code></pre>');
-    return " B" + i + " ";
+    return " RPCODE" + i + " ";
   });
   const audio = extractAudioPlayers(text);
   text = audio.text;
-  const details = extractDetailsBlocks(text, storyQuotes);
-  text = details.text;
   text = escapeHtml(text);
   // Tavo-like quote recognition. Run before Markdown injects tags with quoted attributes.
   text = storyQuotes
@@ -6363,7 +6367,7 @@ function renderMarkdown(text, storyQuotes = false) {
     }
   }
   if (inUl) html += "</ul>";
-  html = html.replace(/ B(\d+) /g, (_, i) => blocks[+i]);
+  html = html.replace(/ RPCODE(\d+) /g, (_, i) => blocks[+i] ?? "");
   html = html.replace(/ RPAUDIO(\d+) /g, (_, i) => audio.players[+i] ?? "");
   html = html.replace(/ RPDETAILS(\d+) /g, (_, i) => details.blocks[+i] ?? "");
   return html;
