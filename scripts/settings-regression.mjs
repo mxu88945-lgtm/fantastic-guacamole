@@ -70,6 +70,7 @@ ok(html.includes('$("bg-clear").onclick = clearChatBackground;'), "background cl
 
 ok(sw.includes('const CACHE = "role-chat-cache-v236";'), "service worker cache was not bumped for reasoning effort controls");
 
+ok(html.includes('id="mainFontSize"') && html.includes('id="mainFontSizeVal"') && html.includes('id="mainFontSizeSample"') && !html.includes('data-fs="small"'), "main chat font size must be a slider with a number readout and a live preview");
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "settings redesign introduced duplicate DOM ids");
 

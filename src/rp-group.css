@@ -118,3 +118,12 @@
 .rp-group-drawer footer button { flex-shrink: 0; background: var(--accent); color: var(--bg); border-color: var(--accent); }
 .rp-group-drawer :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 480px) { .rp-group-drawer { width: 82vw; } .rp-group-drawer > header { padding-left: 16px; padding-right: 12px; } .rp-group-drawer footer { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); gap: 8px; } .rp-group-drawer footer button { padding: 10px; font-size: 13px; } .rp-status-row { grid-template-columns: 1fr; gap: 2px; } .rp-status-row strong { font-size: 11px; } }
+.rp-group-drawer .rp-font-size-row { margin: 12px 0; }
+.rp-group-drawer .rp-font-size-slider { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.rp-group-drawer .rp-font-size-row input[type="range"] { flex: 1; width: auto; max-width: none; display: block; margin: 0; border: 0; border-radius: 0; padding: 0; background: transparent; accent-color: var(--accent); }
+.rp-group-drawer .rp-font-size-pill { min-width: 64px; flex-shrink: 0; text-align: center; padding: 5px 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-panel); font-size: 13px; }
+.rp-group-drawer .rp-font-size-follow { display: flex; gap: 6px; align-items: center; margin: 8px 0 0; font-size: 13px; }
+.rp-group-drawer .rp-font-size-preview { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
+.rp-group-drawer .rp-font-size-preview-title { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+.rp-group-drawer .rp-font-size-preview p { margin: 0 0 6px; line-height: 1.6; }
+.rp-group-drawer .rp-font-size-preview p:last-child { margin-bottom: 0; }

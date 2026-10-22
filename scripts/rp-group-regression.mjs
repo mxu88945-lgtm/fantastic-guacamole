@@ -71,6 +71,14 @@ assert.match(context.roleplayTemporaryPlotFor(privatePlot, { id: "director" }, p
 assert.ok(groupUi.includes('id="rp-temporary-section"') && groupUi.includes('data-plot-recipient'), "right drawer temporary plot editor is missing");
 assert.ok(groupUi.includes('id="rp-user-profile"') && groupUi.includes('id="rp-user-identity"'), "right drawer user identity editor is missing");
 assert.ok(groupUi.includes('id="rp-display-section"') && groupUi.includes('textThemeRow("chatTextColor"') && groupUi.includes("previewSceneTextTheme"), "RP text color theme controls are missing");
+assert.ok(groupUi.includes('type="range" data-rp-font="chatFontSize"') && groupUi.includes("data-rp-font-size-follow") && groupUi.includes("data-rp-font-size-sample"), "RP font size must be a slider with a follow-main option and a live preview");
+assert.equal(context.normalizedRoleplayProject({ chatFontSize: "15.5" }, {}).chatFontSize, "15.5", "numeric RP font sizes must survive normalization");
+assert.equal(context.normalizedRoleplayProject({ chatFontSize: "99" }, {}).chatFontSize, "24", "numeric RP font sizes must clamp");
+assert.equal(context.normalizedRoleplayProject({ chatFontSize: "huge" }, {}).chatFontSize, "", "invalid RP font sizes must fall back to follow-main");
+vm.runInContext(source("function roleplayTypography(", "function normalizeRoleplayMixedMarkup("), context);
+assert.equal(context.roleplayTypography({ chatFontSize: "15.5" }).size, "15.5px");
+assert.equal(context.roleplayTypography({ chatFontSize: "medium" }).size, "14.5px");
+assert.equal(context.roleplayTypography({}).size, "14.5px");
 assert.ok(html.includes("function applyRoleplayTextTheme(") && html.includes('"chatTextColor", "chatNarrationColor", "chatQuoteColor"'), "per-scene text colors are not persisted and applied");
 assert.ok(html.includes("--rp-msg-font") && html.includes("--rp-msg-font-family"), "RP typography must use story-scoped variables");
 assert.ok(html.includes("body.rp-chat-active #messages .bubble") && !html.includes('box.style.setProperty("--msg-font", typography.size)'), "RP typography must not overwrite main chat font variables");
