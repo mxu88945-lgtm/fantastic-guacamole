@@ -1047,6 +1047,12 @@
     line-height: 1.7; word-wrap: break-word; overflow-wrap: anywhere;
     box-shadow: 0 2px 8px rgba(0,0,0,.06);
   }
+  /* RP typography is scoped to the current story message box. It must not reuse or overwrite
+     the main chat's document-level --msg-font variables. */
+  body.rp-chat-active #messages .bubble {
+    font-size: var(--rp-msg-font, var(--msg-font, 14.5px));
+    font-family: var(--rp-msg-font-family, var(--msg-font-family, inherit));
+  }
   /* Claude-style: assistant message has no bubble — just text on the page */
   .msg.assistant .bubble {
     background: transparent; border: none; box-shadow: none;
@@ -2153,6 +2159,13 @@
     padding: 10px 15px; border: 0; border-radius: 20px;
     background: #eeeeec; box-shadow: none;
     color: #292826; font-size: var(--msg-font, 15.5px); line-height: 1.58;
+  }
+  body.rp-chat-active #messages .msg.assistant .bubble,
+  body.rp-chat-active #messages .msg.assistant.flat .bubble {
+    font-size: var(--rp-msg-font, var(--msg-font, 16px));
+  }
+  body.rp-chat-active #messages .msg.user .bubble {
+    font-size: var(--rp-msg-font, var(--msg-font, 15.5px));
   }
   html[data-theme-key="claude"] .msg.user .msg-media { max-width: min(88%, 610px); }
   html[data-theme-key="claude"] .msg-actions {
@@ -6206,7 +6219,7 @@ function updateConversationSpaceUI() {
 
 function applyRoleplayTextTheme(box = $("messages"), projectOverride = null) {
   if (!box) return;
-  ["--system-text-color", "--narration-text-color", "--quote-text-color", "--msg-font", "--msg-font-family"].forEach(name => box.style.removeProperty(name));
+  ["--system-text-color", "--narration-text-color", "--quote-text-color", "--rp-msg-font", "--rp-msg-font-family"].forEach(name => box.style.removeProperty(name));
   if (!isRoleplayConversation()) return;
   const project = projectOverride || normalizedRoleplayProject(currentConv()?.rpProject, currentConv());
   const body = project.chatTextColor;
@@ -6214,8 +6227,8 @@ function applyRoleplayTextTheme(box = $("messages"), projectOverride = null) {
   if (project.chatNarrationColor || body) box.style.setProperty("--narration-text-color", project.chatNarrationColor || body);
   if (project.chatQuoteColor || body) box.style.setProperty("--quote-text-color", project.chatQuoteColor || body);
   const typography = roleplayTypography(project);
-  if (project.chatFontSize) box.style.setProperty("--msg-font", typography.size);
-  if (project.chatFontFamily) box.style.setProperty("--msg-font-family", typography.family);
+  if (project.chatFontSize) box.style.setProperty("--rp-msg-font", typography.size);
+  if (project.chatFontFamily) box.style.setProperty("--rp-msg-font-family", typography.family);
   box.querySelectorAll(".roleplay-html-frame").forEach(frame => frame.contentWindow?.postMessage({ type: "jyc-rp-typography", ...typography }, "*"));
 }
 

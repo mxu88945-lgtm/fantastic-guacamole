@@ -72,6 +72,8 @@ assert.ok(groupUi.includes('id="rp-temporary-section"') && groupUi.includes('dat
 assert.ok(groupUi.includes('id="rp-user-profile"') && groupUi.includes('id="rp-user-identity"'), "right drawer user identity editor is missing");
 assert.ok(groupUi.includes('id="rp-display-section"') && groupUi.includes('textThemeRow("chatTextColor"') && groupUi.includes("previewSceneTextTheme"), "RP text color theme controls are missing");
 assert.ok(html.includes("function applyRoleplayTextTheme(") && html.includes('"chatTextColor", "chatNarrationColor", "chatQuoteColor"'), "per-scene text colors are not persisted and applied");
+assert.ok(html.includes("--rp-msg-font") && html.includes("--rp-msg-font-family"), "RP typography must use story-scoped variables");
+assert.ok(html.includes("body.rp-chat-active #messages .bubble") && !html.includes('box.style.setProperty("--msg-font", typography.size)'), "RP typography must not overwrite main chat font variables");
 assert.ok(groupUi.includes("data-export-scene") && groupUi.includes("data-import-scene"), "right drawer TXT export/import actions are missing");
 assert.ok(groupUi.includes('<select data-field="model">') && !groupUi.includes("<datalist"), "member models must use a real mobile-friendly select");
 assert.ok(groupUi.includes("这里是这位角色实际使用的线路") && groupUi.includes('if (member) member.model = ""'), "member routing must remain editable and clear a stale model when its channel changes");
