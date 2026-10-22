@@ -254,7 +254,7 @@ Object.assign(context, {
 });
 for (const name of ["buildGlobalPromptPresetText", "buildConversationProjectText", "buildSharedRoleplayExperienceText", "emojiStyleNote", "chatStyleNote", "cycleSystemNote", "workbenchSystemNote", "charLockPromptNote", "buildCharLockBreachNote", "buildWxPromptNote"]) context[name] = () => "";
 vm.runInContext(source("function buildRoleplayProjectText(", "function buildSharedRoleplayExperienceText("), context);
-vm.runInContext(source("function sendContent(", "// Map the chosen"), context);
+vm.runInContext(source("function stripRoleplaySpeakerMarker(", "// Map the chosen"), context);
 vm.runInContext(source("function chatRuntimeSettings(", "// Normalize a raw usage object"), context);
 const captured = [];
 context.fetch = async (url, init) => { captured.push({ url, init, body: JSON.parse(init.body) }); throw new Error("captured-request"); };
@@ -277,6 +277,7 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
   assert.match(JSON.stringify(wireHistory.at(-1)), /共演调度/);
 }
 assert.equal(context.sendContent({ role: "assistant", content: "我接着说", rpSpeakerName: "江屿" }), "【共演发言：江屿】\n我接着说");
+assert.equal(context.stripRoleplaySpeakerMarker("【共演发言：顾祁砚】\n正文"), "正文", "internal speaker labels must not leak into visible RP prose");
 assert.equal(context.sendContent({ role: "assistant", content: "普通对话" }), "普通对话");
 
 // Check real wire requests with recognizable owner-only context. Off/on/off
@@ -390,6 +391,7 @@ const completion = vm.createContext({
   abortController: null, replyBooting: false, roleplayGroupRun: null, stickBottom: false,
   TYPING_HTML: "typing", lastPromptAudit: null, lastCallUsage: null,
   roleplayIndependentSpeaker: context.roleplayIndependentSpeaker,
+  stripRoleplaySpeakerMarker: context.stripRoleplaySpeakerMarker,
   roleplaySpeakerRequest: context.roleplaySpeakerRequest,
   providerById: context.providerById,
   conversationProvider: context.conversationProvider,

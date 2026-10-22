@@ -9460,6 +9460,10 @@ async function drawImage() {
 }
 // What to actually send for a stored message: if an assistant turn's visible reply
 // ended up only in the reasoning channel, send that so the model keeps full context.
+function stripRoleplaySpeakerMarker(text) {
+  if (typeof text !== "string") return text;
+  return text.replace(/^\s*(?:【共演发言：[^】]{1,80}】\s*)+/u, "").trimStart();
+}
 function sendContent(m) {
   let content = m.rpSelectedOpening && m.role === "assistant" ? m.rpSelectedOpening : m.content;
   if (m.role === "assistant" && typeof m.content === "string"
@@ -13437,6 +13441,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       .replace(/\[\s*(?:搜索|联网|相册|提醒)\s*[:：][^\]\n]*\]/g, "")
       .replace(/\[\s*旧文\s*[:：][^\]\n]*\]/g, "")
       .replace(/\[\s*(?:私记|私人日记|角色日记)\s*[:：][\s\S]*?\]/gi, "").trim();
+    assistantMsg.content = stripRoleplaySpeakerMarker(assistantMsg.content);
   };
 
   let replied = false;
@@ -13544,6 +13549,8 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     // strip any leftover [搜索:…]/[联网:…] tag from the shown text (e.g. if it appears in the final answer)
     assistantMsg.content = assistantMsg.content.replace(/\[\s*(?:搜索|联网|相册)\s*[:：][^\]\n]*\]/g, "").trim();
     assistantMsg.content = assistantMsg.content.replace(/\[\s*旧文\s*[:：][^\]\n]*\]/g, "").trim();
+    // Speaker labels are internal context markers, not visible roleplay prose.
+    assistantMsg.content = stripRoleplaySpeakerMarker(assistantMsg.content);
     // The role may leave one private diary line for its next instance. Save it in
     // the role bundle and remove the marker before deciding whether the reply is visible.
     assistantMsg.content = captureDiary(assistantMsg.content);
