@@ -306,4 +306,10 @@ ok(audioContext.audioPlayerHtml('<audio src="https://files.catbox.moe/0oe114.mp3
 ok(audioContext.audioPlayerHtml('<audio controls><source src="javascript:alert(1)"></audio>') === '', 'non-http audio sources must never become players');
 const extracted = audioContext.extractAudioPlayers(`*主线剧情*\n${cardBlock}\n**顾荒，23岁。**`);
 ok(extracted.players.length === 1 && extracted.text.includes(' RPAUDIO0 ') && !extracted.text.includes('<audio'), 'audio blocks must be pulled out before escaping with a restorable placeholder');
+const guHuangOpening = `*主线剧情*\n<audio controls autoplay loop>\n    <source src="https://link.hhtjim.com/163/2645500113.mp3" type="audio/mpeg">\n    Your browser does not support the audio element.\n</audio>\n**顾荒，23岁，顶流乐队BreakHeart的主唱。**\n<plot>\n一头张扬的红发，故事正文。\n</plot>`;
+const ordered = sourceContext.roleplaySemanticDisplay(guHuangOpening);
+ok(ordered && !ordered.includes('rp-scene-strip') && !ordered.includes('&lt;plot'), 'plot chapters must not be hoisted to the scene strip or leak their tags');
+ok(ordered.indexOf('主线剧情') < ordered.indexOf('chat-audio') && ordered.indexOf('chat-audio') < ordered.indexOf('顾荒，23岁') && ordered.indexOf('顾荒，23岁') < ordered.indexOf('一头张扬的红发'), 'greeting header, player and intro must stay above the story in the author\'s original order');
+const sceneFirst = sourceContext.roleplaySemanticDisplay('<scene>雨夜天台</scene>\n正文第一句。');
+ok(sceneFirst.includes('rp-scene-strip') && sceneFirst.indexOf('雨夜天台') < sceneFirst.indexOf('正文第一句'), 'real scene labels must still hoist to the strip above the body');
 console.log(`RP theater regression checks passed (${checks})`);

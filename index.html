@@ -6975,9 +6975,17 @@ function renderRoleplayStoryText(value) {
 }
 function roleplaySemanticDisplay(answer) {
   const source = String(answer || "");
-  if (!/<(?:scene|plot|status|[a-z][\w-]*_status)\b/i.test(source)) return "";
+  // <plot> is a story container in card greetings (the whole chapter), not a
+  // scene label: unwrap it in place so the author's order survives — header,
+  // player and intro stay on top, story follows. Only <scene> is hoisted to
+  // the strip above the body.
+  const unwrapped = source.replace(/<plot\b[^>]*>([\s\S]*?)<\/plot\s*>/gi, (_match, content) => content);
+  if (!/<(?:scene|status|[a-z][\w-]*_status)\b/i.test(unwrapped)) {
+    if (unwrapped !== source) return `<div class="rp-story-body">${renderRoleplayStoryText(unwrapped)}</div>`;
+    return "";
+  }
   const scenes = [], statuses = [];
-  let body = source.replace(/<(scene|plot)\b[^>]*>\s*([\s\S]*?)\s*<\/\1\s*>/gi, (_match, _tag, content) => {
+  let body = unwrapped.replace(/<scene\b[^>]*>\s*([\s\S]*?)\s*<\/scene\s*>/gi, (_match, content) => {
     scenes.push(String(content || "").trim()); return "";
   });
   body = body.replace(/<(status|[a-z][\w-]*_status)\b[^>]*>\s*([\s\S]*?)\s*<\/\1\s*>/gi, (_match, tag, content) => {
