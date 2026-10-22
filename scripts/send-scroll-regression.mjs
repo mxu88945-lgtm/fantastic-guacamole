@@ -32,6 +32,8 @@ requireText('if (h === chatLastHeight) return;', 'width-only resizes re-pin the 
 requireText('window.dispatchEvent(new Event("jyc-app-h"));', 'pre-paint viewport sync does not announce --app-h changes')
 requireText('  watchChatResizePin();\n', 'keyboard resize watcher is never started')
 requireText('$("chat").addEventListener("touchmove", wakeNav, { passive: true });', 'touch scrolling does not wake the shared chat navigation')
+requireText('topBtn.classList.toggle("show", scrollable && fromTop > 180);', 'scroll jump buttons must stay visible while the chat is scrollable instead of fading seconds after touch')
+requireText('bottomBtn.classList.toggle("show", scrollable && fromBottom > 180);', 'scroll jump buttons must stay visible while the chat is scrollable instead of fading seconds after touch')
 if (!roleplayCss.includes('body.rp-chat-active .scroll-nav { display: flex !important;')
     || !roleplayCss.includes('html[data-theme-key="claude"] body.rp-chat-active #scroll-top-btn { display: grid; }')) {
   throw new Error('RP chat does not expose the same two-way scroll controls as the main chat')

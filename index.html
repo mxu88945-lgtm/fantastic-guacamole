@@ -7476,8 +7476,8 @@ function updateScrollControls() {
   const fromTop = Math.max(0, c.scrollTop);
   const fromBottom = Math.max(0, max - fromTop);
   const scrollable = max > 120;
-  topBtn.classList.toggle("show", scrollControlsAwake && scrollable && fromTop > 180);
-  bottomBtn.classList.toggle("show", scrollControlsAwake && scrollable && fromBottom > 180);
+  topBtn.classList.toggle("show", scrollable && fromTop > 180);
+  bottomBtn.classList.toggle("show", scrollable && fromBottom > 180);
 }
 function wakeScrollControls() {
   scrollControlsAwake = true;
@@ -15730,7 +15730,8 @@ async function init() {
     if (!inUI) closePopups();
   });
 
-  // Two-way chat navigation. Controls wake on user interaction and fade after a few seconds.
+  // Two-way chat navigation. The jump buttons stay visible while the chat is scrollable
+  // and the user is away from that edge, instead of fading a few seconds after touch.
   $("scroll-top-btn").onclick = scrollToTop;
   $("scroll-bottom-btn").onclick = () => {
     stickBottom = true;
