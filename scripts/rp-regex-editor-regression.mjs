@@ -1,0 +1,35 @@
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+import assert from "node:assert/strict";
+const ui = readFileSync(new URL("../src/rp-theater.js", import.meta.url), "utf8");
+let writes = [];
+const rule = { id: "original", name: "场景", findRegex: "/<scene>(.*?)<\\/scene>/gis", replaceString: '<div style="color:red">$1</div>', disabled: false, promptOnly: false, markdownOnly: true, placement: [2], minDepth: 3, expanded: true };
+const state = { editingId: "story", avatarPending: false, regexRules: [rule], worldEntries: [], greetings: ["开场"], selectedGreeting: 0, files: [], tags: [], leadChannel: {} };
+const context = vm.createContext({ state, commitGreetingDraft() {}, safeText: value => String(value || ""), stripWorldbookCopies: value => value,
+  $: id => ({ value: id === "rp-field-character" ? "人物设定" : id, checked: true, dataset: { full: "简介" } }),
+  bridge: { update(id, draft) { writes.push(structuredClone({ id, draft })); } } });
+const run = (start, end) => vm.runInContext(ui.slice(ui.indexOf(start), ui.indexOf(end, ui.indexOf(start))), context);
+run("function regexRuleError(", "function stripWorldbookCopies(");
+run("function currentDraft(", "function renderActorAvatar(");
+assert.equal(context.regexRuleError(rule), "");
+rule.replaceString = '<section class="new">$1\n第二行</section>';
+context.autosaveExistingDraft();
+assert.equal(writes.length, 1);
+assert.equal(writes[0].draft.regexRules[0].replaceString, rule.replaceString);
+assert.deepEqual(writes[0].draft.regexRules[0].placement, [2]);
+assert.equal(writes[0].draft.regexRules[0].markdownOnly, true);
+assert.equal(writes[0].draft.regexRules[0].minDepth, 3);
+assert.equal(Object.hasOwn(writes[0].draft.regexRules[0], "expanded"), false);
+rule.findRegex = "[";
+assert.match(context.regexRuleError(rule), /正则格式有误/);
+context.autosaveExistingDraft();
+assert.equal(writes.length, 1, "invalid active edits must not overwrite the last saved rule");
+rule.disabled = true;
+context.autosaveExistingDraft();
+assert.equal(writes.length, 2, "an invalid draft can be explicitly disabled and retained for later repair");
+assert.equal(writes[1].draft.regexRules[0].disabled, true);
+rule.disabled = false; rule.findRegex = "/test/gg";
+assert.match(context.regexRuleError(rule), /正则格式有误/);
+rule.findRegex = "";
+assert.match(context.regexRuleError(rule), /请填写/);
+console.log("RP regex editor regression: edited replacement and metadata persistence, transient state removal and invalid-rule protection passed");

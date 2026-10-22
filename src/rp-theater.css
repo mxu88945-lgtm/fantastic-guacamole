@@ -276,6 +276,15 @@ body.rp-chat-active #sidebar-workbench { display: none; }
 .rp-wb-body > label > span { display: block; font-size: 12px; color: #888; margin-bottom: 6px; }
 .rp-wb-body input, .rp-wb-body textarea, .rp-wb-body select { width: 100%; padding: 10px 12px; border: 1px solid #e0ddf0; border-radius: 12px; font-size: 14px; background: #faf9fd; }
 .rp-wb-body textarea { resize: vertical; line-height: 1.6; }
+.rp-rx-card { border: 1px solid var(--border); border-radius: 18px; overflow: hidden; background: var(--bg-panel); }
+.rp-rx-card .rp-entry { border: 0; margin: 0; border-radius: 0; }
+.rp-rx-heading { flex: 1; min-width: 0; border: 0; background: transparent; padding: 0; text-align: left; color: var(--text); cursor: pointer; }
+.rp-rx-heading strong, .rp-rx-heading small, .rp-rx-heading > span { display: block; }
+.rp-rx-heading small { overflow-wrap: anywhere; color: var(--text-dim); margin-top: 5px; }
+.rp-rx-heading > span { color: var(--accent); margin-top: 8px; font-size: 12px; }
+.rp-rx-body textarea { font: 16px/1.65 ui-monospace, "SFMono-Regular", monospace; min-height: 100px; }
+.rp-rx-body input { font-size: 16px; }
+.rp-rx-error { color: #b4424b; font-size: 12px; overflow-wrap: anywhere; }
 .rp-wb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
 .rp-wb-grid label > span { display: block; font-size: 12px; color: #888; margin-bottom: 6px; }
 .rp-wb-toggles { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }

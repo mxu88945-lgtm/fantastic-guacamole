@@ -13,6 +13,17 @@ if (!bridge) {
     return String(value || "").replace(/\u0000/g, "").slice(0, max);
   }
 
+  function regexRuleError(rule) {
+    if (rule.disabled) return "";
+    const source = String(rule.findRegex || "").trim();
+    if (!source) return "请填写匹配正则，或先关闭这条规则";
+    try {
+      const match = source.match(/^\/([\s\S]+)\/([a-z]*)$/);
+      new RegExp(match ? match[1] : source, match ? match[2] : "g");
+      return "";
+    } catch (error) { return `正则格式有误：${String(error.message).slice(0, 160)}`; }
+  }
+
   function stripWorldbookCopies(value, entries = state.worldEntries) {
     let output = safeText(value, 120000).replace(/\r\n?/g, "\n");
     const fragments = (entries || []).map(entry => safeText(entry?.content, 50000).replace(/\r\n?/g, "\n").trim())
@@ -345,7 +356,7 @@ function plainPreviewWithMedia(value) {
                 <div class="rp-entry-list" id="rp-worldbook-list"></div>
               </section>
               <section class="rp-wide rp-card-block" id="rp-regex-block" data-rp-sec="regex" hidden>
-                <div class="rp-card-block-head"><div><strong>角色正则与美化</strong><small id="rp-regex-count"></small></div></div>
+                <div class="rp-card-block-head"><div><strong>角色正则与美化</strong><small id="rp-regex-count"></small></div><button type="button" id="rp-regex-add">＋ 新增规则</button></div>
                 <div class="rp-entry-list" id="rp-regex-list"></div><p class="rp-files-empty" id="rp-regex-empty" hidden>这张角色卡没有正则与美化规则。</p>
               </section>
               <section class="rp-wide rp-card-block" id="rp-theater-world-block" data-rp-sec="theater">
@@ -419,7 +430,7 @@ function plainPreviewWithMedia(value) {
       projectFiles: state.files.map((file) => ({ ...file })),
       tags: [...state.tags],
       worldEntries: state.worldEntries.map(({ expanded, ...e }) => e),
-      regexRules: state.regexRules.map((r) => ({ ...r })),
+      regexRules: state.regexRules.map(({ expanded, ...rule }) => ({ ...rule })),
       description: safeText($("rp-field-description").dataset.full || "", 20000),
     };
   }
@@ -428,6 +439,7 @@ function plainPreviewWithMedia(value) {
     if (!state.editingId || state.avatarPending) return;
     const draft = currentDraft();
     if (!draft.title || !draft.actorName || (!draft.characterPrompt && !draft.projectFiles.length)) return;
+    if (draft.regexRules.some(rule => regexRuleError(rule))) return;
     bridge.update(state.editingId, draft);
   }
 
@@ -459,7 +471,7 @@ function plainPreviewWithMedia(value) {
     $("rp-field-temporary").value = safeText(data.temporaryPlot);
     state.tags = Array.isArray(data.tags) ? data.tags.map((t) => safeText(t, 40)).filter(Boolean).slice(0, 24) : [];
     state.worldEntries = Array.isArray(data.worldEntries) ? data.worldEntries.map((e) => ({ id: safeText(e.id || "", 80), title: safeText(e.title || "条目", 80), keys: Array.isArray(e.keys) ? e.keys : [], secondaryKeys: Array.isArray(e.secondaryKeys) ? e.secondaryKeys : [], content: safeText(e.content || "", 50000), enabled: e.enabled !== false, constant: Boolean(e.constant), selective: Boolean(e.selective), useRegex: e.useRegex !== false, position: safeText(e.position || "before_char", 30), insertionOrder: Number(e.insertionOrder ?? 100) || 100, depth: Number(e.depth ?? 4) || 4, probability: Number(e.probability ?? 100) || 100, expanded: false })) : [];
-    state.regexRules = Array.isArray(data.regexRules) ? data.regexRules.map((r) => ({ id: safeText(r.id || "", 80), name: safeText(r.name || "规则", 120), findRegex: safeText(r.findRegex || "", 20000), replaceString: safeText(r.replaceString || "", 50000), disabled: Boolean(r.disabled) })) : [];
+    state.regexRules = Array.isArray(data.regexRules) ? data.regexRules.map((r) => ({ ...r, id: safeText(r.id || "", 80), name: safeText(r.name || "规则", 120), findRegex: safeText(r.findRegex || "", 20000), replaceString: safeText(r.replaceString || "", 50000), disabled: Boolean(r.disabled), expanded: false })) : [];
     $("rp-field-description").dataset.full = safeText(data.description || "", 20000);
     renderCardBlocks();
     state.greetings = greetingList(data);
@@ -705,15 +717,46 @@ function plainPreviewWithMedia(value) {
     const enabledRx = state.regexRules.filter((r) => !r.disabled).length;
     $("rp-regex-count").textContent = `${state.regexRules.length} 条 · ${enabledRx} 条启用`;
     $("rp-regex-list").innerHTML = state.regexRules.map((rule, idx) => `
-      <div class="rp-entry${rule.disabled ? " off" : ""}">
-        <button type="button" class="rp-entry-toggle" data-rx-toggle="${idx}" aria-pressed="${!rule.disabled}">${rule.disabled ? "○" : "✓"}</button>
-        <div><strong>${escapeHtml(rule.name)}</strong><small>${escapeHtml(rule.findRegex.slice(0, 60))}${rule.findRegex.length > 60 ? "…" : ""}</small></div>
+      <div class="rp-rx-card${rule.disabled ? " off" : ""}">
+        <div class="rp-entry"><button type="button" class="rp-entry-toggle" data-rx-toggle="${idx}" aria-label="${rule.disabled ? "启用" : "关闭"}规则" aria-pressed="${!rule.disabled}">${rule.disabled ? "○" : "✓"}</button>
+        <button type="button" class="rp-rx-heading" data-rx-expand="${idx}" aria-expanded="${!!rule.expanded}"><strong>${escapeHtml(rule.name || "未命名规则")}</strong><small>${escapeHtml(rule.findRegex.slice(0, 60))}${rule.findRegex.length > 60 ? "…" : ""}</small><span>${rule.expanded ? "收起 ∧" : "编辑 ›"}</span></button></div>
+        ${rule.expanded ? `<div class="rp-wb-body rp-rx-body">
+          <label><span>规则名称</span><input data-rx-field="name" data-rx-index="${idx}" maxlength="120" value="${escapeHtml(rule.name)}"></label>
+          <label><span>匹配正则（支持 /表达式/flags）</span><textarea data-rx-field="findRegex" data-rx-index="${idx}" rows="4" maxlength="20000" spellcheck="false">${escapeHtml(rule.findRegex)}</textarea></label>
+          <label><span>替换内容 / 美化 HTML（支持 $1、$2 等捕获组）</span><textarea data-rx-field="replaceString" data-rx-index="${idx}" rows="12" maxlength="50000" spellcheck="false">${escapeHtml(rule.replaceString)}</textarea></label>
+          <p class="rp-rx-error" data-rx-error="${idx}" role="status">${escapeHtml(regexRuleError(rule))}</p>
+          <button type="button" data-rx-delete="${idx}">删除这条规则</button>
+        </div>` : ""}
       </div>`).join("");
     $("rp-regex-list").querySelectorAll("[data-rx-toggle]").forEach((btn) => btn.addEventListener("click", () => {
       const i = Number(btn.dataset.rxToggle);
       state.regexRules[i].disabled = !state.regexRules[i].disabled;
+      autosaveExistingDraft();
       renderCardBlocks();
     }));
+    $("rp-regex-list").querySelectorAll("[data-rx-expand]").forEach(button => button.addEventListener("click", () => {
+      const rule = state.regexRules[Number(button.dataset.rxExpand)];
+      rule.expanded = !rule.expanded; renderCardBlocks();
+    }));
+    $("rp-regex-list").querySelectorAll("[data-rx-field]").forEach(input => {
+      input.addEventListener("input", () => {
+        const rule = state.regexRules[Number(input.dataset.rxIndex)];
+        rule[input.dataset.rxField] = input.value;
+        $("rp-regex-list").querySelector(`[data-rx-error="${input.dataset.rxIndex}"]`).textContent = regexRuleError(rule);
+      });
+      input.addEventListener("change", () => autosaveExistingDraft());
+    });
+    $("rp-regex-list").querySelectorAll("[data-rx-delete]").forEach(button => button.addEventListener("click", () => {
+      if (!confirm("删除这条正则与美化规则？")) return;
+      state.regexRules.splice(Number(button.dataset.rxDelete), 1);
+      autosaveExistingDraft(); renderCardBlocks();
+    }));
+    $("rp-regex-add").onclick = () => {
+      if (state.regexRules.length >= 300) { bridge.toast("最多保存 300 条规则"); return; }
+      state.regexRules.push({ id: `rx-${Date.now()}`, name: "新规则", findRegex: "", replaceString: "", disabled: true, placement: [2], expanded: true });
+      autosaveExistingDraft(); renderCardBlocks();
+      $("rp-regex-list").lastElementChild?.scrollIntoView({ block: "nearest" });
+    };
   }
 
   function renderFiles() {
@@ -919,6 +962,8 @@ function plainPreviewWithMedia(value) {
   }
 
   function validateDraft(draft) {
+    const invalidRule = draft.regexRules.find(rule => regexRuleError(rule));
+    if (invalidRule) { bridge.toast(`${invalidRule.name || "规则"}：${regexRuleError(invalidRule)}`); return false; }
     if (!draft.title) { bridge.toast("先给这部戏起个名字"); $("rp-field-title").focus(); return false; }
     if (!draft.actorName) { bridge.toast(`写下 ${bridge.role().roleName || "TA"} 在戏里扮演谁`); $("rp-field-actor").focus(); return false; }
     if (!draft.characterPrompt && !draft.projectFiles.length) { bridge.toast("至少填写人物设定，或导入一份角色卡"); $("rp-field-character").focus(); return false; }
