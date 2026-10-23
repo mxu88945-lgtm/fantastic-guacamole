@@ -1661,7 +1661,16 @@ function plainPreviewWithMedia(value) {
     else { el.innerHTML = html(full); el.dataset.expanded = "1"; $("rp-tags-toggle").textContent = "收起"; }
   });
   $("rp-editor-back").addEventListener("click", leaveEditor);
-  document.querySelectorAll("[data-rp-theme]").forEach(button => button.addEventListener("click", () => { $("rp-scene-theme").dataset.theme = button.dataset.rpTheme; renderSceneTheme(); }));
+  document.querySelectorAll("[data-rp-theme]").forEach(button => button.addEventListener("click", () => {
+    const theme = button.dataset.rpTheme;
+    const colors = {
+      mist: ["#263451", "#66738a", "#5865a8"], night: ["#f4f1e8", "#c9c0b4", "#e2bd67"],
+      paper: ["#3b332c", "#806f60", "#9a6b32"], rose: ["#4a2635", "#9b6078", "#b45d7e"], amber: ["#f6e7d4", "#d8b58a", "#e7b36d"]
+    }[theme] || ["#263451", "#66738a", "#5865a8"];
+    $("rp-scene-theme").dataset.theme = theme;
+    $("rp-field-text-color").value = colors[0]; $("rp-field-narration-color").value = colors[1]; $("rp-field-quote-color").value = colors[2];
+    renderSceneTheme();
+  }));
   ["rp-field-font-size", "rp-field-font-family", "rp-field-text-color", "rp-field-narration-color", "rp-field-quote-color"].forEach(id => $(id)?.addEventListener("input", renderSceneTheme));
   $("rp-save-only").addEventListener("click", () => save(false));
   $("rp-save-enter").addEventListener("click", () => save(true));
