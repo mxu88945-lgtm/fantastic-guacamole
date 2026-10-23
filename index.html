@@ -14287,6 +14287,12 @@ function syncStatusBarToWallpaper(imageUrl, dark, dim) {
 function applyChatBg() {
   const bg = $("chat-bg");
   if (!bg) return;
+  // Theme-background restoration is asynchronous. Never let it overwrite the
+  // currently active scene wallpaper while an RP conversation is open.
+  if (typeof isRoleplayConversation === "function" && isRoleplayConversation()) {
+    if (typeof applyRoleplayWallpaper === "function") applyRoleplayWallpaper();
+    return;
+  }
   const imageUrl = chatBgObjectUrl || settings.chatBg || "";
   document.documentElement.setAttribute("data-chat-bg", imageUrl ? "1" : "0");
   if (imageUrl) {

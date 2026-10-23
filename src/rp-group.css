@@ -209,3 +209,23 @@ body.rp-chat-active .bubble details.chat-details code {
   background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 76%, #dce6f5) !important;
   color: inherit !important;
 }
+
+/* RP content cards: markdown code/pre blocks are story UI here, not dark developer code. */
+body.rp-chat-active .bubble pre,
+body.rp-chat-active .bubble pre code,
+body.rp-chat-active .bubble .chat-details,
+body.rp-chat-active .bubble .chat-details * {
+  color: var(--rp-text-color, #263451) !important;
+  text-shadow: none !important;
+}
+body.rp-chat-active .bubble pre {
+  background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 88%, white) !important;
+  border: 1px solid color-mix(in srgb, var(--rp-text-color, #263451) 14%, transparent) !important;
+  box-shadow: 0 4px 14px rgba(38,52,81,.06) !important;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+body.rp-chat-active .bubble pre code {
+  background: transparent !important;
+  border: 0 !important;
+}
