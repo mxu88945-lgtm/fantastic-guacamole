@@ -7014,6 +7014,77 @@ function splitRoleplayHtmlFences(value) {
   if (rest) segments.push({ kind: "text", value: rest });
   return segments;
 }
+// Ported from Weijing's regexPolicy: regex-generated presentation must not be
+// allowed to lock the host page, run a second event layer, or become unreadable
+// when a card was authored for a different theme.
+function normalizeRoleplayRegexPresentation(value) {
+  const lightColors = new Set(["white", "#fff", "#ffffff", "#f8fafc", "#f1f5f9", "#e2e8f0", "#cbd5e1", "#d1d5db", "#e5e7eb", "#f3f4f6", "#f9fafb", "#94a3b8", "rgb(255,255,255)", "rgba(255,255,255,1)"]);
+  const rgb = value => {
+    const token = String(value || "").trim().toLowerCase();
+    const hex = token.match(/^#([\da-f]{3,8})$/i);
+    if (hex) {
+      const raw = hex[1];
+      if (![3, 4, 6, 8].includes(raw.length)) return null;
+      const full = raw.length <= 4 ? raw.slice(0, 3).split("").map(item => item + item).join("") : raw.slice(0, 6);
+      return [parseInt(full.slice(0, 2), 16), parseInt(full.slice(2, 4), 16), parseInt(full.slice(4, 6), 16)];
+    }
+    const match = token.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i);
+    return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+  };
+  const luminance = color => color ? color[0] * 299 + color[1] * 587 + color[2] * 114 : 255000;
+  const hasDarkSurface = declarations => {
+    const backgrounds = String(declarations || "").match(/(?:^|[;{])\s*background(?:-color)?\s*:\s*[^;}]*/gi) || [];
+    return backgrounds.some(background => {
+      const raw = background.replace(/^[\s\S]*?background(?:-color)?\s*:\s*/i, "").trim();
+      if (/^(?:transparent|none)$/i.test(raw)) return false;
+      const colors = raw.match(/#[\da-f]{3,8}|rgba?\([^)]*\)/gi) || [];
+      return !colors.length || colors.some(color => luminance(rgb(color)) < 170000);
+    });
+  };
+  const normalizeDeclarations = declarations => {
+    const source = String(declarations || "");
+    const hadViewportPosition = /\bposition\s*:\s*(?:fixed|sticky)\b/i.test(source);
+    let output = source
+      .replace(/(\bposition\s*:\s*)(?:fixed|sticky)\b/gi, "$1relative")
+      .replace(/(\b(?:height|min-height|max-height)\s*:\s*)[^;{}]*(?:100dvh|100vh|100svh|100lvh)[^;{}]*/gi, (_m, prefix) => {
+        const property = prefix.split(":")[0].trim().toLowerCase();
+        return `${prefix}${property === "min-height" ? "0" : property === "max-height" ? "none" : "auto"}`;
+      })
+      .replace(/(\btouch-action\s*:\s*)none\b/gi, "$1pan-y");
+    if (hadViewportPosition) output = output.replace(/\b(?:inset|top|right|bottom|left)\s*:\s*[^;{}]+;?/gi, "");
+    if (hasDarkSurface(output)) return output;
+    return output.replace(/(^|[;{])(\s*color\s*:\s*)([^;{}]+)/gi, (match, start, prefix, raw) => {
+      const important = /!important\s*$/i.test(raw);
+      const color = raw.replace(/!important\s*$/i, "").trim().toLowerCase().replace(/\s+/g, "");
+      const parsed = rgb(color);
+      const light = lightColors.has(color) || (parsed && luminance(parsed) / 1000 >= 190 && Math.max(...parsed) - Math.min(...parsed) <= 55);
+      return light ? `${start}${prefix}var(--chat-text-color, var(--text, #000000))${important ? " !important" : ""}` : match;
+    });
+  };
+  return String(value || "")
+    .replace(/<script\b[\s\S]*?<\/script\s*>/gi, "")
+    .replace(/<iframe\b[\s\S]*?<\/iframe\s*>/gi, "")
+    .replace(/<object\b[\s\S]*?<\/object\s*>/gi, "")
+    .replace(/<embed\b[^>]*>/gi, "")
+    .replace(/\s+on[a-z]+\s*=\s*(["'])[^"']*\1/gi, "")
+    .replace(/\bstyle\s*=\s*(["'])([\s\S]*?)\1/gi, (_m, quote, declarations) => `style=${quote}${normalizeDeclarations(declarations)}${quote}`)
+    .replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style\s*>)/gi, (_m, opening, css, closing) => `${opening}${String(css).replace(/([^{}]+)\{([^{}]*)\}/g, (_rule, selector, declarations) => `${selector}{${normalizeDeclarations(declarations)}}`)}${closing}`);
+}
+// Display-only card HTML is never sent back to the model as if it were prose.
+// The stored transcript remains untouched, so exports and future renderers keep
+// the original card data.
+function stripRoleplayPresentationalHtmlForPrompt(value) {
+  if (!/<(?:div|section|article|details|summary|style|table|thead|tbody|tr|td|th|span|p|h[1-6])\b/i.test(String(value || ""))) return value;
+  return String(value || "")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:div|section|article|details|summary|table|tr|p|li|h[1-6])\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;|&#160;/gi, " ").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
+    .replace(/&amp;/gi, "&").replace(/&quot;|&#34;/gi, '"').replace(/&#39;|&apos;/gi, "'")
+    .replace(/[ \t]+\n/g, "").replace(/\n{3,}/g, "\n\n").trim();
+}
 // 惟镜同款：角色卡正则只在显示时跑（存储和发给模型的仍是原文），产出 HTML（音乐播放器等）就整段进 iframe。
 function roleplayRegexDisplay(answer) {
   const text = String(answer || "");
@@ -7029,7 +7100,8 @@ function roleplayRegexDisplay(answer) {
       let re;
       const m = src.match(/^\/([\s\S]+)\/([a-z]*)$/);
       if (m) re = new RegExp(m[1], m[2].includes("g") ? m[2] : m[2] + "g"); else re = new RegExp(src, "g");
-      out = out.replace(re, String(rule.replaceString || "").replace(/\{\{match\}\}/gi, "$$&"));
+      const replacement = normalizeRoleplayRegexPresentation(String(rule.replaceString || ""));
+      out = out.replace(re, replacement.replace(/\{\{match\}\}/gi, "$$&"));
     } catch (_) {}
   }
   if (out === text) return text;
@@ -9329,7 +9401,10 @@ function apiMessagesFor(isAnthropic, sourceMessages) {
     if (m.role === "reminder" || m._compactedBy || m._summary) continue;
     const fileBudget = m === fullReferenceMessage
       ? REFERENCE_FILE_PROMPT_CHAR_BUDGET : REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET;
-    const content = toApiContent(sendContent(m), isAnthropic, fileBudget);
+    const sourceContent = sendContent(m);
+    const promptContent = isRoleplayConversation() && m.role === "assistant" && typeof sourceContent === "string"
+      ? stripRoleplayPresentationalHtmlForPrompt(sourceContent) : sourceContent;
+    const content = toApiContent(promptContent, isAnthropic, fileBudget);
     if (!apiContentHasValue(content)) continue;
     const last = out[out.length - 1];
     if (last && last.role === m.role) last.content = mergeApiContent(last.content, content);
@@ -9375,7 +9450,10 @@ function geminiContentsFor(sourceMessages) {
     if (m.role === "reminder" || m._compactedBy || m._summary) continue;
     const fileBudget = m === fullReferenceMessage
       ? REFERENCE_FILE_PROMPT_CHAR_BUDGET : REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET;
-    const parts = geminiPartsForContent(sendContent(m), fileBudget);
+    const sourceContent = sendContent(m);
+    const promptContent = isRoleplayConversation() && m.role === "assistant" && typeof sourceContent === "string"
+      ? stripRoleplayPresentationalHtmlForPrompt(sourceContent) : sourceContent;
+    const parts = geminiPartsForContent(promptContent, fileBudget);
     if (!parts.length) continue;
     const role = m.role === "assistant" ? "model" : "user";
     const last = out[out.length - 1];
