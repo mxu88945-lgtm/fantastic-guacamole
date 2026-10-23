@@ -6313,7 +6313,12 @@ function applyRoleplayWallpaper(projectOverride = null) {
   const image = active && project?.rpWallpaper ? project.rpWallpaper : "";
   const base = active ? (project.rpBaseColor || preset.base) : "";
   const overlay = Math.max(0, Math.min(1, 1 - (project?.rpOverlayOpacity ?? .65)));
-  bg.style.backgroundImage = image ? `linear-gradient(rgba(255,255,255,${overlay}), rgba(255,255,255,${overlay})), url(${JSON.stringify(image)})` : "";
+  // Fade the lower edge into the scene base color. RP wallpapers often contain
+  // portrait-image letterbox bars; the old uniform white veil turned those bars
+  // into a large grey block behind the composer.
+  bg.style.backgroundImage = image
+    ? `linear-gradient(to bottom, rgba(255,255,255,${overlay}) 0%, rgba(255,255,255,${overlay}) 46%, ${base}eF 82%, ${base} 100%), url(${JSON.stringify(image)})`
+    : "";
   bg.style.opacity = image ? String(project.rpWallpaperOpacity ?? 1) : "";
   bg.style.backgroundColor = base;
   bg.style.filter = image ? "none" : "";

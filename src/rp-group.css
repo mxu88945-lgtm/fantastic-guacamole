@@ -184,3 +184,28 @@
 
 /* Weijing-style scene appearance: a real per-script theme and wallpaper workspace. */
 .rp-scene-theme-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0}.rp-scene-theme-card{min-width:0!important;padding:8px 5px!important;border:1px solid #dbe2ee!important;border-radius:14px!important;background:#fff!important;color:#58647b!important;font-size:11px!important}.rp-scene-theme-card i{display:block;height:28px;border-radius:9px;margin-bottom:6px;border:1px solid rgba(40,50,70,.12)}.rp-scene-theme-card span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rp-scene-theme-card.active{border-color:#6672d8!important;box-shadow:0 0 0 3px rgba(102,114,216,.13);color:#5961c9!important}.rp-scene-appearance-preview{min-height:106px;margin:12px 0;padding:14px;border:1px solid #dbe2ee;border-radius:17px;background-size:cover;background-position:center;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;color:#27304a;overflow:hidden}.rp-scene-appearance-preview small{font-size:11px;color:#5961c9}.rp-scene-appearance-preview strong{padding:9px 11px;border-radius:12px;background:rgba(255,255,255,.78);font-size:13px}.rp-wallpaper-picker{display:grid!important;grid-template-columns:1fr auto;gap:8px!important;align-items:center}.rp-wallpaper-picker>span{grid-column:1/-1}.rp-wallpaper-picker input[type=file]{display:none!important}.rp-wallpaper-picker button{font-size:12px!important;padding:9px 10px!important}.rp-wallpaper-picker button:last-child{color:#a45462}.rp-scene-appearance-actions{display:flex;justify-content:flex-end;margin-top:8px}.rp-scene-appearance-actions button{font-size:12px!important;padding:8px 11px!important}@media(max-width:430px){.rp-scene-theme-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Native RP status/details cards must not inherit the main theme's dark code/card surface. */
+body.rp-chat-active .bubble details.chat-details,
+body.rp-chat-active .bubble details.chat-details[open],
+body.rp-chat-active .bubble .rp-status-card {
+  color: var(--rp-text-color, #263451) !important;
+  background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 88%, white) !important;
+  border-color: color-mix(in srgb, var(--rp-text-color, #263451) 16%, transparent) !important;
+  box-shadow: 0 5px 18px rgba(38,52,81,.08) !important;
+  text-shadow: none !important;
+}
+body.rp-chat-active .bubble details.chat-details > summary,
+body.rp-chat-active .bubble details.chat-details p,
+body.rp-chat-active .bubble details.chat-details div,
+body.rp-chat-active .bubble .rp-status-card header,
+body.rp-chat-active .bubble .rp-status-card strong,
+body.rp-chat-active .bubble .rp-status-card span {
+  color: inherit !important;
+  text-shadow: none !important;
+}
+body.rp-chat-active .bubble details.chat-details pre,
+body.rp-chat-active .bubble details.chat-details code {
+  background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 76%, #dce6f5) !important;
+  color: inherit !important;
+}
