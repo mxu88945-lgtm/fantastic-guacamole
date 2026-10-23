@@ -6254,6 +6254,7 @@ function updateConversationSpaceUI() {
   document.body.classList.toggle("rp-chat-active", active);
   [$("rp-chat-back"), $("rp-chat-identity"), $("rp-chat-mode"), $("header-rp-settings"), $("header-rp-group")].forEach(el => { if (el) el.hidden = !active; });
   updateRoleplayDisplayMode();
+  applyRoleplayWallpaper();
   if ($("rp-chat-actor")) $("rp-chat-actor").textContent = actor;
   if ($("rp-chat-meta")) $("rp-chat-meta").textContent = active
     ? (conv.rpProject?.leadChannel?.playedByOwner !== false ? `由 ${String(settings.aiName || "当前角色")} 出演 · 点此编辑剧本` : "独立角色 · 点此编辑剧本")
@@ -6289,14 +6290,47 @@ function toggleRoleplayDisplayMode() {
   updateRoleplayDisplayMode();
 }
 
+const RP_THEME_PRESETS = [
+  { id: "mist", name: "雾蓝", base: "#eef3fb", text: "#263451", narration: "#66738a", quote: "#5865a8" },
+  { id: "lavender", name: "薄雾紫", base: "#f3f0fa", text: "#302b45", narration: "#756c91", quote: "#7663b4" },
+  { id: "sage", name: "青瓷薄荷", base: "#eef5f1", text: "#263a34", narration: "#668278", quote: "#3f806c" },
+  { id: "paper", name: "月光珍珠", base: "#f7f3ed", text: "#3b332c", narration: "#806f60", quote: "#9a6b32" },
+  { id: "rose", name: "草莓奶油", base: "#fbf0f3", text: "#4a2635", narration: "#9b6078", quote: "#b45d7e" },
+  { id: "amber", name: "暖光琥珀", base: "#f5eee3", text: "#493322", narration: "#96704c", quote: "#ad7627" },
+  { id: "night", name: "墨黑金", base: "#151619", text: "#f4f1e8", narration: "#c9c0b4", quote: "#e2bd67" },
+  { id: "ink", name: "深海蓝", base: "#172231", text: "#edf4ff", narration: "#a9bdd8", quote: "#8eb8e8" },
+];
+function roleplayThemePreset(project) { return RP_THEME_PRESETS.find(item => item.id === project?.rpTheme) || RP_THEME_PRESETS[0]; }
+function applyRoleplayWallpaper(projectOverride = null) {
+  const bg = $("chat-bg");
+  if (!bg) return;
+  const active = isRoleplayConversation();
+  const project = projectOverride || (active ? normalizedRoleplayProject(currentConv()?.rpProject, currentConv()) : null);
+  const preset = roleplayThemePreset(project);
+  const image = active && project?.rpWallpaper ? project.rpWallpaper : "";
+  const base = active ? (project.rpBaseColor || preset.base) : "";
+  const overlay = Math.max(0, Math.min(1, 1 - (project?.rpOverlayOpacity ?? .65)));
+  bg.style.backgroundImage = image ? `linear-gradient(rgba(255,255,255,${overlay}), rgba(255,255,255,${overlay})), url(${JSON.stringify(image)})` : "";
+  bg.style.opacity = image ? String(project.rpWallpaperOpacity ?? 1) : "";
+  bg.style.backgroundColor = base;
+  bg.style.display = image ? "block" : "none";
+  document.body.classList.toggle("rp-wallpaper-active", Boolean(image));
+  document.documentElement.style.setProperty("--rp-base-color", base);
+  document.documentElement.style.setProperty("--rp-accent-color", active ? preset.quote : "");
+  document.body.style.setProperty("--rp-base-color", base);
+  document.body.style.setProperty("--rp-text-color", active ? (project.chatTextColor || preset.text) : "");
+  document.body.style.setProperty("--rp-narration-color", active ? (project.chatNarrationColor || preset.narration) : "");
+  document.body.style.setProperty("--rp-quote-color", active ? (project.chatQuoteColor || preset.quote) : "");
+}
 function applyRoleplayTextTheme(box = $("messages"), projectOverride = null) {
   if (!box) return;
   ["--system-text-color", "--narration-text-color", "--quote-text-color", "--rp-msg-font", "--rp-msg-font-family"].forEach(name => box.style.removeProperty(name));
   if (!isRoleplayConversation()) return;
   const project = projectOverride || normalizedRoleplayProject(currentConv()?.rpProject, currentConv());
-  const body = project.chatTextColor || ({ mist: "#263451", night: "#f4f1e8", paper: "#3b332c", rose: "#4a2635", amber: "#f6e7d4" }[project.rpTheme] || "#263451");
-  const narration = project.chatNarrationColor || ({ mist: "#66738a", night: "#c9c0b4", paper: "#806f60", rose: "#9b6078", amber: "#d8b58a" }[project.rpTheme] || body);
-  const quote = project.chatQuoteColor || ({ mist: "#5865a8", night: "#e2bd67", paper: "#9a6b32", rose: "#b45d7e", amber: "#e7b36d" }[project.rpTheme] || body);
+  const preset = roleplayThemePreset(project);
+  const body = project.chatTextColor || preset.text;
+  const narration = project.chatNarrationColor || preset.narration;
+  const quote = project.chatQuoteColor || preset.quote;
   box.dataset.rpTheme = project.rpTheme || "mist";
   box.style.setProperty("--system-text-color", body);
   box.style.setProperty("--narration-text-color", narration);
@@ -8384,7 +8418,11 @@ function normalizedRoleplayProject(value, conv) {
   return {
     title: text("title", 80) || String(conv?.title || "未命名剧本").slice(0, 80),
     actorName: text("actorName", 80), userRole: text("userRole", 240), userIdentity: text("userIdentity", 30000),
-    rpTheme: ["mist", "night", "paper", "rose", "amber"].includes(raw.rpTheme) ? raw.rpTheme : "mist",
+    rpTheme: ["mist", "night", "paper", "rose", "amber", "lavender", "sage", "ink"].includes(raw.rpTheme) ? raw.rpTheme : "mist",
+    rpWallpaper: /^(https?:\/\/|data:image\/)/.test(raw.rpWallpaper || "") ? String(raw.rpWallpaper).slice(0, 2000000) : "",
+    rpWallpaperOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(raw.rpWallpaperOpacity)) ? Number(raw.rpWallpaperOpacity) : 1)),
+    rpOverlayOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(raw.rpOverlayOpacity)) ? Number(raw.rpOverlayOpacity) : .65)),
+    rpBaseColor: color("rpBaseColor"),
     chatTextColor: color("chatTextColor"), chatNarrationColor: color("chatNarrationColor"), chatQuoteColor: color("chatQuoteColor"),
     chatFontSize: fontSizeValue,
     chatFontFamily: ["default", "kai", "song"].includes(raw.chatFontFamily) ? raw.chatFontFamily : "",
@@ -17080,7 +17118,7 @@ window.JYCRoleplayBridge = {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
     if (!conv || abortController || replyBooting || roleplayGroupRun) { showToast("等当前回复结束后再保存设置"); return null; }
     const allowed = {};
-    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor", "chatFontSize", "chatFontFamily", "sceneSystemPromptEnabled", "sceneSystemPrompt"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
+    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor", "chatFontSize", "chatFontFamily", "rpTheme", "rpWallpaper", "rpWallpaperOpacity", "rpOverlayOpacity", "rpBaseColor", "sceneSystemPromptEnabled", "sceneSystemPrompt"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
     const previousPortraits = JSON.stringify(roleplayMembers(normalizedRoleplayProject(conv.rpProject, conv)).map(member => [member.id, member.avatar]));
     const previousTextTheme = JSON.stringify([conv.rpProject?.chatTextColor, conv.rpProject?.chatNarrationColor, conv.rpProject?.chatQuoteColor, conv.rpProject?.chatFontSize, conv.rpProject?.chatFontFamily]);
     rememberRoleplayCards([conv]);
@@ -17090,9 +17128,16 @@ window.JYCRoleplayBridge = {
     const portraitsChanged = previousPortraits !== JSON.stringify(roleplayMembers(conv.rpProject).map(member => [member.id, member.avatar]));
     const textThemeChanged = previousTextTheme !== JSON.stringify([conv.rpProject.chatTextColor, conv.rpProject.chatNarrationColor, conv.rpProject.chatQuoteColor, conv.rpProject.chatFontSize, conv.rpProject.chatFontFamily]);
     if (conv.id === currentId && (portraitsChanged || textThemeChanged)) renderMessages();
-    if (conv.id === currentId) updateConversationSpaceUI();
+    if (conv.id === currentId) { updateConversationSpaceUI(); if (typeof applyRoleplayWallpaper === "function") applyRoleplayWallpaper(); }
     window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: id } }));
     return roleplayPublicProject(conv);
+  },
+  previewSceneAppearance(id, patch) {
+    const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
+    if (!conv || conv.id !== currentId) return;
+    const project = normalizedRoleplayProject({ ...conv.rpProject, ...(patch || {}) }, conv);
+    if (typeof applyRoleplayWallpaper === "function") applyRoleplayWallpaper(project);
+    applyRoleplayTextTheme($("messages"), project);
   },
   previewSceneTextTheme(id, patch) {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));

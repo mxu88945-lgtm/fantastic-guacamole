@@ -48,6 +48,10 @@ if (bridge) {
     if (plotUses) draft.temporaryPlotRemainingUses = Math.max(1, Math.min(100, Math.floor(Number(plotUses.value) || 1)));
     if (sceneSystemPromptEnabled) draft.sceneSystemPromptEnabled = sceneSystemPromptEnabled.checked;
     if (sceneSystemPrompt) draft.sceneSystemPrompt = sceneSystemPrompt.value;
+    const appearance = field => panel.querySelector(`[data-rp-appearance="${field}"]`);
+    if (appearance("rpBaseColor")) draft.rpBaseColor = appearance("rpBaseColor").value;
+    if (appearance("rpWallpaperOpacity")) draft.rpWallpaperOpacity = Number(appearance("rpWallpaperOpacity").value) / 100;
+    if (appearance("rpOverlayOpacity")) draft.rpOverlayOpacity = Number(appearance("rpOverlayOpacity").value) / 100;
     const anyMentioned = panel.querySelector("#rp-plot-any-mentioned");
     if (anyMentioned) draft.temporaryPlotRecipientIds = anyMentioned.checked
       ? null
@@ -100,6 +104,7 @@ if (bridge) {
       temporaryPlotRecipientIds: draft.temporaryPlotRecipientIds,
       chatTextColor: draft.chatTextColor, chatNarrationColor: draft.chatNarrationColor, chatQuoteColor: draft.chatQuoteColor,
       chatFontSize: draft.chatFontSize, chatFontFamily: draft.chatFontFamily,
+      rpTheme: draft.rpTheme, rpWallpaper: draft.rpWallpaper, rpWallpaperOpacity: draft.rpWallpaperOpacity, rpOverlayOpacity: draft.rpOverlayOpacity, rpBaseColor: draft.rpBaseColor,
       sceneSystemPromptEnabled: draft.sceneSystemPromptEnabled, sceneSystemPrompt: draft.sceneSystemPrompt,
     });
     if (result) { dirty = false; return true; }
@@ -201,7 +206,7 @@ if (bridge) {
     });
   }, true);
   function installSectionFolds() {
-    panel.querySelectorAll("#rp-members-section, #rp-user-profile, #rp-display-section, #rp-scene-preset-section, #rp-temporary-section").forEach(section => {
+    panel.querySelectorAll("#rp-members-section, #rp-user-profile, #rp-display-section, #rp-appearance-section, #rp-scene-preset-section, #rp-temporary-section").forEach(section => {
       section.classList.add("rp-group-collapsible");
       const head = section.querySelector(":scope > .rp-group-section-head");
       if (!head || head.querySelector("[data-collapse-section]")) return;
@@ -242,6 +247,14 @@ if (bridge) {
     row.open = true;
     requestAnimationFrame(() => row.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
+  const rpThemes = [["mist", "雾蓝", "#eef3fb"], ["lavender", "薄雾紫", "#f3f0fa"], ["sage", "青瓷薄荷", "#eef5f1"], ["paper", "月光珍珠", "#f7f3ed"], ["rose", "草莓奶油", "#fbf0f3"], ["amber", "暖光琥珀", "#f5eee3"], ["night", "墨黑金", "#151619"], ["ink", "深海蓝", "#172231"]];
+  function appearanceSection() {
+    const theme = draft.rpTheme || "mist", wallpaper = draft.rpWallpaper || "";
+    return `<section id="rp-appearance-section"><div class="rp-group-section-head"><h3>剧情主题与背景</h3><span class="rp-group-note">仅本剧本</span></div><p class="rp-group-note">主题、壁纸和字体只作用于当前剧情，不会改变顾祁砚本体聊天或其他剧本。</p><div class="rp-scene-theme-grid">${rpThemes.map(([id, name, color]) => `<button type="button" class="rp-scene-theme-card ${theme === id ? "active" : ""}" data-rp-theme="${id}"><i style="background:${color}"></i><span>${name}</span></button>`).join("")}</div><div class="rp-scene-appearance-preview" data-rp-appearance-preview><small>当前剧情预览</small><strong>主题与壁纸叠加后的实际效果。</strong></div><label>剧情底色<input type="color" data-rp-appearance="rpBaseColor" value="${escape(draft.rpBaseColor || "#eef3fb")}"></label><label class="rp-wallpaper-picker"><span>剧情壁纸</span><input type="file" accept="image/*" data-rp-wallpaper-file><button type="button" data-rp-wallpaper-pick>${wallpaper ? "更换壁纸" : "选择 / 上传图片"}</button><button type="button" data-rp-wallpaper-clear ${wallpaper ? "" : "disabled"}>移除当前壁纸</button></label><label>壁纸透明度 <output data-rp-appearance-value="rpWallpaperOpacity">${Math.round((draft.rpWallpaperOpacity ?? 1) * 100)}%</output><input type="range" min="20" max="100" step="5" data-rp-appearance="rpWallpaperOpacity" value="${Math.round((draft.rpWallpaperOpacity ?? 1) * 100)}"></label><label>底色遮罩透明度 <output data-rp-appearance-value="rpOverlayOpacity">${Math.round((draft.rpOverlayOpacity ?? .65) * 100)}%</output><input type="range" min="0" max="100" step="5" data-rp-appearance="rpOverlayOpacity" value="${Math.round((draft.rpOverlayOpacity ?? .65) * 100)}"></label><button type="button" data-rp-appearance-reset>恢复本剧本默认</button></section>`;
+  }
+  function previewAppearance() { bridge.previewSceneAppearance?.(sceneId, { rpTheme: draft.rpTheme, rpWallpaper: draft.rpWallpaper, rpWallpaperOpacity: draft.rpWallpaperOpacity, rpOverlayOpacity: draft.rpOverlayOpacity, rpBaseColor: draft.rpBaseColor }); }
+  function refreshAppearancePreview() { const box = panel.querySelector("[data-rp-appearance-preview]"); if (box) { box.style.backgroundColor = draft.rpBaseColor || "#eef3fb"; box.style.backgroundImage = draft.rpWallpaper ? `url(${JSON.stringify(draft.rpWallpaper)})` : ""; } previewAppearance(); }
+  function readImage(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result || "")); reader.onerror = reject; reader.readAsDataURL(file); }); }
   function open(memberId = "") {
     const current = bridge.current();
     if (!current) return;
@@ -270,7 +283,7 @@ if (bridge) {
       <section id="rp-members-section"><div class="rp-group-section-head"><h3>成员（<span id="rp-cast-count"></span>）</h3><label class="rp-cast-check"><input id="rp-group-enabled" type="checkbox" ${draft.groupEnabled ? "checked" : ""}>开启群聊</label></div><label>发言方式<select id="rp-group-reply-mode"><option value="mention" ${draft.replyMode !== "round" ? "selected" : ""}>按 @ 指定；未指定时只由主角回复</option><option value="round" ${draft.replyMode === "round" ? "selected" : ""}>勾选的成员依次回复</option></select></label><p class="rp-group-note">输入 @ 后点选成员，本轮只让选中的人发言。只有选择“依次回复”时，下方的“参与每轮回复”勾选才会生效。</p><div id="rp-cast-list"></div><div class="rp-cast-add"><button type="button" data-add="actor">＋ 添加角色</button><button type="button" data-add="director">＋ 新建导演卡</button><button type="button" data-import>导入角色卡</button></div><label class="rp-cast-library">从角色库添加<select id="rp-cast-library"><option value="">选择已有角色…</option>${library.map((role, index) => `<option value="${index}">${escape(role.label || role.name)}</option>`).join("")}</select></label><input type="file" id="rp-cast-file" accept=".json,.txt,.md,application/json,text/plain" hidden></section>
       <section id="rp-user-profile"><div class="rp-group-section-head"><h3>用户身份</h3><span class="rp-group-note">仅本剧本</span></div><p class="rp-group-note">这份身份只发给本场共演角色，不会改动顾祁砚本体里的“周惟惟”，也不会串进其他剧本。</p><label>姓名 / 戏内身份<input id="rp-user-role" maxlength="240" value="${escape(draft.userRole || "")}" placeholder="例如：宁梦曦"></label><label>用户身份资料<textarea id="rp-user-identity" rows="8" maxlength="30000" placeholder="填写背景、经历、关系、外貌或这条剧情里需要角色知道的身份资料……">${escape(draft.userIdentity || "")}</textarea></label></section>
       <section id="rp-display-section"><div class="rp-group-section-head"><h3>文字显示主题</h3><span class="rp-group-note">仅本剧本</span></div><p class="rp-group-note">单独调整这个剧情窗口里角色回复的字体、字号及正文、旁白与引用颜色，不影响顾祁砚本体和其他剧本。</p><label>字体<select data-rp-font="chatFontFamily">${[["", "跟随本体字体"], ["default", "系统字体"], ["kai", "楷体"], ["song", "宋体"]].map(([value, label]) => `<option value="${value}" ${(draft.chatFontFamily || "") === value ? "selected" : ""}>${label}</option>`).join("")}</select></label><div class="rp-font-size-row"><label>字体大小</label><div class="rp-font-size-slider"><input type="range" data-rp-font="chatFontSize" min="12" max="20" step="0.5" value="${fontSizePx}" ${fontSizeFollow ? "disabled" : ""} aria-label="字体大小"><span class="rp-font-size-pill" data-rp-font-size-value>${fontSizeFollow ? "跟随本体" : fontSizePx}</span></div><label class="rp-font-size-follow"><input type="checkbox" data-rp-font-size-follow ${fontSizeFollow ? "checked" : ""}>跟随本体字号</label><div class="rp-font-size-preview"><div class="rp-font-size-preview-title">聊天正文预览</div><div data-rp-font-size-sample style="font-size: ${previewFontSize}"><p data-rp-font-size-sample-narration style="${draft.chatNarrationColor ? `color: ${escape(draft.chatNarrationColor)};` : ""}">（他终于等到你回来。）</p><p data-rp-font-size-sample-dialogue style="${draft.chatTextColor ? `color: ${escape(draft.chatTextColor)};` : ""}">“我一直在这里。”</p></div></div></div><div class="rp-text-theme-grid">${textThemeRow("chatTextColor", "正文", textDefaults.chatTextColor)}${textThemeRow("chatNarrationColor", "旁白", textDefaults.chatNarrationColor)}${textThemeRow("chatQuoteColor", "引用", textDefaults.chatQuoteColor)}</div><button type="button" data-reset-text-theme>全部跟随本体主题</button></section>
-      <section id="rp-scene-preset-section"><div class="rp-group-section-head"><h3>剧情系统预设</h3><label class="rp-cast-check"><input id="rp-scene-system-enabled" type="checkbox" ${draft.sceneSystemPromptEnabled !== false ? "checked" : ""}>启用</label></div><p class="rp-group-note">仅本剧本、每轮隐藏发送，并放在角色卡、世界观和记忆之后执行。不会改动顾祁砚本体或其他剧本。</p><label>系统预设<textarea id="rp-scene-system-prompt" rows="12" maxlength="30000" placeholder="填写本剧本每轮都要遵守的写作要求……">${escape(draft.sceneSystemPrompt || adultScenePreset.content || "")}</textarea></label><div class="rp-cast-add"><button type="button" data-fill-scene-preset="adult-fiction">恢复“成人剧情 · 直接连贯”</button><button type="button" data-clear-scene-preset>清空</button></div><p class="rp-group-note">成人预设限定为成年人、自愿情节；会要求连贯描写，同时不替你的角色新增台词、动作、心理或同意。</p></section>
+      ${appearanceSection()}<section id="rp-scene-preset-section"><div class="rp-group-section-head"><h3>剧情系统预设</h3><label class="rp-cast-check"><input id="rp-scene-system-enabled" type="checkbox" ${draft.sceneSystemPromptEnabled !== false ? "checked" : ""}>启用</label></div><p class="rp-group-note">仅本剧本、每轮隐藏发送，并放在角色卡、世界观和记忆之后执行。不会改动顾祁砚本体或其他剧本。</p><label>系统预设<textarea id="rp-scene-system-prompt" rows="12" maxlength="30000" placeholder="填写本剧本每轮都要遵守的写作要求……">${escape(draft.sceneSystemPrompt || adultScenePreset.content || "")}</textarea></label><div class="rp-cast-add"><button type="button" data-fill-scene-preset="adult-fiction">恢复“成人剧情 · 直接连贯”</button><button type="button" data-clear-scene-preset>清空</button></div><p class="rp-group-note">成人预设限定为成年人、自愿情节；会要求连贯描写，同时不替你的角色新增台词、动作、心理或同意。</p></section>
       <section id="rp-temporary-section"><div class="rp-group-section-head"><h3>临时剧情</h3><span class="rp-group-note">正文不显示</span></div><p class="rp-group-note">仅本对话生效。群聊只有本轮被你 @ 且符合接收范围的角色能看到；单人剧情直接发送或续演即可。</p><label>生效时长<select id="rp-temporary-mode"><option value="once" ${draft.temporaryPlotMode === "once" ? "selected" : ""}>仅下一次（默认）</option><option value="counted" ${draft.temporaryPlotMode === "counted" ? "selected" : ""}>持续指定次数</option><option value="persistent" ${draft.temporaryPlotMode === "persistent" ? "selected" : ""}>持续到手动结束</option></select></label><label id="rp-temporary-uses-wrap">剩余成功次数<input id="rp-temporary-uses" type="number" min="1" max="100" value="${Number(draft.temporaryPlotRemainingUses) || 3}"></label><fieldset id="rp-plot-recipients" class="rp-plot-recipients"></fieldset><label>幕后安排<textarea id="rp-temporary-plot" rows="12" maxlength="120000" placeholder="例如：让他接到一通紧急电话；或保持缓慢对峙，不急着和解……">${escape(draft.temporaryPlot || "")}</textarea></label><div class="rp-cast-add"><button type="button" data-clear-plot>清空 / 结束</button></div><p class="rp-group-note">成功回复后按次数消耗；失败或停止时保留。持续方向会沿最新进展推进，不要求重复已经发生的事件。</p></section>
       <section id="rp-scene-memory" class="rp-memory-link-card"><button type="button" data-open-memory><span><strong>长期记忆</strong><small id="rp-scene-memory-count"></small></span><b>›</b></button><p class="rp-group-note">自动总结、关键词召回、角色私人核心记忆和注入位置都在这里设置。</p></section>
       <section class="rp-group-links"><button type="button" data-detail>情景与角色资料 ›</button><button type="button" data-export-scene>导出当前对话 TXT ↓</button><button type="button" data-import-scene>导入对话 TXT · 新建副本 ↑</button><input type="file" id="rp-scene-import-file" accept=".txt,.json,text/plain,application/json" hidden><button type="button" data-home>回到顾祁砚本体主页 ›</button></section></div>
@@ -388,6 +401,7 @@ if (bridge) {
   }
   panel.addEventListener("input", event => {
     if (event.target.closest("[data-member]") || event.target.closest("#rp-user-profile") || event.target.closest("#rp-scene-preset-section") || event.target.closest("#rp-temporary-section")) markDirty();
+    if (event.target.hasAttribute("data-rp-appearance")) { const field = event.target.dataset.rpAppearance; if (field === "rpWallpaperOpacity" || field === "rpOverlayOpacity") { draft[field] = Number(event.target.value) / 100; const out = panel.querySelector(`[data-rp-appearance-value="${field}"]`); if (out) out.textContent = `${event.target.value}%`; } else draft[field] = event.target.value; markDirty(); refreshAppearancePreview(); }
     if (event.target.hasAttribute("data-rp-text-color")) {
       const field = event.target.dataset.rpTextColor;
       draft[field] = event.target.value;
@@ -407,6 +421,7 @@ if (bridge) {
     }
   });
   panel.addEventListener("change", async event => {
+    if (event.target.hasAttribute("data-rp-wallpaper-file")) { const file = event.target.files?.[0]; event.target.value = ""; if (file) { if (file.size > 8 * 1024 * 1024) { bridge.toast("壁纸请控制在 8MB 以内"); return; } draft.rpWallpaper = await readImage(file); markDirty(); refreshAppearancePreview(); } }
     if (event.target.hasAttribute("data-rp-font")) {
       draft[event.target.dataset.rpFont] = event.target.value;
       markDirty(); previewTextTheme();
@@ -567,6 +582,10 @@ if (bridge) {
       panel.querySelector("#rp-temporary-uses").value = "3";
       markDirty(); renderTemporaryPlotRecipients(); updateTemporaryPlotMode();
     }
+    else if (button.hasAttribute("data-rp-theme")) { draft.rpTheme = button.dataset.rpTheme; const base = rpThemes.find(item => item[0] === draft.rpTheme)?.[2]; if (base) draft.rpBaseColor = base; panel.querySelectorAll("[data-rp-theme]").forEach(item => item.classList.toggle("active", item === button)); const color = panel.querySelector('[data-rp-appearance="rpBaseColor"]'); if (color) color.value = draft.rpBaseColor; markDirty(); refreshAppearancePreview(); }
+    else if (button.hasAttribute("data-rp-wallpaper-pick")) panel.querySelector("[data-rp-wallpaper-file]")?.click();
+    else if (button.hasAttribute("data-rp-wallpaper-clear")) { draft.rpWallpaper = ""; button.disabled = true; markDirty(); refreshAppearancePreview(); }
+    else if (button.hasAttribute("data-rp-appearance-reset")) { draft.rpTheme = "mist"; draft.rpWallpaper = ""; draft.rpWallpaperOpacity = 1; draft.rpOverlayOpacity = .65; draft.rpBaseColor = "#eef3fb"; open(); }
     else if (button.hasAttribute("data-reset-text-theme")) {
       const defaults = textThemeDefaults();
       ["chatTextColor", "chatNarrationColor", "chatQuoteColor"].forEach(field => {

@@ -460,12 +460,12 @@ body.rp-chat-active #sidebar-workbench { display: none; }
 /* The active RP conversation reuses the app shell, so scope the same
    palette to the conversation instead of letting html[data-theme-key] win. */
 body.rp-chat-active {
-  --bg: #eef4fd;
-  --bg-soft: #e7eef9;
+  --bg: var(--rp-base-color, #eef4fd);
+  --bg-soft: color-mix(in srgb, var(--rp-base-color, #eef4fd) 82%, white);
   --bg-panel: rgba(255, 255, 255, .88);
   --border: #d4deef;
-  --text: #263451;
-  --text-dim: #8793a8;
+  --text: var(--rp-text-color, #263451);
+  --text-dim: color-mix(in srgb, var(--rp-text-color, #263451) 54%, white);
   --accent: #747bd1;
   --accent-soft: #e4e8fb;
   --accent-contrast: #fff;
@@ -476,11 +476,14 @@ body.rp-chat-active {
 body.rp-chat-active .main,
 body.rp-chat-active .main > .chat,
 body.rp-chat-active .main > .composer-wrap {
-  background: #eef4fd;
+  background: var(--rp-base-color, #eef4fd);
 }
-body.rp-chat-active #chat-bg { display: none !important; }
+body.rp-chat-active.rp-wallpaper-active .main,
+body.rp-chat-active.rp-wallpaper-active .main > .chat { background: transparent; }
+body.rp-chat-active #chat-bg { display: none; }
+body.rp-chat-active.rp-wallpaper-active #chat-bg { display: block !important; }
 body.rp-chat-active .main > header {
-  background: rgba(238, 244, 253, .92);
+  background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 92%, transparent);
   border-color: #d4deef;
 }
 body.rp-chat-active #messages .msg .bubble,
@@ -504,7 +507,7 @@ body.rp-chat-active #messages .msg .msg-act {
   color: var(--text-dim);
 }
 body.rp-chat-active .composer {
-  background: rgba(255, 255, 255, .88);
+  background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 86%, white);
   border-color: #d4deef;
   box-shadow: 0 8px 28px rgba(55, 75, 110, .10);
 }
