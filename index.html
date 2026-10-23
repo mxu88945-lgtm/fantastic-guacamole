@@ -2311,6 +2311,27 @@
     -webkit-backdrop-filter: blur(14px) saturate(1.12);
     backdrop-filter: blur(14px) saturate(1.12);
   }
+  /* Wallpaper chat readability: custom white system text must carry its
+     speaker labels and metadata with it. Keep this scoped to the main chat
+     wallpaper so RP typography remains scene-local. */
+  html[data-chat-bg="1"] #messages .msg .name,
+  html[data-chat-bg="1"] #messages .msg .msg-time,
+  html[data-chat-bg="1"] #messages .msg .msg-tokens,
+  html[data-chat-bg="1"] #messages .msg .msg-latency,
+  html[data-chat-bg="1"] #messages .msg .msg-actions,
+  html[data-chat-bg="1"] #messages .msg .msg-act,
+  html[data-chat-bg="1"] #messages .msg .think > summary,
+  html[data-chat-bg="1"] #messages .msg .trace-step-title,
+  html[data-chat-bg="1"] #messages .msg .trace-step-detail {
+    color: color-mix(in srgb, var(--system-text-color, #fff) 86%, transparent);
+    text-shadow: 0 1px 3px rgba(0,0,0,.72), 0 0 2px rgba(0,0,0,.42);
+  }
+  html[data-chat-bg="1"] #messages .msg.assistant .bubble {
+    text-shadow: 0 1px 3px rgba(0,0,0,.68), 0 0 2px rgba(0,0,0,.38);
+  }
+  html[data-chat-bg="1"] #messages .msg.assistant .bubble blockquote {
+    border-left-color: currentColor;
+  }
   html[data-theme-key="claude"] .err-banner,
   html[data-theme-key="claude"] #attach-preview,
   html[data-theme-key="claude"] #emoji-panel,
