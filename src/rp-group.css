@@ -161,3 +161,17 @@
   .rp-group-scroll { padding-inline: 12px; }
   .rp-group-drawer footer { padding-left: 15px; padding-right: 15px; }
 }
+
+/* Settings remain a side drawer; do not turn the mobile settings page into a full-screen page. */
+.rp-group-drawer {
+  width: 50vw;
+  max-width: none;
+  min-width: 0;
+  border-radius: 24px 0 0 24px;
+}
+@media (max-width: 600px) {
+  .rp-group-drawer {
+    width: 50vw;
+    border-radius: 24px 0 0 24px;
+  }
+}

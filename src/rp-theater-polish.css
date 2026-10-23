@@ -208,3 +208,42 @@
   .rp-wb-toggle i::after { width: 16px; height: 16px; }
   .rp-wb-toggle.on i::after { left: 16px; }
 }
+
+/* Final control spec: four identical capsules in a strict 2×2 grid. */
+.rp-wb-toggles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  align-items: stretch;
+}
+.rp-wb-toggle,
+.rp-wb-toggle:hover,
+.rp-wb-toggle.on {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
+  justify-content: flex-start;
+  padding: 0 14px;
+  gap: 10px;
+  border-radius: 21px;
+  font-size: 14px;
+}
+.rp-wb-toggle i {
+  width: 34px;
+  height: 20px;
+  flex: 0 0 34px;
+}
+.rp-wb-toggle i::after { width: 16px; height: 16px; }
+.rp-wb-toggle.on i::after { left: 16px; }
+
+@media (max-width: 680px) {
+  .rp-wb-toggles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+  .rp-wb-toggle,
+  .rp-wb-toggle:hover,
+  .rp-wb-toggle.on { height: 42px; min-height: 42px; padding-inline: 12px; gap: 8px; font-size: 13px; }
+  .rp-wb-toggle i { width: 32px; height: 19px; flex-basis: 32px; }
+  .rp-wb-toggle i::after { width: 15px; height: 15px; }
+  .rp-wb-toggle.on i::after { left: 15px; }
+}
