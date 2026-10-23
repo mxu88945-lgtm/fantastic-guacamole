@@ -6305,6 +6305,9 @@ function applyRoleplayWallpaper(projectOverride = null) {
   const bg = $("chat-bg");
   if (!bg) return;
   const active = isRoleplayConversation();
+  // Main-chat wallpaper selectors key off data-chat-bg. While RP is active,
+  // disable that state so its blur/overlay/text-shadow rules cannot leak here.
+  if (active) document.documentElement.setAttribute("data-chat-bg", "0");
   const project = projectOverride || (active ? normalizedRoleplayProject(currentConv()?.rpProject, currentConv()) : null);
   const preset = roleplayThemePreset(project);
   const image = active && project?.rpWallpaper ? project.rpWallpaper : "";
@@ -6322,6 +6325,7 @@ function applyRoleplayWallpaper(projectOverride = null) {
   document.body.style.setProperty("--rp-text-color", active ? (project.chatTextColor || preset.text) : "");
   document.body.style.setProperty("--rp-narration-color", active ? (project.chatNarrationColor || preset.narration) : "");
   document.body.style.setProperty("--rp-quote-color", active ? (project.chatQuoteColor || preset.quote) : "");
+  if (!active && typeof applyChatBg === "function") applyChatBg();
 }
 function applyRoleplayTextTheme(box = $("messages"), projectOverride = null) {
   if (!box) return;
