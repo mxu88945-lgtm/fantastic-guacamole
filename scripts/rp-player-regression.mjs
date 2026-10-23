@@ -20,7 +20,8 @@ Object.assign(audio, { paused: true, ended: false, currentTime: 0, duration: 120
   pause() { this.paused = true; this.emit("pause"); }, load() { loads++; this.error = null; },
 });
 const context = vm.createContext({ document: { getElementById: id => ids[id], createElement: () => new Element() },
-  roleplayRichSource: value => value, currentConv: () => ({}), normalizedRoleplayProject: () => ({ greetings: [] }) });
+  roleplayRichSource: value => value, boundedRoleplayRichSource: value => String(value || ""),
+  ROLEPLAY_GREETING_BRIDGE_LIMIT: 16000, currentConv: () => ({}), normalizedRoleplayProject: () => ({ greetings: [] }) });
 vm.runInContext(html.slice(html.indexOf("function roleplayPlayerCompatibility("), html.indexOf("function roleplayRichFrameHtml(")), context);
 context.roleplayPlayerCompatibility();
 const status = ids.playerCard.children[0];

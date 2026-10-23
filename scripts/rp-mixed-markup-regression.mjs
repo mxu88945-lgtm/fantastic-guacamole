@@ -26,6 +26,7 @@ assert.ok(normalized.includes('<div class="weijing-workshop-scene" style="white-
 assert.equal(context.normalizeRoleplayMixedMarkup(normalized), normalized, "formatting an old display again must not nest bubbles");
 const frame = context.roleplayRichFrameHtml(display);
 assert.ok(frame.includes('sandbox="allow-scripts"'));
+assert.ok(frame.includes('loading="lazy"') && frame.includes('onerror='), "rich frames must lazy-load and expose a failure state");
 assert.ok(frame.includes('class=&quot;rp-mixed-paragraph&quot;'), "the real iframe srcdoc must contain the paragraph markup");
 assert.ok(frame.includes('class=&quot;chat-quote&quot;'));
 project.chatFontSize = "large"; project.chatFontFamily = "kai";
@@ -43,6 +44,7 @@ assert.equal(context.roleplayFrameContentHeight(), 728, "reopening status detail
 const listeners = {}, reports = [];
 context.document.addEventListener = (type, callback) => { listeners[type] = callback; };
 context.addEventListener = () => {};
+context.requestAnimationFrame = callback => callback();
 context.window = {};
 context.parent = { postMessage: value => reports.push(value) };
 context.setTimeout = () => {};
@@ -62,4 +64,10 @@ const button = '<button data-choice="1 > 0">"点我"</button>';
 const protectedOutput = context.normalizeRoleplayMixedMarkup(style + script + details + code + button);
 assert.equal(protectedOutput, style + script + details + code + button, "scripts, styles, controls and status details must stay byte-identical");
 assert.ok(context.normalizeRoleplayMixedMarkup('<p>他说：&lt;你好&gt; &amp; 再见。</p>').includes('&lt;你好&gt; &amp; 再见。'), "HTML entities must not be double escaped");
+const oversized = "<html><body>" + "很长的剧情正文。".repeat(130000) + "</body></html>";
+const safeOversized = context.roleplayRichFrameHtml(oversized);
+assert.ok(safeOversized.includes("安全文本模式") && !safeOversized.includes("srcdoc="), "oversized rich cards must fall back without creating an iframe");
+const manyPages = Array.from({ length: 20 }, (_, i) => "```html\n<html><body>page " + i + "</body></html>\n```").join("\n");
+const cappedPages = context.roleplayRichFrameHtml(manyPages);
+assert.equal((cappedPages.match(/class=\"roleplay-html-frame\"/g) || []).length, 12, "rich card pages must be capped to prevent iframe storms");
 console.log("RP mixed markup regression: scene regex → mixed HTML → iframe paragraphs/quotes, controls and source preservation passed");

@@ -6964,6 +6964,21 @@ function roleplayRichSource(value) {
   const fenced = source.match(/^```(?:html)?[^\S\r\n]*\r?\n([\s\S]*?)\r?\n```(?:\s|$)/i);
   return fenced ? fenced[1].trim() : source;
 }
+const ROLEPLAY_RICH_SOURCE_LIMIT = 180000;
+const ROLEPLAY_RICH_SEGMENT_LIMIT = 12;
+const ROLEPLAY_GREETING_BRIDGE_LIMIT = 16000;
+function boundedRoleplayRichSource(value) {
+  const source = roleplayRichSource(value);
+  return source.length <= ROLEPLAY_RICH_SOURCE_LIMIT
+    ? source
+    : source.slice(0, ROLEPLAY_RICH_SOURCE_LIMIT) + "\n\n[剧情卡片过大，后续内容已切换为文本降级显示]";
+}
+function roleplayOpeningFallback(value, reason = "这张剧情卡片暂时无法安全渲染") {
+  const text = String(value || "").replace(/<script\b[\s\S]*?<\/script\s*>/gi, "")
+    .replace(/<style\b[\s\S]*?<\/style\s*>/gi, "").replace(/<[^>]+>/g, " ")
+    .replace(/\s{3,}/g, " ").trim().slice(0, 12000);
+  return `<div class="roleplay-render-fallback"><strong>${escapeHtml(reason)}</strong><div>${escapeHtml(text || "没有可显示的卡片正文")}</div></div>`;
+}
 // Character cards often compose an opening from several independent HTML fences
 // with ordinary story text between them. Each fence is its own little page in
 // Weijing/Tavern. Merging those pages makes card CSS (floats, fixed buttons, body
@@ -7191,18 +7206,19 @@ function roleplayFrameContentHeight() {
   return Math.max(40, Math.ceil(Math.max(Number(body.scrollHeight) || 0, Number(box.height) || 0) + 8));
 }
 function roleplayRichDocument(value, token, compact = false) {
-  const source = normalizeRoleplayMixedMarkup(roleplayRichSource(value));
+  const source = normalizeRoleplayMixedMarkup(boundedRoleplayRichSource(value));
   const typography = roleplayTypography(normalizedRoleplayProject(currentConv()?.rpProject, currentConv()));
   const greetings = normalizedRoleplayProject(currentConv()?.rpProject, currentConv()).greetings;
-  const greetingBridge = `<script>(()=>{const token=${JSON.stringify(token)},swipes=${JSON.stringify(greetings).replace(/</g, "\\u003c")};const pick=i=>{window.__jycGreetingPicked=true;parent.postMessage({type:'jyc-rp-select-greeting',token,index:Number(i)||0},'*');setTimeout(()=>{window.__jycGreetingPicked=false},100)};window.getChatMessages=async()=>[{message_id:0,role:'assistant',message:swipes[0],swipes}];window.setChatMessage=async(_m,_id,opts)=>pick(opts&&opts.swipe_id!=null?opts.swipe_id:0);window.jumpToSwipe=pick;addEventListener('DOMContentLoaded',()=>{const home=document.getElementById('returnHomeText');if(home)home.addEventListener('click',()=>pick(0))})})()<\/script>`;
+  const bridgeGreetings = (Array.isArray(greetings) ? greetings : []).slice(0, 20).map(item => String(item || "").slice(0, ROLEPLAY_GREETING_BRIDGE_LIMIT));
+  const greetingBridge = `<script>(()=>{const token=${JSON.stringify(token)},swipes=${JSON.stringify(bridgeGreetings).replace(/</g, "\\u003c")};const pick=i=>{window.__jycGreetingPicked=true;parent.postMessage({type:'jyc-rp-select-greeting',token,index:Number(i)||0},'*');setTimeout(()=>{window.__jycGreetingPicked=false},100)};window.getChatMessages=async()=>[{message_id:0,role:'assistant',message:swipes[0]||'',swipes}];window.setChatMessage=async(_m,_id,opts)=>pick(opts&&opts.swipe_id!=null?opts.swipe_id:0);window.jumpToSwipe=pick;addEventListener('DOMContentLoaded',()=>{const home=document.getElementById('returnHomeText');if(home)home.addEventListener('click',()=>pick(0))})})()<\/script>`;
   // Some imported player cards fetch an HTTPS stream and turn it into a blob
   // before assigning it to <audio>. The sandbox still cannot reach the parent
   // page or its storage, but the media request itself must be allowed.
   const guard = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob: https:; media-src data: blob: https:; font-src data: https:; style-src 'unsafe-inline' https:; script-src 'unsafe-inline'; connect-src https:; frame-src 'none'; form-action 'none'; base-uri 'none'">`;
   const compactCss = compact ? `body{padding:0!important;display:flow-root!important}#returnHomeText{position:static!important;inset:auto!important;transform:none!important;writing-mode:horizontal-tb!important;margin:12px auto!important}` : "";
   const base = `<style>:root{--rp-story-font-size:${typography.size};--rp-story-font-family:${typography.family}}html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}.rp-mixed-paragraph{display:block;margin:0 0 .62em;font-size:var(--rp-story-font-size);font-family:var(--rp-story-font-family);line-height:1.7;white-space:normal;overflow-wrap:anywhere}.chat-quote{padding:.18em .45em;border-radius:8px;background:rgba(120,110,128,.12);color:#50739a;box-decoration-break:clone;-webkit-box-decoration-break:clone;line-height:1.65}${compactCss}</style><script>addEventListener('message',function(e){if(e.source!==parent||e.data?.type!=='jyc-rp-typography')return;document.documentElement.style.setProperty('--rp-story-font-size',e.data.size);document.documentElement.style.setProperty('--rp-story-font-family',e.data.family)})<\/script>`;
-  const measure = `return (${roleplayFrameContentHeight.toString()})()`;
-  const reporter = `<script>(function(){var token=${JSON.stringify(token)};var height=function(){${measure}};var send=function(){parent.postMessage({type:'jyc-rp-frame-height',token:token,height:Math.min(height(),6000)},'*')};var pick=function(node){if(!node)return null;var explicit=node.getAttribute('data-prompt')||node.getAttribute('data-message')||node.getAttribute('data-opening')||node.getAttribute('data-scene')||node.getAttribute('data-choice');var text=(explicit||node.innerText||node.textContent||'').replace(/\\s+/g,' ').trim();if(!text)return null;return{text:text.slice(0,4000),label:(node.innerText||node.textContent||text).replace(/\\s+/g,' ').trim().slice(0,160)}};document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-prompt],[data-message],[data-opening],[data-scene],[data-choice],button,[role="button"],a[href],[onclick],.script-card,.scene-card,.choice-card'):null;if(!node)return;var action=pick(node);if(!action)return;setTimeout(function(){parent.postMessage({type:'jyc-rp-card-action',token:token,text:action.text,label:action.label},'*')},0)},false);addEventListener('load',send);addEventListener('resize',send);document.addEventListener('toggle',send,true);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,60);setTimeout(send,400)})()<\/script>`;
+  const measure = `(${roleplayFrameContentHeight.toString()})()`;
+  const reporter = `<script>(function(){var token=${JSON.stringify(token)},raf=0,last=-1;var height=function(){try{return ${measure}}catch(_){return 40}};var send=function(){if(raf)return;raf=requestAnimationFrame(function(){raf=0;var next=Math.max(40,Math.min(height(),6000));if(next===last)return;last=next;parent.postMessage({type:'jyc-rp-frame-height',token:token,height:next},'*')})};var pick=function(node){if(!node)return null;var explicit=node.getAttribute('data-prompt')||node.getAttribute('data-message')||node.getAttribute('data-opening')||node.getAttribute('data-scene')||node.getAttribute('data-choice');var text=(explicit||node.innerText||node.textContent||'').replace(/\\s+/g,' ').trim();if(!text)return null;return{text:text.slice(0,4000),label:(node.innerText||node.textContent||text).replace(/\\s+/g,' ').trim().slice(0,160)}};document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-prompt],[data-message],[data-opening],[data-scene],[data-choice],button,[role="button"],a[href],[onclick],.script-card,.scene-card,.choice-card'):null;if(!node)return;var action=pick(node);if(!action)return;setTimeout(function(){parent.postMessage({type:'jyc-rp-card-action',token:token,text:action.text,label:action.label},'*')},0)},false);addEventListener('load',send);addEventListener('resize',send);document.addEventListener('toggle',send,true);if(window.ResizeObserver){var observer=new ResizeObserver(send);observer.observe(document.body);addEventListener('unload',function(){observer.disconnect()})}setTimeout(send,60);setTimeout(send,400)})()<\/script>`;
   const playerBridge = /<audio\b[^>]*\bid=["']musicPlayer["']/i.test(source) && /\bid=["']playBtn["']/i.test(source) && !/<script\b/i.test(source)
     ? `<script>(${roleplayPlayerCompatibility.toString()})()<\/script>` : "";
   let documentHtml = source;
@@ -7213,12 +7229,14 @@ function roleplayRichDocument(value, token, compact = false) {
 }
 function roleplayRichFrameHtml(value, preview = false) {
   const attribute = source => escapeHtml(String(source || "")).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  const split = splitRoleplayHtmlFences(value);
-  const segments = split || [{ kind: looksLikeRoleplayRichHtml(value) || /<(?:div|p|section|article|table|details|audio|img)\b/i.test(value) ? "html" : "text", value }];
+  const raw = String(value || "");
+  if (raw.length > ROLEPLAY_RICH_SOURCE_LIMIT * 2) return `<div class="roleplay-html-card">${roleplayOpeningFallback(raw, "剧情卡片过大，已切换为安全文本模式")}</div>`;
+  const split = splitRoleplayHtmlFences(raw);
+  const segments = (split || [{ kind: looksLikeRoleplayRichHtml(raw) || /<(?:div|p|section|article|table|details|audio|img)\b/i.test(raw) ? "html" : "text", value: raw }]).slice(0, ROLEPLAY_RICH_SEGMENT_LIMIT);
   const content = segments.map(segment => {
     if (segment.kind === "text") return `<div class="roleplay-opening-text">${roleplaySemanticDisplay(segment.value) || renderRoleplayStoryText(segment.value)}</div>`;
     const token = `rp-${uid()}`;
-    return `<iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}"${preview ? ' data-rp-preview="true"' : ""} title="角色卡互动内容" sandbox="allow-scripts" allow="autoplay" onload="this.classList.add('loaded');this.closest('.roleplay-html-card')?.classList.add('loaded')" srcdoc="${attribute(roleplayRichDocument(segment.value, token, !!split))}"></iframe>`;
+    return `<iframe loading="lazy" class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}"${preview ? ' data-rp-preview="true"' : ""} title="角色卡互动内容" sandbox="allow-scripts" allow="autoplay" onload="this.classList.add('loaded');this.closest('.roleplay-html-card')?.classList.add('loaded')" onerror="this.classList.add('failed');this.closest('.roleplay-html-card')?.classList.add('failed')" srcdoc="${attribute(roleplayRichDocument(segment.value, token, !!split))}"></iframe>`;
   }).join("");
   return `<div class="roleplay-html-card"><button type="button" class="rp-opening-reset" hidden onclick="restoreRoleplayOpeningCard(this.parentElement)" title="恢复原始开场">重看原始开场</button><div class="roleplay-html-stack">${content}</div></div>`;
 }

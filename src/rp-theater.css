@@ -433,3 +433,9 @@ body.rp-chat-active #sidebar-workbench { display: none; }
   .rp-head-action { min-height: 36px; padding: 0 10px; font-size: 13px; }
   .rp-wb-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
+
+/* Render-stability fallback: a malformed or failed card must not collapse the whole theater. */
+.roleplay-html-frame.failed { display: none; }
+.roleplay-html-card.failed::before { content: "剧情卡片加载失败，已保留原始内容"; color: var(--danger); opacity: .9; }
+.roleplay-render-fallback { margin: 8px 0; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--border)); border-radius: 16px; background: color-mix(in srgb, var(--danger) 6%, var(--bg-panel)); color: var(--text); line-height: 1.75; overflow-wrap: anywhere; }
+.roleplay-render-fallback strong { display: block; margin-bottom: 6px; color: var(--danger); font-size: 12px; }
