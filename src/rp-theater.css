@@ -538,3 +538,35 @@ body.rp-chat-active .send-btn { background: var(--accent); color: #fff; }
 body.rp-chat-active #messages .msg .bubble { font-weight: 480; letter-spacing: .01em; line-height: 1.82; -webkit-font-smoothing: antialiased; }
 body.rp-chat-active #messages .msg .name { font-weight: 650; }
 @media (max-width: 560px) { .rp-theme-presets { grid-template-columns: repeat(5, minmax(44px, 1fr)); gap: 5px; } .rp-theme-presets button { font-size: 10px; } .rp-theme-fields, .rp-theme-colors { grid-template-columns: 1fr; } }
+
+/* RP readability hardening: main-chat wallpaper rules must never blur RP text. */
+body.rp-chat-active #messages,
+body.rp-chat-active #messages .msg,
+body.rp-chat-active #messages .msg .bubble,
+body.rp-chat-active #messages .msg .name,
+body.rp-chat-active #messages .msg .msg-time,
+body.rp-chat-active #messages .msg .msg-tokens,
+body.rp-chat-active #messages .msg .msg-latency,
+body.rp-chat-active #messages .msg .msg-actions,
+body.rp-chat-active #messages .msg .msg-act,
+body.rp-chat-active #messages .msg .think,
+body.rp-chat-active #messages .msg .think > summary {
+  filter: none !important;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+body.rp-chat-active .main > .composer-wrap,
+body.rp-chat-active .main > .composer-wrap::before,
+body.rp-chat-active .main > .composer-wrap::after {
+  background: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+body.rp-chat-active #messages .msg .bubble {
+  color: var(--rp-text-color, #263451) !important;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.82;
+}
+body.rp-chat-active #messages .msg .name { color: var(--rp-text-color, #263451) !important; }

@@ -6313,6 +6313,7 @@ function applyRoleplayWallpaper(projectOverride = null) {
   bg.style.backgroundImage = image ? `linear-gradient(rgba(255,255,255,${overlay}), rgba(255,255,255,${overlay})), url(${JSON.stringify(image)})` : "";
   bg.style.opacity = image ? String(project.rpWallpaperOpacity ?? 1) : "";
   bg.style.backgroundColor = base;
+  bg.style.filter = image ? "none" : "";
   bg.style.display = image ? "block" : "none";
   document.body.classList.toggle("rp-wallpaper-active", Boolean(image));
   document.documentElement.style.setProperty("--rp-base-color", base);
