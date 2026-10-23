@@ -173,3 +173,38 @@
   .rp-wb-toggle i::after { width: 20px; height: 20px; }
   .rp-wb-toggle.on i::after { left: 18px; }
 }
+
+/* Match the pill scale to the neighboring form controls. */
+.rp-wb-toggle {
+  box-sizing: border-box;
+  height: 42px;
+  min-height: 42px;
+  padding: 0 16px;
+  gap: 10px;
+  border-radius: 21px;
+  font-size: 14px;
+}
+.rp-wb-toggle i {
+  width: 34px;
+  height: 20px;
+  flex-basis: 34px;
+}
+.rp-wb-toggle i::after {
+  width: 16px;
+  height: 16px;
+  top: 2px;
+  left: 2px;
+}
+.rp-wb-toggle.on i::after { left: 16px; }
+@media (max-width: 680px) {
+  .rp-wb-toggle {
+    height: 42px;
+    min-height: 42px;
+    padding-inline: 14px;
+    gap: 9px;
+    font-size: 14px;
+  }
+  .rp-wb-toggle i { width: 34px; height: 20px; flex-basis: 34px; }
+  .rp-wb-toggle i::after { width: 16px; height: 16px; }
+  .rp-wb-toggle.on i::after { left: 16px; }
+}
