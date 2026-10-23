@@ -133,7 +133,7 @@ assert.ok(html.includes("memorySettings.autoEvery") && html.includes("memoryScan
 assert.ok(html.includes("keywords") && html.includes("roleplayMemoryInjection"), "memory keywords and injection placement must affect real request construction");
 assert.ok(html.includes("planRoleplayMemoryScan") && html.includes("maxChars = 36000") && html.includes("maxMessages = 100"), "memory scans must be bounded without discarding unsummarized messages");
 assert.ok(html.includes("const totalPending = Math.max(0, allRows.length - scanned)") && html.includes("totalPending < threshold"), "the auto threshold must count every unsummarized message even when one scan is character-bounded");
-assert.ok(html.includes("ranked.slice(0, 8)") && html.includes("roleplaySharedMemoryText(project, conv, 6000)"), "live RP recall must stay bounded like Weijing");
+assert.ok(html.includes("relevant.slice(0, 8)") && html.includes("roleplaySharedMemoryText(project, conv, 6000)"), "live RP recall must stay bounded and relevance-filtered like Weijing");
 
 Object.assign(context, {
   visibleAssistantText: text => text,

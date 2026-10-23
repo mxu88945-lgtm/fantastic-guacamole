@@ -32,6 +32,33 @@ ok(html.includes('/记忆接口没有返回可用正文/.test'),
   'empty memory completion does not activate the local continuity fallback')
 ok(html.includes('_summaryFallback: usedExtractiveFallback'),
   'fallback summaries are not marked for later inspection')
+ok(html.includes('function roleplayMemoryNearDuplicate('),
+  'roleplay memory near-duplicate merge helper is missing')
+ok(html.includes('function roleplayMemoryCursorIsStale(') && html.includes('memoryScanAnchor'),
+  'roleplay memory rewrite detection is missing')
+ok(html.includes('const relevant = ranked.filter(item =>'),
+  'roleplay memory recall still injects every recent zero-match entry')
+
+const rpMemoryStart = html.indexOf('function roleplayMemoryKey(')
+const rpMemoryEnd = html.indexOf('function addRoleplayMemory(', rpMemoryStart)
+ok(rpMemoryStart >= 0 && rpMemoryEnd > rpMemoryStart, 'roleplay memory helper section not found')
+const rpMemoryContext = {
+  roleplayRecallTerms(value) {
+    const terms = new Set()
+    for (const run of String(value || '').toLowerCase().match(/[\u4e00-\u9fff]+|[a-z0-9_]{3,}/g) || []) {
+      if (!/[\u4e00-\u9fff]/.test(run)) { terms.add(run); continue }
+      for (let width = 2; width <= 3; width++) for (let i = 0; i + width <= run.length; i++) terms.add(run.slice(i, i + width))
+    }
+    return [...terms]
+  },
+}
+vm.runInNewContext(`${html.slice(rpMemoryStart, rpMemoryEnd)}\nglobalThis.checkNearDuplicate = roleplayMemoryNearDuplicate;`, rpMemoryContext)
+ok(rpMemoryContext.checkNearDuplicate('顾祁砚已经把钥匙交给惟惟。', '顾祁砚已经把钥匙交给惟惟。'),
+  'identical roleplay memories are not recognised as duplicates')
+ok(rpMemoryContext.checkNearDuplicate('顾祁砚把钥匙交给惟惟。', '顾祁砚把钥匙交给惟惟，并约定明晚在南门见面。'),
+  'more specific roleplay memories are not recognised as merge candidates')
+ok(!rpMemoryContext.checkNearDuplicate('顾祁砚在雨夜修好了播放器。', '周惟惟在午后整理了世界书。'),
+  'unrelated roleplay memories were incorrectly merged')
 
 const recallStart = html.indexOf('function currentMemoryRecallQuery(')
 const recallEnd = html.indexOf('function memoryRecallTurn(', recallStart)
