@@ -278,8 +278,8 @@ function plainPreviewWithMedia(value) {
       <div class="rp-theater-shell">
         <header class="rp-theater-head">
           <button type="button" class="rp-icon-button" id="rp-theater-close" aria-label="关闭 RP 剧场">‹</button>
-          <div><strong>RP 剧场</strong><small id="rp-theater-subtitle">本体在线，陪你入戏</small></div>
-          <div><button type="button" class="rp-head-action" id="rp-home-exit">本体主页</button><button type="button" class="rp-head-action" id="rp-new-project">＋ 新剧本</button></div>
+          <div><strong id="rp-theater-head-title">RP 剧场</strong><small id="rp-theater-subtitle">本体在线，陪你入戏</small></div>
+          <div id="rp-theater-head-actions"><button type="button" class="rp-head-action" id="rp-home-exit">本体主页</button><button type="button" class="rp-head-action" id="rp-new-project">＋ 新剧本</button></div>
         </header>
         <main class="rp-theater-body">
           <section class="rp-theater-hero">
@@ -499,7 +499,13 @@ function plainPreviewWithMedia(value) {
     $("rp-theater-panel").querySelector(".rp-theater-body").scrollTop = 0;
   }
 
+  function resetTheaterHeader() {
+    $("rp-theater-head-title").textContent = "RP 剧场";
+    $("rp-theater-subtitle").textContent = "本体在线，陪你入戏";
+    $("rp-theater-head-actions").hidden = false;
+  }
   function showLibrary(section = "hub") {
+    resetTheaterHeader();
     $("rp-library-view").hidden = false;
     $("rp-editor-view").hidden = true;
     $("rp-detail-view").hidden = true;
@@ -510,6 +516,7 @@ function plainPreviewWithMedia(value) {
     render();
   }
   function showDetail(projectId, memberId = "") {
+    resetTheaterHeader();
     const project = bridge.get(projectId);
     if (!project) return;
     if (memberId) state.detailMemberId = memberId;
@@ -623,6 +630,13 @@ function plainPreviewWithMedia(value) {
     const view = $("rp-editor-view");
     if (sec) view.dataset.section = sec; else delete view.dataset.section;
     if (sec) $("rp-editor-title").textContent = SECTION_TITLES[sec];
+    if (sec) {
+      $("rp-theater-head-title").textContent = SECTION_TITLES[sec];
+      $("rp-theater-subtitle").textContent = "自动保存 · 仅属于当前角色卡";
+      $("rp-theater-head-actions").hidden = true;
+    } else {
+      resetTheaterHeader();
+    }
     $("rp-editor-back").textContent = project && state.detailId === project.id ? "‹ 返回角色" : "‹ 返回剧场";
     if (sec === "regex" || sec === "world") $(sec === "regex" ? "rp-regex-block" : "rp-worldbook-block").hidden = false;
     $("rp-library-view").hidden = true;
@@ -639,6 +653,26 @@ function plainPreviewWithMedia(value) {
     if (id && state.detailId === id && bridge.get(id)) showDetail(id); else showLibrary(returnSection || "hub");
   }
 
+  function worldbookTest(entry, text) {
+    const sample = String(text || "").trim();
+    if (!sample) return { label: "输入一段消息测试这条世界书", tone: "idle" };
+    if (entry.enabled === false) return { label: "未触发 · 条目已关闭", tone: "off" };
+    if (entry.constant) return { label: "会触发 · 常驻条目", tone: "on" };
+    const matches = (key) => {
+      const value = String(key || "").trim();
+      if (!value) return false;
+      if (entry.useRegex) {
+        try { return new RegExp(value, "i").test(sample); } catch (_) { return false; }
+      }
+      return sample.toLocaleLowerCase().includes(value.toLocaleLowerCase());
+    };
+    const mainHit = (entry.keys || []).some(matches);
+    const secondary = (entry.secondaryKeys || []).filter(Boolean);
+    const secondaryHit = !secondary.length || secondary.some(matches);
+    return mainHit && secondaryHit
+      ? { label: "会触发 · 已命中关键词", tone: "on" }
+      : { label: "不会触发 · 尚未命中关键词", tone: "off" };
+  }
   function renderCardBlocks() {
     // 角色简介 + 标签
     const desc = safeText($("rp-field-description").dataset.full || "", 20000);
@@ -685,6 +719,10 @@ function plainPreviewWithMedia(value) {
             ${[["enabled", "启用"], ["constant", "常驻"], ["selective", "选择性触发"], ["useRegex", "关键词按正则"]].map(([f, label]) => `
               <button type="button" class="rp-wb-toggle${entry[f] ? " on" : ""}" data-wb-switch="${f}" data-wb-idx="${idx}" aria-pressed="${entry[f]}"><i></i>${label}</button>`).join("")}
           </div>
+          <div class="rp-wb-test" data-wb-test-wrap="${idx}">
+            <label><span>触发测试</span><input type="text" data-wb-test="${idx}" placeholder="输入一段消息，检查这条是否会被注入" /></label>
+            <small data-wb-test-result="${idx}" data-tone="idle">输入一段消息测试这条世界书</small>
+          </div>
           <button type="button" class="rp-wb-delete" data-wb-delete="${idx}">删除这条世界书</button>
         </div>` : ""}
       </div>`).join("") + `<button type="button" class="rp-wb-add" id="rp-wb-add">＋ 添加世界书条目</button>`;
@@ -707,6 +745,12 @@ function plainPreviewWithMedia(value) {
       else entry[f] = input.value;
       autosaveExistingDraft();
       if (f === "title") renderCardBlocks();
+    }));
+    $("rp-worldbook-list").querySelectorAll("[data-wb-test]").forEach((input) => input.addEventListener("input", () => {
+      const idx = Number(input.dataset.wbTest);
+      const result = worldbookTest(state.worldEntries[idx], input.value);
+      const output = $("rp-worldbook-list").querySelector(`[data-wb-test-result="${idx}"]`);
+      if (output) { output.textContent = result.label; output.dataset.tone = result.tone; }
     }));
     $("rp-worldbook-list").querySelectorAll("[data-wb-delete]").forEach((btn) => btn.addEventListener("click", () => {
       if (!confirm("删除这条世界书？")) return;

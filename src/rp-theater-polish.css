@@ -247,3 +247,24 @@
   .rp-wb-toggle i::after { width: 15px; height: 15px; }
   .rp-wb-toggle.on i::after { left: 15px; }
 }
+
+/* Small, non-persistent trigger check inside each lore entry. */
+.rp-wb-test {
+  margin: 16px 0 12px;
+  padding: 12px 13px;
+  border: 1px dashed rgba(118,126,211,.35);
+  border-radius: 15px;
+  background: rgba(239,241,255,.58);
+}
+.rp-wb-test label { margin: 0; }
+.rp-wb-test label > span { display: block; margin: 0 0 6px 2px; color: #626aca; font-size: 11px; font-weight: 700; }
+.rp-wb-test input { margin: 0 !important; background: rgba(255,255,255,.88) !important; }
+.rp-wb-test > small { display: block; margin: 7px 2px 0; color: #7a8499; font-size: 11px; }
+.rp-wb-test > small[data-tone="on"] { color: #368f68; }
+.rp-wb-test > small[data-tone="off"] { color: #b36b75; }
+#rp-theater-head-actions[hidden] { display: none; }
+@media (max-width: 680px) {
+  .rp-theater-head > div:nth-child(2) { min-width: 0; }
+  .rp-theater-head > div:nth-child(2) strong,
+  .rp-theater-head > div:nth-child(2) small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
