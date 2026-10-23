@@ -127,3 +127,37 @@
 .rp-group-drawer .rp-font-size-preview-title { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
 .rp-group-drawer .rp-font-size-preview p { margin: 0 0 6px; line-height: 1.6; }
 .rp-group-drawer .rp-font-size-preview p:last-child { margin-bottom: 0; }
+
+/* 共演设置 v2：移动端改为完整工作台，而不是露出一条聊天背景的侧抽屉。 */
+.rp-group-overlay { background: rgba(38, 45, 70, .34); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.rp-group-drawer { width: min(480px, 100vw); border-radius: 28px 0 0 28px; background: #f7f9fd; box-shadow: -18px 0 60px rgba(44,57,95,.16); }
+.rp-group-drawer header { padding: calc(16px + env(safe-area-inset-top)) 22px 16px; background: rgba(255,255,255,.9); border-bottom-color: #e1e6f0; }
+.rp-group-drawer header small { color: #6f76ce; letter-spacing: .02em; }
+.rp-group-drawer h2 { color: #27304a; font-size: 20px; letter-spacing: -.03em; }
+.rp-group-drawer header button { background: #fff; border-color: #dbe2ee; color: #5961c9; box-shadow: 0 3px 10px rgba(69,88,126,.06); }
+.rp-group-scroll { padding: 16px 15px 22px; background: linear-gradient(#f7f9fd, #f3f6fb); }
+.rp-group-scroll > section { border-color: #dfe5ef; border-radius: 19px; background: rgba(255,255,255,.84); box-shadow: 0 6px 18px rgba(74,95,140,.04); }
+.rp-group-stats { background: linear-gradient(135deg, #eef0ff, #faf7ff) !important; border-color: #dfe1fa !important; }
+.rp-group-stats strong { color: #626aca; }
+.rp-group-menu { border-color: #dfe5ef; border-radius: 19px; background: rgba(255,255,255,.86); box-shadow: 0 6px 18px rgba(74,95,140,.04); }
+.rp-group-menu > section { border-bottom-color: #e8ecf3; }
+.rp-group-menu .rp-group-section-head { min-height: 58px; padding: 0 16px; }
+.rp-group-menu h3 { color: #303951; font-size: 15px; }
+.rp-group-section-body { padding: 2px 16px 16px; }
+.rp-group-drawer label { color: #58647b; }
+.rp-group-drawer input:not([type="checkbox"]), .rp-group-drawer textarea, .rp-group-drawer select { border-color: #dbe2ee; border-radius: 13px; background: rgba(255,255,255,.9); color: #27304a; }
+.rp-group-drawer input:not([type="checkbox"]):focus, .rp-group-drawer textarea:focus, .rp-group-drawer select:focus { border-color: #8187dc; box-shadow: 0 0 0 4px rgba(112,114,216,.11); outline: 0; }
+.rp-cast-member { border-color: #dfe5ef; border-radius: 17px; background: #fff; }
+.rp-cast-member summary { padding: 15px; }
+.rp-cast-avatar { border-radius: 15px; background: #eef0ff; }
+.rp-cast-fields { padding: 0 15px 17px; }
+.rp-group-drawer .rp-cast-add button, .rp-group-drawer .rp-model-tools button { background: #fff; border-color: #dbe2ee; color: #626aca; }
+.rp-group-links button { color: #303951; }
+.rp-group-drawer footer { padding: 15px 20px calc(15px + env(safe-area-inset-bottom)); background: rgba(255,255,255,.94); border-top-color: #dfe5ef; box-shadow: 0 -7px 22px rgba(74,95,140,.06); }
+.rp-group-drawer footer button { min-height: 46px; border: 0; border-radius: 14px; background: linear-gradient(135deg, #6672d8, #7e70d2); color: #fff; box-shadow: 0 8px 18px rgba(102,114,216,.2); }
+@media (max-width: 600px) {
+  .rp-group-drawer { width: 100vw; border-radius: 0; }
+  .rp-group-drawer header { padding-left: 18px; padding-right: 14px; }
+  .rp-group-scroll { padding-inline: 12px; }
+  .rp-group-drawer footer { padding-left: 15px; padding-right: 15px; }
+}

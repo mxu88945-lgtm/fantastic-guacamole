@@ -1,0 +1,88 @@
+/* RP Theater visual system v2 — quiet paper, indigo accent, deliberate spacing. */
+.rp-theater-panel {
+  --rp-ink: color-mix(in srgb, var(--text) 92%, #20243a);
+  --rp-muted: color-mix(in srgb, var(--text-dim) 92%, #65708a);
+  --rp-line: color-mix(in srgb, var(--border) 78%, #b9c6dc);
+  --rp-surface: color-mix(in srgb, var(--bg-panel) 94%, white);
+  --rp-soft: color-mix(in srgb, var(--accent-soft) 38%, white);
+  background:
+    radial-gradient(circle at 8% 12%, rgba(190, 214, 255, .28), transparent 28%),
+    radial-gradient(circle at 92% 84%, rgba(224, 205, 255, .18), transparent 30%),
+    #f4f7fc;
+  color: var(--rp-ink);
+  background-image: radial-gradient(rgba(129, 155, 205, .16) 1px, transparent 1px),
+    radial-gradient(circle at 8% 12%, rgba(190, 214, 255, .28), transparent 28%),
+    radial-gradient(circle at 92% 84%, rgba(224, 205, 255, .18), transparent 30%);
+  background-size: 22px 22px, auto, auto;
+}
+.rp-theater-shell { width: min(1040px, 100%); }
+.rp-theater-head {
+  height: calc(62px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 18px 0;
+  background: rgba(255,255,255,.82);
+  border-bottom: 1px solid rgba(161,176,205,.32);
+  box-shadow: 0 5px 20px rgba(67, 86, 126, .06);
+}
+.rp-theater-head > div strong { color: #27304a; font: 700 19px/1.1 ui-sans-serif, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; letter-spacing: -.02em; }
+.rp-theater-head > div small { color: #7a8499; font-size: 10px; }
+.rp-icon-button { width: 42px; height: 42px; color: #39435c; background: rgba(255,255,255,.84); border-color: #d9e0ec; box-shadow: 0 3px 10px rgba(69,88,126,.08); }
+.rp-head-action { min-height: 38px; border-color: #d9e0ec; background: rgba(255,255,255,.86); color: #5961c9; box-shadow: 0 3px 10px rgba(69,88,126,.06); }
+.rp-theater-body { height: calc(100% - 62px - env(safe-area-inset-top)); padding: 24px clamp(16px, 4vw, 54px) calc(42px + env(safe-area-inset-bottom)); }
+.rp-theater-panel[data-view="detail"] .rp-theater-body,
+.rp-theater-panel[data-view="editor"] .rp-theater-body { max-width: 760px; margin: 0 auto; }
+.rp-theater-hero { border: 1px solid rgba(160,178,214,.38); border-radius: 28px; background: rgba(255,255,255,.72); box-shadow: 0 18px 48px rgba(84,104,148,.08); }
+.rp-theater-hero h1 { color: #29324c; font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; font-weight: 750; letter-spacing: -.04em; }
+.rp-hero-kicker { color: #7e83d4; letter-spacing: .15em; }
+.rp-section-title { margin-top: 26px; }
+.rp-section-title strong, .rp-editor-heading strong, .rp-detail-head strong { color: #29324c; letter-spacing: -.02em; }
+.rp-space-menu > button, .rp-project-card, .rp-role-row {
+  border-color: rgba(164,180,211,.38);
+  background: rgba(255,255,255,.78);
+  box-shadow: 0 8px 24px rgba(74, 95, 140, .055);
+}
+.rp-space-menu > button:hover, .rp-project-card:hover, .rp-role-row:hover { border-color: rgba(111,119,207,.42); transform: translateY(-1px); }
+.rp-project-card, .rp-role-row, .rp-detail-card3, .rp-detail-cast, .rp-greeting-editor { border-radius: 22px; }
+.rp-editor-heading, .rp-detail-head { min-height: 42px; margin-bottom: 18px; }
+.rp-editor-heading > div strong { font-size: 20px; }
+.rp-editor-heading > div small { color: var(--rp-muted); font-size: 11px; }
+.rp-editor-heading > button, .rp-detail-head > button:first-child { color: #646bd0; font-weight: 650; }
+.rp-editor-grid { gap: 18px 14px; }
+.rp-editor-grid label > span, .rp-greeting-editor > label > span, .rp-wb-body > label > span { color: #66718a; font-size: 11px; letter-spacing: .02em; }
+.rp-editor-grid input, .rp-editor-grid textarea, .rp-wb-body input, .rp-wb-body textarea, .rp-wb-body select, #rp-theater-world-block textarea {
+  border-color: #dbe2ee; border-radius: 14px; background: rgba(255,255,255,.86); color: #27304a; box-shadow: inset 0 1px 2px rgba(61,82,120,.025); transition: border-color .16s, box-shadow .16s, background .16s;
+}
+.rp-editor-grid input { min-height: 48px; }
+.rp-editor-grid input:focus, .rp-editor-grid textarea:focus, .rp-wb-body input:focus, .rp-wb-body textarea:focus, .rp-wb-body select:focus { border-color: #8187dc; background: #fff; box-shadow: 0 0 0 4px rgba(112,119,211,.12); }
+.rp-card-block, .rp-files-card, .rp-identity-note, .rp-greeting-editor { border-color: rgba(164,180,211,.42); background: rgba(255,255,255,.66); box-shadow: 0 8px 22px rgba(74,95,140,.04); }
+.rp-owner-toggle { color: #303951; }
+.rp-group-note, .rp-identity-note p, .rp-files-card small { color: var(--rp-muted); }
+.rp-wb-card, .rp-rx-card { border-color: #dbe2ee; border-radius: 17px; background: rgba(255,255,255,.82); box-shadow: 0 5px 18px rgba(74,95,140,.045); }
+.rp-wb-head { min-height: 56px; padding: 14px 15px; }
+.rp-wb-title { color: #3d4862; }
+.rp-wb-body { border-top-color: #e5eaf2; padding: 7px 15px 15px; }
+.rp-wb-toggle { border-color: #dbe2ee; background: #fff; }
+.rp-wb-toggle.on { border-color: #9a9de3; background: rgba(112,119,211,.08); }
+.rp-wb-delete { background: rgba(203,91,109,.06); }
+.rp-detail-card3 { background: rgba(255,255,255,.78); border-color: rgba(164,180,211,.42); box-shadow: 0 9px 26px rgba(74,95,140,.06); }
+.rp-detail-card3 .rp-detail-avatar { border-radius: 22px; background: linear-gradient(145deg, #e6eaff, #f6eaff); }
+.rp-detail-link { border-color: #dbe2ee; background: rgba(255,255,255,.76); }
+.rp-detail-link strong { color: #303951; }
+.rp-detail-actions { margin-top: 22px; padding: 16px 0 calc(18px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(164,180,211,.28); }
+.rp-btn-primary, .rp-btn-secondary { min-height: 48px; border-radius: 15px; }
+.rp-btn-primary { background: linear-gradient(135deg, #6672d8, #7e70d2); box-shadow: 0 10px 22px rgba(102,114,216,.2); }
+.rp-editor-actions { position: static; align-items: stretch; margin: 28px 0 0; padding: 18px 0 calc(18px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(164,180,211,.3); background: transparent; }
+.rp-editor-actions button { min-height: 48px; border-radius: 15px; background: rgba(255,255,255,.9); border-color: #dbe2ee; color: #4b566e; font-weight: 650; }
+.rp-editor-actions .primary { color: #fff; border-color: transparent; background: linear-gradient(135deg, #6672d8, #7e70d2); box-shadow: 0 9px 20px rgba(102,114,216,.2); }
+@media (max-width: 680px) {
+  .rp-theater-head { height: calc(58px + env(safe-area-inset-top)); padding-left: 12px; padding-right: 12px; }
+  .rp-theater-head > div strong { font-size: 17px; }
+  .rp-theater-head > div small { font-size: 9px; }
+  .rp-theater-body { height: calc(100% - 58px - env(safe-area-inset-top)); padding: 17px 14px calc(34px + env(safe-area-inset-bottom)); }
+  .rp-editor-grid { gap: 14px; }
+  .rp-editor-actions { display: grid; grid-template-columns: minmax(0, .72fr) minmax(0, 1.28fr); gap: 9px; }
+  .rp-editor-actions button { padding-inline: 10px; font-size: 13px; }
+  .rp-detail-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 9px; }
+  .rp-detail-actions button { padding-inline: 10px; font-size: 13px; }
+  .rp-detail-card3:first-of-type { gap: 12px; }
+  .rp-detail-card3 .rp-detail-avatar { width: 68px; height: 68px; font-size: 28px; }
+}
