@@ -229,3 +229,12 @@ body.rp-chat-active .bubble pre code {
   background: transparent !important;
   border: 0 !important;
 }
+
+/* Inline code is also used by imported RP cards as small status pills. */
+body.rp-chat-active .bubble code,
+body.rp-chat-active .bubble :not(pre) > code {
+  background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 76%, #dce6f5) !important;
+  color: var(--rp-text-color, #263451) !important;
+  border: 0 !important;
+  text-shadow: none !important;
+}

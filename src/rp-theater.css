@@ -459,7 +459,8 @@ body.rp-chat-active #sidebar-workbench { display: none; }
 
 /* The active RP conversation reuses the app shell, so scope the same
    palette to the conversation instead of letting html[data-theme-key] win. */
-body.rp-chat-active {
+.main.rp-scene-shell,
+body.rp-chat-active .main {
   --bg: var(--rp-base-color, #eef4fd);
   --bg-soft: color-mix(in srgb, var(--rp-base-color, #eef4fd) 82%, white);
   --bg-panel: rgba(255, 255, 255, .88);
