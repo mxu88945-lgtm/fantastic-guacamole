@@ -439,3 +439,78 @@ body.rp-chat-active #sidebar-workbench { display: none; }
 .roleplay-html-card.failed::before { content: "剧情卡片加载失败，已保留原始内容"; color: var(--danger); opacity: .9; }
 .roleplay-render-fallback { margin: 8px 0; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--border)); border-radius: 16px; background: color-mix(in srgb, var(--danger) 6%, var(--bg-panel)); color: var(--text); line-height: 1.75; overflow-wrap: anywhere; }
 .roleplay-render-fallback strong { display: block; margin-bottom: 6px; color: var(--danger); font-size: 12px; }
+
+/* RP theme isolation: the theater has its own visual surface and must not
+   inherit the main chat's wallpaper, dark mode, font colors, or accent. */
+.rp-theater-panel {
+  --bg: #eef4fd;
+  --bg-soft: #e7eef9;
+  --bg-panel: rgba(255, 255, 255, .88);
+  --border: #d4deef;
+  --text: #263451;
+  --text-dim: #8793a8;
+  --accent: #747bd1;
+  --accent-soft: #e4e8fb;
+  --accent-contrast: #fff;
+  --danger: #c45c69;
+  color-scheme: light;
+  color: var(--text);
+}
+
+/* The active RP conversation reuses the app shell, so scope the same
+   palette to the conversation instead of letting html[data-theme-key] win. */
+body.rp-chat-active {
+  --bg: #eef4fd;
+  --bg-soft: #e7eef9;
+  --bg-panel: rgba(255, 255, 255, .88);
+  --border: #d4deef;
+  --text: #263451;
+  --text-dim: #8793a8;
+  --accent: #747bd1;
+  --accent-soft: #e4e8fb;
+  --accent-contrast: #fff;
+  --danger: #c45c69;
+  color-scheme: light;
+}
+
+body.rp-chat-active .main,
+body.rp-chat-active .main > .chat,
+body.rp-chat-active .main > .composer-wrap {
+  background: #eef4fd;
+}
+body.rp-chat-active #chat-bg { display: none !important; }
+body.rp-chat-active .main > header {
+  background: rgba(238, 244, 253, .92);
+  border-color: #d4deef;
+}
+body.rp-chat-active #messages .msg .bubble,
+body.rp-chat-active #messages .msg .name,
+body.rp-chat-active #messages .msg .msg-time,
+body.rp-chat-active #messages .msg .msg-tokens,
+body.rp-chat-active #messages .msg .msg-latency,
+body.rp-chat-active #messages .msg .msg-actions,
+body.rp-chat-active #messages .msg .msg-act,
+body.rp-chat-active #messages .msg .think > summary,
+body.rp-chat-active #messages .msg .trace-step-title,
+body.rp-chat-active #messages .msg .trace-step-detail {
+  color: var(--text);
+  text-shadow: none;
+}
+body.rp-chat-active #messages .msg .msg-time,
+body.rp-chat-active #messages .msg .msg-tokens,
+body.rp-chat-active #messages .msg .msg-latency,
+body.rp-chat-active #messages .msg .msg-actions,
+body.rp-chat-active #messages .msg .msg-act {
+  color: var(--text-dim);
+}
+body.rp-chat-active .composer {
+  background: rgba(255, 255, 255, .88);
+  border-color: #d4deef;
+  box-shadow: 0 8px 28px rgba(55, 75, 110, .10);
+}
+body.rp-chat-active .composer textarea { color: var(--text); }
+body.rp-chat-active .composer textarea::placeholder { color: #9aa6b8; }
+body.rp-chat-active .model-quick,
+body.rp-chat-active .voice-input-btn,
+body.rp-chat-active .attach-btn { color: var(--text-dim); }
+body.rp-chat-active .send-btn { background: var(--accent); color: #fff; }
