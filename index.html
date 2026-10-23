@@ -2676,7 +2676,8 @@
     <header>
       <button class="icon-btn" id="toggle-sidebar" title="收起/展开侧栏"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
       <button class="icon-btn" id="rp-chat-back" title="返回 RP 剧场" aria-label="返回 RP 剧场" hidden>‹</button>
-      <button id="rp-chat-identity" title="编辑当前剧本" hidden><span id="rp-chat-actor">RP 角色</span><small id="rp-chat-meta">由当前本体出演</small></button>
+      <button id="rp-chat-identity" type="button" title="编辑当前剧本" hidden><span id="rp-chat-actor">RP 角色</span><small id="rp-chat-meta">由当前本体出演 · 点此编辑剧本</small></button>
+      <button id="rp-chat-mode" type="button" title="切换为沉浸模式" aria-label="切换剧情显示模式" hidden>导演</button>
       <div class="spacer"></div>
       <div class="header-actions">
         <button class="icon-btn" id="header-search-btn" title="搜索聊天记录" aria-label="搜索聊天记录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
@@ -6217,7 +6218,8 @@ function updateConversationSpaceUI() {
   const active = isRoleplayConversation(conv);
   const actor = String(conv?.rpProject?.actorName || "RP 角色");
   document.body.classList.toggle("rp-chat-active", active);
-  [$("rp-chat-back"), $("rp-chat-identity"), $("header-rp-settings"), $("header-rp-group")].forEach(el => { if (el) el.hidden = !active; });
+  [$("rp-chat-back"), $("rp-chat-identity"), $("rp-chat-mode"), $("header-rp-settings"), $("header-rp-group")].forEach(el => { if (el) el.hidden = !active; });
+  updateRoleplayDisplayMode();
   if ($("rp-chat-actor")) $("rp-chat-actor").textContent = actor;
   if ($("rp-chat-meta")) $("rp-chat-meta").textContent = active
     ? (conv.rpProject?.leadChannel?.playedByOwner !== false ? `由 ${String(settings.aiName || "当前角色")} 出演 · 点此编辑剧本` : "独立角色 · 点此编辑剧本")
@@ -6233,6 +6235,24 @@ function updateConversationSpaceUI() {
     add.title = active ? "新建 RP 场次" : "新对话";
     add.setAttribute("aria-label", active ? "新建 RP 场次" : "新对话");
   }
+}
+
+function roleplayDisplayMode() {
+  return localStorage.getItem("jyc_rp_display_mode") === "immersive" ? "immersive" : "director";
+}
+function updateRoleplayDisplayMode() {
+  const mode = roleplayDisplayMode();
+  document.body.classList.toggle("rp-immersive-mode", mode === "immersive");
+  const button = $("rp-chat-mode");
+  if (button) {
+    button.textContent = mode === "immersive" ? "沉浸" : "导演";
+    button.title = mode === "immersive" ? "切换为导演模式" : "切换为沉浸模式";
+    button.setAttribute("aria-pressed", mode === "immersive" ? "true" : "false");
+  }
+}
+function toggleRoleplayDisplayMode() {
+  localStorage.setItem("jyc_rp_display_mode", roleplayDisplayMode() === "immersive" ? "director" : "immersive");
+  updateRoleplayDisplayMode();
 }
 
 function applyRoleplayTextTheme(box = $("messages"), projectOverride = null) {
@@ -15656,7 +15676,8 @@ async function init() {
   if ($("conv-title")) $("conv-title").onclick = () => renameConversation(currentId);
   $("toggle-sidebar").onclick = toggleSidebar;
   $("rp-chat-back").onclick = () => window.JYCRoleplay?.open?.();
-  $("rp-chat-identity").onclick = () => window.JYCRoleplay?.editCurrent?.();
+  $("rp-chat-identity").onclick = (event) => { event.preventDefault(); event.stopPropagation(); window.JYCRoleplay?.editCurrent?.(); };
+  $("rp-chat-mode").onclick = (event) => { event.preventDefault(); event.stopPropagation(); toggleRoleplayDisplayMode(); };
   $("header-search-btn").onclick = () => {
     const q = prompt("搜索聊天记录");
     if (!q || !q.trim()) return;

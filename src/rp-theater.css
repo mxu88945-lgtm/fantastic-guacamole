@@ -216,6 +216,27 @@ body.rp-opening-picker-open { overflow: hidden; }
 .rp-opening-reset { display: block; width: 100%; padding: 10px 14px; border: 0; border-bottom: 1px solid var(--border); background: var(--bg-panel); color: var(--text-dim); text-align: right; cursor: pointer; font-size: 12px; }
 .rp-opening-reset[hidden] { display: none !important; }
 .msg.assistant .bubble:has(.roleplay-html-card) { width: min(100%, 920px); max-width: 100%; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; overflow: visible; }
+/* The main header is intentionally pointer-transparent so the story can scroll beneath it.
+   RP identity and display-mode controls are real interactive islands. */
+body.rp-chat-active #rp-chat-identity,
+body.rp-chat-active #rp-chat-mode { pointer-events: auto; }
+body.rp-chat-active #rp-chat-identity {
+  min-width: 0; max-width: min(46vw, 260px); padding: 5px 11px 6px; border: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
+  border-radius: 16px; background: color-mix(in srgb, var(--bg-panel) 58%, transparent); color: var(--text);
+  display: flex; flex-direction: column; align-items: flex-start; cursor: pointer; text-align: left;
+  box-shadow: 0 7px 22px rgba(24,26,32,.08); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+}
+body.rp-chat-active #rp-chat-identity:active { transform: scale(.98); }
+#rp-chat-identity #rp-chat-actor { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 700; }
+#rp-chat-identity #rp-chat-meta { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); font-size: 9px; line-height: 1.35; }
+body.rp-chat-active #rp-chat-mode {
+  flex: 0 0 auto; min-height: 32px; padding: 0 9px; border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border)); border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-soft) 62%, transparent); color: var(--accent); font: 700 10px/1 inherit; cursor: pointer;
+  pointer-events: auto; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+body.rp-chat-active #rp-chat-mode[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 15%, var(--bg-panel)); }
+body.rp-chat-active.rp-immersive-mode .rp-status-card { display: none; }
+body.rp-chat-active.rp-immersive-mode .rp-scene-strip { margin-bottom: 10px; opacity: .82; }
 body.rp-chat-active .messages { max-width: 980px; padding-inline: 12px; }
 body.rp-chat-active .msg.roleplay-rich-message { width: 100%; gap: 0; }
 body.rp-chat-active .msg.roleplay-rich-message > .avatar,
@@ -252,7 +273,8 @@ body.rp-chat-active #sidebar-workbench { display: none; }
   body.rp-chat-active .messages { padding-inline: 8px; }
   .roleplay-html-card, .msg.assistant .bubble:has(.roleplay-html-card) { width: 100%; }
   .rp-project-card { padding: 16px; border-radius: 22px; }.rp-project-copy { padding-right: 0; }.rp-continue { position: static; grid-column: 1 / -1; min-height: 40px; }
-  #rp-chat-identity { max-width: 48vw; }.rp-chat-active #header-search-btn, .rp-chat-active #header-new-btn { display: none; }
+  #rp-chat-identity { max-width: 46vw; }.rp-chat-active #header-search-btn, .rp-chat-active #header-new-btn { display: none; }
+  body.rp-chat-active #rp-chat-mode { padding-inline: 8px; font-size: 9px; }
 }
 
 /* === 开场白美化（对标惟镜角色卡） === */
