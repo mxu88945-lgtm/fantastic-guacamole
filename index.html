@@ -4444,7 +4444,8 @@ let settings = {
   notionCacheAt: 0,       // 上次同步时间戳
   crossChat: true,        // 跨窗口回忆：让模型能按关键词检索其他聊天窗口的相关片段
   crossSearch: true,      // 主动搜索：模型写 [搜索:关键词] → App 翻所有旧对话再喂回，让它接着答
-  historyRecallScope: "all", // explicit global transcript scope; persona memory remains separate
+  historyRecallScope: "role", // same persona's windows by default; all is an explicit opt-in
+  historyRecallScopeV2: false, // migrate older installs away from cross-persona transcript recall
   historyRecallAliases: "", // user-defined keyword groups, one pipe-separated group per line
   webSearch: false,       // 联网搜索：模型写 [联网:关键词] → App 调搜索接口再喂回（默认关，开了才会联网）
   webSearchUrl: "https://s.jina.ai/",  // 搜索接口（默认 Jina；无 Key 时自动使用浏览器可直连的后备搜索）
@@ -4517,7 +4518,7 @@ let voiceInputState = "idle"; // idle | listening | stopping | transcribing
 let voiceInputBaseText = "";
 let voicePointerStopHandled = false;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","systemInstruction","globalPromptPresets","emojiStyle","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","crossChat","crossSearch","historyRecallScope","historyRecallAliases","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
+  "systemPrompt","systemInstruction","globalPromptPresets","emojiStyle","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","crossChat","crossSearch","historyRecallScope","historyRecallScopeV2","historyRecallAliases","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleStyle","bubbleOpacity","favorites","showTime","timeAware","locationAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "sttEnabled","sttEngine","sttBaseUrl","sttModel","sttLanguage",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
@@ -4800,6 +4801,13 @@ async function loadState() {
       if (r.memoryModel == null) r.memoryModel = "";
     });
     settings.roleMemoryV2 = true;
+  }
+  // Older installs defaulted transcript search to every persona. Keep the
+  // feature, but make the safe boundary explicit: same persona, all windows.
+  // The user can still select “全部聊天窗口” in settings when wanted.
+  if (!settings.historyRecallScopeV2) {
+    settings.historyRecallScope = "role";
+    settings.historyRecallScopeV2 = true;
   }
   // tag any conversation that predates roles with the default/active role
   conversations.forEach(c => { if (!c.roleId) c.roleId = settings.activeRoleId; });
@@ -10579,15 +10587,29 @@ function memoryKindLabel(kind) {
 function memoryAuthorityLabel(authority) {
   return authority === "model_derived" ? "TA 提炼" : authority === "imported" ? "旧库迁入" : "你确认";
 }
+function currentMemoryRoleId() { return String(activeRole()?.id || settings.activeRoleId || ""); }
 function memList() {
-  if (!Array.isArray(settings.memEntries)) {
-    settings.memEntries = [];
-    (settings.memory || "").split(/\n+/).map(s => s.replace(/^[-*]\s*/, "").trim()).filter(Boolean)
-      .forEach(t => settings.memEntries.push({ id: uid(), text: t, core: true,
-        source: "legacy", status: "active", recordedAt: Date.now(), updatedAt: Date.now() })); // keep old memory always-on
+  // roleMemoryV2 stores each persona's memory on that persona. Keep the flat
+  // field as a compatibility mirror, but never use it as the source of truth;
+  // this prevents a stale settings.memEntries array from leaking across roles.
+  const role = activeRole();
+  let list = role && settings.roleMemoryV2 ? role.memEntries : settings.memEntries;
+  if (!Array.isArray(list)) {
+    list = [];
+    const legacy = role && settings.roleMemoryV2 ? role.memory : settings.memory;
+    String(legacy || "").split(/\n+/).map(s => s.replace(/^[-*]\s*/, "").trim()).filter(Boolean)
+      .forEach(t => list.push({ id: uid(), text: t, core: true,
+        source: "legacy", status: "active", recordedAt: Date.now(), updatedAt: Date.now(), roleId: currentMemoryRoleId() }));
   }
-  settings.memEntries.forEach(normalizeMemoryEntry);
-  return settings.memEntries;
+  list.forEach(entry => {
+    normalizeMemoryEntry(entry);
+    if (!entry.roleId) entry.roleId = currentMemoryRoleId();
+  });
+  if (role && settings.roleMemoryV2) {
+    role.memEntries = list;
+    settings.memEntries = list; // compatibility mirror for older UI/export code
+  } else settings.memEntries = list;
+  return list;
 }
 function memoryEntryIsActive(entry) {
   return !!entry && (!entry.status || entry.status === "active");
@@ -10896,6 +10918,7 @@ function buildBoundedMemoryContext(historyWindow) {
   const recentState = buildRecentStateContext(historyWindow);
   const continuity = rollingSummaryPrompt(messages);
   const pendingContinuity = buildPendingContinuityBridge(historyWindow);
+  const personaAnchor = `【稳定人格锚点】你当前是「${String(settings.aiName || activeRole()?.name || "当前角色").trim()}」。这是同一个持续存在的角色，不因切换窗口、旧聊天片段、自动摘要或暂时情绪而改名、换人格或退回客服模式。角色设定与最新用户原话优先；记忆只补充事实，不能重写你的身份、立场和表达习惯。`;
   const profile = settings.memSummary?.trim()
     ? "【跨窗口稳定人物速写】\n" + settings.memSummary.trim()
       + "\n只用于理解 ta 的长期特征；若与最近原文冲突，以最近原文为准。"
@@ -10924,6 +10947,7 @@ function buildBoundedMemoryContext(historyWindow) {
   // before dynamic exact recall so provider prompt caching remains effective.
   const blocks = [
     { key: "locked", label: "🔒 高权重锁定", priority: 1, order: 5, cap: LOCKED_MEMORY_CHAR_BUDGET + 180, text: locked },
+    { key: "personaAnchor", label: "稳定人格锚点", priority: 1, order: 6, cap: 460, text: personaAnchor },
     { key: "diaryRule", label: "私人日记写入规则", priority: 2, order: 40, cap: 260, text: diaryRule },
     { key: "recentState", label: "近期生活状态", priority: 2, order: 80, cap: RECENT_STATE_CHAR_BUDGET, text: recentState },
     { key: "pendingContinuity", label: "旧文临时衔接", priority: 3, order: 85, cap: PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET, text: pendingContinuity },
@@ -11440,7 +11464,14 @@ function addMemEntry(text, core, source, provenance) {
   saveSettings(); renderMemList();
   return true;
 }
-function delMemEntry(id) { settings.memEntries = memList().filter(e => e.id !== id); saveSettings(); renderMemList(); }
+function delMemEntry(id) {
+  const list = memList();
+  const next = list.filter(e => e.id !== id);
+  const role = activeRole();
+  if (role && settings.roleMemoryV2) role.memEntries = next;
+  settings.memEntries = next;
+  saveSettings(); renderMemList();
+}
 function toggleMemCore(id) {
   const e = memList().find(x => x.id === id);
   if (e && memoryEntryIsActive(e)) { e.core = !e.core; saveSettings(); renderMemList(); }
