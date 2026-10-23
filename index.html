@@ -7197,7 +7197,7 @@ function roleplayRichFrameHtml(value, preview = false) {
   const content = segments.map(segment => {
     if (segment.kind === "text") return `<div class="roleplay-opening-text">${roleplaySemanticDisplay(segment.value) || renderRoleplayStoryText(segment.value)}</div>`;
     const token = `rp-${uid()}`;
-    return `<iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}"${preview ? ' data-rp-preview="true"' : ""} title="角色卡互动内容" sandbox="allow-scripts" allow="autoplay" srcdoc="${attribute(roleplayRichDocument(segment.value, token, !!split))}"></iframe>`;
+    return `<iframe class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}"${preview ? ' data-rp-preview="true"' : ""} title="角色卡互动内容" sandbox="allow-scripts" allow="autoplay" onload="this.classList.add('loaded');this.closest('.roleplay-html-card')?.classList.add('loaded')" srcdoc="${attribute(roleplayRichDocument(segment.value, token, !!split))}"></iframe>`;
   }).join("");
   return `<div class="roleplay-html-card"><button type="button" class="rp-opening-reset" hidden onclick="restoreRoleplayOpeningCard(this.parentElement)" title="恢复原始开场">重看原始开场</button><div class="roleplay-html-stack">${content}</div></div>`;
 }
