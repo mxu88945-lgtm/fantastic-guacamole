@@ -364,6 +364,15 @@ function plainPreviewWithMedia(value) {
                 <div class="rp-card-block-head"><div><strong>角色正则与美化</strong><small id="rp-regex-count"></small></div><button type="button" id="rp-regex-add">＋ 新增规则</button></div>
                 <div class="rp-entry-list" id="rp-regex-list"></div><p class="rp-files-empty" id="rp-regex-empty" hidden>这张角色卡没有正则与美化规则。</p>
               </section>
+              <section class="rp-wide rp-card-block rp-scene-theme" id="rp-scene-theme" data-rp-sec="main">
+                <div class="rp-card-block-head"><div><strong>本剧场外观</strong><small>只影响剧情窗口，不会修改主聊天</small></div><span class="rp-theme-badge">SCENE ONLY</span></div>
+                <div class="rp-theme-presets" role="radiogroup" aria-label="剧情主题">
+                  <button type="button" data-rp-theme="mist"><i></i><span>雾蓝</span></button><button type="button" data-rp-theme="night"><i></i><span>墨夜</span></button><button type="button" data-rp-theme="paper"><i></i><span>纸页</span></button><button type="button" data-rp-theme="rose"><i></i><span>绯雾</span></button><button type="button" data-rp-theme="amber"><i></i><span>琥珀</span></button>
+                </div>
+                <div class="rp-theme-fields"><label><span>字体</span><select id="rp-field-font-family"><option value="default">系统黑体</option><option value="kai">楷体</option><option value="song">宋体</option></select></label><label><span>字号</span><input id="rp-field-font-size" type="range" min="12" max="20" step="0.5" value="15" /><output id="rp-field-font-size-value">15</output></label></div>
+                <div class="rp-theme-colors"><label>正文 <input id="rp-field-text-color" type="color" value="#263451"></label><label>旁白 <input id="rp-field-narration-color" type="color" value="#66738a"></label><label>引用 <input id="rp-field-quote-color" type="color" value="#5865a8"></label></div>
+                <div class="rp-theme-preview" id="rp-theme-preview"><em>（旁白会更柔和，但不会发灰。）</em><strong>“正文保持清晰，主题只属于这部戏。”</strong></div>
+              </section>
               <section class="rp-wide rp-card-block" id="rp-theater-world-block" data-rp-sec="theater">
                 <div class="rp-card-block-head"><div><strong>剧本世界观</strong><small>本剧场所有角色与 NPC 共用 · 对标惟镜长剧情</small></div><label class="rp-theater-world-switch"><input type="checkbox" id="rp-theater-world-enabled" checked><span>启用</span></label></div>
                 <div class="rp-theater-world-desc">开启时才会发送给本剧场里的所有角色和 NPC；关闭后内容仍保留，但不会进入模型请求。角色世界书由各条自己的开关控制。</div>
@@ -437,6 +446,12 @@ function plainPreviewWithMedia(value) {
       worldEntries: state.worldEntries.map(({ expanded, ...e }) => e),
       regexRules: state.regexRules.map(({ expanded, ...rule }) => ({ ...rule })),
       description: safeText($("rp-field-description").dataset.full || "", 20000),
+      rpTheme: $("rp-scene-theme")?.dataset.theme || "mist",
+      chatFontFamily: $("rp-field-font-family")?.value || "default",
+      chatFontSize: $("rp-field-font-size")?.value || "15",
+      chatTextColor: $("rp-field-text-color")?.value || "",
+      chatNarrationColor: $("rp-field-narration-color")?.value || "",
+      chatQuoteColor: $("rp-field-quote-color")?.value || "",
     };
   }
 
@@ -483,6 +498,14 @@ function plainPreviewWithMedia(value) {
     state.selectedGreeting = Math.max(0, Math.min(Number(data.openingIndex) || 0, state.greetings.length - 1));
     $("rp-field-opening").value = state.greetings[state.selectedGreeting] || "";
     $("rp-field-memory").value = safeText(data.memory);
+    $("rp-scene-theme").dataset.theme = data.rpTheme || "mist";
+    $("rp-field-font-family").value = data.chatFontFamily || "default";
+    $("rp-field-font-size").value = data.chatFontSize && !isNaN(Number(data.chatFontSize)) ? data.chatFontSize : "15";
+    $("rp-field-font-size-value").textContent = $("rp-field-font-size").value;
+    $("rp-field-text-color").value = data.chatTextColor || ({mist:"#263451",night:"#f4f1e8",paper:"#3b332c",rose:"#4a2635",amber:"#f6e7d4"}[data.rpTheme] || "#263451");
+    $("rp-field-narration-color").value = data.chatNarrationColor || ({mist:"#66738a",night:"#c9c0b4",paper:"#806f60",rose:"#9b6078",amber:"#d8b58a"}[data.rpTheme] || "#66738a");
+    $("rp-field-quote-color").value = data.chatQuoteColor || ({mist:"#5865a8",night:"#e2bd67",paper:"#9a6b32",rose:"#b45d7e",amber:"#e7b36d"}[data.rpTheme] || "#5865a8");
+    renderSceneTheme();
     $("rp-editor-title").textContent = state.editingId ? "编辑剧本" : "新建剧本";
     renderFiles();
     renderGreetings();
@@ -1297,6 +1320,14 @@ function plainPreviewWithMedia(value) {
     return true;
   }
 
+  function renderSceneTheme() {
+    const root = $("rp-scene-theme"); if (!root) return;
+    const theme = root.dataset.theme || "mist";
+    root.querySelectorAll("[data-rp-theme]").forEach(button => { button.classList.toggle("active", button.dataset.rpTheme === theme); button.setAttribute("aria-checked", button.dataset.rpTheme === theme ? "true" : "false"); });
+    const preview = $("rp-theme-preview"); if (preview) { preview.style.setProperty("--preview-body", $("rp-field-text-color")?.value || "#263451"); preview.style.setProperty("--preview-narration", $("rp-field-narration-color")?.value || "#66738a"); preview.style.setProperty("--preview-quote", $("rp-field-quote-color")?.value || "#5865a8"); }
+    const value = $("rp-field-font-size-value"); if (value && $("rp-field-font-size")) value.textContent = $("rp-field-font-size").value;
+  }
+
   function save(shouldEnter) {
     if (state.avatarPending) { bridge.toast("头像正在处理，稍等一下再保存"); return; }
     const draft = currentDraft();
@@ -1630,6 +1661,8 @@ function plainPreviewWithMedia(value) {
     else { el.innerHTML = html(full); el.dataset.expanded = "1"; $("rp-tags-toggle").textContent = "收起"; }
   });
   $("rp-editor-back").addEventListener("click", leaveEditor);
+  document.querySelectorAll("[data-rp-theme]").forEach(button => button.addEventListener("click", () => { $("rp-scene-theme").dataset.theme = button.dataset.rpTheme; renderSceneTheme(); }));
+  ["rp-field-font-size", "rp-field-font-family", "rp-field-text-color", "rp-field-narration-color", "rp-field-quote-color"].forEach(id => $(id)?.addEventListener("input", renderSceneTheme));
   $("rp-save-only").addEventListener("click", () => save(false));
   $("rp-save-enter").addEventListener("click", () => save(true));
   $("rp-add-greeting").addEventListener("click", () => {

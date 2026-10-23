@@ -514,3 +514,24 @@ body.rp-chat-active .model-quick,
 body.rp-chat-active .voice-input-btn,
 body.rp-chat-active .attach-btn { color: var(--text-dim); }
 body.rp-chat-active .send-btn { background: var(--accent); color: #fff; }
+
+/* Scene-local theme controls: equal swatches, readable type, no global leakage. */
+.rp-scene-theme { background: color-mix(in srgb, var(--bg-panel) 92%, var(--accent) 8%); }
+.rp-theme-badge { font-size: 10px; letter-spacing: .12em; color: var(--accent); }
+.rp-theme-presets { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.rp-theme-presets button { min-width: 0; display: grid; gap: 5px; place-items: center; padding: 9px 4px; border: 1px solid var(--border); border-radius: 13px; background: var(--bg-panel); color: var(--text-dim); cursor: pointer; }
+.rp-theme-presets button.active { border-color: var(--accent); color: var(--text); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent); }
+.rp-theme-presets i { width: 28px; height: 18px; border-radius: 7px; border: 1px solid rgba(0,0,0,.12); background: #dfe8fa; }
+.rp-theme-presets button:nth-child(2) i { background: #23232b; } .rp-theme-presets button:nth-child(3) i { background: #f2eadf; } .rp-theme-presets button:nth-child(4) i { background: #f1dce6; } .rp-theme-presets button:nth-child(5) i { background: #7d5b38; }
+.rp-theme-fields, .rp-theme-colors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.rp-theme-fields label, .rp-theme-colors label { display: grid; gap: 6px; color: var(--text-dim); font-size: 12px; }
+.rp-theme-fields select, .rp-theme-fields input[type="range"] { width: 100%; }
+.rp-theme-fields output { color: var(--text); font-size: 12px; text-align: right; }
+.rp-theme-colors { grid-template-columns: repeat(3, 1fr); }
+.rp-theme-colors label { grid-template-columns: 1fr auto; align-items: center; padding: 9px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-panel); }
+.rp-theme-colors input { width: 28px; height: 28px; border: 0; padding: 0; background: none; }
+.rp-theme-preview { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: color-mix(in srgb, var(--bg-soft) 82%, transparent); line-height: 1.8; color: var(--preview-body, var(--text)); }
+.rp-theme-preview em { display: block; color: var(--preview-narration, var(--text-dim)); } .rp-theme-preview strong { color: var(--preview-quote, var(--text)); }
+body.rp-chat-active #messages .msg .bubble { font-weight: 480; letter-spacing: .01em; line-height: 1.82; -webkit-font-smoothing: antialiased; }
+body.rp-chat-active #messages .msg .name { font-weight: 650; }
+@media (max-width: 560px) { .rp-theme-presets { grid-template-columns: repeat(5, minmax(44px, 1fr)); gap: 5px; } .rp-theme-presets button { font-size: 10px; } .rp-theme-fields, .rp-theme-colors { grid-template-columns: 1fr; } }
