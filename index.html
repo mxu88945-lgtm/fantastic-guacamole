@@ -2329,6 +2329,10 @@
   html[data-chat-bg="1"] #messages .msg.assistant .bubble {
     text-shadow: 0 1px 3px rgba(0,0,0,.68), 0 0 2px rgba(0,0,0,.38);
   }
+  html[data-chat-bg="1"] #messages .msg.user .bubble {
+    color: color-mix(in srgb, var(--system-text-color, #fff) 92%, transparent);
+    text-shadow: 0 1px 3px rgba(0,0,0,.68), 0 0 2px rgba(0,0,0,.38);
+  }
   html[data-chat-bg="1"] #messages .msg.assistant .bubble blockquote {
     border-left-color: currentColor;
   }
