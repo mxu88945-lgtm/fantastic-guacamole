@@ -482,10 +482,23 @@ body.rp-chat-active .main > .composer-wrap {
 /* Keep an opaque scene base below the wallpaper.  The image layer can be
    translucent (or contain transparent/letterboxed pixels), but it must never
    expose the owner chat's dark canvas. */
-body.rp-chat-active.rp-wallpaper-active .main { background: var(--rp-base-color, #eef4fd); }
-body.rp-chat-active.rp-wallpaper-active .main > .chat { background: transparent; }
-body.rp-chat-active #chat-bg { display: none; }
-body.rp-chat-active.rp-wallpaper-active #chat-bg { display: block !important; }
+body.rp-chat-active.rp-wallpaper-active .main,
+body.rp-chat-active.rp-wallpaper-active .main > .chat,
+body.rp-chat-active.rp-wallpaper-active .main > .composer-wrap {
+  background: transparent !important;
+}
+body.rp-chat-active #chat-bg { display: none !important; }
+#rp-wallpaper-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: none;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+}
+body.rp-chat-active.rp-wallpaper-active #rp-wallpaper-bg { display: block; }
 body.rp-chat-active .main > header {
   background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 92%, transparent);
   border-color: #d4deef;

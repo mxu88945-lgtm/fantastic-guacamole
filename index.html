@@ -187,6 +187,8 @@
     overflow: hidden; overscroll-behavior: none;
   }
   .app { display: flex; height: var(--app-h, 100%); }
+  /* Keep the RP fixed wallpaper behind the entire app shell. */
+  .app { position: relative; z-index: 1; }
 
   /* Sidebar */
   .sidebar {
@@ -2649,6 +2651,7 @@
     <button type="button" class="conversation-files-add" id="conversation-files-add">＋ 添加角色卡或资料</button>
   </div>
 </section>
+<div id="rp-wallpaper-bg" aria-hidden="true"></div>
 <div class="app">
   <div class="backdrop" id="backdrop"></div>
   <!-- Sidebar -->
@@ -6309,7 +6312,8 @@ function roleplayColorWithAlpha(hex, alpha) {
 }
 function applyRoleplayWallpaper(projectOverride = null) {
   const bg = $("chat-bg");
-  if (!bg) return;
+  const rpBg = $("rp-wallpaper-bg");
+  if (!bg || !rpBg) return;
   const active = isRoleplayConversation();
   // Main-chat wallpaper selectors key off data-chat-bg. While RP is active,
   // disable that state so its blur/overlay/text-shadow rules cannot leak here.
@@ -6321,17 +6325,18 @@ function applyRoleplayWallpaper(projectOverride = null) {
   const wallpaperOpacity = Math.max(0, Math.min(1, Number(project?.rpWallpaperOpacity ?? 1)));
   const overlayOpacity = Math.max(0, Math.min(1, Number(project?.rpOverlayOpacity ?? .65)));
   // Keep the RP base fully opaque and express both sliders through a base-color
-  // veil. Lowering wallpaper opacity must never reveal the main chat's theme,
-  // and a uniform veil avoids the old hard split halfway down the viewport.
+  // veil. Lowering wallpaper opacity must never reveal the main chat's theme.
   const baseCoverage = 1 - wallpaperOpacity * (1 - overlayOpacity);
   const veil = roleplayColorWithAlpha(base, baseCoverage);
-  bg.style.backgroundImage = image
+  // RP owns a separate viewport-fixed layer; the main-chat background stays empty.
+  bg.style.backgroundImage = "none";
+  bg.style.display = "none";
+  rpBg.style.backgroundImage = image
     ? `linear-gradient(${veil}, ${veil}), url(${JSON.stringify(image)})`
-    : "";
-  bg.style.opacity = image ? "1" : "";
-  bg.style.backgroundColor = base;
-  bg.style.filter = image ? "none" : "";
-  bg.style.display = image ? "block" : "none";
+    : "none";
+  rpBg.style.opacity = image ? "1" : "";
+  rpBg.style.backgroundColor = base;
+  rpBg.style.display = image ? "block" : "none";
   document.body.classList.toggle("rp-wallpaper-active", Boolean(image));
   document.documentElement.style.setProperty("--rp-base-color", base);
   document.documentElement.style.setProperty("--rp-accent-color", active ? preset.quote : "");
