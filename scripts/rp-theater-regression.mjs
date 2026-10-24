@@ -176,6 +176,9 @@ ok(sourceContext.roleplayStoryParagraphs(existingParagraphs) === existingParagra
 const longStoryLine = '这是一整行没有主动换段的剧情正文。'.repeat(16);
 ok(sourceContext.roleplayStoryParagraphs(longStoryLine) === longStoryLine, 'RP display must not invent extra paragraphs inside a long model line');
 ok(css.includes('.rp-story-text {') && css.includes('line-height: inherit;') && css.includes('.rp-story-text > p { margin: 0 0 .62em; }'), 'RP story paragraphs must stay visually continuous');
+ok(html.includes('const baseCoverage = 1 - wallpaperOpacity * (1 - overlayOpacity);') && html.includes('linear-gradient(${veil}, ${veil})') && html.includes('bg.style.opacity = image ? "1" : "";'), 'RP wallpaper opacity must blend into an opaque scene base without exposing the main chat or splitting the viewport');
+ok(!html.includes('rgba(255,255,255,${overlay}) 46%') && !html.includes('bg.style.opacity = image ? String(project.rpWallpaperOpacity'), 'legacy half-screen wallpaper fade and transparent layer must stay removed');
+ok(groupCss.includes('body.rp-chat-active #messages :is(.rp-scene-strip, .rp-status-card, details.chat-details, pre)') && groupCss.includes(':is(code, kbd, samp, mark, .chat-quote)'), 'RP scene cards and dialogue chips must override dark owner-theme surfaces');
 ok(html.includes('.rp-mixed-paragraph{display:block;margin:0 0 .62em;') && html.includes('line-height:1.7;white-space:normal'), 'mixed RP markup paragraphs must use the same compact story rhythm');
 ok(!sourceContext.renderRoleplayStoryText('<img src=x onerror=alert(1)>').includes('<img'), 'plain story text must remain HTML-escaped');
 const displayContext = vm.createContext({ safeText: value => String(value || ''), applyRegexRules: () => fencedOpening });

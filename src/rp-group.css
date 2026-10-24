@@ -238,3 +238,25 @@ body.rp-chat-active .bubble :not(pre) > code {
   border: 0 !important;
   text-shadow: none !important;
 }
+
+/* Story-native surfaces are theme-scoped even when an imported card or the
+   owner chat has a higher-specificity dark-theme rule. Keep this last: these
+   elements are rendered after regex/semantic conversion and can sit outside
+   the ordinary markdown bubble hierarchy. */
+body.rp-chat-active #messages :is(.rp-scene-strip, .rp-status-card, details.chat-details, pre),
+body.rp-chat-active #messages :is(.rp-story-text, .roleplay-opening-text) :is(pre, details.chat-details, .rp-status-card) {
+  background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 88%, white) !important;
+  color: var(--rp-text-color, #263451) !important;
+  border-color: color-mix(in srgb, var(--rp-text-color, #263451) 14%, transparent) !important;
+  text-shadow: none !important;
+}
+body.rp-chat-active #messages :is(.rp-story-text, .roleplay-opening-text) :is(code, kbd, samp, mark, .chat-quote) {
+  background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 76%, white) !important;
+  color: var(--rp-quote-color, var(--rp-text-color, #263451)) !important;
+  border-color: transparent !important;
+  text-shadow: none !important;
+}
+body.rp-chat-active #messages :is(.rp-scene-strip, .rp-status-card, details.chat-details) *,
+body.rp-chat-active #messages :is(.rp-story-text, .roleplay-opening-text) :is(pre, code, kbd, samp, mark) * {
+  text-shadow: none !important;
+}

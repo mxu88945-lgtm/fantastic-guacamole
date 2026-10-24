@@ -6301,6 +6301,12 @@ const RP_THEME_PRESETS = [
   { id: "ink", name: "深海蓝", base: "#172231", text: "#edf4ff", narration: "#a9bdd8", quote: "#8eb8e8" },
 ];
 function roleplayThemePreset(project) { return RP_THEME_PRESETS.find(item => item.id === project?.rpTheme) || RP_THEME_PRESETS[0]; }
+function roleplayColorWithAlpha(hex, alpha) {
+  const safe = /^#[0-9a-f]{6}$/i.test(String(hex || "")) ? String(hex) : "#eef4fd";
+  const color = parseInt(safe.slice(1), 16);
+  const opacity = Math.max(0, Math.min(1, Number(alpha) || 0));
+  return `rgba(${(color >> 16) & 255},${(color >> 8) & 255},${color & 255},${opacity.toFixed(3)})`;
+}
 function applyRoleplayWallpaper(projectOverride = null) {
   const bg = $("chat-bg");
   if (!bg) return;
@@ -6312,14 +6318,17 @@ function applyRoleplayWallpaper(projectOverride = null) {
   const preset = roleplayThemePreset(project);
   const image = active && project?.rpWallpaper ? project.rpWallpaper : "";
   const base = active ? (project.rpBaseColor || preset.base) : "";
-  const overlay = Math.max(0, Math.min(1, 1 - (project?.rpOverlayOpacity ?? .65)));
-  // Fade the lower edge into the scene base color. RP wallpapers often contain
-  // portrait-image letterbox bars; the old uniform white veil turned those bars
-  // into a large grey block behind the composer.
+  const wallpaperOpacity = Math.max(0, Math.min(1, Number(project?.rpWallpaperOpacity ?? 1)));
+  const overlayOpacity = Math.max(0, Math.min(1, Number(project?.rpOverlayOpacity ?? .65)));
+  // Keep the RP base fully opaque and express both sliders through a base-color
+  // veil. Lowering wallpaper opacity must never reveal the main chat's theme,
+  // and a uniform veil avoids the old hard split halfway down the viewport.
+  const baseCoverage = 1 - wallpaperOpacity * (1 - overlayOpacity);
+  const veil = roleplayColorWithAlpha(base, baseCoverage);
   bg.style.backgroundImage = image
-    ? `linear-gradient(to bottom, rgba(255,255,255,${overlay}) 0%, rgba(255,255,255,${overlay}) 46%, ${base}eF 82%, ${base} 100%), url(${JSON.stringify(image)})`
+    ? `linear-gradient(${veil}, ${veil}), url(${JSON.stringify(image)})`
     : "";
-  bg.style.opacity = image ? String(project.rpWallpaperOpacity ?? 1) : "";
+  bg.style.opacity = image ? "1" : "";
   bg.style.backgroundColor = base;
   bg.style.filter = image ? "none" : "";
   bg.style.display = image ? "block" : "none";
