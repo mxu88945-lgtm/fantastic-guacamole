@@ -8585,7 +8585,8 @@ function roleplaySharedMemoryText(project, conv = currentConv(), maxChars = 1400
     return key && (newest.has(key) || (item.keywords || []).some(keyword => source.includes(String(keyword).toLowerCase()))
       || roleplayRecallTerms(`${item.title || ""}\n${item.text}`).some(term => terms.includes(term)));
   });
-  const selected = [...pinned, ...relevant.slice(0, 8), ...ranked.slice(-3)]
+  const newestFallback = entries.filter(item => !item.pinned).slice(-3);
+  const selected = [...pinned, ...relevant.slice(0, 8), ...newestFallback]
     .filter((item, index, all) => all.findIndex(other => other.id === item.id) === index);
   const lines = [], seen = new Set();
   let used = manual.length;
@@ -8880,14 +8881,49 @@ function buildRoleplayProjectText(conv = currentConv()) {
 function buildSharedRoleplayExperienceText() {
   if (isRoleplayConversation()) return "";
   const projects = roleConvs().filter(isRoleplayConversation).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 6);
-  const blocks = projects.map(conv => {
+  if (!projects.length) return "";
+  const query = (typeof currentMemoryRecallQuery === "function" ? currentMemoryRecallQuery() : "").trim().toLowerCase();
+  const queryTerms = roleplayRecallTerms(query).filter(term => term.length >= 3);
+  const generalIntent = /(?:剧场|剧情|演出|演戏|角色卡|那场戏|这场戏|男主|女主|刚才.{0,8}(?:跑|演)|刚刚.{0,8}(?:跑|演))/.test(query);
+  const indexed = projects.map((conv, index) => {
     const p = normalizedRoleplayProject(conv.rpProject, conv);
-    const archive = [p.memory, ...p.memories.slice(-8).map(item => item.text)].filter(Boolean).join("\n").slice(-2200);
-    const recent = (conv.messages || []).filter(m => !m._event && !m._summary && !looksLikeRoleplayRichHtml(messageText(m))).slice(-4)
-      .map(m => `${m.role === "user" ? p.userRole || "用户戏内角色" : m.rpSpeakerName || p.actorName || "舞台角色"}：${messageText(m).slice(0, 650)}`).join("\n");
-    return `《${conv.title || p.title}》 · ${p.leadChannel?.playedByOwner === false ? "独立主角：" : "你出演 "}${p.actorName || "舞台角色"} · 用户出演 ${p.userRole || "自定角色"}\n${archive ? "戏内档案：\n" + archive : ""}\n${recent ? "最近共同演出正文：\n" + recent : "尚无演出正文"}`;
+    const title = conv.title || p.title || "未命名剧本";
+    const labels = [title, p.actorName, p.userRole].map(value => String(value || "").trim()).filter(value => value.length >= 2);
+    const memories = Array.isArray(p.memories) ? p.memories : [];
+    const keywordHit = memories.some(item => (item.keywords || []).some(keyword => {
+      const value = String(keyword || "").trim().toLowerCase();
+      return value.length >= 2 && query.includes(value);
+    }));
+    const searchable = [title, p.actorName, p.userRole, p.memory,
+      ...memories.slice(-12).flatMap(item => [item.title, item.text, ...(item.keywords || [])])].join("\n").toLowerCase();
+    const termHits = queryTerms.reduce((count, term) => count + (searchable.includes(term) ? 1 : 0), 0);
+    let score = labels.reduce((total, label) => total + (query.includes(label.toLowerCase()) ? 100 : 0), 0);
+    if (keywordHit) score += 24;
+    score += Math.min(18, termHits * 3);
+    if (generalIntent) score += Math.max(1, 10 - index);
+    return { conv, p, title, score, index };
   });
-  return blocks.length ? "【共同演出记忆·只读戏剧档案】\n以下是你与用户在独立 RP 长剧情中共同演出的实际记录，已接通并在每轮提供，不必等到完结。可以在本体聊天中回顾、讨论；更早细节可搜索 RP 旧文。所有人物关系、事件与感情只属于相应剧本，不是本体真实经历，不得据此替换本体身份或其他剧本事实。\n\n" + blocks.join("\n\n").slice(0, 14000) : "";
+  const indexText = indexed.map(({ p, title }) => `- 《${title}》：${p.leadChannel?.playedByOwner === false ? "独立主角" : "你出演"} ${p.actorName || "舞台角色"}；用户出演 ${p.userRole || "自定角色"}`).join("\n");
+  const selected = indexed.filter(item => item.score >= 10).sort((a, b) => b.score - a.score || a.index - b.index).slice(0, 2);
+  const details = selected.map(({ conv, p, title }) => {
+    const memories = Array.isArray(p.memories) ? p.memories : [];
+    const matched = memories.filter(item => item.pinned || (item.keywords || []).some(keyword => {
+      const value = String(keyword || "").trim().toLowerCase();
+      return value.length >= 2 && query.includes(value);
+    }) || queryTerms.some(term => `${item.title || ""}\n${item.text || ""}`.toLowerCase().includes(term)));
+    const memoryRows = (matched.length ? matched : memories.slice(-3)).slice(-6);
+    const archive = [String(p.memory || "").trim().slice(-700), ...memoryRows.map(item => [item.title ? `【${item.title}】` : "", item.text].filter(Boolean).join(" "))]
+      .filter(Boolean).join("\n").slice(-1500);
+    const recent = (conv.messages || []).filter(m => !m._event && !m._summary && !looksLikeRoleplayRichHtml(messageText(m))).slice(-2)
+      .map(m => `${m.role === "user" ? p.userRole || "用户戏内角色" : m.rpSpeakerName || p.actorName || "舞台角色"}：${messageText(m).slice(0, 420)}`).join("\n");
+    return `《${title}》相关只读档案\n${archive ? `戏内记忆：\n${archive}` : ""}\n${recent ? `最近正文：\n${recent}` : ""}`.trim();
+  }).join("\n\n");
+  return [
+    "【共同演出索引·只读戏剧档案】\n你和用户确实一起演过下列剧本；索引只帮助你知道有哪些共同演出，不代表本体真实经历。",
+    indexText,
+    details ? `【本轮话题命中的剧场档案】\n${details}` : "本轮没有点名某场戏，不展开剧情正文；需要细节时可按剧名或角色名搜索 RP 旧文。",
+    "所有人物关系、事件与感情只属于相应剧本，不得据此替换本体身份、真实关系或其他剧本事实。",
+  ].join("\n\n").slice(0, 2600);
 }
 function buildConversationProjectText(conv = currentConv()) {
   const files = conversationProjectFiles(conv)
@@ -10038,8 +10074,6 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     systemText = systemText ? systemText + "\n\n" + instructionBlock : instructionBlock;
   }
   const conversationProjectText = [backstageMode ? buildRoleplayBackstageText(rpProject) : buildRoleplayProjectText(), buildConversationProjectText()].filter(Boolean).join("\n\n");
-  const sharedRoleplayExperience = buildSharedRoleplayExperienceText();
-  if (sharedRoleplayExperience) systemText = [systemText, sharedRoleplayExperience].filter(Boolean).join("\n\n");
   if (conversationProjectText)
     systemText = systemText ? systemText + "\n\n" + conversationProjectText : conversationProjectText;
   const systemRoleName = ((settings.aiName || "当前角色").trim() || "当前角色");
@@ -11029,6 +11063,8 @@ function buildBoundedMemoryContext(historyWindow) {
   const notionText = settings.notionEnabled ? buildNotionForPrompt([lockedMemory, memoryFacts].filter(Boolean).join("\n")) : "";
   const notion = notionText
     ? "【Notion 云端角色档案·相关长期信息】\n" + notionText : "";
+  const roleplayExperience = typeof buildSharedRoleplayExperienceText === "function" ? buildSharedRoleplayExperienceText() : "";
+  const roleplayExperienceMatched = roleplayExperience.includes("【本轮话题命中的剧场档案】");
   // Priority controls what survives the shared budget. Order keeps stable blocks
   // before dynamic exact recall so provider prompt caching remains effective.
   const blocks = [
@@ -11045,8 +11081,10 @@ function buildBoundedMemoryContext(historyWindow) {
     { key: "notion", label: "Notion相关档案", priority: 6, order: 50, cap: 650, text: notion },
     { key: "continuity", label: "连续性档案", priority: 7, order: 10, cap: 2100, text: continuity },
     { key: "profile", label: "人物速写", priority: 8, order: 20, cap: 600, text: profile },
-    { key: "derived", label: "角色提炼记忆线索", priority: 9, order: 35, cap: 700, text: derived },
-    { key: "diary", label: "私人日记", priority: 10, order: 40, cap: 850, text: diary },
+    { key: "roleplayExperience", label: roleplayExperienceMatched ? "共同演出档案 · 本轮命中" : "共同演出索引",
+      priority: roleplayExperienceMatched ? 4 : 9, order: 55, cap: roleplayExperienceMatched ? 2600 : 700, text: roleplayExperience },
+    { key: "derived", label: "角色提炼记忆线索", priority: 10, order: 35, cap: 700, text: derived },
+    { key: "diary", label: "私人日记", priority: 11, order: 40, cap: 850, text: diary },
   ];
   const seenFacts = [], selected = [], auditBlocks = [];
   let used = 0, duplicateLines = 0;

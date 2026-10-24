@@ -105,9 +105,16 @@ context.roleConvs = () => [{ space: 'roleplay', title: '测试剧本', rpProject
 context.normalizedRoleplayProject = p => p;
 context.messageText = m => m.content;
 context.looksLikeRoleplayRichHtml = () => false;
+context.roleplayRecallTerms = value => String(value || '').match(/[\u4e00-\u9fff]{2,3}/g) || [];
+context.currentMemoryRecallQuery = () => '今晚吃什么';
 vm.runInContext(html.slice(html.indexOf('function buildSharedRoleplayExperienceText()'), html.indexOf('function buildConversationProjectText(')), context);
+const indexOnly = context.buildSharedRoleplayExperienceText();
+ok(indexOnly.includes('共同演出索引') && indexOnly.includes('测试剧本') && !indexOnly.includes('戏内已经离婚') && indexOnly.length < 900, 'unrelated owner turns must receive only a compact RP index');
+context.currentMemoryRecallQuery = () => '周竞尧和顾里的剧情';
 const shared = context.buildSharedRoleplayExperienceText();
-ok(shared.includes('戏内已经离婚') && shared.includes('顾里：归还信物') && shared.includes('不是本体真实经历'), 'private prompts must include real RP archives with fiction boundaries');
+ok(shared.includes('戏内已经离婚') && shared.includes('顾里：归还信物') && shared.includes('不代表本体真实经历') && shared.length <= 2600, 'topic-matched private prompts must include a bounded RP archive with fiction boundaries');
+ok(html.includes('{ key: "roleplayExperience", label: roleplayExperienceMatched ? "共同演出档案 · 本轮命中"') && html.includes('priority: roleplayExperienceMatched ? 4 : 9') && !html.includes('const sharedRoleplayExperience = buildSharedRoleplayExperienceText();'), 'RP archives must share the inspected memory budget and promote only topic-matched details');
+ok(html.includes('const newestFallback = entries.filter(item => !item.pinned).slice(-3);') && !html.includes('...ranked.slice(-3)'), 'RP fallback recall must use the newest entries instead of the lowest-ranked tail');
 context.current = { space: 'roleplay' };
 ok(context.buildSharedRoleplayExperienceText() === '', 'other RP projects must not leak into the active stage');
 ok(dashboard.includes('JYCRoleplayBridge?.exitToHome?.()') && js.includes('rp-home-exit'), 'RP must have a working backstage-home exit');
