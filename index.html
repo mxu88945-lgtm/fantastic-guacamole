@@ -2326,14 +2326,17 @@
   html[data-chat-bg="1"] #messages .msg .trace-step-title,
   html[data-chat-bg="1"] #messages .msg .trace-step-detail {
     color: color-mix(in srgb, var(--system-text-color, #fff) 86%, transparent);
-    text-shadow: 0 1px 3px rgba(0,0,0,.72), 0 0 2px rgba(0,0,0,.42);
+    /* Keep metadata readable without the iOS blur-like glow caused by a
+       wide multi-layer shadow. */
+    text-shadow: 0 1px 1px rgba(0,0,0,.28);
   }
   html[data-chat-bg="1"] #messages .msg.assistant .bubble {
-    text-shadow: 0 1px 3px rgba(0,0,0,.68), 0 0 2px rgba(0,0,0,.38);
+    /* Wallpaper is already dimmed; a wide shadow makes glyphs look fuzzy. */
+    text-shadow: 0 1px 1px rgba(0,0,0,.22);
   }
   html[data-chat-bg="1"] #messages .msg.user .bubble {
     color: color-mix(in srgb, var(--system-text-color, #fff) 92%, transparent);
-    text-shadow: 0 1px 3px rgba(0,0,0,.68), 0 0 2px rgba(0,0,0,.38);
+    text-shadow: 0 1px 1px rgba(0,0,0,.22);
   }
   html[data-chat-bg="1"] #messages .msg.assistant .bubble blockquote {
     border-left-color: currentColor;
