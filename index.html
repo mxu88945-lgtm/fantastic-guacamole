@@ -14294,6 +14294,7 @@ function applyFont() {
   root.style.setProperty("--msg-font-weight", String(weight));
   const weightVal = $("mainFontWeightVal"); if (weightVal) weightVal.textContent = String(weight);
   const weightSample = $("mainFontWeightSample"); if (weightSample) weightSample.style.fontWeight = String(weight);
+  const mainTextSample = $("mainFontSizeSample"); if (mainTextSample) mainTextSample.style.fontWeight = String(weight);
 }
 function highlightFontButtons() {
   document.querySelectorAll("[data-ff]").forEach(b => b.classList.toggle("primary", b.dataset.ff === settings.fontFamily));
