@@ -7574,11 +7574,19 @@ function makeMsgEl(role, content, opts) {
   const richRoleplay = role === "assistant" && isRoleplayConversation() && typeof content === "string" && looksLikeRoleplayRichHtml(roleplayRegexDisplay(content));
   el.className = "msg " + role + (flat ? " flat" : "") + (stickerOnly ? " sticker-only" : "") + (richRoleplay ? " roleplay-rich-message" : "");
   const timeHtml = (settings.showTime && opts.ts) ? `<span class="msg-time">${formatTime(opts.ts)}</span>` : "";
-  const nameHtml = escapeHtml(opts.rpSpeakerName || nameFor(role)) + timeHtml;
+  const rpProject = role === "assistant" && isRoleplayConversation() ? currentConv()?.rpProject : null;
+  const rpActorName = String(rpProject?.actorName || "").trim();
+  // Older RP messages sometimes stored the owner's name instead of the scene-card
+  // lead name. Keep explicit cast-member names untouched, but repair legacy lead rows.
+  const legacyLead = Boolean(rpActorName && role === "assistant" && rpProject
+    && (!opts.rpSpeakerId || opts.rpSpeakerId === "lead")
+    && (!opts.rpSpeakerName || opts.rpSpeakerName === settings.aiName));
+  const displaySpeakerName = legacyLead ? rpActorName : (opts.rpSpeakerName || nameFor(role));
+  const nameHtml = escapeHtml(displaySpeakerName) + timeHtml;
   const castMember = opts.rpSpeakerId && isRoleplayConversation() ? roleplayMembers(currentConv().rpProject).find(member => member.id === opts.rpSpeakerId) : null;
-  const castAvatar = castMember ? castMember.avatar : opts.rpSpeakerAvatar;
-  const speakerAvatar = opts.rpSpeakerName
-    ? (isImageRef(castAvatar) ? `<div class="avatar"><img src="${escapeHtml(castAvatar)}" alt=""></div>` : `<div class="avatar">${escapeHtml(opts.rpSpeakerName.slice(0, 1))}</div>`)
+  const castAvatar = castMember ? castMember.avatar : (legacyLead ? rpProject.actorAvatar : opts.rpSpeakerAvatar);
+  const speakerAvatar = opts.rpSpeakerName || legacyLead
+    ? (isImageRef(castAvatar) ? `<div class="avatar"><img src="${escapeHtml(castAvatar)}" alt=""></div>` : `<div class="avatar">${escapeHtml(displaySpeakerName.slice(0, 1))}</div>`)
     : avatarHtml(role);
   if (flat) {
     el.innerHTML = `<div class="msg-head">${speakerAvatar}<span class="name">${nameHtml}</span></div>
