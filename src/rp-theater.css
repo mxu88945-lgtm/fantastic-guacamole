@@ -479,7 +479,10 @@ body.rp-chat-active .main > .chat,
 body.rp-chat-active .main > .composer-wrap {
   background: var(--rp-base-color, #eef4fd);
 }
-body.rp-chat-active.rp-wallpaper-active .main,
+/* Keep an opaque scene base below the wallpaper.  The image layer can be
+   translucent (or contain transparent/letterboxed pixels), but it must never
+   expose the owner chat's dark canvas. */
+body.rp-chat-active.rp-wallpaper-active .main { background: var(--rp-base-color, #eef4fd); }
 body.rp-chat-active.rp-wallpaper-active .main > .chat { background: transparent; }
 body.rp-chat-active #chat-bg { display: none; }
 body.rp-chat-active.rp-wallpaper-active #chat-bg { display: block !important; }
@@ -571,3 +574,19 @@ body.rp-chat-active #messages .msg .bubble {
   line-height: 1.82;
 }
 body.rp-chat-active #messages .msg .name { color: var(--rp-text-color, #263451) !important; }
+
+/* Imported owner themes (especially glass/dark themes) can paint an assistant
+   bubble or one of its story wrappers after the scene wallpaper is applied.
+   Keep prose transparent so the wallpaper is continuous from top to composer;
+   explicit RP cards/code/details are styled separately in rp-group.css. */
+body.rp-chat-active #messages .msg.assistant,
+body.rp-chat-active #messages .msg.assistant > .body,
+body.rp-chat-active #messages .msg.assistant .bubble,
+body.rp-chat-active #messages .rp-story-body,
+body.rp-chat-active #messages .rp-story-text,
+body.rp-chat-active #messages .roleplay-opening-text,
+body.rp-chat-active #messages :is(.rp-story-text, .roleplay-opening-text) > :not(pre):not(details):not(.rp-status-card):not(.rp-scene-strip) {
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}

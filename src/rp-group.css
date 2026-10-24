@@ -182,6 +182,28 @@
   .rp-group-drawer { width: 80vw; }
 }
 
+/* The co-play settings live outside `.main`, so scene variables declared on
+   the chat shell do not reach them.  Give the drawer a complete light palette
+   of its own; otherwise a dark owner theme turns buttons, colour rows and font
+   previews black as soon as the scene wallpaper is previewed. */
+.rp-group-drawer {
+  --bg: #f7f9fd;
+  --bg-soft: #f3f6fb;
+  --bg-panel: #ffffff;
+  --border: #dfe5ef;
+  --text: #27304a;
+  --text-dim: #7a8499;
+  --accent: #6672d8;
+  --accent-soft: #eef0ff;
+  --item-active: #eef0ff;
+  --err-text: #b44f60;
+  --control: #ffffff;
+  --control-text: #27304a;
+  --control-border: #dbe2ee;
+  color-scheme: light;
+  color: var(--text);
+}
+
 /* Weijing-style scene appearance: a real per-script theme and wallpaper workspace. */
 .rp-scene-theme-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0}.rp-scene-theme-card{min-width:0!important;padding:8px 5px!important;border:1px solid #dbe2ee!important;border-radius:14px!important;background:#fff!important;color:#58647b!important;font-size:11px!important}.rp-scene-theme-card i{display:block;height:28px;border-radius:9px;margin-bottom:6px;border:1px solid rgba(40,50,70,.12)}.rp-scene-theme-card span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rp-scene-theme-card.active{border-color:#6672d8!important;box-shadow:0 0 0 3px rgba(102,114,216,.13);color:#5961c9!important}.rp-scene-appearance-preview{min-height:106px;margin:12px 0;padding:14px;border:1px solid #dbe2ee;border-radius:17px;background-size:cover;background-position:center;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;color:#27304a;overflow:hidden}.rp-scene-appearance-preview small{font-size:11px;color:#5961c9}.rp-scene-appearance-preview strong{padding:9px 11px;border-radius:12px;background:rgba(255,255,255,.78);font-size:13px}.rp-wallpaper-picker{display:grid!important;grid-template-columns:1fr auto;gap:8px!important;align-items:center}.rp-wallpaper-picker>span{grid-column:1/-1}.rp-wallpaper-picker input[type=file]{display:none!important}.rp-wallpaper-picker button{font-size:12px!important;padding:9px 10px!important}.rp-wallpaper-picker button:last-child{color:#a45462}.rp-scene-appearance-actions{display:flex;justify-content:flex-end;margin-top:8px}.rp-scene-appearance-actions button{font-size:12px!important;padding:8px 11px!important}@media(max-width:430px){.rp-scene-theme-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
