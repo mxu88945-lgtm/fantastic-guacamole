@@ -1050,7 +1050,7 @@
     background: color-mix(in srgb, var(--assistant-bubble) var(--bubble-pct, 100%), transparent);
     border: 1px solid var(--border);
     border-radius: 16px; padding: 12px 15px;
-    font-size: var(--msg-font, 14.5px); font-family: var(--msg-font-family, inherit);
+    font-size: var(--msg-font, 14.5px); font-family: var(--msg-font-family, inherit); font-weight: var(--msg-font-weight, 400);
     line-height: 1.7; word-wrap: break-word; overflow-wrap: anywhere;
     box-shadow: 0 2px 8px rgba(0,0,0,.06);
   }
@@ -3328,6 +3328,14 @@
             </div>
           </div>
           <div style="margin-top:12px;">
+            <div class="hint">字体字重 <span id="mainFontWeightVal">400</span></div>
+            <div style="display:flex; gap:8px; margin-top:6px; align-items:center;">
+              <input id="mainFontWeight" type="range" min="300" max="800" step="50" value="400" style="flex:1;" aria-label="字体字重" />
+              <span id="mainFontWeightSample" style="min-width:64px; text-align:center; padding:6px 10px; border:1px solid var(--border); border-radius:12px; background:var(--bg-panel); font-size:13px; font-weight:400;">Aa 字重</span>
+            </div>
+            <span class="hint" style="display:block; margin-top:6px;">数值越大越粗；建议正文使用 400～500。</span>
+          </div>
+          <div style="margin-top:12px;">
             <div class="hint">字体样式</div>
             <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
               <button class="mini-btn" data-ff="default">默认</button>
@@ -4449,6 +4457,7 @@ let settings = {
   timeAware: true,        // tell the model the current local time
   locationAware: true,    // after she grants permission: city/district + weather as a hidden prompt note
   fontSize: "medium",     // small | medium | large
+  fontWeight: 400,         // 300–800, main chat message weight
   fontFamily: "default",  // default | kai | song
   stickers: [],           // [{id, name, dataUrl}] image stickers / 表情包
   favorites: [],          // [{id, who, text, ts}] starred quotes / 语录集
@@ -4547,7 +4556,7 @@ let voiceInputBaseText = "";
 let voicePointerStopHandled = false;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","systemInstruction","globalPromptPresets","emojiStyle","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","memoryProviderId","memoryModel","roleMemoryV2","crossChat","crossSearch","historyRecallScope","historyRecallScopeV2","historyRecallAliases","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
-  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleStyle","bubbleOpacity","favorites","showTime","timeAware","locationAware","fontSize","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
+  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleStyle","bubbleOpacity","favorites","showTime","timeAware","locationAware","fontSize","fontWeight","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "sttEnabled","sttEngine","sttBaseUrl","sttModel","sttLanguage",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
   "reminderEnabled","companionFeaturesV1"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
@@ -14279,6 +14288,12 @@ function applyFont() {
   const root = document.documentElement;
   root.style.setProperty("--msg-font", `${mainFontSizePx()}px`);
   root.style.setProperty("--msg-font-family", FONT_FAMS[settings.fontFamily] || "inherit");
+  const rawWeight = Number(settings.fontWeight);
+  const weight = Number.isFinite(rawWeight) ? Math.min(800, Math.max(300, Math.round(rawWeight / 50) * 50)) : 400;
+  settings.fontWeight = weight;
+  root.style.setProperty("--msg-font-weight", String(weight));
+  const weightVal = $("mainFontWeightVal"); if (weightVal) weightVal.textContent = String(weight);
+  const weightSample = $("mainFontWeightSample"); if (weightSample) weightSample.style.fontWeight = String(weight);
 }
 function highlightFontButtons() {
   document.querySelectorAll("[data-ff]").forEach(b => b.classList.toggle("primary", b.dataset.ff === settings.fontFamily));
@@ -14852,6 +14867,12 @@ function syncSettingsToUI() {
     $("mainFontSize").value = mainSize;
     $("mainFontSizeVal").textContent = mainSize;
     const mainSample = $("mainFontSizeSample"); if (mainSample) mainSample.style.fontSize = `${mainSize}px`;
+  }
+  if ($("mainFontWeight")) {
+    const weight = Number.isFinite(Number(settings.fontWeight)) ? Math.min(800, Math.max(300, Math.round(Number(settings.fontWeight) / 50) * 50)) : 400;
+    $("mainFontWeight").value = weight;
+    $("mainFontWeightVal").textContent = weight;
+    $("mainFontWeightSample").style.fontWeight = weight;
   }
   renderPetSettings();
   renderDeskPet();
@@ -16320,6 +16341,10 @@ async function init() {
   });
   document.querySelectorAll("[data-ff]").forEach(b => b.onclick = () => {
     settings.fontFamily = b.dataset.ff; saveSettings(); applyFont(); highlightFontButtons();
+  });
+  $("mainFontWeight").addEventListener("input", () => {
+    settings.fontWeight = parseInt($("mainFontWeight").value, 10) || 400;
+    saveSettings(); applyFont();
   });
   $("bubbleOpacity").addEventListener("input", () => {
     settings.bubbleOpacity = parseInt($("bubbleOpacity").value);
