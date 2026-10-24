@@ -2326,17 +2326,21 @@
   html[data-chat-bg="1"] #messages .msg .trace-step-title,
   html[data-chat-bg="1"] #messages .msg .trace-step-detail {
     color: color-mix(in srgb, var(--system-text-color, #fff) 86%, transparent);
-    /* Keep metadata readable without the iOS blur-like glow caused by a
-       wide multi-layer shadow. */
-    text-shadow: 0 1px 1px rgba(0,0,0,.28);
+    /* Wallpaper readability must not be simulated with a glyph shadow: on iOS
+       even a 1px shadow can look like a soft halo at large text sizes. */
+    text-shadow: none;
   }
-  html[data-chat-bg="1"] #messages .msg.assistant .bubble {
-    /* Wallpaper is already dimmed; a wide shadow makes glyphs look fuzzy. */
-    text-shadow: 0 1px 1px rgba(0,0,0,.22);
+  html[data-chat-bg="1"] #messages .msg.assistant .bubble,
+  html[data-chat-bg="1"] #messages .msg.user .bubble {
+    /* Glass-theme bubbles use backdrop-filter. With a wallpaper and flat
+       long-form messages, iOS composites that filter over the glyphs and makes
+       the text edges look soft. Keep the surface, remove only the blur. */
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    text-shadow: none !important;
   }
   html[data-chat-bg="1"] #messages .msg.user .bubble {
     color: color-mix(in srgb, var(--system-text-color, #fff) 92%, transparent);
-    text-shadow: 0 1px 1px rgba(0,0,0,.22);
   }
   html[data-chat-bg="1"] #messages .msg.assistant .bubble blockquote {
     border-left-color: currentColor;
