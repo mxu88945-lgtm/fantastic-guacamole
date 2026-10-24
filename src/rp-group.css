@@ -282,3 +282,61 @@ body.rp-chat-active #messages :is(.rp-scene-strip, .rp-status-card, details.chat
 body.rp-chat-active #messages :is(.rp-story-text, .roleplay-opening-text) :is(pre, code, kbd, samp, mark) * {
   text-shadow: none !important;
 }
+
+/* Layout normalization: keep every settings group on one spacing rhythm,
+   matching the compact, evenly proportioned reference layout. */
+.rp-group-drawer {
+  --rp-row-height: 56px;
+  --rp-side-pad: 16px;
+  --rp-group-gap: 12px;
+}
+.rp-group-scroll {
+  padding: 14px 12px 18px;
+}
+.rp-group-scroll > section {
+  margin: 0 0 var(--rp-group-gap);
+  padding: 14px var(--rp-side-pad);
+  border-radius: 18px;
+}
+.rp-group-scroll > section:last-child,
+.rp-group-scroll > .rp-group-links:last-child {
+  margin-bottom: 0;
+}
+.rp-group-section-head {
+  min-height: 40px;
+}
+.rp-group-links,
+.rp-memory-link-card {
+  overflow: hidden;
+  border-radius: 18px;
+}
+.rp-group-links button,
+.rp-memory-link-card > button {
+  height: var(--rp-row-height);
+  min-height: var(--rp-row-height);
+  padding: 0 var(--rp-side-pad);
+  line-height: 1.35;
+}
+.rp-group-links button::after,
+.rp-memory-link-card > button b {
+  width: 36px;
+  flex-basis: 36px;
+  text-align: center;
+}
+.rp-group-drawer footer {
+  min-height: 78px;
+  padding: 12px var(--rp-side-pad) calc(12px + env(safe-area-inset-bottom));
+}
+.rp-group-drawer footer button {
+  min-height: 44px;
+  padding: 10px 16px;
+}
+@media (max-width: 600px) {
+  .rp-group-scroll {
+    padding-inline: 12px;
+  }
+  .rp-group-drawer footer {
+    min-height: 74px;
+    padding-inline: 14px;
+  }
+}
