@@ -8,9 +8,14 @@ const requireText = (text, message) => {
 }
 
 requireText(
-  'max-width: min(210px, 60vw); max-height: 240px;',
-  'chat image preview is not compact on mobile',
+  'width: min(180px, 29vw); height: 120px;',
+  'chat image preview is not a compact thumbnail grid',
 )
+requireText('function openImageGallery(parts, initialIndex = 0)', 'swipeable image gallery is missing')
+requireText('image-gallery-nav', 'image gallery navigation controls are missing')
+requireText('Math.abs(dx) > 45', 'image gallery does not support touch swipes')
+requireText('data-gallery-index="${index}"', 'message images are not grouped into a gallery')
+requireText('String(reader.result || "")', 'original image data is not retained for preview and sending')
 requireText(
   'function openComposerFilePicker(inputId)',
   'iOS-safe composer picker helper is missing',
@@ -28,15 +33,15 @@ requireText(
   'file action does not use the iOS-safe picker path',
 )
 
-if (!sw.includes('const CACHE = "role-chat-cache-v244";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v245";')) {
   throw new Error('service worker cache was not bumped for the image fixes')
 }
 
-console.log('image attachment regression: 6 checks passed')
+console.log('image attachment regression: 11 checks passed')
 
 {
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-  if (!src.includes('thumbImg.onclick = (event) => { event.stopPropagation(); openImageLightbox(part.dataUrl); };'))
+  if (!src.includes('thumbImg.onclick = (event) => { event.stopPropagation(); openImageGallery(pendingImages, pendingIndex); };'))
     throw new Error("pending image thumbnails cannot be opened before sending");
 }

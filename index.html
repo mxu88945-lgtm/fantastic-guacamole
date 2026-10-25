@@ -1525,16 +1525,39 @@
   .msg.flat.user .name { text-align: right; }
   .msg.flat .bubble { width: fit-content; max-width: 100%; }
   .msg-media {
-    display: flex; flex-direction: column; gap: 6px; max-width: 100%;
+    display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 6px; max-width: 100%;
   }
   .msg-media .msg-img,
   .bubble .msg-img {
-    max-width: min(210px, 60vw); max-height: 240px; border-radius: 12px; display: block;
-    margin: 0; cursor: pointer; object-fit: contain;
+    width: min(180px, 29vw); height: 120px; max-width: 100%; border-radius: 12px; display: block;
+    margin: 0; cursor: zoom-in; object-fit: cover; background: var(--bg-panel);
     box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  }
+  .msg-media .msg-img[data-gallery-index] { transition: transform .16s ease, box-shadow .16s ease; }
+  @media (hover: hover) {
+    .msg-media .msg-img[data-gallery-index]:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(0,0,0,.14); }
   }
   .msg.user .msg-media { align-items: flex-end; }
   .msg.assistant .msg-media { align-items: flex-start; }
+  .image-gallery-overlay {
+    position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,.94);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+    color: #fff; overscroll-behavior: contain;
+  }
+  .image-gallery-stage { width: 100%; height: min(78vh, 760px); display: flex; align-items: center; justify-content: center; gap: 12px; touch-action: pan-y; }
+  .image-gallery-image { max-width: calc(100% - 88px); max-height: 100%; object-fit: contain; border-radius: 8px; user-select: none; -webkit-user-drag: none; }
+  .image-gallery-nav { width: 40px; height: 52px; flex: 0 0 auto; border: 0; border-radius: 999px; background: rgba(255,255,255,.16); color: #fff; font: 400 42px/1 system-ui; cursor: pointer; }
+  .image-gallery-nav[hidden] { display: none; }
+  .image-gallery-counter { min-height: 20px; margin-top: 10px; color: rgba(255,255,255,.8); font: 13px/1.4 system-ui; }
+  .image-gallery-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .image-gallery-action { border: 0; border-radius: 999px; padding: 10px 16px; background: rgba(255,255,255,.18); color: #fff; font: 600 13px system-ui; cursor: pointer; }
+  .image-gallery-action:first-child { background: #fff; color: #222; }
+  @media (max-width: 560px) {
+    .image-gallery-stage { height: min(72vh, 620px); gap: 4px; }
+    .image-gallery-nav { width: 32px; height: 46px; font-size: 34px; }
+    .image-gallery-image { max-width: calc(100% - 68px); }
+  }
   /* Claude-style subtle thinking line — no box, just a faint collapsible row */
   .think { border: none; background: none; padding: 0; margin: 2px 0 10px; font-size: 12.5px; }
   .think > summary {
@@ -5645,33 +5668,44 @@ async function exportChatImage(msgsOverride) {
 }
 // Tap an in-chat image → fullscreen viewer (in-app overlay; never window.open a data: URL,
 // which iOS standalone PWAs open as a blank Safari page).
-function openImageLightbox(src) {
-  const ov = document.createElement("div");
-  ov.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;";
-  const img = document.createElement("img");
-  img.src = src;
-  img.style.cssText = "max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;";
-  const actions = document.createElement("div");
-  actions.style.cssText = "display:flex;gap:8px;position:absolute;top:max(14px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);";
-  const albumBtn = document.createElement("button");
-  albumBtn.textContent = "♡ 存进相册";
-  albumBtn.style.cssText = "border:0;border-radius:999px;padding:10px 16px;background:#fff;color:#222;font:600 13px system-ui;";
-  albumBtn.onclick = (event) => {
-    event.stopPropagation();
-    ov.remove();
+function openImageLightbox(src) { openImageGallery([{ dataUrl: src }], 0); }
+function openImageGallery(parts, initialIndex = 0) {
+  const images = (Array.isArray(parts) ? parts : []).filter(p => p && (p.dataUrl || p.src));
+  if (!images.length) return;
+  let index = Math.max(0, Math.min(images.length - 1, Number(initialIndex) || 0));
+  const ov = document.createElement("div"); ov.className = "image-gallery-overlay";
+  const stage = document.createElement("div"); stage.className = "image-gallery-stage";
+  const img = document.createElement("img"); img.className = "image-gallery-image"; img.alt = "聊天图片";
+  const counter = document.createElement("div"); counter.className = "image-gallery-counter";
+  const actions = document.createElement("div"); actions.className = "image-gallery-actions";
+  const albumBtn = document.createElement("button"); albumBtn.className = "image-gallery-action"; albumBtn.textContent = "♡ 存进相册";
+  const closeBtn = document.createElement("button"); closeBtn.className = "image-gallery-action"; closeBtn.textContent = "✕"; closeBtn.setAttribute("aria-label", "关闭图片");
+  const prevBtn = document.createElement("button"); prevBtn.className = "image-gallery-nav prev"; prevBtn.textContent = "‹"; prevBtn.setAttribute("aria-label", "上一张");
+  const nextBtn = document.createElement("button"); nextBtn.className = "image-gallery-nav next"; nextBtn.textContent = "›"; nextBtn.setAttribute("aria-label", "下一张");
+  function currentSrc() { return images[index].dataUrl || images[index].src; }
+  function update() {
+    img.src = currentSrc(); counter.textContent = images.length > 1 ? `${index + 1} / ${images.length}` : "";
+    prevBtn.hidden = images.length < 2; nextBtn.hidden = images.length < 2;
+  }
+  const move = delta => { if (images.length < 2) return; index = (index + delta + images.length) % images.length; update(); };
+  const close = () => ov.remove();
+  prevBtn.onclick = e => { e.stopPropagation(); move(-1); };
+  nextBtn.onclick = e => { e.stopPropagation(); move(1); };
+  closeBtn.onclick = e => { e.stopPropagation(); close(); };
+  albumBtn.onclick = e => {
+    e.stopPropagation(); const src = currentSrc(); close();
     if (window.JYCAlbum) window.JYCAlbum.addFromDataUrl(src, "聊天图片");
     else showToast("相册还在加载，请稍后再试");
   };
-  const closeBtn = document.createElement("button");
-  closeBtn.textContent = "✕";
-  closeBtn.setAttribute("aria-label", "关闭图片");
-  closeBtn.style.cssText = "border:0;border-radius:999px;width:38px;height:38px;background:rgba(255,255,255,.2);color:#fff;font:600 16px system-ui;";
-  closeBtn.onclick = (event) => { event.stopPropagation(); ov.remove(); };
-  actions.append(albumBtn, closeBtn);
-  img.addEventListener("click", (event) => event.stopPropagation());
-  ov.append(img, actions);
-  ov.addEventListener("click", (event) => { if (event.target === ov) ov.remove(); });
-  document.body.appendChild(ov);
+  let startX = 0, startY = 0;
+  stage.addEventListener("touchstart", e => { const t = e.changedTouches[0]; startX = t.clientX; startY = t.clientY; }, { passive: true });
+  stage.addEventListener("touchend", e => {
+    const t = e.changedTouches[0], dx = t.clientX - startX, dy = t.clientY - startY;
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) move(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  stage.append(prevBtn, img, nextBtn); actions.append(albumBtn, closeBtn); ov.append(stage, counter, actions);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  document.body.appendChild(ov); update();
 }
 function showImagePreview(blob) {
   const url = URL.createObjectURL(blob);
@@ -7061,8 +7095,8 @@ function stickerHtml(p) {
 }
 function imagePartsHtml(content) {
   if (!Array.isArray(content)) return "";
-  return content.filter(p => p.type === "image" && p.dataUrl)
-    .map(p => `<img class="msg-img" src="${escapeHtml(p.dataUrl)}" onclick="openImageLightbox(this.src)" alt="">`).join("");
+  const images = content.filter(p => p.type === "image" && p.dataUrl);
+  return images.map((p, index) => `<img class="msg-img" data-gallery-index="${index}" src="${escapeHtml(p.dataUrl)}" alt="聊天图片">`).join("");
 }
 function filePartsHtml(content) {
   if (!Array.isArray(content)) return "";
@@ -7611,6 +7645,15 @@ function makeMsgEl(role, content, opts) {
     el.innerHTML = `${speakerAvatar}
       <div class="body"><div class="name">${nameHtml}</div>
       ${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState)}</div>`;
+  }
+  if (Array.isArray(content)) {
+    const imageParts = content.filter(p => p.type === "image" && p.dataUrl);
+    el.querySelectorAll(".msg-img[data-gallery-index]").forEach(img => {
+      img.onclick = event => {
+        event.stopPropagation();
+        openImageGallery(imageParts, Number(img.dataset.galleryIndex) || 0);
+      };
+    });
   }
   if (opts.actions && role === "user") {
     const container = flat ? el : el.querySelector(".body");
@@ -12057,7 +12100,8 @@ function handleAvatarFile(file, which) {
   reader.readAsDataURL(file);
 }
 
-// Stage an image to send: downscale to <=1024px, keep as JPEG data URL.
+// Stage an image to send: keep the original data URL and media type. The chat only
+// renders a CSS thumbnail; the stored/provider payload must not lose image quality.
 // Returns a Promise that resolves once the image is staged (or has failed).
 // The whole chain (FileReader → Image decode → canvas) is async; on iOS PWA it
 // can be slow, so send() awaits these via `attachmentStaging` to avoid the race where
@@ -12071,19 +12115,8 @@ function stageImageFile(file) {
       const img = new Image();
       img.onerror = () => { showToast("❌ 图片解码失败（iOS 有时不支持该格式），换张图试试"); resolve(); };
       img.onload = () => {
-        try {
-          const max = 1024;
-          let { width: w, height: h } = img;
-          const scale = Math.min(1, max / Math.max(w, h));
-          w = Math.round(w * scale); h = Math.round(h * scale);
-          const canvas = document.createElement("canvas");
-          canvas.width = w; canvas.height = h;
-          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-          pendingAttachments.push({ type: "image", dataUrl: canvas.toDataURL("image/jpeg", 0.85), mediaType: "image/jpeg" });
-          renderAttachPreview();
-        } catch (e) {
-          showToast("❌ 图片处理失败: " + (e.message || String(e)).slice(0, 40));
-        }
+        pendingAttachments.push({ type: "image", dataUrl: String(reader.result || ""), mediaType: file.type || "image/jpeg", name: file.name || "聊天图片" });
+        renderAttachPreview();
         resolve();
       };
       img.src = reader.result;
@@ -12154,7 +12187,9 @@ function renderAttachPreview() {
     const thumbImg = part.type === "file" ? null : d.querySelector("img");
     if (thumbImg) {
       thumbImg.style.cursor = "zoom-in";
-      thumbImg.onclick = (event) => { event.stopPropagation(); openImageLightbox(part.dataUrl); };
+      const pendingImages = pendingAttachments.filter(p => p.type === "image" && p.dataUrl);
+      const pendingIndex = pendingImages.indexOf(part);
+      thumbImg.onclick = (event) => { event.stopPropagation(); openImageGallery(pendingImages, pendingIndex); };
     }
     box.appendChild(d);
   });
