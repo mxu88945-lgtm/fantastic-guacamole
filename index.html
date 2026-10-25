@@ -3372,6 +3372,13 @@
               <button class="mini-btn" data-ff="kai" style="font-family:'Kaiti SC',KaiTi,serif;">楷体</button>
               <button class="mini-btn" data-ff="song" style="font-family:'Songti SC',serif;">宋体</button>
             </div>
+            <div class="hint" style="margin-top:10px;">在线字体库（首次点击下载，之后可直接使用）</div>
+            <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+              <button class="mini-btn" data-web-font="noto-sans-sc" style="font-family:'Noto Sans SC',sans-serif;">思源黑体</button>
+              <button class="mini-btn" data-web-font="noto-serif-sc" style="font-family:'Noto Serif SC',serif;">思源宋体</button>
+              <button class="mini-btn" data-web-font="lxgw-wenkai" style="font-family:'LXGW WenKai',serif;">霞鹜文楷</button>
+            </div>
+            <span class="hint" id="web-font-status" style="display:block; margin-top:6px;">字体文件来自开源字体项目，点击后才会请求下载。</span>
           </div>
           <span class="hint">「平铺式」像 Tavo：头像名字在文字上方、文字铺满更宽。透明度调低能透出背景图。</span>
         </div>
@@ -4488,7 +4495,7 @@ let settings = {
   locationAware: true,    // after she grants permission: city/district + weather as a hidden prompt note
   fontSize: "medium",     // small | medium | large
   fontWeight: 400,         // 300–800, main chat message weight
-  fontFamily: "default",  // default | kai | song
+  fontFamily: "default",  // default | kai | song | web:noto-sans-sc | web:noto-serif-sc | web:lxgw-wenkai
   stickers: [],           // [{id, name, dataUrl}] image stickers / 表情包
   favorites: [],          // [{id, who, text, ts}] starred quotes / 语录集
   multiBubble: true,      // 像真人发消息：把回复拆成多条气泡（[next] 分隔），逐条冒出来
@@ -14248,6 +14255,9 @@ function applyTheme() {
   applyBubbleStyle();
   applyFont();
   updateSilentUI();
+  if (typeof webFontCss === "function" && webFontCss(settings.fontFamily)) {
+    ensureWebFont(settings.fontFamily).then(applyFont).catch(() => {});
+  }
 }
 function clampTextOpacity(value) {
   const n = Number(value);
@@ -14320,6 +14330,33 @@ function setBubbleStyle(style) {
 }
 const FONT_SIZES = { small: "13px", medium: "14.5px", large: "16.5px" };
 const FONT_FAMS = { default: "inherit", kai: '"Kaiti SC","STKaiti",KaiTi,serif', song: '"Songti SC","STSong",serif' };
+const WEB_FONTS = {
+  "noto-sans-sc": { family: "Noto Sans SC", css: "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@100..900&display=swap", label: "思源黑体" },
+  "noto-serif-sc": { family: "Noto Serif SC", css: "https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@100..900&display=swap", label: "思源宋体" },
+  "lxgw-wenkai": { family: "LXGW WenKai", css: "https://fontsapi.zeoseven.com/292/main/result.css", label: "霞鹜文楷" },
+};
+const webFontLoads = new Map();
+function webFontKey(value) { return String(value || "").replace(/^web:/, ""); }
+function webFontCss(value) {
+  const font = WEB_FONTS[webFontKey(value)];
+  return font ? `"${font.family}", sans-serif` : null;
+}
+async function ensureWebFont(value) {
+  const key = webFontKey(value), font = WEB_FONTS[key];
+  if (!font) return false;
+  if (document.fonts?.check(`16px "${font.family}"`)) return true;
+  if (!webFontLoads.has(key)) {
+    const load = new Promise((resolve, reject) => {
+      const link = document.createElement("link");
+      link.rel = "stylesheet"; link.href = font.css; link.dataset.jycWebFont = key;
+      link.onload = () => document.fonts.load(`16px "${font.family}"`).then(() => resolve(true), reject);
+      link.onerror = reject; document.head.appendChild(link);
+    })
+      .catch(error => { webFontLoads.delete(key); throw error; });
+    webFontLoads.set(key, load);
+  }
+  return webFontLoads.get(key);
+}
 function mainFontSizePx() {
   const raw = settings.fontSize;
   if (FONT_SIZES[raw]) return parseFloat(FONT_SIZES[raw]);
@@ -14329,7 +14366,7 @@ function mainFontSizePx() {
 function applyFont() {
   const root = document.documentElement;
   root.style.setProperty("--msg-font", `${mainFontSizePx()}px`);
-  root.style.setProperty("--msg-font-family", FONT_FAMS[settings.fontFamily] || "inherit");
+  root.style.setProperty("--msg-font-family", webFontCss(settings.fontFamily) || FONT_FAMS[settings.fontFamily] || "inherit");
   const rawWeight = Number(settings.fontWeight);
   const weight = Number.isFinite(rawWeight) ? Math.min(800, Math.max(300, Math.round(rawWeight / 50) * 50)) : 400;
   settings.fontWeight = weight;
@@ -16384,6 +16421,25 @@ async function init() {
   });
   document.querySelectorAll("[data-ff]").forEach(b => b.onclick = () => {
     settings.fontFamily = b.dataset.ff; saveSettings(); applyFont(); highlightFontButtons();
+  });
+  document.querySelectorAll("[data-web-font]").forEach(button => button.onclick = async () => {
+    const key = button.dataset.webFont;
+    const font = WEB_FONTS[key];
+    if (!font) return;
+    const status = $("web-font-status");
+    button.disabled = true; button.textContent = `${font.label}下载中…`;
+    if (status) status.textContent = `正在下载「${font.label}」…`;
+    try {
+      await ensureWebFont(`web:${key}`);
+      settings.fontFamily = `web:${key}`; saveSettings(); applyFont(); highlightFontButtons();
+      document.querySelectorAll("[data-web-font]").forEach(item => item.classList.toggle("primary", item.dataset.webFont === key));
+      if (status) status.textContent = `已启用「${font.label}」；下次打开会优先使用浏览器缓存。`;
+    } catch (error) {
+      if (status) status.textContent = `「${font.label}」下载失败，请检查网络后重试。`;
+      showToast(`字体下载失败：${font.label}`);
+    } finally {
+      button.disabled = false; button.textContent = font.label;
+    }
   });
   $("mainFontWeight").addEventListener("input", () => {
     settings.fontWeight = parseInt($("mainFontWeight").value, 10) || 400;

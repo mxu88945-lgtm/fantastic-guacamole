@@ -71,6 +71,9 @@ ok(html.includes('$("bg-clear").onclick = clearChatBackground;'), "background cl
 ok(sw.includes('const CACHE = "role-chat-cache-v245";'), "service worker cache was not bumped for reasoning effort controls");
 
 ok(html.includes('id="mainFontSize"') && html.includes('id="mainFontSizeVal"') && html.includes('id="mainFontSizeSample"') && !html.includes('data-fs="small"'), "main chat font size must be a slider with a number readout and a live preview");
+ok(html.includes('data-web-font="noto-sans-sc"') && html.includes('data-web-font="noto-serif-sc"') && html.includes('data-web-font="lxgw-wenkai"'), "downloadable Chinese font choices are missing");
+ok(html.includes('async function ensureWebFont(value)') && html.includes('link.dataset.jycWebFont = key'), "online fonts must load through a cached stylesheet on demand");
+ok(html.includes('web:noto-sans-sc') && html.includes('web:noto-serif-sc') && html.includes('web:lxgw-wenkai'), "downloaded font choices are not persisted in settings");
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "settings redesign introduced duplicate DOM ids");
 
