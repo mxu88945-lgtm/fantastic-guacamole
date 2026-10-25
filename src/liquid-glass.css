@@ -1,0 +1,114 @@
+#gu-liquid-filter-defs {
+  position: fixed;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+html[data-theme-key="liquidglass"] body {
+  background-image: var(--app-gradient);
+}
+
+html[data-theme-key="liquidglass"] .main > header::before {
+  height: calc(58px + env(safe-area-inset-top));
+  background-image:
+    linear-gradient(to bottom, rgba(224,239,231,.82), rgba(224,239,231,.38) 64%, transparent),
+    var(--liquid-scene-image);
+  background-position: center top;
+  background-size: cover;
+  opacity: .9;
+  filter: url(#gu-liquid-filter);
+  -webkit-filter: url(#gu-liquid-filter);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+}
+
+html[data-theme-key="liquidglass"] header > #toggle-sidebar,
+html[data-theme-key="liquidglass"] .header-actions,
+html[data-theme-key="liquidglass"] .composer,
+html[data-theme-key="liquidglass"] .starter-card,
+html[data-theme-key="liquidglass"] .header-menu,
+html[data-theme-key="liquidglass"] #plus-menu,
+html[data-theme-key="liquidglass"] #msg-menu,
+html[data-theme-key="liquidglass"] .scroll-jump-btn,
+html[data-theme-key="liquidglass"] .remind-card,
+html[data-theme-key="liquidglass"] .pin-card {
+  position: relative;
+  isolation: isolate;
+  border-color: rgba(255,255,255,.76);
+  background: rgba(225,240,232,.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    inset 0 -1px 0 rgba(23,83,63,.12),
+    0 14px 34px rgba(18,65,50,.17),
+    0 0 0 1px rgba(39,111,86,.06);
+  -webkit-backdrop-filter: blur(21px) saturate(1.28);
+  backdrop-filter: blur(21px) saturate(1.28);
+}
+
+html[data-theme-key="liquidglass"] header > #toggle-sidebar::before,
+html[data-theme-key="liquidglass"] .header-actions::before,
+html[data-theme-key="liquidglass"] .composer::before,
+html[data-theme-key="liquidglass"] .starter-card::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: var(--liquid-scene-image);
+  background-position: center;
+  background-size: cover;
+  opacity: .52;
+  filter: url(#gu-liquid-filter);
+  -webkit-filter: url(#gu-liquid-filter);
+  clip-path: inset(0 round 26px);
+}
+
+html[data-theme-key="liquidglass"] header > #toggle-sidebar > *,
+html[data-theme-key="liquidglass"] .header-actions > *,
+html[data-theme-key="liquidglass"] .composer > *,
+html[data-theme-key="liquidglass"] .starter-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme-key="liquidglass"] .composer textarea,
+html[data-theme-key="liquidglass"] .composer textarea::placeholder { color: #244a3d; }
+html[data-theme-key="liquidglass"] .composer textarea::placeholder { opacity: .58; }
+
+html[data-theme-key="liquidglass"] .model-quick,
+html[data-theme-key="liquidglass"] .attach-btn,
+html[data-theme-key="liquidglass"] .voice-input-btn {
+  color: #255f4c;
+  background: rgba(239,250,245,.67);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.84), 0 5px 13px rgba(21,72,55,.1);
+}
+
+html[data-theme-key="liquidglass"] .msg.assistant .bubble {
+  color: var(--text);
+}
+
+html[data-theme-key="liquidglass"] .msg.user .bubble {
+  border-color: rgba(255,255,255,.56);
+  background: linear-gradient(145deg,rgba(220,239,230,.9),rgba(178,216,198,.86));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.75), 0 9px 22px rgba(22,70,55,.09);
+}
+
+html[data-theme-key="liquidglass"] .sidebar {
+  border-color: rgba(255,255,255,.58);
+  background: rgba(225,239,232,.9);
+  box-shadow: 18px 0 50px rgba(18,61,48,.14);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: blur(24px) saturate(1.2);
+}
+
+html[data-theme-key="liquidglass"] .theme-card.active {
+  border-color: #267259;
+  box-shadow: 0 0 0 3px rgba(38,114,89,.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-key="liquidglass"] .starter-card { transition: none; }
+}
