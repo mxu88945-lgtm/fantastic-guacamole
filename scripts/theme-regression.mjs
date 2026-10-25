@@ -161,6 +161,23 @@ ok(html.includes('html[data-theme-key="frostbubble"] .remind-card,')
 ok(html.includes('-webkit-backdrop-filter: blur(22px) saturate(1.10);'),
   'frosted reading surfaces lost their stronger optical blur')
 
+const liquidStart = html.indexOf('{ key: "liquidglass", name: "顾祁砚·液态"')
+const liquidEnd = html.indexOf('// Tidal Echo · 珍珠潮汐', liquidStart)
+ok(liquidStart >= 0 && liquidEnd > liquidStart, 'liquid glass theme block was not found')
+const liquid = html.slice(liquidStart, liquidEnd)
+ok(liquid.includes('linear-gradient(155deg,#fbfaf5 0%,#eee9de 52%,#d8d0c2 100%)')
+  && liquid.includes('bg:"#faf8f2"'),
+  'liquid glass canvas is not the intended warm milk-white palette')
+ok(liquid.includes('accent:"#737766"') && !liquid.includes('accent:"#267259"'),
+  'liquid glass controls still use the alarming saturated green accent')
+const liquidCss = fs.readFileSync(new URL('../src/liquid-glass.css', import.meta.url), 'utf8')
+ok(liquidCss.includes('html[data-theme-key="liquidglass"] #plus-menu {\n  position: fixed;\n  z-index: 110;'),
+  'liquid glass overrides the composer attachment menu positioning')
+const liquidSharedStart = liquidCss.indexOf('html[data-theme-key="liquidglass"] header > #toggle-sidebar,')
+const liquidSharedEnd = liquidCss.indexOf('}', liquidSharedStart)
+ok(!liquidCss.slice(liquidSharedStart, liquidSharedEnd).includes('position: relative;'),
+  'liquid glass still applies shared relative positioning to popovers')
+
 // CC's iOS standalone status-bar chain is protected: default status-bar mode,
 // pre-paint local restoration, root background fallback and runtime meta refresh.
 ok(html.includes('<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />'),
@@ -177,7 +194,7 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v247";'), 'service worker cache was not bumped for the lilac frosted theme')
+ok(sw.includes('const CACHE = "role-chat-cache-v248";'), 'service worker cache was not bumped for the warm liquid theme')
 
 console.log(`theme regression: ${checks} checks passed`)
 

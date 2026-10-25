@@ -20,7 +20,7 @@ function installLiquidFilter() {
 function syncLiquidScene() {
   const wallpaper = chatBackground?.style.backgroundImage;
   const fallback = getComputedStyle(root).getPropertyValue("--app-gradient").trim()
-    || "linear-gradient(145deg,#e8f2ed,#95b7a7)";
+    || "linear-gradient(145deg,#fbfaf4,#d8d0c2)";
   root.style.setProperty("--liquid-scene-image", wallpaper && wallpaper !== "none" ? wallpaper : fallback);
 }
 

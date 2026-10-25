@@ -13,7 +13,7 @@ html[data-theme-key="liquidglass"] body {
 html[data-theme-key="liquidglass"] .main > header::before {
   height: calc(58px + env(safe-area-inset-top));
   background-image:
-    linear-gradient(to bottom, rgba(224,239,231,.82), rgba(224,239,231,.38) 64%, transparent),
+    linear-gradient(to bottom, rgba(250,248,241,.88), rgba(250,248,241,.42) 64%, transparent),
     var(--liquid-scene-image);
   background-position: center top;
   background-size: cover;
@@ -34,17 +34,33 @@ html[data-theme-key="liquidglass"] #msg-menu,
 html[data-theme-key="liquidglass"] .scroll-jump-btn,
 html[data-theme-key="liquidglass"] .remind-card,
 html[data-theme-key="liquidglass"] .pin-card {
-  position: relative;
-  isolation: isolate;
   border-color: rgba(255,255,255,.76);
-  background: rgba(225,240,232,.6);
+  background: rgba(255,253,247,.64);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.9),
-    inset 0 -1px 0 rgba(23,83,63,.12),
-    0 14px 34px rgba(18,65,50,.17),
-    0 0 0 1px rgba(39,111,86,.06);
-  -webkit-backdrop-filter: blur(21px) saturate(1.28);
-  backdrop-filter: blur(21px) saturate(1.28);
+    inset 0 -1px 0 rgba(100,91,73,.11),
+    0 14px 34px rgba(73,66,53,.14),
+    0 0 0 1px rgba(111,101,82,.05);
+  -webkit-backdrop-filter: blur(21px) saturate(1.14);
+  backdrop-filter: blur(21px) saturate(1.14);
+}
+
+/* Only glass surfaces establish a local paint context. Popover menus must keep
+   their original fixed/absolute positioning or iOS pushes them into the layout. */
+html[data-theme-key="liquidglass"] header > #toggle-sidebar,
+html[data-theme-key="liquidglass"] .header-actions,
+html[data-theme-key="liquidglass"] .composer,
+html[data-theme-key="liquidglass"] .starter-card,
+html[data-theme-key="liquidglass"] .scroll-jump-btn,
+html[data-theme-key="liquidglass"] .remind-card,
+html[data-theme-key="liquidglass"] .pin-card {
+  position: relative;
+  isolation: isolate;
+}
+
+html[data-theme-key="liquidglass"] #plus-menu {
+  position: fixed;
+  z-index: 110;
 }
 
 html[data-theme-key="liquidglass"] header > #toggle-sidebar::before,
@@ -75,15 +91,15 @@ html[data-theme-key="liquidglass"] .starter-card > * {
 }
 
 html[data-theme-key="liquidglass"] .composer textarea,
-html[data-theme-key="liquidglass"] .composer textarea::placeholder { color: #244a3d; }
+html[data-theme-key="liquidglass"] .composer textarea::placeholder { color: #4c4b43; }
 html[data-theme-key="liquidglass"] .composer textarea::placeholder { opacity: .58; }
 
 html[data-theme-key="liquidglass"] .model-quick,
 html[data-theme-key="liquidglass"] .attach-btn,
 html[data-theme-key="liquidglass"] .voice-input-btn {
-  color: #255f4c;
-  background: rgba(239,250,245,.67);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.84), 0 5px 13px rgba(21,72,55,.1);
+  color: #66695e;
+  background: rgba(255,254,249,.72);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.88), 0 5px 13px rgba(79,72,58,.09);
 }
 
 html[data-theme-key="liquidglass"] .msg.assistant .bubble {
@@ -92,21 +108,21 @@ html[data-theme-key="liquidglass"] .msg.assistant .bubble {
 
 html[data-theme-key="liquidglass"] .msg.user .bubble {
   border-color: rgba(255,255,255,.56);
-  background: linear-gradient(145deg,rgba(220,239,230,.9),rgba(178,216,198,.86));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.75), 0 9px 22px rgba(22,70,55,.09);
+  background: linear-gradient(145deg,rgba(255,253,246,.92),rgba(225,218,203,.86));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.78), 0 9px 22px rgba(76,69,56,.08);
 }
 
 html[data-theme-key="liquidglass"] .sidebar {
   border-color: rgba(255,255,255,.58);
-  background: rgba(225,239,232,.9);
-  box-shadow: 18px 0 50px rgba(18,61,48,.14);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  backdrop-filter: blur(24px) saturate(1.2);
+  background: rgba(248,245,237,.94);
+  box-shadow: 18px 0 50px rgba(75,68,55,.12);
+  -webkit-backdrop-filter: blur(24px) saturate(1.1);
+  backdrop-filter: blur(24px) saturate(1.1);
 }
 
 html[data-theme-key="liquidglass"] .theme-card.active {
-  border-color: #267259;
-  box-shadow: 0 0 0 3px rgba(38,114,89,.12);
+  border-color: #777b6b;
+  box-shadow: 0 0 0 3px rgba(119,123,107,.12);
 }
 
 @media (prefers-reduced-motion: reduce) {
