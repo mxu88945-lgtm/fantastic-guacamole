@@ -14344,12 +14344,15 @@ function webFontCss(value) {
 async function ensureWebFont(value) {
   const key = webFontKey(value), font = WEB_FONTS[key];
   if (!font) return false;
-  if (document.fonts?.check(`16px "${font.family}"`)) return true;
   if (!webFontLoads.has(key)) {
     const load = new Promise((resolve, reject) => {
       const link = document.createElement("link");
       link.rel = "stylesheet"; link.href = font.css; link.dataset.jycWebFont = key;
-      link.onload = () => document.fonts.load(`16px "${font.family}"`).then(() => resolve(true), reject);
+      // Do not use FontFaceSet.check() before inserting the stylesheet: browsers can
+      // report true when they are only going to use a system fallback. Loading with
+      // representative Chinese glyphs also forces the correct unicode-range shard.
+      link.onload = () => document.fonts.load(`400 16px "${font.family}"`, "周惟惟顾祁砚剧情字体")
+        .then(() => resolve(true), reject);
       link.onerror = reject; document.head.appendChild(link);
     })
       .catch(error => { webFontLoads.delete(key); throw error; });
@@ -14954,6 +14957,9 @@ function syncSettingsToUI() {
     $("mainFontWeightVal").textContent = weight;
     $("mainFontWeightSample").style.fontWeight = weight;
   }
+  document.querySelectorAll("[data-web-font]").forEach(button => button.classList.toggle("primary", button.dataset.webFont === webFontKey(settings.fontFamily)));
+  const webFontState = WEB_FONTS[webFontKey(settings.fontFamily)];
+  if (webFontState && $("web-font-status")) $("web-font-status").textContent = `当前字体：${webFontState.label}（已选择）`;
   renderPetSettings();
   renderDeskPet();
   $("lockEnabled").checked = settings.lockEnabled;
