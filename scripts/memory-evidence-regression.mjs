@@ -9,7 +9,12 @@ const ok = (value, message) => {
   checks++
 }
 
-ok(html.includes('const MEMORY_ENTRY_SCHEMA_VERSION = 3;'), 'memory entry schema v3 is missing')
+ok(html.includes('const MEMORY_ENTRY_SCHEMA_VERSION = 4;'), 'memory entry schema v4 is missing')
+ok(html.includes('entry.tags = normalizeMemoryTags(entry.tags, entry.text, entry.kind);'), 'legacy memory tag migration is missing')
+ok(html.includes('scope: provenance?.scope || "backstage:"'), 'new memories do not record an isolated scope')
+ok(html.includes('...memoryRecallScore(recent, q, e, explicit)'), 'durable recall does not use weighted v4 scoring')
+ok(html.includes('fingerprint: memoryPromptFingerprint('), 'memory prompt fingerprint is missing')
+ok(html.includes('召回原因：'), 'memory inspection does not explain why a fact was recalled')
 ok(html.includes('authority: provenance?.authority || defaultMemoryAuthority'), 'new memories do not record authority')
 ok(html.includes('kind: provenance?.kind || inferMemoryKind(text)'), 'new memories do not record semantic kind')
 ok(html.includes('entry.confidence = entry.authority === "model_derived" ? 0.72 : 1;'), 'legacy memory confidence migration is missing')
@@ -23,6 +28,6 @@ ok(html.includes('rememberMemoryInspection(auditBlocks, selected'), 'request ass
 ok(html.includes('id="memory-inspection-view"'), 'memory inspection surface is missing')
 ok(html.includes('只展示应用实际组装给模型的记忆来源'), 'inspection surface does not explain its boundary')
 ok(html.includes('if (tab === "memory") renderMemoryInspection();'), 'memory inspection does not refresh when opened')
-ok(sw.includes('const CACHE = "role-chat-cache-v246";'), 'service worker cache was not bumped to v166')
+ok(sw.includes('const CACHE = "role-chat-cache-v247";'), 'service worker cache was not bumped for memory v4')
 
 console.log(`memory evidence regression: ${checks} checks passed`)

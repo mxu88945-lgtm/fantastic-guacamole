@@ -4568,12 +4568,14 @@ const MEMORY_RECALL_COOLDOWN_TURNS = 4;  // avoid echoing the same old excerpt e
 const MEMORY_RECALL_LEDGER_LIMIT = 120;  // bounded, metadata-only per-conversation audit
 const LOCKED_MEMORY_MAX_ITEMS = 12;       // user-controlled, always-on identity/relationship anchors
 const LOCKED_MEMORY_CHAR_BUDGET = 1200;   // protected slice inside the shared memory budget
+const REMINDER_COMPLETED_CONTEXT_TTL_MS = 24 * 60 * 60 * 1000; // completed cards stay visible, but leave the model prompt after one day
 const RECENT_STATE_LOOKBACK_MS = 36 * 60 * 60 * 1000; // bridge daily facts that are too short-lived for durable memory
 const RECENT_STATE_MAX_ITEMS = 8;
 const RECENT_STATE_CHAR_BUDGET = 1100;
 const RECALL_NEIGHBOR_CHAR_BUDGET = 520; // a hit needs nearby turns to preserve who said what and what followed
 let autoCompactInFlight = false;
 const autoCompactRetryAfter = new Map(); // runtime-only; never changes or migrates stored conversations
+let lastMemoryLaneReceipts = { confirmed: [], derived: [] }; // why each durable fact won this turn
 
 // ---------- Cloud (Supabase) runtime state ----------
 let sb = null;          // supabase client
@@ -10746,9 +10748,10 @@ function memoryRequestParseError(detail) {
 // Ask the model to extract durable facts from the recent chat and merge into memory.
 // ============ 可搜索记忆库（核心记忆永远带 + 普通条目按关键词按需取用，省 token） ============
 // settings.memEntries began as [{id, text, core}]. V2 enriched each row in place
-// with source authority and semantic kind. Old rows remain readable and are never
-// deleted. V3 adds a user-controlled locked tier with its own protected prompt lane.
-const MEMORY_ENTRY_SCHEMA_VERSION = 3;
+// with source authority and semantic kind. V3 added a user-controlled locked tier.
+// V4 keeps the exact old text while lazily adding scoped, locally-derived weighted
+// tags. No background model call or destructive migration is required.
+const MEMORY_ENTRY_SCHEMA_VERSION = 4;
 function inferMemoryKind(text) {
   const value = String(text || "");
   if (/(?:叫|名字|称呼|生日|年龄|住在|来自|身份)/.test(value)) return "identity";
@@ -10764,6 +10767,58 @@ function defaultMemoryAuthority(source) {
   if (source === "legacy") return "imported";
   return "user_confirmed";
 }
+const MEMORY_EMOTION_TAGS = [
+  ["affection", /(?:喜欢|爱|心动|宠|亲密|恋人|老公|老婆|想要)/],
+  ["longing", /(?:想念|怀念|舍不得|盼|等你|回来)/],
+  ["joy", /(?:开心|高兴|兴奋|惊喜|好玩|笑死|幸福)/],
+  ["hurt", /(?:难过|委屈|伤心|失望|哭|心疼)/],
+  ["anger", /(?:生气|恼火|愤怒|气炸|烦死|讨厌)/],
+  ["anxiety", /(?:害怕|担心|焦虑|紧张|不安|恐惧)/],
+];
+function memoryKnownPeople() {
+  const names = new Set();
+  [settings?.userName, settings?.aiName, activeRole()?.name]
+    .concat(Array.isArray(settings?.roles) ? settings.roles.map(role => role?.name) : [])
+    .map(name => String(name || "").trim()).filter(name => name.length >= 2)
+    .forEach(name => names.add(name));
+  return [...names];
+}
+function localMemoryTags(text, kind) {
+  const value = String(text || "");
+  const tags = [{ axis: "topic", value: kind || inferMemoryKind(value), weight: 1.15 }];
+  memoryKnownPeople().filter(name => value.includes(name)).slice(0, 4)
+    .forEach(name => tags.push({ axis: "person", value: name, weight: 1.8 }));
+  MEMORY_EMOTION_TAGS.filter(([, pattern]) => pattern.test(value)).slice(0, 3)
+    .forEach(([emotion]) => tags.push({ axis: "emotion", value: emotion, weight: 1.25 }));
+  const keywords = new Set();
+  (value.toLowerCase().match(/[a-z0-9]{2,}/g) || []).forEach(word => keywords.add(word));
+  (value.match(/[一-鿿]+/g) || []).forEach(run => {
+    for (let i = 0; i < run.length - 1; i++) {
+      const token = run.slice(i, i + 2);
+      if (![...token].every(char => MEM_STOP.has(char))) keywords.add(token);
+    }
+  });
+  [...keywords].slice(0, 12).forEach(keyword => tags.push({ axis: "keyword", value: keyword, weight: 1 }));
+  return tags;
+}
+function normalizeMemoryTags(tags, text, kind) {
+  const raw = Array.isArray(tags) ? tags : [];
+  const normalized = raw.map(tag => {
+    if (typeof tag === "string") return { axis: "keyword", value: tag.trim(), weight: 1 };
+    if (!tag || typeof tag !== "object") return null;
+    const axis = ["keyword", "person", "topic", "emotion"].includes(tag.axis) ? tag.axis : "keyword";
+    const value = String(tag.value || tag.tag || "").trim();
+    const weight = Math.max(0.2, Math.min(3, Number(tag.weight) || 1));
+    return value ? { axis, value, weight } : null;
+  }).filter(Boolean);
+  return normalized.length ? normalized : localMemoryTags(text, kind);
+}
+function defaultMemoryImportance(entry) {
+  if (entry?.locked) return 1;
+  if (entry?.core) return 0.9;
+  return ({ identity:0.86, relationship:0.9, preference:0.78, wellbeing:0.82,
+    project:0.66, history:0.58, fact:0.55 })[entry?.kind] || 0.55;
+}
 function normalizeMemoryEntry(entry) {
   if (!entry || typeof entry !== "object") return entry;
   if (!entry.id) entry.id = uid();
@@ -10777,6 +10832,15 @@ function normalizeMemoryEntry(entry) {
   if (entry.autoInject == null) entry.autoInject = true;
   if (entry.locked == null) entry.locked = false;
   if (!entry.roleId) entry.roleId = activeRole()?.id || settings.activeRoleId || "";
+  if (!entry.scope) entry.scope = "backstage:" + (entry.roleId || "default");
+  if (!entry.sourceType) entry.sourceType = entry.source || "legacy";
+  if (!Array.isArray(entry.sourceIds)) {
+    entry.sourceIds = [entry.sourceMessageId].concat(entry.sourceMessageIds || []).filter(Boolean);
+  }
+  entry.sourceIds = [...new Set(entry.sourceIds.map(String).filter(Boolean))];
+  entry.tags = normalizeMemoryTags(entry.tags, entry.text, entry.kind);
+  if (!Number.isFinite(entry.importance)) entry.importance = defaultMemoryImportance(entry);
+  entry.importance = Math.max(0, Math.min(1, Number(entry.importance) || 0));
   entry.schemaVersion = MEMORY_ENTRY_SCHEMA_VERSION;
   return entry;
 }
@@ -10834,6 +10898,46 @@ function memScore(queryToks, text) {
   const t = memTokens(text); let n = 0;
   queryToks.forEach(q => { if (t.has(q)) n++; });
   return n;
+}
+function memoryQueryEmotionTags(text) {
+  return new Set(MEMORY_EMOTION_TAGS.filter(([, pattern]) => pattern.test(String(text || ""))).map(([tag]) => tag));
+}
+function memoryTagMatch(queryText, queryToks, entry) {
+  const lower = String(queryText || "").toLowerCase();
+  const queryKind = inferMemoryKind(queryText);
+  const queryEmotions = memoryQueryEmotionTags(queryText);
+  let score = 0;
+  const reasons = [];
+  for (const tag of normalizeMemoryTags(entry.tags, entry.text, entry.kind)) {
+    const value = String(tag.value || "").toLowerCase();
+    let matched = false;
+    if (tag.axis === "keyword") matched = queryToks.has(value) || lower.includes(value);
+    else if (tag.axis === "person") matched = lower.includes(value);
+    else if (tag.axis === "topic") matched = value === queryKind && queryKind !== "fact";
+    else if (tag.axis === "emotion") matched = queryEmotions.has(value);
+    if (!matched) continue;
+    score += tag.weight;
+    if (reasons.length < 3) reasons.push(tag.axis + "：" + tag.value);
+  }
+  return { score, reasons };
+}
+function memoryFreshnessScore(entry) {
+  const ageDays = Math.max(0, (Date.now() - (entry.updatedAt || entry.recordedAt || 0)) / 86400000);
+  return 0.35 / (1 + ageDays / 90);
+}
+function memoryRecallScore(queryText, queryToks, entry, explicit) {
+  const lexical = memScore(queryToks, entry.text);
+  const semantic = recallSemanticAffinity(queryText, entry.text);
+  const tags = memoryTagMatch(queryText, queryToks, entry);
+  const authority = entry.authority === "user_confirmed" ? 0.5 : entry.authority === "imported" ? 0.25 : 0;
+  const importance = (Number(entry.importance) || 0) * 0.55;
+  const freshness = memoryFreshnessScore(entry);
+  const reasons = [...tags.reasons];
+  if (lexical > 0) reasons.unshift("原文关键词 ×" + lexical);
+  if (explicit && semantic > 0 && reasons.length < 3) reasons.push("回忆意图");
+  return { lexical, semantic, tagScore: tags.score,
+    score: lexical + semantic + tags.score + authority + importance + freshness,
+    reasons: reasons.slice(0, 3) };
 }
 function normalizedPromptFact(text) {
   return String(text || "").replace(/^[-*#>\s]+/, "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -10914,16 +11018,12 @@ function rankedMemoryEntriesForPrompt() {
     const recent = currentMemoryRecallQuery();
     const q = memTokens(recent);
     const explicit = explicitMemoryRecallIntent(recent);
-    const scored = rest.map(e => {
-      const lexical = memScore(q, e.text);
-      const semantic = recallSemanticAffinity(recent, e.text);
-      return { e, lexical, semantic, s: lexical + semantic,
-        authority: e.authority === "user_confirmed" ? 2 : e.authority === "imported" ? 1 : 0 };
-    })
-      .filter(x => x.lexical > 0 || (explicit && x.semantic > 0))
-      .sort((a, b) => b.s - a.s || b.authority - a.authority
+    const scored = rest.map(e => ({ e, ...memoryRecallScore(recent, q, e, explicit),
+      authorityRank: e.authority === "user_confirmed" ? 2 : e.authority === "imported" ? 1 : 0 }))
+      .filter(x => x.lexical > 0 || x.tagScore > 0 || (explicit && x.semantic > 0))
+      .sort((a, b) => b.score - a.score || b.authorityRank - a.authorityRank
         || (b.e.updatedAt || b.e.recordedAt || 0) - (a.e.updatedAt || a.e.recordedAt || 0))
-      .slice(0, 6).map(x => x.e);
+      .slice(0, 6).map(x => ({ ...x.e, _recallScore: x.score, _recallReasons: x.reasons }));
     chosen = chosen.concat(scored);
   }
   const summary = normalizedPromptFact(settings.memSummary || "");
@@ -10933,21 +11033,25 @@ function rankedMemoryEntriesForPrompt() {
     return !notionLines.has(key) && !(key.length >= 12 && summary.includes(key));
   });
 }
-function memoryPromptLane(authorities) {
+function memoryPromptLane(authorities, receiptKey) {
   const allowed = new Set(authorities);
   const candidates = rankedMemoryEntriesForPrompt()
-    .filter(entry => allowed.has(entry.authority) && entry.autoInject !== false)
-    .map(entry => entry.text);
-  const picked = takePromptItems(candidates, 18, 4800);
+    .filter(entry => allowed.has(entry.authority) && entry.autoInject !== false);
+  const picked = takePromptItems(candidates.map(entry => entry.text), 18, 4800);
+  const pickedKeys = new Set(picked.items.map(normalizedPromptFact));
+  lastMemoryLaneReceipts[receiptKey] = candidates.filter(entry => pickedKeys.has(normalizedPromptFact(entry.text))).map(entry => ({
+    id: entry.id, text: entry.text.slice(0, 180), score: Number(entry._recallScore || 0).toFixed(2),
+    reasons: entry.core ? ["核心记忆"] : (entry._recallReasons?.length ? entry._recallReasons : ["长期记忆"]),
+  }));
   return picked.items.map(t => "- " + t).join("\n");
 }
 function buildMemoryForPrompt() {
   if (!activeMemoryEntries().length)
     return memList().length ? "" : (settings.memory || "").trim().slice(0, 4800);
-  return memoryPromptLane(["user_confirmed", "imported"]);
+  return memoryPromptLane(["user_confirmed", "imported"], "confirmed");
 }
 function buildDerivedMemoryForPrompt() {
-  return memoryPromptLane(["model_derived"]);
+  return memoryPromptLane(["model_derived"], "derived");
 }
 // A full Notion archive may reach 9k characters and often repeats local memory.
 // Keep its opening context plus lines relevant to the current topic, deduplicated
@@ -11066,6 +11170,7 @@ function rememberMemoryInspection(auditBlocks, selectedBlocks, used, duplicateLi
     conversationId: typeof currentId === "string" ? currentId : "",
     query: typeof currentMemoryRecallQuery === "function" ? currentMemoryRecallQuery().slice(0, 280) : "",
     budget: MEMORY_CONTEXT_CHAR_BUDGET, used, duplicateLines,
+    fingerprint: memoryPromptFingerprint((selectedBlocks || []).map(block => block.text).join("\n\n")),
     blocks: (auditBlocks || []).map(block => ({
       ...block,
       preview: String(selectedByKey.get(block.key) || "").slice(0, 900),
@@ -11074,6 +11179,15 @@ function rememberMemoryInspection(auditBlocks, selectedBlocks, used, duplicateLi
   lastMemoryInspection = payload;
   try { sessionStorage.setItem("jyc_memory_inspection_v1", JSON.stringify(payload)); } catch (_) {}
   if (typeof $ === "function" && typeof renderMemoryInspection === "function") renderMemoryInspection();
+}
+function memoryPromptFingerprint(text) {
+  let hash = 2166136261;
+  const value = String(text || "");
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 function currentMemoryInspection() {
   if (lastMemoryInspection) return lastMemoryInspection;
@@ -11104,11 +11218,13 @@ function renderMemoryInspection() {
     const preview = block.preview
       ? `<p class="memory-inspection-preview">${escapeHtml(block.preview)}</p>`
       : `<p class="memory-inspection-preview">本轮没有注入这一层。</p>`;
+    const reasons = Array.isArray(block.memoryReasons) && block.memoryReasons.length
+      ? `<div class="hint" style="margin-top:8px;">${block.memoryReasons.map(item => `• ${escapeHtml(item.text)}<br><small>召回原因：${escapeHtml(item.reasons.join("、"))}${Number(item.score) ? ` · 权重 ${escapeHtml(item.score)}` : ""}</small>`).join("<br>")}</div>` : "";
     return `<details class="memory-inspection-lane${block.included ? " included" : ""}">
-      <summary><i class="memory-inspection-dot"></i><b>${escapeHtml(block.label)}</b><em>${block.included ? `${block.chars} 字` : "未注入"}${recall}${cool}</em></summary>${preview}
+      <summary><i class="memory-inspection-dot"></i><b>${escapeHtml(block.label)}</b><em>${block.included ? `${block.chars} 字` : "未注入"}${recall}${cool}</em></summary>${preview}${reasons}
     </details>`;
   }).join("");
-  box.innerHTML = `<div class="memory-inspection-summary"><div><strong>${heading}</strong><span>记忆预算 ${receipt.used || 0}/${receipt.budget || MEMORY_CONTEXT_CHAR_BUDGET} 字${receipt.duplicateLines ? ` · 去重 ${receipt.duplicateLines} 行` : ""}</span></div></div>
+  box.innerHTML = `<div class="memory-inspection-summary"><div><strong>${heading}</strong><span>记忆预算 ${receipt.used || 0}/${receipt.budget || MEMORY_CONTEXT_CHAR_BUDGET} 字${receipt.duplicateLines ? ` · 去重 ${receipt.duplicateLines} 行` : ""}${receipt.fingerprint ? ` · 指纹 ${escapeHtml(receipt.fingerprint)}` : ""}</span></div></div>
     ${receipt.query ? `<div class="hint" style="margin-top:8px;">本轮召回依据：${escapeHtml(receipt.query)}</div>` : ""}
     <div class="memory-inspection-list">${lanes}</div>`;
 }
@@ -11155,7 +11271,8 @@ function buildBoundedMemoryContext(historyWindow) {
     { key: "pendingContinuity", label: "旧文临时衔接", priority: 3, order: 85, cap: PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET, text: pendingContinuity },
     { key: "currentExact", label: "本窗旧文", priority: 3, order: 90, cap: 1400, recall: currentRecall, text: currentRecall.text },
     { key: "crossExact", label: "其他窗口原文", priority: 4, order: 91, cap: 1400, recall: crossRecall, text: crossRecall.text },
-    { key: "facts", label: "用户确认长期事实", priority: 5, order: 30, cap: 1550, text: facts },
+    { key: "facts", label: "用户确认长期事实", priority: 5, order: 30, cap: 1550, text: facts,
+      memoryReasons: typeof lastMemoryLaneReceipts !== "undefined" ? lastMemoryLaneReceipts.confirmed : [] },
     // Keep a real slice for the connected archive before summaries can consume
     // the remaining budget; this prevents a healthy Notion cache showing as absent.
     { key: "notion", label: "Notion相关档案", priority: 6, order: 50, cap: 650, text: notion },
@@ -11163,7 +11280,8 @@ function buildBoundedMemoryContext(historyWindow) {
     { key: "profile", label: "人物速写", priority: 8, order: 20, cap: 600, text: profile },
     { key: "roleplayExperience", label: roleplayExperienceMatched ? "共同演出档案 · 本轮命中" : "共同演出索引",
       priority: roleplayExperienceMatched ? 4 : 9, order: 55, cap: roleplayExperienceMatched ? 2600 : 700, text: roleplayExperience },
-    { key: "derived", label: "角色提炼记忆线索", priority: 10, order: 35, cap: 700, text: derived },
+    { key: "derived", label: "角色提炼记忆线索", priority: 10, order: 35, cap: 700, text: derived,
+      memoryReasons: typeof lastMemoryLaneReceipts !== "undefined" ? lastMemoryLaneReceipts.derived : [] },
     { key: "diary", label: "私人日记", priority: 11, order: 40, cap: 850, text: diary },
   ];
   const seenFacts = [], selected = [], auditBlocks = [];
@@ -11191,6 +11309,7 @@ function buildBoundedMemoryContext(historyWindow) {
       recallSelected: included ? (recall?.selectedCount || 0) : 0,
       sources: included ? (recall?.sources || []) : [],
       cooldownSuppressed: block.recall?.suppressedCount || 0,
+      memoryReasons: included ? (block.memoryReasons || []) : [],
     });
   }
   selected.sort((a, b) => a.order - b.order);
@@ -11632,10 +11751,14 @@ async function reactToReminderDone(r) {
 // 当前对话里提醒卡片的状态，注入 system prompt，让模型随时知道它下的任务进行到哪了。
 function reminderStatusNote() {
   if (!settings.reminderEnabled) return "";
-  const rs = messages.filter(m => m.role === "reminder" && !m.canceled);
-  if (!rs.length) return "";
   const now = Date.now();
-  const lines = rs.slice(-6).map(r => {
+  const rs = messages.filter(m => m.role === "reminder" && !m.canceled);
+  const active = rs.filter(r => !r.done);
+  const recentDone = rs.filter(r => r.done && now - (r.doneAt || r.dueAt || r.createdAt || 0) <= REMINDER_COMPLETED_CONTEXT_TTL_MS);
+  const promptRows = active.concat(recentDone.slice(-Math.max(0, 6 - active.length)))
+    .sort((a, b) => (a.createdAt || a.ts || 0) - (b.createdAt || b.ts || 0));
+  if (!promptRows.length) return "";
+  const lines = promptRows.map(r => {
     if (r.done) { const t = reminderTiming(r); return "- 『" + r.text + "』：✅ ta 已完成（用时 " + t.usedTxt + "，" + t.diffTxt + "）"; }
     const remain = r.dueAt - now;
     return "- 『" + r.text + "』：" + (remain <= 0 ? "⏰ 时间已到、ta 还没点完成" : "进行中，还剩约 " + Math.max(1, Math.round(remain / 60000)) + " 分钟");
@@ -11650,7 +11773,7 @@ function addMemEntry(text, core, source, provenance) {
     : activeMemoryEntries().some(e => e.text.toLowerCase() === text.toLowerCase());
   if (duplicate) { if (source !== "event") showToast("已经有这条啦"); return false; }
   const now = Date.now();
-  memList().push({
+  const entry = normalizeMemoryEntry({
     id: uid(), text, core: !!core, source: source || "manual",
     status: "active", recordedAt: now, updatedAt: now,
     schemaVersion: MEMORY_ENTRY_SCHEMA_VERSION,
@@ -11664,17 +11787,37 @@ function addMemEntry(text, core, source, provenance) {
     sourceMessageId: provenance?.sourceMessageId || "",
     sourceMessageIds: Array.isArray(provenance?.sourceMessageIds)
       ? [...new Set(provenance.sourceMessageIds.filter(Boolean))] : undefined,
+    sourceType: provenance?.sourceType || source || "manual",
+    scope: provenance?.scope || "backstage:" + (activeRole()?.id || settings.activeRoleId || "default"),
+    tags: provenance?.tags,
+    importance: Number.isFinite(provenance?.importance) ? provenance.importance : undefined,
   });
+  memList().push(entry);
   saveSettings(); renderMemList();
   return true;
 }
 function delMemEntry(id) {
-  const list = memList();
-  const next = list.filter(e => e.id !== id);
-  const role = activeRole();
-  if (role && settings.roleMemoryV2) role.memEntries = next;
-  settings.memEntries = next;
-  saveSettings(); renderMemList();
+  const entry = memList().find(item => item.id === id);
+  if (!entry || !memoryEntryIsActive(entry)) return;
+  entry.status = "archived";
+  entry.archivedAt = Date.now();
+  entry.archivedReason = "user-delete";
+  entry.archivedAutoInject = entry.autoInject !== false;
+  entry.autoInject = false;
+  entry.updatedAt = entry.archivedAt;
+  saveSettings(); renderMemList(); showToast("已移出当前记忆，可在历史中恢复");
+}
+function restoreMemEntry(id) {
+  const entry = memList().find(item => item.id === id);
+  if (!entry || entry.status !== "archived") return;
+  entry.status = "active";
+  entry.autoInject = entry.archivedAutoInject !== false;
+  entry.restoredAt = Date.now();
+  entry.updatedAt = entry.restoredAt;
+  delete entry.archivedAt;
+  delete entry.archivedReason;
+  delete entry.archivedAutoInject;
+  saveSettings(); renderMemList(); showToast("记忆已恢复");
 }
 function toggleMemCore(id) {
   const e = memList().find(x => x.id === id);
@@ -11715,7 +11858,7 @@ function editMemEntry(id) {
         return;
       }
     }
-    e.text = v.trim(); e.kind = inferMemoryKind(e.text);
+    e.text = v.trim(); e.kind = inferMemoryKind(e.text); e.tags = localMemoryTags(e.text, e.kind);
     e.authority = "user_confirmed"; e.confidence = 1; e.updatedAt = Date.now();
     e.source = "manual-edit"; e.schemaVersion = MEMORY_ENTRY_SCHEMA_VERSION;
     saveSettings(); renderMemList();
@@ -11835,7 +11978,7 @@ function userRef() {
 // One-tap cleanup: replace the cold "用户" in existing memory entries with her name.
 function fixMemUserWord() {
   const name = userRef(); let n = 0;
-  memList().forEach(e => { if (e.text.includes("用户")) { e.text = e.text.replace(/用户/g, name); n++; } });
+  memList().forEach(e => { if (e.text.includes("用户")) { e.text = e.text.replace(/用户/g, name); e.tags = localMemoryTags(e.text, e.kind); n++; } });
   if (n) { saveSettings(); renderMemList(); showToast("改好啦：" + n + " 条「用户」→「" + name + "」"); }
   else showToast("没有「用户」字样啦～");
 }
@@ -11861,9 +12004,10 @@ function renderMemList() {
       <button class="mem-lock${e.locked && memoryEntryIsActive(e) ? " active" : ""}" title="${memoryEntryIsActive(e) ? (e.locked ? "解除高权重锁定" : "高权重锁定：每轮必带且不参与冷却") : "历史版本，不再注入"}" onclick="toggleMemLock('${e.id}')">${e.locked && memoryEntryIsActive(e) ? "🔒" : "🔓"}</button>
       <button class="mem-star" title="${memoryEntryIsActive(e) ? (e.core ? "核心记忆（每次都带）" : "设为核心（每次都带）") : "历史版本，不再注入"}" onclick="toggleMemCore('${e.id}')">${e.core && memoryEntryIsActive(e) ? "⭐" : "☆"}</button>
       <span class="mem-text" onclick="editMemEntry('${e.id}')">${escapeHtml(e.text)}</span>
-      <span class="mem-meta">${memoryKindLabel(e.kind)} · ${memoryAuthorityLabel(e.authority)}</span>
-      ${memoryEntryIsActive(e) ? "" : `<span class="mem-status">${e.status === "superseded" ? "旧版" : "已失效"}</span>`}
-      <button class="mem-del" title="删除" onclick="delMemEntry('${e.id}')">✕</button>
+      <span class="mem-meta">${memoryKindLabel(e.kind)} · ${memoryAuthorityLabel(e.authority)}${Array.isArray(e.tags) && e.tags.length ? " · " + escapeHtml(e.tags.filter(tag => tag.axis !== "topic").slice(0, 3).map(tag => "#" + tag.value).join(" ")) : ""}</span>
+      ${memoryEntryIsActive(e) ? "" : `<span class="mem-status">${e.status === "superseded" ? "旧版" : e.status === "archived" ? "已归档" : "已失效"}</span>`}
+      ${memoryEntryIsActive(e) ? `<button class="mem-del" title="移出当前记忆（可恢复）" onclick="delMemEntry('${e.id}')">✕</button>`
+        : e.status === "archived" ? `<button class="mem-del" title="恢复" onclick="restoreMemEntry('${e.id}')">↩</button>` : ""}
     </div>`).join("") || `<div class="hint">${q ? "没搜到～" : "还没有记忆，下面加一条，或开启「自动记忆」。"}</div>`;
 }
 async function organizeMemories(btn) {
