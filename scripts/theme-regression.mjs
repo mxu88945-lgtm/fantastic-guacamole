@@ -173,6 +173,8 @@ ok(liquid.includes('accent:"#737766"') && !liquid.includes('accent:"#267259"'),
 const liquidCss = fs.readFileSync(new URL('../src/liquid-glass.css', import.meta.url), 'utf8')
 ok(liquidCss.includes('html[data-theme-key="liquidglass"] #plus-menu {\n  position: fixed;\n  z-index: 110;'),
   'liquid glass overrides the composer attachment menu positioning')
+ok(html.includes('html[data-chat-bg="1"][data-theme-key="liquidglass"] .main > .composer-wrap {\n    background: transparent;'),
+  'liquid glass wallpaper no longer reaches behind the composer and home indicator')
 const liquidSharedStart = liquidCss.indexOf('html[data-theme-key="liquidglass"] header > #toggle-sidebar,')
 const liquidSharedEnd = liquidCss.indexOf('}', liquidSharedStart)
 ok(!liquidCss.slice(liquidSharedStart, liquidSharedEnd).includes('position: relative;'),
@@ -194,7 +196,7 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v248";'), 'service worker cache was not bumped for the warm liquid theme')
+ok(sw.includes('const CACHE = "role-chat-cache-v249";'), 'service worker cache was not bumped for the warm liquid theme')
 
 console.log(`theme regression: ${checks} checks passed`)
 
