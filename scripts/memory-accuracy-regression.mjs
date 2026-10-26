@@ -147,6 +147,8 @@ const budgetContext = {
   buildMemoryForPrompt: () => '- 惟惟喜欢茉莉花茶\n- 惟惟长期养鹦鹉',
   privateDiaryPrompt: () => '【私人日记】\n我很在意她',
   privateDiaryWritePrompt: () => '【私记写入】仅当本轮有新的明确情绪转折时写入。',
+  companionLedgerPrompt: () => '【仍在进行的惦记与约定】\n- [约定] 明早检查任务卡',
+  companionLedgerWritePrompt: () => '【惦记与约定写入】只记录明确约定。',
   activeRole: () => ({}),
   buildNotionForPrompt: () => '惟惟喜欢茉莉花茶\n项目仍在继续',
   userRef: () => '惟惟',
@@ -214,6 +216,6 @@ entries[1].status = 'active'
 const superseded = invalidationContext.invalidationHelpers.supersedeMemoryEntries(['m2'], 'm3')
 ok(superseded === 1 && entries[1].supersededBy === 'm3', 'old fact version was not archived')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v251";'), 'service worker cache was not bumped to v166')
+ok(sw.includes('const CACHE = "role-chat-cache-v252";'), 'service worker cache was not bumped to v166')
 
 console.log(`memory accuracy regression: ${checks} checks passed`)

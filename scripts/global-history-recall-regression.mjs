@@ -94,7 +94,8 @@ Object.assign(context, {
   rollingSummaryPrompt: () => '【连续性档案】\n这是一份累计摘要。',
   buildLockedMemoryForPrompt: () => '', buildMemoryForPrompt: () => '',
   buildDerivedMemoryForPrompt: () => '', privateDiaryPrompt: () => '',
-  privateDiaryWritePrompt: () => '', activeRole: () => ({ id: 'gu' }),
+  privateDiaryWritePrompt: () => '', companionLedgerPrompt: () => '',
+  companionLedgerWritePrompt: () => '', activeRole: () => ({ id: 'gu' }),
   memoryFactNearDuplicate: () => false, sessionStorage: { setItem() {} },
 })
 vm.runInContext(`const MEMORY_CONTEXT_CHAR_BUDGET = 6400;

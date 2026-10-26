@@ -320,7 +320,7 @@
     overflow-y: auto;
   }
   .companion-tabs {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 4px;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; padding: 4px;
     border: 1px solid var(--border); border-radius: 13px; background: var(--bg-panel); margin-bottom: 14px;
   }
   .companion-tabs button {
@@ -340,6 +340,24 @@
     font: 14px/1.6 inherit;
   }
   #mailbox-compose:focus { outline: none; border-color: var(--accent); }
+  .ledger-compose {
+    display: grid; grid-template-columns: 118px 1fr; gap: 9px; margin-top: 12px;
+  }
+  .ledger-compose input, .ledger-compose select {
+    width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 11px;
+    background: var(--bg-panel); color: var(--text); padding: 10px 11px; font: 13px/1.35 inherit;
+  }
+  .ledger-compose input:focus, .ledger-compose select:focus { outline: none; border-color: var(--accent); }
+  .ledger-compose .wide { grid-column: 1 / -1; }
+  .ledger-entry-meta { color: var(--text-dim); font-size: 10.5px; margin-top: 4px; }
+  .ledger-entry.overdue .companion-status { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+  .ledger-entry.done { opacity: .72; }
+  .ledger-entry-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 8px; }
+  .ledger-entry-actions button {
+    border: 1px solid var(--border); border-radius: 999px; background: var(--bg-soft); color: var(--text-dim);
+    font: 600 11px/1 inherit; padding: 6px 9px; cursor: pointer;
+  }
+  .ledger-entry-actions button.primary { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); }
   .companion-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
   .companion-empty { padding: 26px 12px; color: var(--text-dim); font-size: 12px; text-align: center; }
   .companion-entry {
@@ -3034,6 +3052,7 @@
         <div class="companion-tabs">
           <button id="companion-tab-mail" class="active">✉️ 给 TA 的信</button>
           <button id="companion-tab-diary">📓 TA 的私人日记</button>
+          <button id="companion-tab-ledger">✓ 惦记与约定</button>
         </div>
         <section id="companion-mail-view">
           <div class="companion-card">
@@ -3057,6 +3076,29 @@
           </div>
           <div class="companion-card">
             <div id="private-diary-list"></div>
+          </div>
+        </section>
+        <section id="companion-ledger-view" hidden>
+          <div class="companion-card">
+            <h3 id="companion-ledger-title">我们说定的事</h3>
+            <p>明确约好的事和仍在等结果的事会单独留在这里，不跟着聊天窗口滚走。顾祁砚只会在合适的时候自然提起，不会每轮报清单。</p>
+            <div class="ledger-compose">
+              <select id="ledger-kind" aria-label="记录类型">
+                <option value="promise">我们的约定</option>
+                <option value="concern">惦记的事</option>
+              </select>
+              <input id="ledger-content" maxlength="120" placeholder="例如：明早陪我检查任务卡" />
+              <input id="ledger-due" class="wide" type="date" aria-label="约定日期（可不填）" />
+            </div>
+            <div class="companion-actions"><button class="mini-btn primary" id="ledger-save">记进账本</button></div>
+          </div>
+          <div class="companion-card">
+            <h3>进行中</h3>
+            <div id="ledger-open-list"></div>
+          </div>
+          <div class="companion-card">
+            <h3>最近了结</h3>
+            <div id="ledger-resolved-list"></div>
           </div>
         </section>
       </div>
@@ -4935,6 +4977,7 @@ function ensureRoleCompanionData(role) {
   if (!Array.isArray(role.mailbox)) role.mailbox = [];
   if (!Array.isArray(role.privateDiary)) role.privateDiary = [];
   if (!Array.isArray(role.specialDays)) role.specialDays = [];
+  if (!Array.isArray(role.commitmentLedger)) role.commitmentLedger = [];
   return role;
 }
 function roleMailbox(role) { return ensureRoleCompanionData(role || activeRole())?.mailbox || []; }
@@ -4997,6 +5040,7 @@ function addRole() {
     emojiStyle: settings.emojiStyle || "normal",
     mailbox: [],
     privateDiary: [],
+    commitmentLedger: [],
   };
   settings.roles = settings.roles || [];
   settings.roles.push(r);
@@ -11267,6 +11311,8 @@ function buildBoundedMemoryContext(historyWindow) {
   // best-effort context; the instruction itself must survive the shared budget.
   const diary = privateDiaryPrompt(activeRole(), false);
   const diaryRule = privateDiaryWritePrompt(activeRole());
+  const commitmentLedger = companionLedgerPrompt();
+  const commitmentRule = companionLedgerWritePrompt();
   const notionText = settings.notionEnabled ? buildNotionForPrompt([lockedMemory, memoryFacts].filter(Boolean).join("\n")) : "";
   const notion = notionText
     ? "【Notion 云端角色档案·相关长期信息】\n" + notionText : "";
@@ -11278,6 +11324,8 @@ function buildBoundedMemoryContext(historyWindow) {
     { key: "locked", label: "🔒 高权重锁定", priority: 1, order: 5, cap: LOCKED_MEMORY_CHAR_BUDGET + 180, text: locked },
     { key: "personaAnchor", label: "稳定人格锚点", priority: 1, order: 6, cap: 460, text: personaAnchor },
     { key: "diaryRule", label: "私人日记写入规则", priority: 2, order: 40, cap: 260, text: diaryRule },
+    { key: "commitmentRule", label: "约定账本写入规则", priority: 2, order: 41, cap: 520, text: commitmentRule },
+    { key: "commitmentLedger", label: "惦记与约定账本", priority: 2, order: 75, cap: 1050, text: commitmentLedger },
     { key: "recentState", label: "近期状态与进展", priority: 2, order: 80, cap: RECENT_STATE_CHAR_BUDGET, text: recentState },
     { key: "pendingContinuity", label: "旧文临时衔接", priority: 3, order: 85, cap: PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET, text: pendingContinuity },
     { key: "currentExact", label: "本窗旧文", priority: 3, order: 90, cap: 1400, recall: currentRecall, text: currentRecall.text },
@@ -13130,6 +13178,169 @@ function companionTime(ts) {
   try { return new Date(ts).toLocaleString("zh-CN", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }); }
   catch (_) { return new Date(ts).toLocaleString(); }
 }
+function roleCommitmentLedger(role) {
+  role = ensureRoleCompanionData(role || activeRole());
+  return role ? role.commitmentLedger : [];
+}
+function ledgerNormalized(text) {
+  return String(text || "").toLowerCase()
+    .replace(/[\s，。！？、；：“”‘’（）()《》〈〉…—\-_.!?;:'"]/g, "").slice(0, 160);
+}
+function ledgerDueFromDate(value) {
+  const parsed = parseLocalDay(String(value || "").trim());
+  return parsed ? parsed.getTime() : null;
+}
+function ledgerDateValue(timestamp) {
+  if (!timestamp) return "";
+  const d = new Date(timestamp);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function ledgerMatchScore(query, item) {
+  const a = ledgerNormalized(query), b = ledgerNormalized(item?.content);
+  if (!a || !b) return 0;
+  if (a === b) return 100;
+  if (a.includes(b) || b.includes(a)) return 80 + Math.min(a.length, b.length) / Math.max(a.length, b.length);
+  const qa = memTokens(a), qb = memTokens(b);
+  let shared = 0; qa.forEach(token => { if (qb.has(token)) shared++; });
+  return shared / Math.max(1, Math.min(qa.size, qb.size));
+}
+function upsertCommitmentLedger(kind, content, dueDate, provenance) {
+  const role = ensureRoleCompanionData(activeRole());
+  content = String(content || "").replace(/\s+/g, " ").trim().slice(0, 120);
+  if (!role || content.length < 2 || !["promise", "concern"].includes(kind)) return false;
+  const open = role.commitmentLedger.filter(item => item && item.status === "open");
+  const duplicate = open.find(item => ledgerMatchScore(content, item) >= 0.82);
+  const dueAt = ledgerDueFromDate(dueDate);
+  if (duplicate) {
+    if (dueAt && (!duplicate.dueAt || dueAt !== duplicate.dueAt)) duplicate.dueAt = dueAt;
+    duplicate.updatedAt = Date.now();
+    return true;
+  }
+  role.commitmentLedger.push({
+    id: uid(), kind, content, dueAt, status: "open", createdAt: Date.now(), updatedAt: Date.now(),
+    sourceConvId: provenance?.sourceConvId || currentId || "",
+    sourceMessageId: provenance?.sourceMessageId || "",
+    source: provenance?.source || "model_marker",
+  });
+  // Keep every open item; bound only old resolved history so settings cannot grow forever.
+  const active = role.commitmentLedger.filter(item => item?.status === "open");
+  const closed = role.commitmentLedger.filter(item => item?.status !== "open")
+    .sort((a, b) => (b.resolvedAt || b.updatedAt || 0) - (a.resolvedAt || a.updatedAt || 0)).slice(0, 40);
+  role.commitmentLedger = active.concat(closed);
+  return true;
+}
+function resolveCommitmentLedger(query, status = "done") {
+  const role = ensureRoleCompanionData(activeRole());
+  if (!role) return false;
+  const match = role.commitmentLedger.filter(item => item?.status === "open")
+    .map(item => ({ item, score: ledgerMatchScore(query, item) }))
+    .sort((a, b) => b.score - a.score || (b.item.createdAt || 0) - (a.item.createdAt || 0))[0];
+  if (!match || match.score < 0.34) return false;
+  match.item.status = status === "canceled" ? "canceled" : "done";
+  match.item.resolvedAt = Date.now();
+  match.item.updatedAt = match.item.resolvedAt;
+  return true;
+}
+function extractCompanionLedgerControls(text, sourceMessageId) {
+  if (typeof text !== "string") return text;
+  let changed = false;
+  const marker = /(?:\[|【)\s*(约定|惦记|了结|兑现|取消约定)\s*[:：]\s*([^\]】\n]+?)(?:\]|】)/gi;
+  const cleaned = text.replace(marker, (_all, command, raw) => {
+    const parts = String(raw || "").split("|");
+    const content = (parts.shift() || "").trim();
+    const due = (parts.shift() || "").trim();
+    if (command === "约定" || command === "惦记") {
+      changed = upsertCommitmentLedger(command === "约定" ? "promise" : "concern", content, due, {
+        sourceConvId: currentId || "", sourceMessageId: sourceMessageId || "", source: "model_marker",
+      }) || changed;
+    } else {
+      changed = resolveCommitmentLedger(content, command === "取消约定" ? "canceled" : "done") || changed;
+    }
+    return "";
+  }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (changed) saveSettings();
+  return cleaned;
+}
+function companionLedgerWritePrompt() {
+  if (typeof isRoleplayConversation === "function" && isRoleplayConversation()) return "";
+  return "【惦记与约定写入】只有出现明确的新约定，才在回复末尾写 `[约定:一句话|YYYY-MM-DD]`；只有用户提到尚未有结果、之后值得关心的具体事情，才写 `[惦记:一句话|YYYY-MM-DD]`。日期不能确定就省略竖线与日期。用户明确说事情完成时写 `[了结:账本里的事情]`，约定取消时写 `[取消约定:账本里的事情]`。每轮最多两条，闲聊、愿望、角色扮演剧情不写；标记由应用隐藏。";
+}
+function companionLedgerPrompt() {
+  if (typeof isRoleplayConversation === "function" && isRoleplayConversation()) return "";
+  const rows = roleCommitmentLedger();
+  const open = rows.filter(item => item && item.status === "open");
+  if (!open.length) return "";
+  const now = Date.now(), query = currentMemoryRecallQuery();
+  const ranked = open.map(item => {
+    const due = item.dueAt ? Number(item.dueAt) : null;
+    const overdue = due && due < now;
+    const imminent = due && due >= now && due <= now + 3 * 86400000;
+    return { item, score: ledgerMatchScore(query, item) + (overdue ? 4 : imminent ? 3 : 0) };
+  }).sort((a, b) => b.score - a.score || (a.item.dueAt || Number.MAX_SAFE_INTEGER) - (b.item.dueAt || Number.MAX_SAFE_INTEGER)
+    || (b.item.createdAt || 0) - (a.item.createdAt || 0));
+  const chosen = [];
+  ranked.forEach(row => { if (chosen.length < 3 && (row.score > 0 || !chosen.length)) chosen.push(row.item); });
+  if (!chosen.length) return "";
+  const lines = chosen.map(item => {
+    const label = item.kind === "promise" ? "约定" : "惦记";
+    let due = "";
+    if (item.dueAt) {
+      const day = ledgerDateValue(item.dueAt);
+      due = item.dueAt < now ? `（原定 ${day}，尚未了结）` : `（约在 ${day}）`;
+    }
+    return `- [${label}] ${item.content}${due}`;
+  });
+  return "【仍在进行的惦记与约定】\n" + lines.join("\n")
+    + "\n这些是你们确实说定或仍在等待结果的事。只在当前话题、临近日期或自然时机下顺带关心；不要逐条报账、不要声称刚刚才知道，也不要把标题或方括号抄进回复。";
+}
+function ledgerStatusText(item) {
+  if (item.status === "done") return "已完成";
+  if (item.status === "canceled") return "已取消";
+  if (item.dueAt && item.dueAt < Date.now()) return "待跟进";
+  return item.kind === "promise" ? "约定中" : "惦记中";
+}
+function renderCommitmentLedger(role) {
+  role = ensureRoleCompanionData(role || activeRole());
+  if (!role || !$('ledger-open-list')) return;
+  $('companion-ledger-title').textContent = `我和 ${role.name || settings.aiName || "TA"} 说定的事`;
+  const rows = roleCommitmentLedger(role);
+  const open = rows.filter(item => item?.status === "open")
+    .sort((a, b) => (a.dueAt || Number.MAX_SAFE_INTEGER) - (b.dueAt || Number.MAX_SAFE_INTEGER) || (b.createdAt || 0) - (a.createdAt || 0));
+  const closed = rows.filter(item => item?.status !== "open")
+    .sort((a, b) => (b.resolvedAt || 0) - (a.resolvedAt || 0)).slice(0, 12);
+  const rowHtml = (item, resolved) => `<article class="companion-entry ledger-entry${item.dueAt && item.dueAt < Date.now() && !resolved ? " overdue" : ""}${resolved ? " done" : ""}">
+    <div class="companion-entry-head"><b>${item.kind === "promise" ? "我们的约定" : "惦记的事"}</b><span class="companion-status${resolved ? " read" : ""}">${ledgerStatusText(item)}</span><time>${escapeHtml(companionTime(item.createdAt))}</time></div>
+    <div class="companion-entry-text">${escapeHtml(item.content || "")}</div>
+    <div class="ledger-entry-meta">${item.dueAt ? `日期：${escapeHtml(ledgerDateValue(item.dueAt))}` : "没有限定日期"}</div>
+    <div class="ledger-entry-actions">${resolved ? "" : `<button class="primary" data-ledger-done="${item.id}">标为完成</button><button data-ledger-cancel="${item.id}">取消</button>`}<button data-ledger-delete="${item.id}">删除</button></div>
+  </article>`;
+  $('ledger-open-list').innerHTML = open.length ? open.map(item => rowHtml(item, false)).join("") : `<div class="companion-empty">现在没有悬着的事。以后明确说定的约定和待关心的进展会留在这里。</div>`;
+  $('ledger-resolved-list').innerHTML = closed.length ? closed.map(item => rowHtml(item, true)).join("") : `<div class="companion-empty">还没有最近了结的记录。</div>`;
+  document.querySelectorAll('[data-ledger-done]').forEach(btn => { btn.onclick = () => updateLedgerItem(btn.dataset.ledgerDone, 'done'); });
+  document.querySelectorAll('[data-ledger-cancel]').forEach(btn => { btn.onclick = () => updateLedgerItem(btn.dataset.ledgerCancel, 'canceled'); });
+  document.querySelectorAll('[data-ledger-delete]').forEach(btn => { btn.onclick = () => deleteLedgerItem(btn.dataset.ledgerDelete); });
+}
+function saveLedgerItem() {
+  const content = ($('ledger-content').value || '').trim();
+  if (!content) { showToast('先写下是什么事～'); return; }
+  const saved = upsertCommitmentLedger($('ledger-kind').value, content, $('ledger-due').value, { source: 'user_manual' });
+  if (!saved) { showToast('这条没有记进去，再检查一下'); return; }
+  $('ledger-content').value = ''; $('ledger-due').value = '';
+  saveSettings(); renderCommitmentLedger(); showToast('✓ 已记进你们的账本');
+}
+function updateLedgerItem(id, status) {
+  const item = roleCommitmentLedger().find(row => row.id === id);
+  if (!item) return;
+  item.status = status; item.resolvedAt = Date.now(); item.updatedAt = item.resolvedAt;
+  saveSettings(); renderCommitmentLedger(); showToast(status === 'done' ? '✓ 已记为完成' : '已取消这项约定');
+}
+function deleteLedgerItem(id) {
+  const role = ensureRoleCompanionData(activeRole());
+  const item = role?.commitmentLedger.find(row => row.id === id);
+  if (!item || !confirm(`删除“${item.content}”？`)) return;
+  role.commitmentLedger = role.commitmentLedger.filter(row => row.id !== id);
+  saveSettings(); renderCommitmentLedger();
+}
 function updateMailboxBadge() {
   const badge = $("mailbox-badge"); if (!badge) return;
   const unread = roleMailbox().filter(x => !x.readAt).length;
@@ -13138,15 +13349,18 @@ function updateMailboxBadge() {
   badge.setAttribute("aria-label", unread ? (unread + " 封未读信") : "没有未读信");
 }
 function showCompanionTab(tab) {
-  const diary = tab === "diary";
-  $("companion-tab-mail").classList.toggle("active", !diary);
+  const diary = tab === "diary", ledger = tab === "ledger", mail = !diary && !ledger;
+  $("companion-tab-mail").classList.toggle("active", mail);
   $("companion-tab-diary").classList.toggle("active", diary);
-  $("companion-mail-view").hidden = diary;
+  $("companion-tab-ledger").classList.toggle("active", ledger);
+  $("companion-mail-view").hidden = !mail;
   $("companion-diary-view").hidden = !diary;
+  $("companion-ledger-view").hidden = !ledger;
   const role = activeRole();
-  $("companion-panel-title").textContent = diary
-    ? "📓 " + ((role && role.name) || settings.aiName || "TA") + "的私人日记"
-    : "✉️ 给 " + ((role && role.name) || settings.aiName || "TA") + " 的信";
+  $("companion-panel-title").textContent = ledger
+    ? "✓ 惦记与约定"
+    : diary ? "📓 " + ((role && role.name) || settings.aiName || "TA") + "的私人日记"
+      : "✉️ 给 " + ((role && role.name) || settings.aiName || "TA") + " 的信";
 }
 function openCompanionPanel(tab) {
   renderCompanionPanel();
@@ -13193,6 +13407,7 @@ function renderCompanionPanel() {
   diaryBox.querySelectorAll("[data-diary-delete]").forEach(btn => {
     btn.onclick = () => deletePrivateDiaryEntry(btn.dataset.diaryDelete);
   });
+  renderCommitmentLedger(role);
   updateMailboxBadge();
 }
 function saveMailboxNote() {
@@ -13973,6 +14188,13 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
   const cleanPartialReply = () => {
     assistantMsg.content = captureDiary(assistantMsg.content);
     assistantMsg.reasoning = captureDiary(assistantMsg.reasoning);
+    // Promise/open-loop markers are state changes, not visible prose. Capture
+    // them before reasoning normalization so relays cannot strand a marker in
+    // the hidden channel. RP scene dialogue never writes into the backstage ledger.
+    if (!independent && (!replyProject || backstageMode)) {
+      assistantMsg.content = extractCompanionLedgerControls(assistantMsg.content, assistantMsg.id);
+      assistantMsg.reasoning = extractCompanionLedgerControls(assistantMsg.reasoning, assistantMsg.id);
+    }
     const partial = extractAssistantReasoning(assistantMsg.content, false);
     if (partial.reasoning) {
       assistantMsg.reasoning = [assistantMsg.reasoning || "", partial.reasoning].filter(Boolean).join("\n").trim();
@@ -14077,6 +14299,10 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     // collapsed away.
     assistantMsg.content = captureDiary(assistantMsg.content);
     assistantMsg.reasoning = captureDiary(assistantMsg.reasoning);
+    if (!independent && (!replyProject || backstageMode)) {
+      assistantMsg.content = extractCompanionLedgerControls(assistantMsg.content, assistantMsg.id);
+      assistantMsg.reasoning = extractCompanionLedgerControls(assistantMsg.reasoning, assistantMsg.id);
+    }
     // Normalize reasoning that a relay flattened into ordinary content. This
     // persists the clean answer and keeps the detected reasoning collapsed on
     // future renders instead of only hiding it for the current paint.
@@ -16251,7 +16477,9 @@ async function init() {
   $("companion-close").onclick = closeCompanionPanel;
   $("companion-tab-mail").onclick = () => showCompanionTab("mail");
   $("companion-tab-diary").onclick = () => showCompanionTab("diary");
+  $("companion-tab-ledger").onclick = () => showCompanionTab("ledger");
   $("mailbox-save").onclick = saveMailboxNote;
+  $("ledger-save").onclick = saveLedgerItem;
   $("special-days-close").onclick = closeSpecialDaysPanel;
   $("special-day-save").onclick = saveSpecialDay;
   $("special-day-cancel").onclick = resetSpecialDayForm;
