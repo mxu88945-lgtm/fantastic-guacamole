@@ -16,6 +16,7 @@ has('const MEMORY_RECALL_COOLDOWN_TURNS = 4;', 'recall cooldown is missing')
 has('const MEMORY_RECALL_LEDGER_LIMIT = 120;', 'recall ledger is not bounded')
 has('const RECENT_STATE_LOOKBACK_MS = 36 * 60 * 60 * 1000;', 'recent state lookback is missing')
 has('const RECENT_STATE_CHAR_BUDGET = 1100;', 'recent state prompt budget is missing')
+has('const CHAT_HISTORY_MESSAGE_CAP = 96;', 'wire history does not align with the 96-message retained stage')
 has('const queryText = currentMemoryRecallQuery();', 'recall still uses assistant echo text')
 has('memory: boundedMemory.audit,', 'memory audit is absent from prompt diagnostics')
 has('sourceMessageIds: Array.isArray(provenance?.sourceMessageIds)', 'memory provenance is not stored')
@@ -83,6 +84,33 @@ ok(recentState.includes('白饭、鱼肉、卤蛋、青菜和菇汤'),
 ok(!recall.buildRecentStateContext({ messages: [lunch, { id: 'lunch-follow-up' }] }).includes('白饭'),
   'recent working memory duplicated a meal already present in wire history')
 conv.messages.splice(-2)
+
+const taskCardFix = { id: 'task-card-fix', role: 'user', content: '昨晚已经把任务卡的问题处理修好了', ts: Date.now() - 8 * 3600000 }
+conv.messages.push(taskCardFix)
+ok(recall.recentStateCandidateText(taskCardFix).includes('任务卡'),
+  'fresh task-card progress was not retained as short-lived continuity')
+conv.messages.pop()
+
+const bridgeStart = html.indexOf('function buildPendingContinuityBridge(')
+const bridgeEnd = html.indexOf('function currentMemoryRecallQuery(', bridgeStart)
+ok(bridgeStart >= 0 && bridgeEnd > bridgeStart, 'pending continuity bridge helper not found')
+const bridgeContext = {
+  isChatContentMessage: message => !!message && ['user', 'assistant'].includes(message.role) && !!message.content,
+  messageText: message => message?.content || '',
+  messageImages: () => [],
+  nameFor: role => role === 'user' ? '惟惟' : '顾祁砚',
+  clipUnicodeChars: (value, max) => Array.from(String(value)).slice(0, max).join(''),
+}
+vm.runInNewContext(`const PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET = 900;\n${html.slice(bridgeStart, bridgeEnd)}\nglobalThis.bridge = buildPendingContinuityBridge;`, bridgeContext)
+const liveGap = bridgeContext.bridge({
+  rollingSummary: { id: 'older-summary' },
+  omitted: [
+    { role: 'user', content: '昨晚已经把任务卡的问题处理修好了' },
+    { role: 'assistant', content: '我记住了，明早不会再混成银行卡' },
+  ],
+})
+ok(liveGap.includes('任务卡') && liveGap.includes('旧摘要之后'),
+  'an existing rolling summary still suppresses the live unarchived continuity gap')
 
 conv.messages.push({ id: 'u2', role: 'user', content: '你还记得茉莉花茶吗', ts: 4 })
 let result = recall.retrieveOmittedCurrentChat({ omitted: [] })
@@ -186,6 +214,6 @@ entries[1].status = 'active'
 const superseded = invalidationContext.invalidationHelpers.supersedeMemoryEntries(['m2'], 'm3')
 ok(superseded === 1 && entries[1].supersededBy === 'm3', 'old fact version was not archived')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v249";'), 'service worker cache was not bumped to v166')
+ok(sw.includes('const CACHE = "role-chat-cache-v250";'), 'service worker cache was not bumped to v166')
 
 console.log(`memory accuracy regression: ${checks} checks passed`)

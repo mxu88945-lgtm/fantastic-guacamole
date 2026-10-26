@@ -4552,7 +4552,7 @@ let stickBottom = true;   // whether streaming should keep auto-scrolling to bot
 let bottomPinUntil = 0;   // keep iOS viewport/composer reflows pinned briefly after send
 let scrollControlsAwake = false, scrollControlsHideTimer = null;
 const CHAT_HISTORY_TOKEN_BUDGET = 5800; // local history stays intact; only API context is windowed
-const CHAT_HISTORY_MESSAGE_CAP = 56;    // safety cap for many short multi-bubbles
+const CHAT_HISTORY_MESSAGE_CAP = 96;    // align short-message wire history with the retained verbatim stage
 const CHAT_HISTORY_MIN_ROLE_RUNS = 6;   // preserve at least three recent user/assistant exchanges
 const COMPACTED_HISTORY_TOKEN_BUDGET = 5600; // summary is injected separately; keep enough raw voice nearby
 const AUTO_COMPACT_THRESHOLD = 240;     // compact at a larger story stage instead of interrupting every few turns
@@ -4564,7 +4564,7 @@ const ROLLING_SUMMARY_VERSION = 3;
 const ROLLING_SUMMARY_CHAR_LIMIT = 2400;
 const ROLLING_SUMMARY_MAX_TOKENS = 1400;
 const ROLLING_SUMMARY_RETRY_MAX_TOKENS = 900; // quota-limited maintenance gets one deliberately smaller retry
-const PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET = 900; // exact boundary turns while a rolling summary is unavailable
+const PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET = 900; // exact unarchived boundary turns omitted by the wire window
 const MEMORY_CONTEXT_CHAR_BUDGET = 6400; // all derived memory layers share one ceiling
 const MEMORY_RECALL_COOLDOWN_TURNS = 4;  // avoid echoing the same old excerpt every reply
 const MEMORY_RECALL_LEDGER_LIMIT = 120;  // bounded, metadata-only per-conversation audit
@@ -9277,8 +9277,14 @@ function buildApiHistoryWindow() {
 }
 
 function buildPendingContinuityBridge(historyWindow) {
-  if (!historyWindow || historyWindow.rollingSummary || !historyWindow.omitted?.length) return "";
-  const boundary = historyWindow.omitted.filter(isChatContentMessage).slice(-6);
+  if (!historyWindow || !historyWindow.omitted?.length) return "";
+  // `omitted` contains live, unarchived turns that fell outside the token window.
+  // A rolling summary only covers messages marked `_compactedBy`, so the mere
+  // presence of a summary must never suppress this bridge: doing so creates a
+  // blind gap between the old summary and the recent API window.
+  const boundary = historyWindow.omitted
+    .filter(message => isChatContentMessage(message) && !message._compactedBy)
+    .slice(-6);
   if (!boundary.length) return "";
   const rows = boundary.map(message => {
     const body = messageText(message).replace(/\s+/g, " ").trim()
@@ -9286,8 +9292,8 @@ function buildPendingContinuityBridge(historyWindow) {
     return (message.rpSpeakerName || nameFor(message.role)) + "：" + clipUnicodeChars(body, 180);
   });
   return clipUnicodeChars(
-    "【尚未生成连续性档案时的旧文衔接桥】\n" + rows.join("\n")
-      + "\n这些是紧邻当前可见历史之前的准确原文，只用于承接场景；若与最近消息冲突，以最近消息为准。",
+    "【尚未进入连续性档案的近段原文衔接桥】\n" + rows.join("\n")
+      + "\n这些是旧摘要之后、紧邻当前可见历史之前的准确原文，只用于承接场景；若与最近消息冲突，以最近消息为准。",
     PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET,
   );
 }
@@ -9379,8 +9385,8 @@ function recallSemanticAffinity(queryText, candidateText) {
       /(?:承诺|约定|答应|说好|誓言|至死不渝|暗号|纪念)/],
     [/(?:身体|头疼|经期|痛经|生病|不舒服|吃药|健康|过敏)/,
       /(?:身体|头疼|经期|痛经|生病|不舒服|吃药|健康|过敏)/],
-    [/(?:项目|端口|仓库|代码|部署|修复|功能|记忆系统|模型)/,
-      /(?:项目|端口|仓库|代码|部署|修复|功能|记忆系统|模型)/],
+    [/(?:项目|端口|仓库|代码|部署|修复|功能|记忆系统|模型|任务卡|提醒卡|倒计时|处理.{0,4}卡)/,
+      /(?:项目|端口|仓库|代码|部署|修复|功能|记忆系统|模型|任务卡|提醒卡|倒计时)/],
     [/(?:小鸡|鹦鹉|宠物|米米|贝贝|点点|咔咔)/,
       /(?:小鸡|鹦鹉|宠物|米米|贝贝|点点|咔咔)/],
     [/(?:剧情|角色|人设|男主|女主|虞山行|顾星辞|夏不语)/,
@@ -9597,9 +9603,10 @@ function retrieveOmittedCurrentChat(windowInfo) {
   });
 }
 
-// Short-lived working memory for ordinary life reports. These facts are often
-// omitted by the bounded wire history but are deliberately excluded from the
-// durable memory library ("what I ate today" should not live there forever).
+// Short-lived working memory for ordinary life reports and fresh project progress.
+// These facts are often omitted by the bounded wire history but are deliberately
+// excluded from the durable memory library ("what I ate today" or "fixed a card
+// last night" should not automatically become a permanent identity fact).
 // Derive the layer from preserved raw user turns, so it adds no duplicate data,
 // needs no migration, and remains isolated to the active conversation/role.
 function recentStateCandidateText(message) {
@@ -9611,7 +9618,8 @@ function recentStateCandidateText(message) {
   const meal = /(?:早餐|早饭|午餐|午饭|晚餐|晚饭|宵夜|吃(?:了|完|过|的是)|喝(?:了|完|过|的是)|刚(?:刚|才)?吃|刚(?:刚|才)?喝|豆浆|鸡蛋|米饭|白饭|鱼肉|卤蛋|青菜|菇汤|水果|铁片)/;
   const activity = /(?:刚刚?|刚才|今天|今早|上午|中午|下午|傍晚|今晚|昨晚|等会|待会|一会儿?|准备|正在|明天).{0,28}(?:洗澡|洗漱|睡觉|午休|拖地|做饭|煮水|换尿垫|喂|出门|回家|工作|运动|吃|喝|买|去)/;
   const health = /(?:头疼|偏头痛|肚子疼|经期|痛经|腰酸|不舒服|一身汗|出汗|热死|发烧|吃药|困了|很困|累了|很累)/;
-  if (!meal.test(text) && !activity.test(text) && !health.test(text)) return "";
+  const project = /(?:任务卡|提醒卡|倒计时|端口|仓库|代码|部署|推送|上线|更新|升级|记忆系统|bug|问题).{0,40}(?:修好|修完|修复|处理|改好|改完|部署|推送|上线|更新|升级|完成)|(?:修好|修完|修复|处理|改好|改完|部署|推送|上线|更新|升级|完成).{0,40}(?:任务卡|提醒卡|倒计时|端口|仓库|代码|功能|记忆系统|bug|问题)/i;
+  if (!meal.test(text) && !activity.test(text) && !health.test(text) && !project.test(text)) return "";
   return clipUnicodeChars(text, 220);
 }
 function buildRecentStateContext(windowInfo) {
@@ -11269,7 +11277,7 @@ function buildBoundedMemoryContext(historyWindow) {
     { key: "locked", label: "🔒 高权重锁定", priority: 1, order: 5, cap: LOCKED_MEMORY_CHAR_BUDGET + 180, text: locked },
     { key: "personaAnchor", label: "稳定人格锚点", priority: 1, order: 6, cap: 460, text: personaAnchor },
     { key: "diaryRule", label: "私人日记写入规则", priority: 2, order: 40, cap: 260, text: diaryRule },
-    { key: "recentState", label: "近期生活状态", priority: 2, order: 80, cap: RECENT_STATE_CHAR_BUDGET, text: recentState },
+    { key: "recentState", label: "近期状态与进展", priority: 2, order: 80, cap: RECENT_STATE_CHAR_BUDGET, text: recentState },
     { key: "pendingContinuity", label: "旧文临时衔接", priority: 3, order: 85, cap: PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET, text: pendingContinuity },
     { key: "currentExact", label: "本窗旧文", priority: 3, order: 90, cap: 1400, recall: currentRecall, text: currentRecall.text },
     { key: "crossExact", label: "其他窗口原文", priority: 4, order: 91, cap: 1400, recall: crossRecall, text: crossRecall.text },

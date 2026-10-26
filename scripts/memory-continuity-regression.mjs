@@ -279,8 +279,15 @@ if (!bridge.includes('边界消息3') || !bridge.includes('边界消息8') || br
     || Array.from(bridge).length > 900) {
   throw new Error('failed-summary continuity bridge did not preserve the nearest bounded turns')
 }
-if (bridgeContext.buildPendingContinuityBridge({ rollingSummary: { id: 'summary' }, omitted: [{ content: '不应重复' }] })) {
-  throw new Error('temporary continuity bridge duplicated an existing rolling summary')
+const summarizedGap = bridgeContext.buildPendingContinuityBridge({
+  rollingSummary: { id: 'summary' },
+  omitted: [
+    { role: 'user', content: '已归档旧文', _compactedBy: 'summary' },
+    { role: 'user', content: '摘要后尚未归档的任务卡修复' },
+  ],
+})
+if (!summarizedGap.includes('任务卡修复') || summarizedGap.includes('已归档旧文')) {
+  throw new Error('continuity bridge did not separate summarized history from the live unarchived gap')
 }
 
 const compactBatchStart = html.indexOf('async function compactMessageBatch(')
@@ -368,7 +375,7 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v249";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v250";')) {
   throw new Error('service worker cache was not bumped for lazy summary upgrade')
 }
 

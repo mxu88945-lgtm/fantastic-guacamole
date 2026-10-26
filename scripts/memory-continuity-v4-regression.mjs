@@ -7,6 +7,7 @@ const ok = (value, message) => { if (!value) throw new Error(message) }
 
 ok(html.includes('const AUTO_COMPACT_THRESHOLD = 240;'), 'automatic compaction stage threshold is missing')
 ok(html.includes('const AUTO_COMPACT_KEEP = 96;'), 'recent verbatim retention stage is missing')
+ok(html.includes('const CHAT_HISTORY_MESSAGE_CAP = 96;'), 'wire history cap is smaller than the retained recent stage')
 ok(html.includes('if (raw.length < AUTO_COMPACT_THRESHOLD) return false;'),
   'automatic continuity maintenance is not strictly gated at 240 messages')
 ok(!html.includes('AUTO_COMPACT_OMITTED_MESSAGE_THRESHOLD') && !html.includes('AUTO_COMPACT_OMITTED_TOKEN_THRESHOLD'),
@@ -83,6 +84,8 @@ ok(context.recallTimeScore('还记得2025年7月28号吗', dated) === 0,
   'explicit calendar-date recall ranks the wrong day')
 ok(context.recallSemanticAffinity('我们之前关于端口失忆的事', '顾祁砚的记忆系统已经部署修复') > 0,
   'project-memory synonym affinity is missing')
+ok(context.recallSemanticAffinity('昨晚处理那个卡的问题', '任务卡昨晚已经修好了') > 0,
+  'task-card wording is not semantically connected to its recent repair evidence')
 ok(context.recallSemanticAffinity('小鸡后来怎么样了', '米米和贝贝今天都洗过澡') > 0,
   'pet-memory synonym affinity is missing')
 
@@ -160,6 +163,6 @@ ok(!quotaContext.checkQuota({ message: 'relay unavailable' }),
 ok(quotaContext.checkBalance({ message: 'memory HTTP 402 — {"error":{"message":"Insufficient balance"}}' }),
   'balance error detector misses the provider 402 wording')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v249";'), 'service worker cache was not bumped for the maintenance cleanup')
+ok(sw.includes('const CACHE = "role-chat-cache-v250";'), 'service worker cache was not bumped for the maintenance cleanup')
 
 console.log('memory continuity v4 regression: 36 checks passed')
