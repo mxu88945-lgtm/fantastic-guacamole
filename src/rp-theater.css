@@ -206,10 +206,10 @@ body.rp-opening-picker-open { overflow: hidden; }
 .roleplay-html-card.loaded::before { display: none; }
 .roleplay-html-frame { position: relative; z-index: 1; }
 .rp-detail-link:hover, .rp-detail-link:active { border-color: color-mix(in srgb, var(--accent) 42%, var(--border)); background: color-mix(in srgb, var(--accent) 9%, var(--bg-panel)); transform: translateY(-1px); }
-.roleplay-opening-text { display: block; float: none !important; clear: both; width: 100%; min-width: 0; padding: 0 14px; color: var(--text); font-size: var(--rp-msg-font, var(--msg-font, 15.5px)); line-height: 1.9; overflow-wrap: anywhere; }
+.roleplay-opening-text { display: block; float: none !important; clear: both; width: 100%; min-width: 0; padding: 0 14px; color: var(--text); font-size: var(--rp-msg-font, 15.5px); line-height: 1.9; overflow-wrap: anywhere; }
 .roleplay-opening-text > :first-child { margin-top: 0; }
 .roleplay-opening-text > :last-child { margin-bottom: 0; }
-.rp-story-text { font-size: var(--rp-msg-font, var(--msg-font, 14.5px)); font-family: var(--rp-msg-font-family, var(--msg-font-family, inherit)); line-height: inherit; overflow-wrap: anywhere; }
+.rp-story-text { font-size: var(--rp-msg-font, 15.5px); font-family: var(--rp-msg-font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif); line-height: inherit; overflow-wrap: anywhere; }
 .bubble .rp-story-text > p, .rp-story-text > p { margin: 0 0 .62em; }
 .rp-story-text > :last-child { margin-bottom: 0; }
 .rp-story-text .chat-quote { display: inline; padding: .18em .45em; border-radius: 8px; background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--quote-text-color, var(--accent)); box-decoration-break: clone; -webkit-box-decoration-break: clone; line-height: 1.65; }
@@ -461,14 +461,14 @@ body.rp-chat-active #sidebar-workbench { display: none; }
    palette to the conversation instead of letting html[data-theme-key] win. */
 .main.rp-scene-shell,
 body.rp-chat-active .main {
-  --bg: var(--rp-base-color, #eef4fd);
-  --bg-soft: color-mix(in srgb, var(--rp-base-color, #eef4fd) 82%, white);
+  --bg: var(--rp-base-color, #f4efe6);
+  --bg-soft: color-mix(in srgb, var(--rp-base-color, #f4efe6) 82%, white);
   --bg-panel: rgba(255, 255, 255, .88);
-  --border: #d4deef;
-  --text: var(--rp-text-color, #263451);
-  --text-dim: color-mix(in srgb, var(--rp-text-color, #263451) 54%, white);
-  --accent: #747bd1;
-  --accent-soft: #e4e8fb;
+  --border: color-mix(in srgb, var(--rp-text-color, #34312d) 16%, transparent);
+  --text: var(--rp-text-color, #34312d);
+  --text-dim: color-mix(in srgb, var(--rp-text-color, #34312d) 58%, white);
+  --accent: var(--rp-accent-color, #918474);
+  --accent-soft: color-mix(in srgb, var(--rp-accent-color, #918474) 15%, white);
   --accent-contrast: #fff;
   --danger: #c45c69;
   color-scheme: light;
@@ -477,7 +477,7 @@ body.rp-chat-active .main {
 body.rp-chat-active .main,
 body.rp-chat-active .main > .chat,
 body.rp-chat-active .main > .composer-wrap {
-  background: var(--rp-base-color, #eef4fd);
+  background: var(--rp-base-color, #f4efe6);
 }
 /* Keep an opaque scene base below the wallpaper.  The image layer can be
    translucent (or contain transparent/letterboxed pixels), but it must never
@@ -554,11 +554,11 @@ body.rp-chat-active .send-btn { background: var(--accent); color: #fff; }
 /* Scene-local theme controls: equal swatches, readable type, no global leakage. */
 .rp-scene-theme { background: color-mix(in srgb, var(--bg-panel) 92%, var(--accent) 8%); }
 .rp-theme-badge { font-size: 10px; letter-spacing: .12em; color: var(--accent); }
-.rp-theme-presets { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.rp-theme-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 .rp-theme-presets button { min-width: 0; display: grid; gap: 5px; place-items: center; padding: 9px 4px; border: 1px solid var(--border); border-radius: 13px; background: var(--bg-panel); color: var(--text-dim); cursor: pointer; }
 .rp-theme-presets button.active { border-color: var(--accent); color: var(--text); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent); }
-.rp-theme-presets i { width: 28px; height: 18px; border-radius: 7px; border: 1px solid rgba(0,0,0,.12); background: #dfe8fa; }
-.rp-theme-presets button:nth-child(2) i { background: #23232b; } .rp-theme-presets button:nth-child(3) i { background: #f2eadf; } .rp-theme-presets button:nth-child(4) i { background: #f1dce6; } .rp-theme-presets button:nth-child(5) i { background: #7d5b38; }
+.rp-theme-presets i { width: 44px; height: 24px; border-radius: 999px; border: 1px solid rgba(0,0,0,.10); background: linear-gradient(135deg, #fffdf8, #e8dfd1); box-shadow: inset 0 1px 0 #fff, 0 4px 10px rgba(74,67,57,.10); }
+.rp-theme-presets button:nth-child(2) i { background: linear-gradient(135deg, #fbfdff, #d8e6f1); }
 .rp-theme-fields, .rp-theme-colors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
 .rp-theme-fields label, .rp-theme-colors label { display: grid; gap: 6px; color: var(--text-dim); font-size: 12px; }
 .rp-theme-fields select, .rp-theme-fields input[type="range"] { width: 100%; }
@@ -570,7 +570,7 @@ body.rp-chat-active .send-btn { background: var(--accent); color: #fff; }
 .rp-theme-preview em { display: block; color: var(--preview-narration, var(--text-dim)); } .rp-theme-preview strong { color: var(--preview-quote, var(--text)); }
 body.rp-chat-active #messages .msg .bubble { font-weight: 480; letter-spacing: .01em; line-height: 1.82; -webkit-font-smoothing: antialiased; }
 body.rp-chat-active #messages .msg .name { font-weight: 650; }
-@media (max-width: 560px) { .rp-theme-presets { grid-template-columns: repeat(5, minmax(44px, 1fr)); gap: 5px; } .rp-theme-presets button { font-size: 10px; } .rp-theme-fields, .rp-theme-colors { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .rp-theme-presets { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .rp-theme-presets button { font-size: 11px; } .rp-theme-fields, .rp-theme-colors { grid-template-columns: 1fr; } }
 
 /* RP readability hardening: main-chat wallpaper rules must never blur RP text. */
 body.rp-chat-active #messages,

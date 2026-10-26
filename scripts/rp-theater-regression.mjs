@@ -4,6 +4,7 @@ import vm from "node:vm";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../src/rp-theater.css", import.meta.url), "utf8");
+const polishCss = readFileSync(new URL("../src/rp-theater-polish.css", import.meta.url), "utf8");
 const groupCss = readFileSync(new URL("../src/rp-group.css", import.meta.url), "utf8");
 const group = readFileSync(new URL("../src/rp-group.js", import.meta.url), "utf8");
 const js = readFileSync(new URL("../src/rp-theater.js", import.meta.url), "utf8");
@@ -16,6 +17,7 @@ const ok = (condition, message) => {
 };
 
 ok(html.includes('href="./src/rp-theater.css"'), "RP theater stylesheet is not loaded");
+ok(html.indexOf('href="./src/rp-theater.css"') > html.indexOf('href="./src/liquid-glass.css"'), "RP isolation stylesheet must load after the owner liquid theme");
 ok(html.includes('src="./src/rp-theater.js"'), "RP theater module is not loaded");
 ok(html.includes('data-dashboard-action="roleplay"'), "dashboard has no RP theater entry");
 ok(html.includes("window.JYCRoleplayBridge"), "RP bridge is missing");
@@ -198,10 +200,13 @@ ok(!confirmHandler.includes('bridge.update(') && !confirmHandler.includes('displ
 ok(js.includes('data-opening-expand') && js.includes('rp-opening-inline-preview') && html.includes('frame.dataset.rpPreview === "true"'), 'inline previews need a separate expansion action and cannot trigger scene changes');
 const semantic = sourceContext.roleplaySemanticDisplay('<scene>深夜｜休息室</scene>正文<director_status>【当前场景】休息室\n【待回应钩子】等她回应</director_status>');
 ok(semantic.includes('rp-scene-strip') && semantic.includes('rp-status-card') && semantic.includes('待回应钩子') && !semantic.includes('&lt;scene&gt;'), 'unmatched scene/status tags must render as native cards');
-ok(groupCss.includes('height: auto !important; min-height: 0 !important;') && groupCss.includes('.rp-status-card > header') && groupCss.includes('padding: 0 !important;') && groupCss.includes('background: transparent !important;'), 'native RP status must isolate the global safe-area header and render as a transparent content-height tail');
+ok(groupCss.includes('height: auto !important; min-height: 0 !important;') && groupCss.includes('.rp-status-card > header') && groupCss.includes('var(--rp-liquid-panel') && groupCss.includes('letter-spacing: .14em;'), 'native RP status must isolate the global header and render as a compact liquid monitor');
 ok(css.includes('.rp-detail-actions { display: flex;') && css.includes('position: static;') && !css.includes('position: sticky; bottom: 0'), 'role detail actions must stay at the true end of the page instead of covering scrolled content');
-ok(css.includes('.rp-story-text { font-size: var(--rp-msg-font, var(--msg-font, 14.5px))') && css.includes('.roleplay-opening-text') && css.includes('font-size: var(--rp-msg-font, var(--msg-font, 15.5px))'), 'RP story and opening text must follow the scene font size before falling back to the main chat size');
-ok(groupCss.includes('.rp-status-card') && groupCss.includes('font-size: var(--rp-msg-font, var(--msg-font, 14.5px))') && groupCss.includes('.rp-status-card > header') && groupCss.includes('font-size: .78em;'), 'RP status card and its header must scale with the scene font size instead of staying fixed');
+ok(css.includes('.rp-story-text { font-size: var(--rp-msg-font, 15.5px)') && css.includes('.roleplay-opening-text') && css.includes('font-size: var(--rp-msg-font, 15.5px)'), 'RP story and opening text must use a scene-local font size without a main-chat fallback');
+ok(groupCss.includes('.rp-status-card') && groupCss.includes('font-size: var(--rp-msg-font, 15.5px)') && groupCss.includes('.rp-status-card > header') && groupCss.includes('font-size: .72em;'), 'RP status card and its header must scale with the scene font size instead of staying fixed');
+ok((js.match(/data-rp-theme="liquid-/g) || []).length === 2 && !/data-rp-theme="(?:mist|night|paper|rose|amber|lavender|sage|ink)"/.test(js), 'the editor must expose exactly the two new liquid scene themes');
+ok(html.includes('const flat = isRoleplayConversation() || settings.chatLayout === "flat";'), 'RP message DOM layout must not follow the owner bubble/flat setting');
+ok(polishCss.includes('Scene chat v3: two fully isolated liquid surfaces') && polishCss.includes('body.rp-chat-active[data-rp-theme="liquid-pearl"]') && polishCss.includes('body.rp-chat-active[data-rp-theme="liquid-mist"]') && polishCss.includes('.rp-story-text .chat-quote'), 'the two liquid themes need a final isolated prose, quote and composer layer');
 vm.runInContext(html.slice(html.indexOf('const ROLEPLAY_MEMORY_DEFAULT_SUMMARY_PROMPT'), html.indexOf('function addRoleplayMemory(')), sourceContext);
 const normalized = sourceContext.normalizedRoleplayProject({ greetings: ['cover', 'first opening', '', 'third opening'], openingIndex: 3 }, {title:'test'});
 ok(normalized.greetings.length === 4 && normalized.opening === 'third opening', 'blank swipe slots must not shift card button indexes');

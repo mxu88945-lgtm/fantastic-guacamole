@@ -2603,11 +2603,12 @@
 <link rel="stylesheet" href="./src/album.css" />
 <link rel="stylesheet" href="./src/reading-room.css" />
 <link rel="stylesheet" href="./src/dashboard.css" />
-<link rel="stylesheet" href="./src/rp-theater.css" />
-<link rel="stylesheet" href="./src/rp-theater-polish.css" />
 <link rel="stylesheet" href="./src/music.css" />
 <link rel="stylesheet" href="./src/game-room.css" />
 <link rel="stylesheet" href="./src/liquid-glass.css" />
+<!-- RP styles must stay after every owner-theme stylesheet: the theater is a fully isolated surface. -->
+<link rel="stylesheet" href="./src/rp-theater.css" />
+<link rel="stylesheet" href="./src/rp-theater-polish.css" />
 </head>
 <body>
 <!-- status-bar-style is "default": iOS draws an opaque status bar tinted by the theme-color meta
@@ -6356,14 +6357,8 @@ function toggleRoleplayDisplayMode() {
 }
 
 const RP_THEME_PRESETS = [
-  { id: "mist", name: "雾蓝", base: "#eef3fb", text: "#263451", narration: "#66738a", quote: "#5865a8" },
-  { id: "lavender", name: "薄雾紫", base: "#f3f0fa", text: "#302b45", narration: "#756c91", quote: "#7663b4" },
-  { id: "sage", name: "青瓷薄荷", base: "#eef5f1", text: "#263a34", narration: "#668278", quote: "#3f806c" },
-  { id: "paper", name: "月光珍珠", base: "#f7f3ed", text: "#3b332c", narration: "#806f60", quote: "#9a6b32" },
-  { id: "rose", name: "草莓奶油", base: "#fbf0f3", text: "#4a2635", narration: "#9b6078", quote: "#b45d7e" },
-  { id: "amber", name: "暖光琥珀", base: "#f5eee3", text: "#493322", narration: "#96704c", quote: "#ad7627" },
-  { id: "night", name: "墨黑金", base: "#151619", text: "#f4f1e8", narration: "#c9c0b4", quote: "#e2bd67" },
-  { id: "ink", name: "深海蓝", base: "#172231", text: "#edf4ff", narration: "#a9bdd8", quote: "#8eb8e8" },
+  { id: "liquid-pearl", name: "珍珠米白", base: "#f4efe6", text: "#34312d", narration: "#746d63", quote: "#756b60", accent: "#918474" },
+  { id: "liquid-mist", name: "雾霁月蓝", base: "#edf3f8", text: "#293746", narration: "#69798a", quote: "#5f7d9b", accent: "#6f8fab" },
 ];
 function roleplayThemePreset(project) { return RP_THEME_PRESETS.find(item => item.id === project?.rpTheme) || RP_THEME_PRESETS[0]; }
 function roleplayColorWithAlpha(hex, alpha) {
@@ -6400,8 +6395,10 @@ function applyRoleplayWallpaper(projectOverride = null) {
   rpBg.style.backgroundColor = base;
   rpBg.style.display = image ? "block" : "none";
   document.body.classList.toggle("rp-wallpaper-active", Boolean(image));
+  if (active) document.body.dataset.rpTheme = preset.id;
+  else delete document.body.dataset.rpTheme;
   document.documentElement.style.setProperty("--rp-base-color", base);
-  document.documentElement.style.setProperty("--rp-accent-color", active ? preset.quote : "");
+  document.documentElement.style.setProperty("--rp-accent-color", active ? preset.accent : "");
   document.body.style.setProperty("--rp-base-color", base);
   document.body.style.setProperty("--rp-text-color", active ? (project.chatTextColor || preset.text) : "");
   document.body.style.setProperty("--rp-narration-color", active ? (project.chatNarrationColor || preset.narration) : "");
@@ -6417,7 +6414,7 @@ function applyRoleplayTextTheme(box = $("messages"), projectOverride = null) {
   const body = project.chatTextColor || preset.text;
   const narration = project.chatNarrationColor || preset.narration;
   const quote = project.chatQuoteColor || preset.quote;
-  box.dataset.rpTheme = project.rpTheme || "mist";
+  box.dataset.rpTheme = roleplayThemePreset(project).id;
   box.style.setProperty("--system-text-color", body);
   box.style.setProperty("--narration-text-color", narration);
   box.style.setProperty("--quote-text-color", quote);
@@ -7307,7 +7304,7 @@ function roleplaySemanticDisplay(answer) {
         ? `<div class="rp-status-row"><strong>${escapeHtml(pair[1].trim())}</strong><span>${escapeHtml(pair[2].trim())}</span></div>`
         : `<div class="rp-status-row rp-status-row-wide"><span>${escapeHtml(field)}</span></div>`;
     }).join("");
-    const title = tag.toLowerCase() === "director_status" ? "剧情状态" : "状态更新";
+    const title = tag.toLowerCase() === "director_status" ? "DIRECTOR MONITOR" : "STATUS MONITOR";
     return `<section class="rp-status-card"><header>${title}</header>${rows || '<div class="rp-status-row rp-status-row-wide"><span>本轮状态等待更新</span></div>'}</section>`;
   }).join("");
   return sceneHtml + (body ? `<div class="rp-story-body">${renderRoleplayStoryText(body)}</div>` : "") + statusHtml;
@@ -7388,13 +7385,12 @@ function roleplayPlayerCompatibility() {
   update();
 }
 function roleplayTypography(project = {}) {
-  const global = typeof settings === "object" ? settings : {};
   const sizes = { small: "13px", medium: "14.5px", large: "16.5px" };
   const families = { default: '-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif', kai: '"Kaiti SC","STKaiti",KaiTi,serif', song: '"Songti SC","STSong",serif' };
-  const rawSize = project.chatFontSize || global.fontSize;
+  const rawSize = project.chatFontSize || "15.5";
   const numericSize = rawSize != null && String(rawSize).trim() !== "" && !isNaN(Number(rawSize)) ? Number(rawSize) : NaN;
   const size = !isNaN(numericSize) ? `${Math.min(24, Math.max(10, numericSize))}px` : (sizes[rawSize] || sizes.medium);
-  return { size, family: families[project.chatFontFamily || global.fontFamily] || families.default };
+  return { size, family: families[project.chatFontFamily || "default"] || families.default };
 }
 function normalizeRoleplayMixedMarkup(value) {
   // Like Weijing's normalizeMixedMarkup, format text BETWEEN tags, never tag
@@ -7630,7 +7626,9 @@ function formatLatency(ms) {
 }
 function makeMsgEl(role, content, opts) {
   opts = opts || {};
-  const flat = settings.chatLayout === "flat";
+  // A scene always uses its own prose layout. Main-chat bubble/flat switches
+  // must never rebuild RP messages with a different DOM structure.
+  const flat = isRoleplayConversation() || settings.chatLayout === "flat";
   const el = document.createElement("div");
   const stickerOnly = Array.isArray(content) && content.length > 0 && content.every(p => p.type === "sticker");
   const richRoleplay = role === "assistant" && isRoleplayConversation() && typeof content === "string" && looksLikeRoleplayRichHtml(roleplayRegexDisplay(content));
@@ -8518,17 +8516,20 @@ function normalizedRoleplayProject(value, conv) {
   const fontSizeValue = ["small", "medium", "large"].includes(raw.chatFontSize) ? raw.chatFontSize
     : (raw.chatFontSize != null && String(raw.chatFontSize).trim() !== "" && !isNaN(Number(raw.chatFontSize))
       ? String(Math.min(24, Math.max(10, Number(raw.chatFontSize)))) : "");
+  const legacyThemeMap = { paper: "liquid-pearl", rose: "liquid-pearl", amber: "liquid-pearl", mist: "liquid-mist", lavender: "liquid-mist", sage: "liquid-mist", night: "liquid-mist", ink: "liquid-mist" };
+  const rpTheme = ["liquid-pearl", "liquid-mist"].includes(raw.rpTheme) ? raw.rpTheme : (legacyThemeMap[raw.rpTheme] || "liquid-pearl");
+  const legacyTheme = Boolean(raw.rpTheme && !["liquid-pearl", "liquid-mist"].includes(raw.rpTheme));
   return {
     title: text("title", 80) || String(conv?.title || "未命名剧本").slice(0, 80),
     actorName: text("actorName", 80), userRole: text("userRole", 240), userIdentity: text("userIdentity", 30000),
-    rpTheme: ["mist", "night", "paper", "rose", "amber", "lavender", "sage", "ink"].includes(raw.rpTheme) ? raw.rpTheme : "mist",
+    rpTheme,
     rpWallpaper: /^(https?:\/\/|data:image\/)/.test(raw.rpWallpaper || "") ? String(raw.rpWallpaper).slice(0, 2000000) : "",
     rpWallpaperOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(raw.rpWallpaperOpacity)) ? Number(raw.rpWallpaperOpacity) : 1)),
     rpOverlayOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(raw.rpOverlayOpacity)) ? Number(raw.rpOverlayOpacity) : .65)),
-    rpBaseColor: color("rpBaseColor"),
-    chatTextColor: color("chatTextColor"), chatNarrationColor: color("chatNarrationColor"), chatQuoteColor: color("chatQuoteColor"),
+    rpBaseColor: legacyTheme ? "" : color("rpBaseColor"),
+    chatTextColor: legacyTheme ? "" : color("chatTextColor"), chatNarrationColor: legacyTheme ? "" : color("chatNarrationColor"), chatQuoteColor: legacyTheme ? "" : color("chatQuoteColor"),
     chatFontSize: fontSizeValue,
-    chatFontFamily: ["default", "kai", "song"].includes(raw.chatFontFamily) ? raw.chatFontFamily : "",
+    chatFontFamily: ["default", "kai", "song"].includes(raw.chatFontFamily) ? raw.chatFontFamily : "default",
     backstagePaused: raw.backstagePaused === true,
     sceneSystemPromptEnabled: raw.sceneSystemPromptEnabled !== false,
     sceneSystemPrompt: text("sceneSystemPrompt", 30000) || scenePromptDefault,

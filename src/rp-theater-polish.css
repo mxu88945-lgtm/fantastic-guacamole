@@ -268,3 +268,172 @@
   .rp-theater-head > div:nth-child(2) strong,
   .rp-theater-head > div:nth-child(2) small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+/* Scene chat v3: two fully isolated liquid surfaces. Keep this block last.
+   It deliberately does not key off html[data-theme-key], data-liquid,
+   data-glass, or the owner's bubble setting. */
+body.rp-chat-active[data-rp-theme="liquid-pearl"] {
+  --rp-liquid-panel: rgba(251, 247, 239, .80);
+  --rp-liquid-panel-strong: rgba(247, 241, 231, .91);
+  --rp-liquid-chip: rgba(219, 213, 204, .58);
+  --rp-liquid-line: rgba(117, 107, 96, .22);
+  --rp-liquid-shadow: rgba(76, 67, 56, .11);
+}
+body.rp-chat-active[data-rp-theme="liquid-mist"] {
+  --rp-liquid-panel: rgba(241, 247, 251, .80);
+  --rp-liquid-panel-strong: rgba(235, 243, 249, .91);
+  --rp-liquid-chip: rgba(205, 218, 229, .58);
+  --rp-liquid-line: rgba(95, 125, 155, .22);
+  --rp-liquid-shadow: rgba(50, 76, 99, .11);
+}
+
+html body.rp-chat-active .main {
+  --msg-font: var(--rp-msg-font, 15.5px);
+  --msg-font-family: var(--rp-msg-font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif);
+  --msg-font-weight: 460;
+  --assistant-bubble: transparent;
+  --user-bubble: var(--rp-liquid-panel-strong);
+  background-color: var(--rp-base-color, #f4efe6) !important;
+  color: var(--rp-text-color, #34312d) !important;
+  font-family: var(--rp-msg-font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif) !important;
+}
+html body.rp-chat-active.rp-wallpaper-active .main { background-color: transparent !important; }
+html body.rp-chat-active .main > .chat {
+  background: transparent !important;
+  padding-top: calc(76px + env(safe-area-inset-top)) !important;
+}
+html body.rp-chat-active .main > header {
+  background: var(--rp-liquid-panel) !important;
+  background-image: linear-gradient(135deg, rgba(255,255,255,.42), transparent 58%) !important;
+  border-color: var(--rp-liquid-line) !important;
+  box-shadow: 0 10px 28px var(--rp-liquid-shadow), inset 0 1px 0 rgba(255,255,255,.76) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.08) !important;
+  backdrop-filter: blur(22px) saturate(1.08) !important;
+  filter: none !important;
+}
+html body.rp-chat-active .main > header::before,
+html body.rp-chat-active .main > header::after { content: none !important; display: none !important; }
+
+html body.rp-chat-active #messages {
+  width: 100% !important;
+  max-width: 760px !important;
+  padding-inline: 18px !important;
+}
+html body.rp-chat-active #messages .msg {
+  width: 100% !important;
+  margin-bottom: 22px !important;
+  gap: 6px !important;
+  filter: none !important;
+}
+html body.rp-chat-active #messages .msg.assistant.flat {
+  display: block !important;
+  align-items: stretch !important;
+}
+html body.rp-chat-active #messages .msg.assistant.flat > .msg-head { display: none !important; }
+html body.rp-chat-active #messages .msg.assistant.flat > .bubble,
+html body.rp-chat-active #messages .msg.assistant .body,
+html body.rp-chat-active #messages .msg.assistant .bubble {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  color: var(--rp-text-color, #34312d) !important;
+  font: 460 var(--rp-msg-font, 15.5px)/1.92 var(--rp-msg-font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif) !important;
+  letter-spacing: .005em !important;
+  text-shadow: none !important;
+}
+html body.rp-chat-active #messages .msg.user.flat {
+  display: flex !important;
+  align-items: flex-end !important;
+}
+html body.rp-chat-active #messages .msg.user.flat > .msg-head { order: 0; }
+html body.rp-chat-active #messages .msg.user .bubble,
+html body.rp-chat-active #messages .msg.user.flat > .bubble {
+  width: fit-content !important;
+  max-width: min(86vw, 620px) !important;
+  padding: 10px 15px !important;
+  border: 1px solid var(--rp-liquid-line) !important;
+  border-radius: 20px 20px 7px 20px !important;
+  background: var(--rp-liquid-panel) !important;
+  background-image: linear-gradient(145deg, rgba(255,255,255,.44), transparent 60%) !important;
+  box-shadow: 0 9px 24px var(--rp-liquid-shadow), inset 0 1px 0 rgba(255,255,255,.72) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.08) !important;
+  backdrop-filter: blur(18px) saturate(1.08) !important;
+  color: var(--rp-text-color, #34312d) !important;
+  font: 460 var(--rp-msg-font, 15.5px)/1.72 var(--rp-msg-font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif) !important;
+}
+html body.rp-chat-active #messages .rp-story-text,
+html body.rp-chat-active #messages .roleplay-opening-text { line-height: 1.92 !important; }
+html body.rp-chat-active #messages .rp-story-text > p { margin: 0 0 .9em !important; }
+html body.rp-chat-active #messages .rp-story-text .chat-quote,
+html body.rp-chat-active #messages .roleplay-opening-text .chat-quote {
+  padding: .25em .58em !important;
+  border: 1px solid color-mix(in srgb, var(--rp-liquid-line) 74%, transparent) !important;
+  border-radius: 9px !important;
+  background: var(--rp-liquid-chip) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.52) !important;
+  color: var(--rp-quote-color, #756b60) !important;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+html body.rp-chat-active #messages .rp-story-text > p:has(> .chat-quote:only-child) {
+  margin-block: .55em 1em !important;
+  line-height: 2.12 !important;
+}
+
+html body.rp-chat-active .main > .composer-wrap,
+html body.rp-chat-active .main > .composer-wrap::before,
+html body.rp-chat-active .main > .composer-wrap::after {
+  background: transparent !important;
+  background-image: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+}
+html body.rp-chat-active .composer {
+  position: relative !important;
+  isolation: isolate !important;
+  overflow: hidden !important;
+  background: var(--rp-liquid-panel) !important;
+  background-image: linear-gradient(140deg, rgba(255,255,255,.62), transparent 56%) !important;
+  border: 1px solid rgba(255,255,255,.68) !important;
+  border-radius: 27px !important;
+  box-shadow: 0 12px 34px var(--rp-liquid-shadow), inset 0 1px 0 rgba(255,255,255,.82), inset 0 0 0 1px var(--rp-liquid-line) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.12) !important;
+  backdrop-filter: blur(24px) saturate(1.12) !important;
+  filter: none !important;
+}
+html body.rp-chat-active .composer::before,
+html body.rp-chat-active .composer::after { content: none !important; display: none !important; }
+html body.rp-chat-active .composer textarea {
+  color: var(--rp-text-color, #34312d) !important;
+  text-shadow: none !important;
+}
+html body.rp-chat-active .composer textarea::placeholder { color: var(--rp-narration-color, #746d63) !important; opacity: .72; }
+html body.rp-chat-active .composer .attach-btn,
+html body.rp-chat-active .composer .voice-input-btn {
+  background: rgba(255,255,255,.44) !important;
+  color: var(--rp-accent-color, #918474) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.78) !important;
+  filter: none !important;
+}
+html body.rp-chat-active .composer .send-btn {
+  background: var(--rp-accent-color, #918474) !important;
+  color: white !important;
+  box-shadow: 0 7px 16px color-mix(in srgb, var(--rp-accent-color, #918474) 25%, transparent) !important;
+  filter: none !important;
+}
+html body.rp-chat-active .composer-hint { display: none !important; }
+
+@media (max-width: 680px) {
+  html body.rp-chat-active #messages { padding-inline: 16px !important; }
+  html body.rp-chat-active #messages .msg { margin-bottom: 19px !important; }
+  html body.rp-chat-active .composer { border-radius: 25px !important; }
+}

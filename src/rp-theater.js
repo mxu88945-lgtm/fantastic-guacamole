@@ -367,11 +367,11 @@ function plainPreviewWithMedia(value) {
               <section class="rp-wide rp-card-block rp-scene-theme" id="rp-scene-theme" data-rp-sec="main">
                 <div class="rp-card-block-head"><div><strong>本剧场外观</strong><small>只影响剧情窗口，不会修改主聊天</small></div><span class="rp-theme-badge">SCENE ONLY</span></div>
                 <div class="rp-theme-presets" role="radiogroup" aria-label="剧情主题">
-                  <button type="button" data-rp-theme="mist"><i></i><span>雾蓝</span></button><button type="button" data-rp-theme="night"><i></i><span>墨夜</span></button><button type="button" data-rp-theme="paper"><i></i><span>纸页</span></button><button type="button" data-rp-theme="rose"><i></i><span>绯雾</span></button><button type="button" data-rp-theme="amber"><i></i><span>琥珀</span></button>
+                  <button type="button" data-rp-theme="liquid-pearl"><i></i><span>珍珠米白</span></button><button type="button" data-rp-theme="liquid-mist"><i></i><span>雾霁月蓝</span></button>
                 </div>
-                <div class="rp-theme-fields"><label><span>字体</span><select id="rp-field-font-family"><option value="default">系统黑体</option><option value="kai">楷体</option><option value="song">宋体</option></select></label><label><span>字号</span><input id="rp-field-font-size" type="range" min="12" max="20" step="0.5" value="15" /><output id="rp-field-font-size-value">15</output></label></div>
-                <div class="rp-theme-colors"><label>正文 <input id="rp-field-text-color" type="color" value="#263451"></label><label>旁白 <input id="rp-field-narration-color" type="color" value="#66738a"></label><label>引用 <input id="rp-field-quote-color" type="color" value="#5865a8"></label></div>
-                <div class="rp-theme-preview" id="rp-theme-preview"><em>（旁白会更柔和，但不会发灰。）</em><strong>“正文保持清晰，主题只属于这部戏。”</strong></div>
+                <div class="rp-theme-fields"><label><span>字体</span><select id="rp-field-font-family"><option value="default">系统黑体</option><option value="kai">楷体</option><option value="song">宋体</option></select></label><label><span>字号</span><input id="rp-field-font-size" type="range" min="12" max="20" step="0.5" value="15.5" /><output id="rp-field-font-size-value">15.5</output></label></div>
+                <div class="rp-theme-colors"><label>正文 <input id="rp-field-text-color" type="color" value="#34312d"></label><label>旁白 <input id="rp-field-narration-color" type="color" value="#746d63"></label><label>引用 <input id="rp-field-quote-color" type="color" value="#756b60"></label></div>
+                <div class="rp-theme-preview" id="rp-theme-preview"><em>（旁白保持柔和，正文仍然清楚。）</em><strong>“对白采用惟镜式液态文本布局。”</strong></div>
               </section>
               <section class="rp-wide rp-card-block" id="rp-theater-world-block" data-rp-sec="theater">
                 <div class="rp-card-block-head"><div><strong>剧本世界观</strong><small>本剧场所有角色与 NPC 共用 · 对标惟镜长剧情</small></div><label class="rp-theater-world-switch"><input type="checkbox" id="rp-theater-world-enabled" checked><span>启用</span></label></div>
@@ -446,9 +446,9 @@ function plainPreviewWithMedia(value) {
       worldEntries: state.worldEntries.map(({ expanded, ...e }) => e),
       regexRules: state.regexRules.map(({ expanded, ...rule }) => ({ ...rule })),
       description: safeText($("rp-field-description").dataset.full || "", 20000),
-      rpTheme: $("rp-scene-theme")?.dataset.theme || "mist",
+      rpTheme: $("rp-scene-theme")?.dataset.theme || "liquid-pearl",
       chatFontFamily: $("rp-field-font-family")?.value || "default",
-      chatFontSize: $("rp-field-font-size")?.value || "15",
+      chatFontSize: $("rp-field-font-size")?.value || "15.5",
       chatTextColor: $("rp-field-text-color")?.value || "",
       chatNarrationColor: $("rp-field-narration-color")?.value || "",
       chatQuoteColor: $("rp-field-quote-color")?.value || "",
@@ -498,13 +498,15 @@ function plainPreviewWithMedia(value) {
     state.selectedGreeting = Math.max(0, Math.min(Number(data.openingIndex) || 0, state.greetings.length - 1));
     $("rp-field-opening").value = state.greetings[state.selectedGreeting] || "";
     $("rp-field-memory").value = safeText(data.memory);
-    $("rp-scene-theme").dataset.theme = data.rpTheme || "mist";
+    const legacyTheme = { paper: "liquid-pearl", rose: "liquid-pearl", amber: "liquid-pearl", mist: "liquid-mist", lavender: "liquid-mist", sage: "liquid-mist", night: "liquid-mist", ink: "liquid-mist" }[data.rpTheme];
+    $("rp-scene-theme").dataset.theme = ["liquid-pearl", "liquid-mist"].includes(data.rpTheme) ? data.rpTheme : (legacyTheme || "liquid-pearl");
     $("rp-field-font-family").value = data.chatFontFamily || "default";
-    $("rp-field-font-size").value = data.chatFontSize && !isNaN(Number(data.chatFontSize)) ? data.chatFontSize : "15";
+    $("rp-field-font-size").value = data.chatFontSize && !isNaN(Number(data.chatFontSize)) ? data.chatFontSize : "15.5";
     $("rp-field-font-size-value").textContent = $("rp-field-font-size").value;
-    $("rp-field-text-color").value = data.chatTextColor || ({mist:"#263451",night:"#f4f1e8",paper:"#3b332c",rose:"#4a2635",amber:"#f6e7d4"}[data.rpTheme] || "#263451");
-    $("rp-field-narration-color").value = data.chatNarrationColor || ({mist:"#66738a",night:"#c9c0b4",paper:"#806f60",rose:"#9b6078",amber:"#d8b58a"}[data.rpTheme] || "#66738a");
-    $("rp-field-quote-color").value = data.chatQuoteColor || ({mist:"#5865a8",night:"#e2bd67",paper:"#9a6b32",rose:"#b45d7e",amber:"#e7b36d"}[data.rpTheme] || "#5865a8");
+    const colors = $("rp-scene-theme").dataset.theme === "liquid-mist" ? ["#293746", "#69798a", "#5f7d9b"] : ["#34312d", "#746d63", "#756b60"];
+    $("rp-field-text-color").value = data.chatTextColor || colors[0];
+    $("rp-field-narration-color").value = data.chatNarrationColor || colors[1];
+    $("rp-field-quote-color").value = data.chatQuoteColor || colors[2];
     renderSceneTheme();
     $("rp-editor-title").textContent = state.editingId ? "编辑剧本" : "新建剧本";
     renderFiles();
@@ -1322,9 +1324,9 @@ function plainPreviewWithMedia(value) {
 
   function renderSceneTheme() {
     const root = $("rp-scene-theme"); if (!root) return;
-    const theme = root.dataset.theme || "mist";
+    const theme = root.dataset.theme || "liquid-pearl";
     root.querySelectorAll("[data-rp-theme]").forEach(button => { button.classList.toggle("active", button.dataset.rpTheme === theme); button.setAttribute("aria-checked", button.dataset.rpTheme === theme ? "true" : "false"); });
-    const preview = $("rp-theme-preview"); if (preview) { preview.style.setProperty("--preview-body", $("rp-field-text-color")?.value || "#263451"); preview.style.setProperty("--preview-narration", $("rp-field-narration-color")?.value || "#66738a"); preview.style.setProperty("--preview-quote", $("rp-field-quote-color")?.value || "#5865a8"); }
+    const preview = $("rp-theme-preview"); if (preview) { preview.style.setProperty("--preview-body", $("rp-field-text-color")?.value || "#34312d"); preview.style.setProperty("--preview-narration", $("rp-field-narration-color")?.value || "#746d63"); preview.style.setProperty("--preview-quote", $("rp-field-quote-color")?.value || "#756b60"); }
     const value = $("rp-field-font-size-value"); if (value && $("rp-field-font-size")) value.textContent = $("rp-field-font-size").value;
   }
 
@@ -1663,10 +1665,9 @@ function plainPreviewWithMedia(value) {
   $("rp-editor-back").addEventListener("click", leaveEditor);
   document.querySelectorAll("[data-rp-theme]").forEach(button => button.addEventListener("click", () => {
     const theme = button.dataset.rpTheme;
-    const colors = {
-      mist: ["#263451", "#66738a", "#5865a8"], night: ["#f4f1e8", "#c9c0b4", "#e2bd67"],
-      paper: ["#3b332c", "#806f60", "#9a6b32"], rose: ["#4a2635", "#9b6078", "#b45d7e"], amber: ["#f6e7d4", "#d8b58a", "#e7b36d"]
-    }[theme] || ["#263451", "#66738a", "#5865a8"];
+    const colors = theme === "liquid-mist"
+      ? ["#293746", "#69798a", "#5f7d9b"]
+      : ["#34312d", "#746d63", "#756b60"];
     $("rp-scene-theme").dataset.theme = theme;
     $("rp-field-text-color").value = colors[0]; $("rp-field-narration-color").value = colors[1]; $("rp-field-quote-color").value = colors[2];
     renderSceneTheme();

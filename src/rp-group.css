@@ -9,11 +9,11 @@
 .rp-mention-portrait img { width: 100%; height: 100%; object-fit: cover; }
 .rp-scene-strip { margin: 0 0 14px; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--accent-soft) 42%, transparent); color: var(--text-dim); font-size: .9em; line-height: 1.65; }
 .rp-story-body + .rp-status-card { margin-top: 12px; }
-.rp-status-card { box-sizing: border-box; display: block; position: static; width: 100%; height: auto !important; min-height: 0 !important; margin: 12px 0 0; padding: 4px 0 4px 12px; border: 0; border-left: 2px solid color-mix(in srgb, var(--accent) 62%, transparent); border-radius: 0; background: transparent !important; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; overflow: visible; font-size: var(--rp-msg-font, var(--msg-font, 14.5px)); }
+.rp-status-card { box-sizing: border-box; display: block; position: static; width: 100%; height: auto !important; min-height: 0 !important; margin: 16px 0 0; padding: 16px 18px; border: 1px solid var(--rp-liquid-line, rgba(117,107,96,.22)); border-radius: 18px; background: var(--rp-liquid-panel, rgba(251,247,239,.80)) !important; box-shadow: 0 10px 26px var(--rp-liquid-shadow, rgba(76,67,56,.10)), inset 0 1px 0 rgba(255,255,255,.72); backdrop-filter: blur(18px) saturate(1.08); -webkit-backdrop-filter: blur(18px) saturate(1.08); overflow: hidden; font-size: var(--rp-msg-font, 15.5px); }
 /* The app-wide `header` rule carries the iPhone safe-area padding. Reset every
    layout property here so a status tail stays content-height inside a message. */
-.rp-status-card > header { box-sizing: border-box; position: static; z-index: auto; display: block; width: auto; height: auto !important; min-height: 0 !important; margin: 0 0 5px; padding: 0 !important; background: transparent; color: var(--accent); font-size: .78em; font-weight: 750; line-height: 1.4; letter-spacing: .08em; }
-.rp-status-row { display: grid; grid-template-columns: minmax(92px, max-content) minmax(0, 1fr); gap: 9px; align-items: start; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--border) 64%, transparent); font-size: .86em; line-height: 1.5; }
+.rp-status-card > header { box-sizing: border-box; position: static; z-index: auto; display: block; width: auto; height: auto !important; min-height: 0 !important; margin: 0 0 11px; padding: 0 0 10px !important; border-bottom: 1px solid var(--rp-liquid-line, rgba(117,107,96,.18)); background: transparent; color: var(--rp-accent-color, #918474); font-size: .72em; font-weight: 780; line-height: 1.4; letter-spacing: .14em; }
+.rp-status-row { display: grid; grid-template-columns: minmax(82px, max-content) minmax(0, 1fr); gap: 11px; align-items: start; padding: 5px 0; border-top: 0; font-size: .86em; line-height: 1.58; }
 .rp-status-row:first-of-type { border-top: 0; }
 .rp-status-row strong { color: var(--text-dim); font-size: .92em; }
 .rp-status-row span { min-width: 0; }
@@ -211,10 +211,10 @@
 body.rp-chat-active .bubble details.chat-details,
 body.rp-chat-active .bubble details.chat-details[open],
 body.rp-chat-active .bubble .rp-status-card {
-  color: var(--rp-text-color, #263451) !important;
-  background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 88%, white) !important;
-  border-color: color-mix(in srgb, var(--rp-text-color, #263451) 16%, transparent) !important;
-  box-shadow: 0 5px 18px rgba(38,52,81,.08) !important;
+  color: var(--rp-text-color, #34312d) !important;
+  background: var(--rp-liquid-panel, rgba(251,247,239,.80)) !important;
+  border-color: var(--rp-liquid-line, rgba(117,107,96,.22)) !important;
+  box-shadow: 0 10px 26px var(--rp-liquid-shadow, rgba(76,67,56,.10)), inset 0 1px 0 rgba(255,255,255,.72) !important;
   text-shadow: none !important;
 }
 body.rp-chat-active .bubble details.chat-details > summary,
@@ -267,15 +267,15 @@ body.rp-chat-active .bubble :not(pre) > code {
    the ordinary markdown bubble hierarchy. */
 body.rp-chat-active #messages :is(.rp-scene-strip, .rp-status-card, details.chat-details, pre),
 body.rp-chat-active #messages :is(.rp-story-text, .roleplay-opening-text) :is(pre, details.chat-details, .rp-status-card) {
-  background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 88%, white) !important;
-  color: var(--rp-text-color, #263451) !important;
-  border-color: color-mix(in srgb, var(--rp-text-color, #263451) 14%, transparent) !important;
+  background: var(--rp-liquid-panel, rgba(251,247,239,.80)) !important;
+  color: var(--rp-text-color, #34312d) !important;
+  border-color: var(--rp-liquid-line, rgba(117,107,96,.22)) !important;
   text-shadow: none !important;
 }
 body.rp-chat-active #messages :is(.rp-story-text, .roleplay-opening-text) :is(code, kbd, samp, mark, .chat-quote) {
-  background: color-mix(in srgb, var(--rp-base-color, #eef4fd) 76%, white) !important;
-  color: var(--rp-quote-color, var(--rp-text-color, #263451)) !important;
-  border-color: transparent !important;
+  background: var(--rp-liquid-chip, rgba(219,213,204,.58)) !important;
+  color: var(--rp-quote-color, var(--rp-text-color, #34312d)) !important;
+  border-color: var(--rp-liquid-line, rgba(117,107,96,.18)) !important;
   text-shadow: none !important;
 }
 body.rp-chat-active #messages :is(.rp-scene-strip, .rp-status-card, details.chat-details) *,
