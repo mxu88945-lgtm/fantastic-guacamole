@@ -94,6 +94,10 @@ if (!bridge) {
       ? `正在听《${music.song.name}》`
       : music.connected ? "搜索一首歌，和 TA 一起听" : "连接 Eryu 后开始听歌";
 
+    $("dashboard-gift-meta").textContent = Number(data.giftCount || 0)
+      ? `已经交换了 ${data.giftCount} 份心意`
+      : `挑一份只属于你和 ${roleName} 的心意`;
+
     const game = window.JYCGameRoom?.summary?.(data.roleId) || { rounds: 0, favorites: 0 };
     $("dashboard-game-meta").textContent = game.rounds
       ? `已经一起玩了 ${game.rounds} 局`
@@ -123,6 +127,7 @@ if (!bridge) {
     if (action === "reading") { await window.JYCReadingRoom?.ready; window.JYCReadingRoom?.open(); return; }
     if (action === "music") { await window.JYCMusic?.open?.(); return; }
     if (action === "game") { window.JYCGameRoom?.open?.(); return; }
+    if (action === "gifts") { window.dispatchEvent(new CustomEvent("jyc:gifts-open")); return; }
     if (action === "roleplay") {
       // Use an event as the primary hand-off so the dashboard does not depend
       // on the RP module's global being attached before this click runs.

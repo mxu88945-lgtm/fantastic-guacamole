@@ -2623,6 +2623,7 @@
 <link rel="stylesheet" href="./src/dashboard.css" />
 <link rel="stylesheet" href="./src/music.css" />
 <link rel="stylesheet" href="./src/game-room.css" />
+<link rel="stylesheet" href="./src/gifts.css" />
 <link rel="stylesheet" href="./src/liquid-glass.css" />
 <!-- RP styles must stay after every owner-theme stylesheet: the theater is a fully isolated surface. -->
 <link rel="stylesheet" href="./src/rp-theater.css" />
@@ -2815,6 +2816,13 @@
               <span class="dashboard-card-kicker">LISTEN TOGETHER</span>
               <span class="dashboard-music-note" aria-hidden="true">♪</span>
               <span class="dashboard-card-copy"><strong>一起听歌</strong><em id="dashboard-music-meta">把一首歌递给 TA</em></span>
+              <span class="dashboard-arrow" aria-hidden="true">↗</span>
+            </button>
+
+            <button type="button" class="dashboard-card dashboard-gift-card" data-dashboard-action="gifts">
+              <span class="dashboard-card-kicker">GIFTS BETWEEN US</span>
+              <span class="dashboard-gift-ribbon" aria-hidden="true">🎁</span>
+              <span class="dashboard-card-copy"><strong>礼物图鉴</strong><em id="dashboard-gift-meta">挑一份只属于你们的心意</em></span>
               <span class="dashboard-arrow" aria-hidden="true">↗</span>
             </button>
 
@@ -3893,6 +3901,7 @@
       <div id="plus-menu">
         <button data-act="image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>图片</button>
         <button data-act="file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>文件</button>
+        <button data-act="gift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 1 1 2.1-3.85L12 7Zm0 0h4.5a2.5 2.5 0 1 0-2.1-3.85L12 7Z"/></svg>礼物</button>
         <button data-act="location" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>位置</button>
         <button data-act="draw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2.5 2.5 0 0 0 2.5-2.5c0-.6-.2-1.1-.6-1.5-.4-.4-.6-.9-.6-1.5A2.5 2.5 0 0 1 15.8 14H18a4 4 0 0 0 4-4 8 8 0 0 0-10-8Z"/></svg>生成图片</button>
       </div>
@@ -5495,8 +5504,18 @@ function messageText(m) {
   if (Array.isArray(m.content))
     return m.content.map(p => p.type === "text" ? p.text
       : (p.type === "sticker" ? "[表情:" + p.name + "]"
-        : (p.type === "file" ? "[文件:" + (p.name || "未命名文件") + "]" : ""))).join(" ").trim();
+        : (p.type === "file" ? "[文件:" + (p.name || "未命名文件") + "]"
+          : (p.type === "gift" ? giftPartPromptText(p) : "")))).join(" ").trim();
   return "";
+}
+function giftPartPromptText(part) {
+  if (!part || part.type !== "gift") return "";
+  const from = String(part.senderName || (part.direction === "role-to-user" ? settings.aiName || "TA" : settings.userName || "用户")).trim();
+  const to = String(part.recipientName || (part.direction === "role-to-user" ? settings.userName || "用户" : settings.aiName || "TA")).trim();
+  const name = String(part.name || "礼物").trim();
+  const subtitle = String(part.subtitle || "只此一份").trim();
+  const note = String(part.note || "").trim();
+  return `🎁 礼物事件｜${from}送给${to}「${name}」（${subtitle}）${note ? `\n附言：${note}` : ""}`;
 }
 function messageEditableText(m) {
   if (isHiddenRoleplayMentionMessage(m)) return "";
@@ -7599,9 +7618,10 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState) 
   return stickerParts + thinkHtml + textHtml;
 }
 function messageContentHtml(role, content, reasoning, traces, responseState) {
-  const media = imagePartsHtml(content) + filePartsHtml(content) + locationPartsHtml(content);
+  const giftCards = window.JYCGifts?.renderGiftPartsHtml?.(content) || "";
+  const media = imagePartsHtml(content) + filePartsHtml(content) + locationPartsHtml(content) + giftCards;
   if (!media) return `<div class="bubble">${bubbleHtml(role, content, reasoning, false, traces, responseState)}</div>`;
-  const rest = content.filter(p => p.type !== "image" && p.type !== "file" && !isLocationPart(p));
+  const rest = content.filter(p => p.type !== "image" && p.type !== "file" && p.type !== "gift" && !isLocationPart(p));
   const hasTextOrSticker = rest.some(p => p.type === "sticker" || (p.type === "text" && (p.text || "").trim()));
   const hasReasoning = role === "assistant" && (!!(reasoning || "").trim() || (Array.isArray(traces) && traces.length));
   return `<div class="msg-media">${media}</div>` +
@@ -9898,6 +9918,11 @@ function sendContent(m) {
   }
   if (m.role === "assistant" && m.rpSpeakerName && typeof content === "string" && content.trim())
     return `【共演发言：${m.rpSpeakerName}】\n${content}`;
+  if (Array.isArray(content) && content.some(part => part?.type === "gift")) {
+    return content.flatMap(part => part?.type === "gift"
+      ? [{ type: "text", text: giftPartPromptText(part) }]
+      : [{ ...part }]);
+  }
   return content;
 }
 // Map the chosen 表情风格 preset to a system-prompt note (handles legacy boolean).
@@ -10270,6 +10295,12 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   }
   const albumNote = "【私有相册】当用户让你看相册、回忆某张照片，或回答确实依赖照片内容时，先只写 `[相册:标题/日期/关键词]`。应用只会检索当前角色自己的相册并把可靠结果交给你；收到结果前禁止假装看过。不要在无关话题中滥用。";
   systemText = systemText ? systemText + "\n\n" + albumNote : albumNote;
+  if (!rpProject && window.JYCGifts?.buildGiftSystemNote) {
+    const roleGiftParts = privateRoleConvs().flatMap(conv => (conv.messages || []).flatMap(message =>
+      Array.isArray(message.content) ? message.content.filter(part => part?.type === "gift") : []));
+    const giftNote = window.JYCGifts.buildGiftSystemNote(roleGiftParts, settings.aiName || "TA", settings.userName || "用户");
+    if (giftNote) systemText = systemText ? systemText + "\n\n" + giftNote : giftNote;
+  }
   if (pendingSearchContext) {
     systemText = systemText ? systemText + "\n\n" + pendingSearchContext : pendingSearchContext;
   }
@@ -14362,9 +14393,21 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       // display-time rendering below turns the tags into native cards.
       if (replyProject?.groupEnabled && replySpeaker && !backstageMode)
         assistantMsg.content = ensureRoleplayStatusOutput(assistantMsg.content, replySpeaker, replyProject);
+      // The owner can send a real gift card by emitting the constrained gift
+      // marker taught in the system prompt. Keep the card in the transcript so
+      // it survives reloads, exports, compaction and future memory retrieval.
+      const giftResult = !replyProject && window.JYCGifts?.extractAssistantGift
+        ? window.JYCGifts.extractAssistantGift(assistantMsg.content, {
+            roleName: settings.aiName || "TA", userName: settings.userName || "用户",
+          }) : null;
+      if (giftResult?.gift) {
+        assistantMsg.content = [giftResult.gift];
+        if (giftResult.text) assistantMsg.content.push({ type: "text", text: giftResult.text });
+        window.dispatchEvent(new CustomEvent("jyc:gifts-updated"));
+      }
       // Texting like a real person: split the finished reply into multiple bubbles
       // and standalone stickers, then reveal them one at a time.
-      const segs = !isRoleplayConversation() && (settings.multiBubble || settings.aiSticker)
+      const segs = !giftResult?.gift && !isRoleplayConversation() && (settings.multiBubble || settings.aiSticker)
         ? splitReply(assistantMsg.content, settings.multiBubble, settings.aiSticker) : null;
       const multi = segs && (segs.length > 1 || (segs.length === 1 && segs[0].kind === "sticker"));
       if (multi) {
@@ -16702,6 +16745,7 @@ async function init() {
       else if (act === "export") openExportDialog();
       else if (act === "draw") drawImage();
       else if (act === "location") shareLocation();
+      else if (act === "gift") window.dispatchEvent(new CustomEvent("jyc:gifts-open"));
       if (act !== "image" && act !== "file") $("plus-menu").classList.remove("show");
     };
   });
@@ -17886,6 +17930,8 @@ window.JYCDashboardBridge = {
       nextSpecialDay: next ? { title: next.title || specialDayKindMeta(next.kind).label, status: specialDayStatus(next) } : null,
       workbenchCount: Array.isArray(projects) ? projects.length : 0,
       roleplayCount: roleConvs().filter(isRoleplayConversation).length,
+      giftCount: privateRoleConvs().reduce((count, conv) => count + (conv.messages || []).reduce((n, message) =>
+        n + (Array.isArray(message.content) ? message.content.filter(part => part?.type === "gift").length : 0), 0), 0),
     };
   },
   newChat: createConversation,
@@ -17919,6 +17965,40 @@ window.JYCDashboardBridge = {
   isMobile,
   closeSidebar,
 };
+window.JYCGiftBridge = {
+  context: () => {
+    const role = ensureRoleCompanionData(activeRole());
+    return {
+      roleId: role?.id || settings.activeRoleId || "default",
+      roleName: role?.name || settings.aiName || "TA",
+      userName: settings.userName || "你",
+    };
+  },
+  history: () => privateRoleConvs().flatMap(conv => (conv.messages || []).flatMap(message =>
+    Array.isArray(message.content) ? message.content.filter(part => part?.type === "gift") : []))
+    .sort((a, b) => Number(a?.ts || 0) - Number(b?.ts || 0)),
+  send: async (item, note) => {
+    const target = latestRoleConversation() || currentConv();
+    if (target && target.id !== currentId) switchConversation(target.id);
+    const part = {
+      type: "gift", giftId: String(item?.id || "custom"), name: String(item?.name || "礼物"),
+      icon: String(item?.icon || "🎁"), subtitle: String(item?.subtitle || "只此一份"),
+      category: String(item?.category || "handmade"), direction: "user-to-role",
+      senderName: settings.userName || "你", recipientName: settings.aiName || "TA",
+      note: String(note || "").trim().slice(0, 240), ts: Date.now(), custom: Boolean(item?.custom),
+    };
+    window.dispatchEvent(new CustomEvent("jyc:chat-opened", { detail: { conversationId: currentId } }));
+    await send({ parts: [part] });
+    window.dispatchEvent(new CustomEvent("jyc:gifts-updated"));
+    window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
+  },
+  requestFromRole: async () => {
+    const target = latestRoleConversation() || currentConv();
+    if (target && target.id !== currentId) switchConversation(target.id);
+    window.dispatchEvent(new CustomEvent("jyc:chat-opened", { detail: { conversationId: currentId } }));
+    await send({ parts: [{ type: "text", text: "我想看看你会送我什么。别问我，按你现在的心意从礼物图鉴里挑一份送给我。" }] });
+  },
+};
 init().catch(e => {
   console.error("App init failed", e);
   try { showToast("启动失败，请刷新重试"); } catch (_) {}
@@ -17941,6 +18021,7 @@ if ("serviceWorker" in navigator) {
 <script type="module" src="./src/game-room.js"></script>
 <script type="module" src="./src/rp-theater.js"></script>
 <script type="module" src="./src/rp-group.js"></script>
+<script type="module" src="./src/gifts.js"></script>
 <script type="module" src="./src/dashboard.js"></script>
 <script type="module" src="./src/liquid-glass.js"></script>
 <script>

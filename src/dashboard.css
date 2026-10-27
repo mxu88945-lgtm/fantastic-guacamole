@@ -253,7 +253,7 @@ html[data-theme="dark"] .dashboard-card { box-shadow: inset 0 1px rgba(255,255,2
   .dashboard-chat-card .dashboard-card-copy strong { font-size: 26px; }
   .dashboard-chat-card .dashboard-card-copy em { font-size: 11px; }
   .dashboard-arrow { right: 15px; bottom: 15px; width: 34px; height: 34px; }
-  .dashboard-album-card, .dashboard-music-card, .dashboard-rp-card, .dashboard-welcome-card, .dashboard-game-card, .dashboard-reading-card, .dashboard-day-card, .dashboard-tools-card { min-height: 175px; }
+  .dashboard-album-card, .dashboard-music-card, .dashboard-gift-card, .dashboard-rp-card, .dashboard-welcome-card, .dashboard-game-card, .dashboard-reading-card, .dashboard-day-card, .dashboard-tools-card { min-height: 175px; }
   .dashboard-album-card .dashboard-card-copy strong, .dashboard-day-card .dashboard-card-copy strong { font-size: 17px; }
   .dashboard-welcome-card p { margin-top: 42px; font-size: 20px; }
   .dashboard-orb { top: 24px; width: 42px; height: 42px; }
