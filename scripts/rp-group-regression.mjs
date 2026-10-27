@@ -63,6 +63,7 @@ const migratedWarm = context.normalizedRoleplayProject({ rpTheme: "paper", rpBas
 assert.equal(migratedWarm.rpTheme, "liquid-pearl");
 assert.equal(migratedWarm.rpBaseColor, "", "legacy theme colors must not survive migration as stale overrides");
 assert.equal(migratedWarm.chatTextColor, "");
+assert.equal(context.normalizedRoleplayProject({ rpTheme: "liquid-pearl", rpBaseColor: "#f4efe6" }, {}).rpBaseColor, "", "the former pearl default must migrate to the new milk-white preset");
 assert.equal(context.normalizedRoleplayProject({ rpTheme: "sage" }, {}).rpTheme, "liquid-mist");
 assert.equal(context.normalizedRoleplayProject({ chatTextColor: "#AABBCC", chatNarrationColor: "invalid", chatQuoteColor: "#123456" }, {}).chatTextColor, "#aabbcc");
 assert.equal(context.roleplayMembers(legacy).length, 1);
@@ -86,7 +87,7 @@ assert.ok(groupUi.includes('id="rp-temporary-section"') && groupUi.includes('dat
 assert.ok(groupUi.includes('id="rp-user-profile"') && groupUi.includes('id="rp-user-identity"'), "right drawer user identity editor is missing");
 assert.ok(groupUi.includes('id="rp-display-section"') && groupUi.includes('textThemeRow("chatTextColor"') && groupUi.includes("previewSceneTextTheme"), "RP text color theme controls are missing");
 assert.ok(groupUi.includes('type="range" data-rp-font="chatFontSize"') && !groupUi.includes("data-rp-font-size-follow") && groupUi.includes("data-rp-font-size-sample"), "RP font size must be a scene-local slider with a live preview and no follow-main switch");
-assert.ok(groupUi.includes('["liquid-pearl", "珍珠米白"') && groupUi.includes('["liquid-mist", "雾霁月蓝"') && !groupUi.includes('["mist", "雾蓝"'), "the drawer must expose exactly the two new liquid themes");
+assert.ok(groupUi.includes('["liquid-pearl", "珍珠奶白"') && groupUi.includes('["liquid-mist", "雾霁月蓝"') && !groupUi.includes('["mist", "雾蓝"'), "the drawer must expose exactly the two new liquid themes");
 assert.equal(context.normalizedRoleplayProject({ chatFontSize: "15.5" }, {}).chatFontSize, "15.5", "numeric RP font sizes must survive normalization");
 assert.equal(context.normalizedRoleplayProject({ chatFontSize: "99" }, {}).chatFontSize, "24", "numeric RP font sizes must clamp");
 assert.equal(context.normalizedRoleplayProject({ chatFontSize: "huge" }, {}).chatFontSize, "", "invalid RP font sizes must fall back to the scene default");

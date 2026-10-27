@@ -6420,7 +6420,7 @@ function toggleRoleplayDisplayMode() {
 }
 
 const RP_THEME_PRESETS = [
-  { id: "liquid-pearl", name: "珍珠米白", base: "#f4efe6", text: "#34312d", narration: "#746d63", quote: "#756b60", accent: "#918474" },
+  { id: "liquid-pearl", name: "珍珠奶白", base: "#f7f6f2", text: "#373634", narration: "#74716c", quote: "#69645f", accent: "#88837c" },
   { id: "liquid-mist", name: "雾霁月蓝", base: "#edf3f8", text: "#293746", narration: "#69798a", quote: "#5f7d9b", accent: "#6f8fab" },
 ];
 function roleplayThemePreset(project) { return RP_THEME_PRESETS.find(item => item.id === project?.rpTheme) || RP_THEME_PRESETS[0]; }
@@ -8583,6 +8583,8 @@ function normalizedRoleplayProject(value, conv) {
   const legacyThemeMap = { paper: "liquid-pearl", rose: "liquid-pearl", amber: "liquid-pearl", mist: "liquid-mist", lavender: "liquid-mist", sage: "liquid-mist", night: "liquid-mist", ink: "liquid-mist" };
   const rpTheme = ["liquid-pearl", "liquid-mist"].includes(raw.rpTheme) ? raw.rpTheme : (legacyThemeMap[raw.rpTheme] || "liquid-pearl");
   const legacyTheme = Boolean(raw.rpTheme && !["liquid-pearl", "liquid-mist"].includes(raw.rpTheme));
+  const rpBaseColor = color("rpBaseColor");
+  const stalePearlBase = rpTheme === "liquid-pearl" && rpBaseColor === "#f4efe6";
   return {
     title: text("title", 80) || String(conv?.title || "未命名剧本").slice(0, 80),
     actorName: text("actorName", 80), userRole: text("userRole", 240), userIdentity: text("userIdentity", 30000),
@@ -8590,7 +8592,7 @@ function normalizedRoleplayProject(value, conv) {
     rpWallpaper: /^(https?:\/\/|data:image\/)/.test(raw.rpWallpaper || "") ? String(raw.rpWallpaper).slice(0, 2000000) : "",
     rpWallpaperOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(raw.rpWallpaperOpacity)) ? Number(raw.rpWallpaperOpacity) : 1)),
     rpOverlayOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(raw.rpOverlayOpacity)) ? Number(raw.rpOverlayOpacity) : .65)),
-    rpBaseColor: legacyTheme ? "" : color("rpBaseColor"),
+    rpBaseColor: legacyTheme || stalePearlBase ? "" : rpBaseColor,
     chatTextColor: legacyTheme ? "" : color("chatTextColor"), chatNarrationColor: legacyTheme ? "" : color("chatNarrationColor"), chatQuoteColor: legacyTheme ? "" : color("chatQuoteColor"),
     chatFontSize: fontSizeValue,
     chatFontFamily: ["default", "kai", "song"].includes(raw.chatFontFamily) ? raw.chatFontFamily : "default",

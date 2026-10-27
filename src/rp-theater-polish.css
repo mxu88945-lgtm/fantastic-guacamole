@@ -273,11 +273,11 @@
    It deliberately does not key off html[data-theme-key], data-liquid,
    data-glass, or the owner's bubble setting. */
 body.rp-chat-active[data-rp-theme="liquid-pearl"] {
-  --rp-liquid-panel: rgba(251, 247, 239, .80);
-  --rp-liquid-panel-strong: rgba(247, 241, 231, .91);
-  --rp-liquid-chip: rgba(219, 213, 204, .58);
-  --rp-liquid-line: rgba(117, 107, 96, .22);
-  --rp-liquid-shadow: rgba(76, 67, 56, .11);
+  --rp-liquid-panel: rgba(252, 251, 248, .82);
+  --rp-liquid-panel-strong: rgba(248, 247, 243, .92);
+  --rp-liquid-chip: rgba(224, 222, 217, .60);
+  --rp-liquid-line: rgba(105, 101, 95, .20);
+  --rp-liquid-shadow: rgba(64, 62, 58, .10);
 }
 body.rp-chat-active[data-rp-theme="liquid-mist"] {
   --rp-liquid-panel: rgba(241, 247, 251, .80);
@@ -293,8 +293,8 @@ html body.rp-chat-active .main {
   --msg-font-weight: 460;
   --assistant-bubble: transparent;
   --user-bubble: var(--rp-liquid-panel-strong);
-  background-color: var(--rp-base-color, #f4efe6) !important;
-  color: var(--rp-text-color, #34312d) !important;
+  background-color: var(--rp-base-color, #f7f6f2) !important;
+  color: var(--rp-text-color, #373634) !important;
   font-family: var(--rp-msg-font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif) !important;
 }
 html body.rp-chat-active.rp-wallpaper-active .main { background-color: transparent !important; }
@@ -344,7 +344,7 @@ html body.rp-chat-active #messages .msg.assistant .bubble {
   box-shadow: none !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
-  color: var(--rp-text-color, #34312d) !important;
+  color: var(--rp-text-color, #373634) !important;
   font: 460 var(--rp-msg-font, 15.5px)/1.92 var(--rp-msg-font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif) !important;
   letter-spacing: .005em !important;
   text-shadow: none !important;
@@ -366,7 +366,7 @@ html body.rp-chat-active #messages .msg.user.flat > .bubble {
   box-shadow: 0 9px 24px var(--rp-liquid-shadow), inset 0 1px 0 rgba(255,255,255,.72) !important;
   -webkit-backdrop-filter: blur(18px) saturate(1.08) !important;
   backdrop-filter: blur(18px) saturate(1.08) !important;
-  color: var(--rp-text-color, #34312d) !important;
+  color: var(--rp-text-color, #373634) !important;
   font: 460 var(--rp-msg-font, 15.5px)/1.72 var(--rp-msg-font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif) !important;
 }
 html body.rp-chat-active #messages .rp-story-text,
@@ -379,7 +379,7 @@ html body.rp-chat-active #messages .roleplay-opening-text .chat-quote {
   border-radius: 9px !important;
   background: var(--rp-liquid-chip) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.52) !important;
-  color: var(--rp-quote-color, #756b60) !important;
+  color: var(--rp-quote-color, #69645f) !important;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
@@ -413,21 +413,21 @@ html body.rp-chat-active .composer {
 html body.rp-chat-active .composer::before,
 html body.rp-chat-active .composer::after { content: none !important; display: none !important; }
 html body.rp-chat-active .composer textarea {
-  color: var(--rp-text-color, #34312d) !important;
+  color: var(--rp-text-color, #373634) !important;
   text-shadow: none !important;
 }
-html body.rp-chat-active .composer textarea::placeholder { color: var(--rp-narration-color, #746d63) !important; opacity: .72; }
+html body.rp-chat-active .composer textarea::placeholder { color: var(--rp-narration-color, #74716c) !important; opacity: .72; }
 html body.rp-chat-active .composer .attach-btn,
 html body.rp-chat-active .composer .voice-input-btn {
   background: rgba(255,255,255,.44) !important;
-  color: var(--rp-accent-color, #918474) !important;
+  color: var(--rp-accent-color, #88837c) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.78) !important;
   filter: none !important;
 }
 html body.rp-chat-active .composer .send-btn {
-  background: var(--rp-accent-color, #918474) !important;
+  background: var(--rp-accent-color, #88837c) !important;
   color: white !important;
-  box-shadow: 0 7px 16px color-mix(in srgb, var(--rp-accent-color, #918474) 25%, transparent) !important;
+  box-shadow: 0 7px 16px color-mix(in srgb, var(--rp-accent-color, #88837c) 25%, transparent) !important;
   filter: none !important;
 }
 html body.rp-chat-active .composer-hint { display: none !important; }

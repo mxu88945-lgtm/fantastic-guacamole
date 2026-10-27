@@ -461,14 +461,14 @@ body.rp-chat-active #sidebar-workbench { display: none; }
    palette to the conversation instead of letting html[data-theme-key] win. */
 .main.rp-scene-shell,
 body.rp-chat-active .main {
-  --bg: var(--rp-base-color, #f4efe6);
-  --bg-soft: color-mix(in srgb, var(--rp-base-color, #f4efe6) 82%, white);
+  --bg: var(--rp-base-color, #f7f6f2);
+  --bg-soft: color-mix(in srgb, var(--rp-base-color, #f7f6f2) 82%, white);
   --bg-panel: rgba(255, 255, 255, .88);
-  --border: color-mix(in srgb, var(--rp-text-color, #34312d) 16%, transparent);
-  --text: var(--rp-text-color, #34312d);
-  --text-dim: color-mix(in srgb, var(--rp-text-color, #34312d) 58%, white);
-  --accent: var(--rp-accent-color, #918474);
-  --accent-soft: color-mix(in srgb, var(--rp-accent-color, #918474) 15%, white);
+  --border: color-mix(in srgb, var(--rp-text-color, #373634) 16%, transparent);
+  --text: var(--rp-text-color, #373634);
+  --text-dim: color-mix(in srgb, var(--rp-text-color, #373634) 58%, white);
+  --accent: var(--rp-accent-color, #88837c);
+  --accent-soft: color-mix(in srgb, var(--rp-accent-color, #88837c) 15%, white);
   --accent-contrast: #fff;
   --danger: #c45c69;
   color-scheme: light;
@@ -477,7 +477,7 @@ body.rp-chat-active .main {
 body.rp-chat-active .main,
 body.rp-chat-active .main > .chat,
 body.rp-chat-active .main > .composer-wrap {
-  background: var(--rp-base-color, #f4efe6);
+  background: var(--rp-base-color, #f7f6f2);
 }
 /* Keep an opaque scene base below the wallpaper.  The image layer can be
    translucent (or contain transparent/letterboxed pixels), but it must never
