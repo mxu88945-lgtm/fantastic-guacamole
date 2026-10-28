@@ -32,6 +32,8 @@ requireText('let chatWasAtBottom = true, chatResizePinToken = 0, chatLastHeight 
 requireText('chatUserScrollRevision++;  // distinguish a real read gesture from iOS layout scroll events', 'manual reading gesture is not tracked for reply completion')
 requireText('const replyStartedAtBottom = stickBottom || Date.now() < bottomPinUntil;', 'reply completion does not remember the starting bottom state')
 requireText('const followReplyToBottom = replyStartedAtBottom && chatUserScrollRevision === replyScrollRevision;', 'reply completion can lose the real latest-message bottom')
+requireText('const followLatest = frame.dataset.rpPreview !== "true" && frame.closest("#messages") && stickBottom;', 'late RP card height changes do not preserve newest-message following')
+requireText('if (followLatest) requestAnimationFrame(() => { if (stickBottom) scrollToBottom(); });', 'resized RP cards can strand the viewport above the latest reply')
 requireText('if (h === chatLastHeight) return;', 'width-only resizes re-pin the chat')
 requireText('window.dispatchEvent(new Event("jyc-app-h"));', 'pre-paint viewport sync does not announce --app-h changes')
 requireText('  watchChatResizePin();\n', 'keyboard resize watcher is never started')
@@ -45,7 +47,7 @@ if (!roleplayCss.includes('body.rp-chat-active .scroll-nav { display: flex !impo
   throw new Error('RP chat does not expose the same two-way scroll controls as the main chat')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v255";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v256";')) {
   throw new Error('service worker cache was not bumped for the scroll fix')
 }
 

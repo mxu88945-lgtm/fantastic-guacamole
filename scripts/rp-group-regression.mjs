@@ -261,6 +261,12 @@ vm.runInContext(source("function stripRoleplaySpeakerMarker(", "// Map the chose
 vm.runInContext(source("function chatRuntimeSettings(", "// Normalize a raw usage object"), context);
 const captured = [];
 context.fetch = async (url, init) => { captured.push({ url, init, body: JSON.parse(init.body) }); throw new Error("captured-request"); };
+const requestSystem = request => request.body.system || request.body.systemInstruction?.parts[0].text || request.body.messages[0].content;
+project.temporaryPlot = "让导演安排一通只在本轮响起的紧急电话";
+project.temporaryPlotMode = "once";
+project.temporaryPlotRemainingUses = 1;
+project.temporaryPlotRecipientIds = ["director"];
+context.conv.messages = [{ role: "user", content: "继续", rpReplyMemberIds: ["director"] }];
 for (const provider of ["openai", "gemini", "anthropic"]) {
   await assert.rejects(() => context.streamChat(() => {}, () => {}, { ...context.settings, provider, baseUrl: "https://member.test/v1", apiKey: "member-key", model: "member-model", temperature: 0.8 }, project.members[0]), /captured-request/);
   const request = captured.at(-1);
@@ -271,6 +277,9 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
   assert.match(system, /仅由「导演」发言/);
   assert.match(system, /SCENE_ADULT_PRESET_DEFAULT/, "the scene-specific system preset must reach every member request");
   assert.ok(system.lastIndexOf("SCENE_ADULT_PRESET_DEFAULT") > system.lastIndexOf("仅由「导演」发言"), "the scene preset must be appended after the role card and speaker prompt");
+  assert.match(system, /本轮最高优先级临时剧情执行令[\s\S]*紧急电话/, "the selected member's real wire request must contain the temporary plot");
+  assert.ok(system.lastIndexOf("本轮最高优先级临时剧情执行令") > system.lastIndexOf("SCENE_ADULT_PRESET_DEFAULT"), "the newest temporary plot must remain the final system instruction");
+  assert.equal(context.lastPromptAudit.temporaryPlotRecipient, "导演", "the request receipt must identify the actual temporary-plot recipient");
   assert.match(system, /本条消息唯一的发言身份是「导演」/, "independent speakers keep the original single identity boundary");
   assert.doesNotMatch(system, /后台主体身份锁|本轮身份终检/, "wire prompts must not repeat a conflicting late identity contract");
   assert.equal(request.init.headers[provider === "anthropic" ? "x-api-key" : provider === "gemini" ? "x-goog-api-key" : "authorization"], provider === "openai" ? "Bearer member-key" : "member-key");
@@ -279,6 +288,10 @@ for (const provider of ["openai", "gemini", "anthropic"]) {
   assert.equal(wireHistory.at(-1).role, "user", "a group member's response needs a valid final API turn");
   assert.match(JSON.stringify(wireHistory.at(-1)), /共演调度/);
 }
+const unselectedLead = context.roleplayMembers(project)[0];
+await assert.rejects(() => context.streamChat(() => {}, () => {}, { ...context.settings, provider: "openai", baseUrl: "https://member.test/v1", apiKey: "member-key", model: "member-model", temperature: 0.8 }, unselectedLead), /captured-request/);
+assert.doesNotMatch(requestSystem(captured.at(-1)), /紧急电话/, "an unselected member's wire request must not receive another member's temporary plot");
+assert.equal(context.lastPromptAudit.temporaryPlotRecipient, "", "the request receipt must stay empty for an unselected member");
 assert.equal(context.sendContent({ role: "assistant", content: "我接着说", rpSpeakerName: "江屿" }), "【共演发言：江屿】\n我接着说");
 assert.equal(context.stripRoleplaySpeakerMarker("【共演发言：顾祁砚】\n正文"), "正文", "internal speaker labels must not leak into visible RP prose");
 assert.equal(context.sendContent({ role: "assistant", content: "普通对话" }), "普通对话");
@@ -296,7 +309,6 @@ context.conversationProjectFiles = () => [{ name: "场景资料", text: "SCENE_R
 context.safeReferenceFileName = name => name;
 context.boundedReferenceFileText = (text, limit) => String(text).slice(0, limit);
 project.characterPrompt = "LEAD_CARD_ONLY";
-const requestSystem = request => request.body.system || request.body.systemInstruction?.parts[0].text || request.body.messages[0].content;
 for (const provider of ["openai", "gemini", "anthropic"]) {
   const config = { ...context.settings, provider, baseUrl: "https://member.test/v1", apiKey: "member-key", model: "member-model", temperature: 0.8 };
   const director = project.members[0];

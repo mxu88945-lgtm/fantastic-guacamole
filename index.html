@@ -7567,7 +7567,12 @@ if (typeof window !== "undefined") window.addEventListener("message", event => {
     return;
   }
   if (data.type === "jyc-rp-frame-height") {
+    const followLatest = frame.dataset.rpPreview !== "true" && frame.closest("#messages") && stickBottom;
     frame.style.height = `${Math.max(40, Math.min(Number(data.height) || 40, 6000))}px`;
+    // Rich RP cards report their real height after the reply has already been
+    // rendered. Re-pin only when the live chat was following the newest turn;
+    // previews and a user who scrolled up must remain exactly where they are.
+    if (followLatest) requestAnimationFrame(() => { if (stickBottom) scrollToBottom(); });
     return;
   }
   if (["jyc-rp-card-action", "send", "send-message", "send_message", "select-opening", "select_script"].includes(data.type)) {
@@ -7872,6 +7877,8 @@ function makeMsgEl(role, content, opts) {
             + (opts.promptAudit.memory.cooldownSuppressed ? "，冷却拦截 " + opts.promptAudit.memory.cooldownSuppressed + " 条" : "") : "")
           + (opts.promptAudit.currentTime ? "；注入时间 " + opts.promptAudit.currentTime
             + (opts.promptAudit.timeZone ? "（" + opts.promptAudit.timeZone + "）" : "") : "");
+        if (opts.promptAudit.temporaryPlotRecipient)
+          tk.title += "；临时剧情已发送给 " + opts.promptAudit.temporaryPlotRecipient;
         tk.onclick = () => showToast(tk.title, 6500);
       }
       bar.appendChild(tk);
@@ -8866,7 +8873,11 @@ function ensureRoleplayStatusOutput(value, speaker, project) {
     : `状态：${speaker.name}已完成本轮回应｜当前场景：${scene}｜待回应：等待${userName}回应`;
   return `${output}\n\n<${tag}>${content}</${tag}>`;
 }
-function roleplaySpeakerPrompt(speaker, project, temporaryPlot = null) {
+function roleplayTemporaryPlotPrompt(speaker, temporaryPlot = null) {
+  if (!speaker || !temporaryPlot?.text) return "";
+  return `【本轮最高优先级临时剧情执行令｜${temporaryPlot.mode === "once" ? "仅本轮" : "持续幕后方向"}】\n这是用户私下交给「${speaker.name}」的幕后安排，不是已经发生的事实。你已经完整收到这份安排，当前回复必须在保持人设、时间线和知识边界的前提下自然落实至少一个可观察的新进展；不得忽略、降级或被前面的角色卡、场景预设与一般写作偏好覆盖。不替用户新增台词、动作、心理、身体反应、同意或关键选择。${temporaryPlot.mode === "persistent" ? "沿最新进展继续推进，已经发生的事件不要重复触发。" : "若有多个步骤，本轮先推进到用户可以回应的位置。"}\n\n不得在剧情正文里主动泄露、复述或解释幕后指令；但如果用户当前明确核验你是否收到临时剧情，只简短确认“已收到”，不得谎称看不到。\n\n【本轮安排】\n${temporaryPlot.text}`;
+}
+function roleplaySpeakerPrompt(speaker, project) {
   if (!speaker) return "";
   return ["【本轮共演分工】", `在场成员：${roleplayMembers(project).map(member => `${member.name}${member.kind === "director" ? "（导演）" : ""}`).join("、")}。`,
     `本条消息仅由「${speaker.name}」发言。历史中署名不同的 assistant 消息来自不同共演成员，不是你说过的话。`,
@@ -8876,7 +8887,6 @@ function roleplaySpeakerPrompt(speaker, project, temporaryPlot = null) {
     roleplayPrivateMemoryText(speaker),
     "共享本剧本的世界观、场景、正文与连续性档案。各角色只使用自己在戏内知道的信息；后台共享不等于人物全知。只输出这一成员的正文，不重演整轮对话。",
     roleplayOutputProtocol(speaker, project),
-    temporaryPlot?.text ? `【临时剧情执行令｜${temporaryPlot.mode === "once" ? "仅本轮" : "持续幕后方向"}】\n这是用户私下交给「${speaker.name}」的幕后安排，不是已经发生的事实，也不得在正文里提及、解释或泄露设置与指令。当前回复必须在保持人设、时间线和知识边界的前提下自然落实至少一个可观察的新进展；不替用户新增台词、动作、心理、身体反应、同意或关键选择。${temporaryPlot.mode === "persistent" ? "沿最新进展继续推进，已经发生的事件不要重复触发。" : "若有多个步骤，本轮先推进到用户可以回应的位置。"}\n\n【本轮安排】\n${temporaryPlot.text}` : "",
   ].filter(Boolean).join("\n\n");
 }
 function roleplayFinalSystemInstruction(project) {
@@ -10358,7 +10368,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   if (wxNote) systemText = systemText ? systemText + "\n\n" + wxNote : wxNote;
   }
 
-  if (activeSpeaker && !backstageMode) systemText += "\n\n" + roleplaySpeakerPrompt(activeSpeaker, rpProject, activeTemporaryPlot);
+  if (activeSpeaker && !backstageMode) systemText += "\n\n" + roleplaySpeakerPrompt(activeSpeaker, rpProject);
   if (rpProject) {
     const memoryInjection = backstageMode ? { text: "", position: "" } : roleplayMemoryInjection(rpProject, currentConv());
     if (memoryInjection.text) {
@@ -10389,6 +10399,11 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     }
     const finalRoleplayInstruction = backstageMode ? "" : roleplayFinalSystemInstruction(rpProject);
     if (finalRoleplayInstruction) systemText = `${systemText}\n\n${finalRoleplayInstruction}`;
+    // The private, turn-scoped direction is the user's newest instruction. Keep
+    // it last so a long character card or scene preset cannot silently outrank
+    // it, while recipient filtering remains local to roleplayTemporaryPlotFor().
+    const finalTemporaryPlot = backstageMode ? "" : roleplayTemporaryPlotPrompt(activeSpeaker, activeTemporaryPlot);
+    if (finalTemporaryPlot) systemText = `${systemText}\n\n${finalTemporaryPlot}`;
   }
   let url, headers, body;
   if (isAnthropic) {
@@ -10498,6 +10513,8 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     timeZone: injectedTimeZone,
     specialDays: !!specialDayClaim?.text,
     projectFiles: conversationProjectFiles().length,
+    temporaryPlotRecipient: activeTemporaryPlot?.text ? activeSpeaker?.name || "" : "",
+    temporaryPlotMode: activeTemporaryPlot?.text ? activeTemporaryPlot.mode || "once" : "",
     reasoningEffort,
   };
 
@@ -13145,10 +13162,7 @@ async function send(opts) {
   pinToBottom();
   markSeen();
   if (silent) return;   // 旁白模式：只记录，不触发 AI 回复
-  if (rp?.groupEnabled && !rpReplyMemberIds.length) {
-    showToast("消息已发送，再点 @ 选择要回复的角色");
-    return;
-  }
+  if (rp?.groupEnabled && !rpReplyMemberIds.length) return;
   try {
     await generateReply();
   } catch (e) {
