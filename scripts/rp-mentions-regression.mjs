@@ -52,8 +52,8 @@ const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const source = (start, end) => html.slice(html.indexOf(start), html.indexOf(end, html.indexOf(start)));
 assert.ok(!html.includes('消息已发送，再点 @ 选择要回复的角色'), "群聊正文发送后不应反复弹出 @ 提示");
 assert.ok(html.includes('if (rp?.groupEnabled && !rpReplyMemberIds.length) return;'), "群聊正文仍需允许静默记录并稍后选择回复角色");
-assert.ok(html.includes('const mentionOnlyTurn = !!(rp?.groupEnabled'), "mention-only routing must be separated from the visible user turn");
-assert.ok(html.includes('if (!silent && !mentionOnlyTurn && messages.length > 0'), "mention-only routing must not insert a fake visible no-reply assistant");
+assert.ok(!html.includes('content: "（无回复）"'), "mention-only and failed turns must never insert a fake visible assistant");
+assert.ok(html.includes('if (last && last.role === m.role) last.content = mergeApiContent'), "consecutive user turns must be normalized only in provider transport");
 Object.assign(context, {
   uid: () => "sent-message", cloneChatData: structuredClone,
   isRoleplayConversation: (conv = scene) => conv.space === "roleplay", currentConv: () => scene,

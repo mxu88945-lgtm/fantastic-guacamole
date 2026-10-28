@@ -50,6 +50,14 @@ assert.match(prompt, /<director_status>[\s\S]*<\/director_status>/, "director re
 const actorWithStatus = { id: "guest", name: "江屹琛", kind: "actor", prompt: "结尾输出 <gts_status>状态</gts_status>" };
 assert.equal(context.roleplayStatusTag(actorWithStatus, project), "gts_status");
 assert.match(context.ensureRoleplayStatusOutput("<scene>深夜｜休息室</scene>\n他抬眼。", actorWithStatus, project), /<gts_status>[\s\S]*<\/gts_status>$/);
+const recoveredStatus = context.ensureRoleplayStatusOutput(`<scene>傍晚｜会议室</scene>
+他把文件推回桌面。
+
+傅时峥此刻心境：沉静克制
+对裴以沫的看法：欣赏她的专业判断
+局势掌控与谋划：保持主动权`, actorWithStatus, project);
+assert.match(recoveredStatus, /<gts_status>傅时峥此刻心境：[\s\S]*局势掌控与谋划：保持主动权<\/gts_status>$/, "bare card-specific footer fields must be recovered into their custom status tag");
+assert.doesNotMatch(recoveredStatus, /状态：江屹琛已完成本轮回应/, "recovered card fields must not be replaced by the generic fallback footer");
 const legacy = context.normalizedRoleplayProject({ actorName: "旧角色" }, { title: "旧场次" });
 assert.equal(legacy.groupEnabled, false);
 assert.equal(legacy.sceneSystemPromptEnabled, true, "existing scenes should receive the late scene preset by default");
@@ -64,6 +72,7 @@ assert.equal(migratedWarm.rpTheme, "liquid-pearl");
 assert.equal(migratedWarm.rpBaseColor, "", "legacy theme colors must not survive migration as stale overrides");
 assert.equal(migratedWarm.chatTextColor, "");
 assert.equal(context.normalizedRoleplayProject({ rpTheme: "liquid-pearl", rpBaseColor: "#f4efe6" }, {}).rpBaseColor, "", "the former pearl default must migrate to the new milk-white preset");
+assert.equal(context.normalizedRoleplayProject({ rpTheme: "liquid-pearl", rpBaseColor: "#f7f6f2" }, {}).rpBaseColor, "", "the yellow pearl default must migrate to the cooler cloud-white preset");
 assert.equal(context.normalizedRoleplayProject({ rpTheme: "sage" }, {}).rpTheme, "liquid-mist");
 assert.equal(context.normalizedRoleplayProject({ chatTextColor: "#AABBCC", chatNarrationColor: "invalid", chatQuoteColor: "#123456" }, {}).chatTextColor, "#aabbcc");
 assert.equal(context.roleplayMembers(legacy).length, 1);
@@ -87,7 +96,7 @@ assert.ok(groupUi.includes('id="rp-temporary-section"') && groupUi.includes('dat
 assert.ok(groupUi.includes('id="rp-user-profile"') && groupUi.includes('id="rp-user-identity"'), "right drawer user identity editor is missing");
 assert.ok(groupUi.includes('id="rp-display-section"') && groupUi.includes('textThemeRow("chatTextColor"') && groupUi.includes("previewSceneTextTheme"), "RP text color theme controls are missing");
 assert.ok(groupUi.includes('type="range" data-rp-font="chatFontSize"') && groupUi.includes('data-rp-font="chatFontWeight"') && !groupUi.includes("data-rp-font-size-follow") && groupUi.includes("data-rp-font-size-sample"), "RP font size and weight must be scene-local sliders with a live preview and no follow-main switch");
-assert.ok(groupUi.includes('["liquid-pearl", "珍珠奶白"') && groupUi.includes('["liquid-mist", "雾霁月蓝"') && !groupUi.includes('["mist", "雾蓝"'), "the drawer must expose exactly the two new liquid themes");
+assert.ok(groupUi.includes('["liquid-pearl", "云瓷米白", "#f4f8fb"') && groupUi.includes('["liquid-mist", "雾霁月蓝"') && !groupUi.includes('["mist", "雾蓝"'), "the drawer must expose the cooler cloud-white and moon-blue liquid themes");
 assert.equal(context.normalizedRoleplayProject({ chatFontSize: "15.5" }, {}).chatFontSize, "15.5", "numeric RP font sizes must survive normalization");
 assert.equal(context.normalizedRoleplayProject({ chatFontSize: "99" }, {}).chatFontSize, "24", "numeric RP font sizes must clamp");
 assert.equal(context.normalizedRoleplayProject({ chatFontSize: "huge" }, {}).chatFontSize, "", "invalid RP font sizes must fall back to the scene default");

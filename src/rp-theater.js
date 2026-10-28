@@ -367,10 +367,10 @@ function plainPreviewWithMedia(value) {
               <section class="rp-wide rp-card-block rp-scene-theme" id="rp-scene-theme" data-rp-sec="main">
                 <div class="rp-card-block-head"><div><strong>本剧场外观</strong><small>只影响剧情窗口，不会修改主聊天</small></div><span class="rp-theme-badge">SCENE ONLY</span></div>
                 <div class="rp-theme-presets" role="radiogroup" aria-label="剧情主题">
-                  <button type="button" data-rp-theme="liquid-pearl"><i></i><span>珍珠奶白</span></button><button type="button" data-rp-theme="liquid-mist"><i></i><span>雾霁月蓝</span></button>
+                  <button type="button" data-rp-theme="liquid-pearl"><i></i><span>云瓷米白</span></button><button type="button" data-rp-theme="liquid-mist"><i></i><span>雾霁月蓝</span></button>
                 </div>
                 <div class="rp-theme-fields"><label><span>字体</span><select id="rp-field-font-family"><option value="default">系统黑体</option><option value="kai">楷体</option><option value="song">宋体</option></select></label><label><span>字号</span><input id="rp-field-font-size" type="range" min="12" max="20" step="0.5" value="15.5" /><output id="rp-field-font-size-value">15.5</output></label></div>
-                <div class="rp-theme-colors"><label>正文 <input id="rp-field-text-color" type="color" value="#373634"></label><label>旁白 <input id="rp-field-narration-color" type="color" value="#74716c"></label><label>引用 <input id="rp-field-quote-color" type="color" value="#69645f"></label></div>
+                <div class="rp-theme-colors"><label>正文 <input id="rp-field-text-color" type="color" value="#34404a"></label><label>旁白 <input id="rp-field-narration-color" type="color" value="#6f7b86"></label><label>引用 <input id="rp-field-quote-color" type="color" value="#607f9b"></label></div>
                 <div class="rp-theme-preview" id="rp-theme-preview"><em>（旁白保持柔和，正文仍然清楚。）</em><strong>“对白采用惟镜式液态文本布局。”</strong></div>
               </section>
               <section class="rp-wide rp-card-block" id="rp-theater-world-block" data-rp-sec="theater">
@@ -503,7 +503,7 @@ function plainPreviewWithMedia(value) {
     $("rp-field-font-family").value = data.chatFontFamily || "default";
     $("rp-field-font-size").value = data.chatFontSize && !isNaN(Number(data.chatFontSize)) ? data.chatFontSize : "15.5";
     $("rp-field-font-size-value").textContent = $("rp-field-font-size").value;
-    const colors = $("rp-scene-theme").dataset.theme === "liquid-mist" ? ["#293746", "#69798a", "#5f7d9b"] : ["#373634", "#74716c", "#69645f"];
+    const colors = $("rp-scene-theme").dataset.theme === "liquid-mist" ? ["#293746", "#69798a", "#5f7d9b"] : ["#34404a", "#6f7b86", "#607f9b"];
     $("rp-field-text-color").value = data.chatTextColor || colors[0];
     $("rp-field-narration-color").value = data.chatNarrationColor || colors[1];
     $("rp-field-quote-color").value = data.chatQuoteColor || colors[2];
@@ -1326,7 +1326,7 @@ function plainPreviewWithMedia(value) {
     const root = $("rp-scene-theme"); if (!root) return;
     const theme = root.dataset.theme || "liquid-pearl";
     root.querySelectorAll("[data-rp-theme]").forEach(button => { button.classList.toggle("active", button.dataset.rpTheme === theme); button.setAttribute("aria-checked", button.dataset.rpTheme === theme ? "true" : "false"); });
-    const preview = $("rp-theme-preview"); if (preview) { preview.style.setProperty("--preview-body", $("rp-field-text-color")?.value || "#373634"); preview.style.setProperty("--preview-narration", $("rp-field-narration-color")?.value || "#74716c"); preview.style.setProperty("--preview-quote", $("rp-field-quote-color")?.value || "#69645f"); }
+    const preview = $("rp-theme-preview"); if (preview) { preview.style.setProperty("--preview-body", $("rp-field-text-color")?.value || "#34404a"); preview.style.setProperty("--preview-narration", $("rp-field-narration-color")?.value || "#6f7b86"); preview.style.setProperty("--preview-quote", $("rp-field-quote-color")?.value || "#607f9b"); }
     const value = $("rp-field-font-size-value"); if (value && $("rp-field-font-size")) value.textContent = $("rp-field-font-size").value;
   }
 
@@ -1667,7 +1667,7 @@ function plainPreviewWithMedia(value) {
     const theme = button.dataset.rpTheme;
     const colors = theme === "liquid-mist"
       ? ["#293746", "#69798a", "#5f7d9b"]
-      : ["#373634", "#74716c", "#69645f"];
+      : ["#34404a", "#6f7b86", "#607f9b"];
     $("rp-scene-theme").dataset.theme = theme;
     $("rp-field-text-color").value = colors[0]; $("rp-field-narration-color").value = colors[1]; $("rp-field-quote-color").value = colors[2];
     renderSceneTheme();
