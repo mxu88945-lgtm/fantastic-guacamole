@@ -8615,7 +8615,8 @@ function normalizedRoleplayProject(value, conv) {
     worldEntries: Array.isArray(raw.worldEntries) ? cloneChatData(raw.worldEntries.filter(item => item && typeof item === "object").slice(0, 300)) : [],
     regexRules: Array.isArray(raw.regexRules) ? cloneChatData(raw.regexRules.filter(item => item && typeof item === "object").slice(0, 300)) : [],
     groupEnabled: raw.groupEnabled === true,
-    replyMode: raw.replyMode === "round" ? "round" : "mention",
+    // 群聊只接受用户明确 @ 的成员；旧版 round 配置在读取时统一迁移。
+    replyMode: "mention",
     leadChannel: { providerId: String(raw.leadChannel?.providerId || "").slice(0, 120), model: String(raw.leadChannel?.model || "").slice(0, 200), enabled: raw.leadChannel?.enabled !== false, playedByOwner: raw.leadChannel?.playedByOwner !== false, privateMemory: String(raw.leadChannel?.privateMemory || "").replace(/\u0000/g, "").slice(0, 16000) },
     members: Array.isArray(raw.members) ? raw.members.filter(item => item && item.id !== "lead" && String(item.name || "").trim()).slice(0, 8).map((item, index) => ({
       id: String(item.id || `member-${index}`).slice(0, 120), name: String(item.name).trim().slice(0, 80),
@@ -8824,7 +8825,8 @@ function roleplayReplyMembers(project, userText = "", memberIds = []) {
   const members = roleplayMembers(project);
   const targets = Array.isArray(memberIds) && memberIds.length ? memberIds : roleplayMentionSelection(project, userText).memberIds;
   if (targets.length) return [...new Set(targets)].map(id => members.find(member => member.id === id)).filter(Boolean);
-  return project.replyMode === "round" ? members.filter(member => member.enabled !== false) : members.slice(0, 1);
+  // 不再有主角兜底或自动轮流；没有明确 @ 就不发起任何角色请求。
+  return [];
 }
 function roleplayStatusTag(speaker, project, output = "") {
   const ownSources = [output, speaker?.beautificationProtocol, speaker?.greeting, speaker?.prompt,
@@ -13078,6 +13080,9 @@ async function send(opts) {
   if (rp?.groupEnabled && !directParts && /(?:^|\s)[@＠][^\s@＠]*$/u.test(rawText) && !mention.memberIds.length) {
     showToast("从 @ 列表里点选要回复的成员，再发送正文"); return;
   }
+  if (rp?.groupEnabled && !directParts && !rpReplyMemberIds.length) {
+    showToast("群聊请先 @ 要回复的成员"); return;
+  }
   // iOS PWA fix: image staging (FileReader → decode → canvas) is async. If the
   // user taps 发送 before it finishes, pendingAttachments is still empty and we'd
   // silently bail. Wait for any in-flight image processing to settle first.
@@ -14098,16 +14103,8 @@ async function generateReply() {
   const project = normalizedRoleplayProject(conv.rpProject, conv);
   const latestUser = [...messages].reverse().find(message => message.role === "user" && !message._summary);
   const latestUserText = latestUser ? messageText(latestUser) : "";
-  const backstageControl = roleplayBackstageControl(latestUserText);
-  const ownerSpeaker = roleplayMembers(project).find(member => !roleplayIndependentSpeaker(member, conv));
-  if (ownerSpeaker && backstageControl) {
-    project.backstagePaused = backstageControl === "pause";
-    conv.rpProject.backstagePaused = project.backstagePaused;
-    conv.updatedAt = Date.now(); saveConversations();
-  }
-  let members = roleplayReplyMembers(project, latestUserText, latestUser?.rpReplyMemberIds || []);
-  if (ownerSpeaker && (backstageControl === "pause" || (project.backstagePaused && backstageControl !== "resume"))) members = [ownerSpeaker];
-  if (!members.length) { showToast("先在群聊设置里勾选本轮发言成员"); return; }
+  const members = roleplayReplyMembers(project, latestUserText, latestUser?.rpReplyMemberIds || []);
+  if (!members.length) { showToast("群聊请先 @ 要回复的成员"); return; }
   const requests = members.map(speaker => {
     const route = roleplaySpeakerRequest(speaker, conv);
     return { speaker, ...route };
@@ -14144,7 +14141,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     }
   }
   const independent = roleplayIndependentSpeaker(speaker);
-  if (replyProject && !independent && !roleplayGroupRun) {
+  if (replyProject && !replyProject.groupEnabled && !independent && !roleplayGroupRun) {
     const latestUser = [...messages].reverse().find(message => message.role === "user" && !message._summary);
     const backstageControl = roleplayBackstageControl(latestUser ? messageText(latestUser) : "");
     if (backstageControl) {
@@ -14153,7 +14150,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       replyConv.updatedAt = Date.now(); saveConversations();
     }
   }
-  const backstageMode = !!(replyProject && !independent && replyProject.backstagePaused);
+  const backstageMode = !!(replyProject && !replyProject.groupEnabled && !independent && replyProject.backstagePaused);
   const capturedPlot = !roleplayGroupRun && replyProject && !backstageMode ? roleplayTemporaryPlotFor(replyProject, replySpeaker) : null;
   const captureDiary = text => independent ? stripIndependentRoleplayControls(text) : extractPrivateDiary(text, assistantMsg.id);
   const replyConversationId = currentId, replyRevision = chatNavigationRevision;
