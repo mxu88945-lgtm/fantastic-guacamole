@@ -86,7 +86,7 @@ assert.match(context.roleplayTemporaryPlotFor(privatePlot, { id: "director" }, p
 assert.ok(groupUi.includes('id="rp-temporary-section"') && groupUi.includes('data-plot-recipient'), "right drawer temporary plot editor is missing");
 assert.ok(groupUi.includes('id="rp-user-profile"') && groupUi.includes('id="rp-user-identity"'), "right drawer user identity editor is missing");
 assert.ok(groupUi.includes('id="rp-display-section"') && groupUi.includes('textThemeRow("chatTextColor"') && groupUi.includes("previewSceneTextTheme"), "RP text color theme controls are missing");
-assert.ok(groupUi.includes('type="range" data-rp-font="chatFontSize"') && !groupUi.includes("data-rp-font-size-follow") && groupUi.includes("data-rp-font-size-sample"), "RP font size must be a scene-local slider with a live preview and no follow-main switch");
+assert.ok(groupUi.includes('type="range" data-rp-font="chatFontSize"') && groupUi.includes('data-rp-font="chatFontWeight"') && !groupUi.includes("data-rp-font-size-follow") && groupUi.includes("data-rp-font-size-sample"), "RP font size and weight must be scene-local sliders with a live preview and no follow-main switch");
 assert.ok(groupUi.includes('["liquid-pearl", "珍珠奶白"') && groupUi.includes('["liquid-mist", "雾霁月蓝"') && !groupUi.includes('["mist", "雾蓝"'), "the drawer must expose exactly the two new liquid themes");
 assert.equal(context.normalizedRoleplayProject({ chatFontSize: "15.5" }, {}).chatFontSize, "15.5", "numeric RP font sizes must survive normalization");
 assert.equal(context.normalizedRoleplayProject({ chatFontSize: "99" }, {}).chatFontSize, "24", "numeric RP font sizes must clamp");
@@ -95,10 +95,12 @@ vm.runInContext(source("function roleplayTypography(", "function normalizeRolepl
 assert.equal(context.roleplayTypography({ chatFontSize: "15.5" }).size, "15.5px");
 assert.equal(context.roleplayTypography({ chatFontSize: "medium" }).size, "14.5px");
 assert.equal(context.roleplayTypography({}).size, "15.5px");
+assert.equal(context.roleplayTypography({ chatFontWeight: 650 }).weight, "650");
+assert.equal(context.roleplayTypography({ chatFontWeight: 999 }).weight, "800");
 assert.ok(!source("function roleplayTypography(", "function normalizeRoleplayMixedMarkup(").includes("settings"), "RP typography must not read main-chat settings");
 assert.ok(groupUi.includes('id="rp-scene-preset-section"') && groupUi.includes('id="rp-scene-system-prompt"') && groupUi.includes('data-fill-scene-preset="adult-fiction"'), "per-scene system preset editor is missing");
 assert.ok(html.includes("function applyRoleplayTextTheme(") && html.includes('"chatTextColor", "chatNarrationColor", "chatQuoteColor"'), "per-scene text colors are not persisted and applied");
-assert.ok(html.includes("--rp-msg-font") && html.includes("--rp-msg-font-family"), "RP typography must use story-scoped variables");
+assert.ok(html.includes("--rp-msg-font") && html.includes("--rp-msg-font-family") && html.includes("--rp-msg-font-weight"), "RP typography must use story-scoped variables");
 assert.ok(html.includes("body.rp-chat-active #messages .bubble") && !html.includes('box.style.setProperty("--msg-font", typography.size)'), "RP typography must not overwrite main chat font variables");
 assert.ok(groupUi.includes("data-export-scene") && groupUi.includes("data-import-scene"), "right drawer TXT export/import actions are missing");
 assert.ok(groupUi.includes('<select data-field="model">') && !groupUi.includes("<datalist"), "member models must use a real mobile-friendly select");

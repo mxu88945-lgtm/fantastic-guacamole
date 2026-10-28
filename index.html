@@ -1077,6 +1077,7 @@
   body.rp-chat-active #messages .bubble {
     font-size: var(--rp-msg-font, var(--msg-font, 14.5px));
     font-family: var(--rp-msg-font-family, var(--msg-font-family, inherit));
+    font-weight: var(--rp-msg-font-weight, var(--msg-font-weight, 400));
   }
   /* Claude-style: assistant message has no bubble — just text on the page */
   .msg.assistant .bubble {
@@ -6470,7 +6471,7 @@ function applyRoleplayWallpaper(projectOverride = null) {
 }
 function applyRoleplayTextTheme(box = $("messages"), projectOverride = null) {
   if (!box) return;
-  ["--system-text-color", "--narration-text-color", "--quote-text-color", "--rp-msg-font", "--rp-msg-font-family"].forEach(name => box.style.removeProperty(name));
+  ["--system-text-color", "--narration-text-color", "--quote-text-color", "--rp-msg-font", "--rp-msg-font-family", "--rp-msg-font-weight"].forEach(name => box.style.removeProperty(name));
   if (!isRoleplayConversation()) return;
   const project = projectOverride || normalizedRoleplayProject(currentConv()?.rpProject, currentConv());
   const preset = roleplayThemePreset(project);
@@ -6484,6 +6485,7 @@ function applyRoleplayTextTheme(box = $("messages"), projectOverride = null) {
   const typography = roleplayTypography(project);
   if (project.chatFontSize) box.style.setProperty("--rp-msg-font", typography.size);
   if (project.chatFontFamily) box.style.setProperty("--rp-msg-font-family", typography.family);
+  if (project.chatFontWeight) box.style.setProperty("--rp-msg-font-weight", typography.weight);
   box.querySelectorAll(".roleplay-html-frame").forEach(frame => frame.contentWindow?.postMessage({ type: "jyc-rp-typography", ...typography }, "*"));
 }
 
@@ -7453,7 +7455,9 @@ function roleplayTypography(project = {}) {
   const rawSize = project.chatFontSize || "15.5";
   const numericSize = rawSize != null && String(rawSize).trim() !== "" && !isNaN(Number(rawSize)) ? Number(rawSize) : NaN;
   const size = !isNaN(numericSize) ? `${Math.min(24, Math.max(10, numericSize))}px` : (sizes[rawSize] || sizes.medium);
-  return { size, family: families[project.chatFontFamily || "default"] || families.default };
+  const rawWeight = Number(project.chatFontWeight);
+  const weight = Number.isFinite(rawWeight) ? Math.min(800, Math.max(300, Math.round(rawWeight / 50) * 50)) : 400;
+  return { size, family: families[project.chatFontFamily || "default"] || families.default, weight: String(weight) };
 }
 function normalizeRoleplayMixedMarkup(value) {
   // Like Weijing's normalizeMixedMarkup, format text BETWEEN tags, never tag
@@ -7503,7 +7507,7 @@ function roleplayRichDocument(value, token, compact = false) {
   // page or its storage, but the media request itself must be allowed.
   const guard = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob: https:; media-src data: blob: https:; font-src data: https:; style-src 'unsafe-inline' https:; script-src 'unsafe-inline'; connect-src https:; frame-src 'none'; form-action 'none'; base-uri 'none'">`;
   const compactCss = compact ? `body{padding:0!important;display:flow-root!important}#returnHomeText{position:static!important;inset:auto!important;transform:none!important;writing-mode:horizontal-tb!important;margin:12px auto!important}` : "";
-  const base = `<style>:root{--rp-story-font-size:${typography.size};--rp-story-font-family:${typography.family}}html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}.rp-mixed-paragraph{display:block;margin:0 0 .62em;font-size:var(--rp-story-font-size);font-family:var(--rp-story-font-family);line-height:1.7;white-space:normal;overflow-wrap:anywhere}.chat-quote{padding:.18em .45em;border-radius:8px;background:rgba(120,110,128,.12);color:#50739a;box-decoration-break:clone;-webkit-box-decoration-break:clone;line-height:1.65}${compactCss}</style><script>addEventListener('message',function(e){if(e.source!==parent||e.data?.type!=='jyc-rp-typography')return;document.documentElement.style.setProperty('--rp-story-font-size',e.data.size);document.documentElement.style.setProperty('--rp-story-font-family',e.data.family)})<\/script>`;
+  const base = `<style>:root{--rp-story-font-size:${typography.size};--rp-story-font-family:${typography.family};--rp-story-font-weight:${typography.weight}}html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}.rp-mixed-paragraph{display:block;margin:0 0 .62em;font-size:var(--rp-story-font-size);font-family:var(--rp-story-font-family);font-weight:var(--rp-story-font-weight);line-height:1.7;white-space:normal;overflow-wrap:anywhere}.chat-quote{padding:.18em .45em;border-radius:8px;background:rgba(120,110,128,.12);color:#50739a;box-decoration-break:clone;-webkit-box-decoration-break:clone;line-height:1.65}${compactCss}</style><script>addEventListener('message',function(e){if(e.source!==parent||e.data?.type!=='jyc-rp-typography')return;document.documentElement.style.setProperty('--rp-story-font-size',e.data.size);document.documentElement.style.setProperty('--rp-story-font-family',e.data.family);document.documentElement.style.setProperty('--rp-story-font-weight',e.data.weight)})<\/script>`;
   const measure = `(${roleplayFrameContentHeight.toString()})()`;
   const reporter = `<script>(function(){var token=${JSON.stringify(token)},raf=0,last=-1;var height=function(){try{return ${measure}}catch(_){return 40}};var send=function(){if(raf)return;raf=requestAnimationFrame(function(){raf=0;var next=Math.max(40,Math.min(height(),6000));if(next===last)return;last=next;parent.postMessage({type:'jyc-rp-frame-height',token:token,height:next},'*')})};var pick=function(node){if(!node)return null;var explicit=node.getAttribute('data-prompt')||node.getAttribute('data-message')||node.getAttribute('data-opening')||node.getAttribute('data-scene')||node.getAttribute('data-choice');var text=(explicit||node.innerText||node.textContent||'').replace(/\\s+/g,' ').trim();if(!text)return null;return{text:text.slice(0,4000),label:(node.innerText||node.textContent||text).replace(/\\s+/g,' ').trim().slice(0,160)}};document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-prompt],[data-message],[data-opening],[data-scene],[data-choice],button,[role="button"],a[href],[onclick],.script-card,.scene-card,.choice-card'):null;if(!node)return;var action=pick(node);if(!action)return;setTimeout(function(){parent.postMessage({type:'jyc-rp-card-action',token:token,text:action.text,label:action.label},'*')},0)},false);addEventListener('load',send);addEventListener('resize',send);document.addEventListener('toggle',send,true);if(window.ResizeObserver){var observer=new ResizeObserver(send);observer.observe(document.body);addEventListener('unload',function(){observer.disconnect()})}setTimeout(send,60);setTimeout(send,400)})()<\/script>`;
   const playerBridge = /<audio\b[^>]*\bid=["']musicPlayer["']/i.test(source) && /\bid=["']playBtn["']/i.test(source) && !/<script\b/i.test(source)
@@ -8596,6 +8600,7 @@ function normalizedRoleplayProject(value, conv) {
     chatTextColor: legacyTheme ? "" : color("chatTextColor"), chatNarrationColor: legacyTheme ? "" : color("chatNarrationColor"), chatQuoteColor: legacyTheme ? "" : color("chatQuoteColor"),
     chatFontSize: fontSizeValue,
     chatFontFamily: ["default", "kai", "song"].includes(raw.chatFontFamily) ? raw.chatFontFamily : "default",
+    chatFontWeight: Number.isFinite(Number(raw.chatFontWeight)) ? Math.min(800, Math.max(300, Math.round(Number(raw.chatFontWeight) / 50) * 50)) : 400,
     backstagePaused: raw.backstagePaused === true,
     sceneSystemPromptEnabled: raw.sceneSystemPromptEnabled !== false,
     sceneSystemPrompt: text("sceneSystemPrompt", 30000) || scenePromptDefault,
@@ -17764,15 +17769,15 @@ window.JYCRoleplayBridge = {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
     if (!conv || abortController || replyBooting || roleplayGroupRun) { showToast("等当前回复结束后再保存设置"); return null; }
     const allowed = {};
-    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor", "chatFontSize", "chatFontFamily", "rpTheme", "rpWallpaper", "rpWallpaperOpacity", "rpOverlayOpacity", "rpBaseColor", "sceneSystemPromptEnabled", "sceneSystemPrompt"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
+    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor", "chatFontSize", "chatFontFamily", "chatFontWeight", "rpTheme", "rpWallpaper", "rpWallpaperOpacity", "rpOverlayOpacity", "rpBaseColor", "sceneSystemPromptEnabled", "sceneSystemPrompt"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
     const previousPortraits = JSON.stringify(roleplayMembers(normalizedRoleplayProject(conv.rpProject, conv)).map(member => [member.id, member.avatar]));
-    const previousTextTheme = JSON.stringify([conv.rpProject?.chatTextColor, conv.rpProject?.chatNarrationColor, conv.rpProject?.chatQuoteColor, conv.rpProject?.chatFontSize, conv.rpProject?.chatFontFamily]);
+    const previousTextTheme = JSON.stringify([conv.rpProject?.chatTextColor, conv.rpProject?.chatNarrationColor, conv.rpProject?.chatQuoteColor, conv.rpProject?.chatFontSize, conv.rpProject?.chatFontFamily, conv.rpProject?.chatFontWeight]);
     rememberRoleplayCards([conv]);
     conv.rpProject = normalizedRoleplayProject({ ...conv.rpProject, ...allowed }, conv);
     conv.updatedAt = Date.now(); saveConversations();
     rememberRoleplayCards([conv]);
     const portraitsChanged = previousPortraits !== JSON.stringify(roleplayMembers(conv.rpProject).map(member => [member.id, member.avatar]));
-    const textThemeChanged = previousTextTheme !== JSON.stringify([conv.rpProject.chatTextColor, conv.rpProject.chatNarrationColor, conv.rpProject.chatQuoteColor, conv.rpProject.chatFontSize, conv.rpProject.chatFontFamily]);
+    const textThemeChanged = previousTextTheme !== JSON.stringify([conv.rpProject.chatTextColor, conv.rpProject.chatNarrationColor, conv.rpProject.chatQuoteColor, conv.rpProject.chatFontSize, conv.rpProject.chatFontFamily, conv.rpProject.chatFontWeight]);
     if (conv.id === currentId && (portraitsChanged || textThemeChanged)) renderMessages();
     if (conv.id === currentId) { updateConversationSpaceUI(); if (typeof applyRoleplayWallpaper === "function") applyRoleplayWallpaper(); }
     window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: id } }));
