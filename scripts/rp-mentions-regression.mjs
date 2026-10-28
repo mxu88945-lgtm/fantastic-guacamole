@@ -50,11 +50,15 @@ assert.equal(input.placeholder, "输入 @ 选择回答的角色……");
 // Drive send() after selecting the guest: metadata must survive clearing the UI.
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const source = (start, end) => html.slice(html.indexOf(start), html.indexOf(end, html.indexOf(start)));
+assert.ok(html.includes('消息已发送，再点 @ 选择要回复的角色'), "群聊正文发送后必须允许稍后再选择回复角色");
+assert.ok(html.includes('const mentionOnlyTurn = !!(rp?.groupEnabled'), "mention-only routing must be separated from the visible user turn");
+assert.ok(html.includes('if (!silent && !mentionOnlyTurn && messages.length > 0'), "mention-only routing must not insert a fake visible no-reply assistant");
 Object.assign(context, {
   uid: () => "sent-message", cloneChatData: structuredClone,
   isRoleplayConversation: (conv = scene) => conv.space === "roleplay", currentConv: () => scene,
   abortController: null, roleplayGroupRun: null, replyBooting: false,
   pendingAttachments: [], attachmentStaging: [], messages: [], settings: { apiKey: "test-key" },
+  showToast: message => { context.toast = message; },
   $: id => id === "input" ? input : null,
 });
 for (const name of ["clearError", "renderAttachPreview", "autoResize", "dismissComposerKeyboard", "touchConversation", "pinToBottom", "markSeen"]) context[name] = () => {};
@@ -78,6 +82,15 @@ assert.equal(input.value, "@江屹琛 我在这里。", "editing must restore th
 window.JYCRoleplayMentions.clear();
 
 // A mention-only turn routes the reply without leaving a visible @ bubble in the chat.
+context.messages.length = 0;
+context.generateCalls = 0;
+context.generateReply = async () => { context.generateCalls++; };
+input.value = "先把这段话发出去";
+await context.send();
+assert.equal(context.messages[0].content, "先把这段话发出去");
+assert.equal(context.generateCalls, 0, "群聊正文发送后不应自动触发角色回复");
+assert.equal(context.messages.length, 1, "正文发送后不应插入无回复占位消息");
+context.generateReply = async () => { context.sentSelection = [...context.messages.at(-1).rpReplyMemberIds]; };
 context.messages.length = 0;
 input.value = "@"; input.selectionStart = 1; input.dispatchEvent(new TestEvent("input"));
 const guestAgain = list.children.find(option => option.dataset.mentionId === "guest");

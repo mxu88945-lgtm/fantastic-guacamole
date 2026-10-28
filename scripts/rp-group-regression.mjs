@@ -389,7 +389,7 @@ assert.equal(context.conv.rpProject.sceneSystemPrompt, "仅本场使用的写作
 const completion = vm.createContext({
   console, performance, settings: { crossSearch: true, webSearch: true, apiKey: "base-key", provider: "openai", model: "base-model" }, messages: [], currentId: "scene", chatNavigationRevision: 0,
   startMessageTrace: () => ({ id: "trace" }), finishMessageTrace() {},
-  abortController: null, replyBooting: false, roleplayGroupRun: null, stickBottom: false,
+  abortController: null, replyBooting: false, roleplayGroupRun: null, stickBottom: false, bottomPinUntil: 0, chatUserScrollRevision: 0,
   TYPING_HTML: "typing", lastPromptAudit: null, lastCallUsage: null,
   roleplayIndependentSpeaker: context.roleplayIndependentSpeaker,
   stripRoleplaySpeakerMarker: context.stripRoleplaySpeakerMarker,

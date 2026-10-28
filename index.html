@@ -7950,7 +7950,7 @@ function pinToBottom(duration = 800) {
 // the resize (the shrink itself fires no scroll event) and keep her there while the
 // height animates, on open and on close. Scrolled up reading history: leave it.
 const CHAT_RESIZE_PIN_SLACK = 120;
-let chatWasAtBottom = true, chatResizePinToken = 0, chatLastHeight = 0;
+let chatWasAtBottom = true, chatResizePinToken = 0, chatLastHeight = 0, chatUserScrollRevision = 0;
 function repinChatAfterResize() {
   const c = $("chat");
   if (!c) return;
@@ -13080,9 +13080,6 @@ async function send(opts) {
   if (rp?.groupEnabled && !directParts && /(?:^|\s)[@＠][^\s@＠]*$/u.test(rawText) && !mention.memberIds.length) {
     showToast("从 @ 列表里点选要回复的成员，再发送正文"); return;
   }
-  if (rp?.groupEnabled && !directParts && !rpReplyMemberIds.length) {
-    showToast("群聊请先 @ 要回复的成员"); return;
-  }
   // iOS PWA fix: image staging (FileReader → decode → canvas) is async. If the
   // user taps 发送 before it finishes, pendingAttachments is still empty and we'd
   // silently bail. Wait for any in-flight image processing to settle first.
@@ -13125,7 +13122,8 @@ async function send(opts) {
   }
   // If the last message is already from user (previous reply failed), insert a placeholder
   // so the API always sees alternating user/assistant turns. (skip in 旁白/silent mode)
-  if (!silent && messages.length > 0 && messages[messages.length - 1].role === "user") {
+  const mentionOnlyTurn = !!(rp?.groupEnabled && !directParts && !text && rpReplyMemberIds.length && pendingAttachments.length === 0);
+  if (!silent && !mentionOnlyTurn && messages.length > 0 && messages[messages.length - 1].role === "user") {
     messages.push({ id: uid(), role: "assistant", content: "（无回复）", ts: Date.now() });
   }
   messages.push({ id: uid(), role: "user", content: userContent, ts: Date.now(),
@@ -13142,6 +13140,10 @@ async function send(opts) {
   pinToBottom();
   markSeen();
   if (silent) return;   // 旁白模式：只记录，不触发 AI 回复
+  if (rp?.groupEnabled && !rpReplyMemberIds.length) {
+    showToast("消息已发送，再点 @ 选择要回复的角色");
+    return;
+  }
   try {
     await generateReply();
   } catch (e) {
@@ -14155,6 +14157,8 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
   const captureDiary = text => independent ? stripIndependentRoleplayControls(text) : extractPrivateDiary(text, assistantMsg.id);
   const replyConversationId = currentId, replyRevision = chatNavigationRevision;
   const replyMessages = messages;
+  const replyScrollRevision = chatUserScrollRevision;
+  const replyStartedAtBottom = stickBottom || Date.now() < bottomPinUntil;
   clearError();
   markSeen();
   const assistantMsg = {
@@ -14191,7 +14195,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       updateStreamBubble(bubble, empty ? TYPING_HTML
         : bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, true,
           assistantMsg.traces, assistantMsg.responseState) + '<span class="cursor"></span>');
-      if (stickBottom) scrollToBottom();   // don't yank the view if the user scrolled up to read history
+      if (stickBottom && chatUserScrollRevision === replyScrollRevision) scrollToBottom();   // don't yank the view if the user scrolled up to read history
     });
   };
   const appendReasoning = (delta, dedupe) => {
@@ -14453,10 +14457,11 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     abortController = null;
     saveConversations();
     renderMessages();   // re-render so per-message actions (copy / regenerate) show
-    if (stickBottom) scrollToBottom();   // respect the user reading history
+    const followReplyToBottom = replyStartedAtBottom && chatUserScrollRevision === replyScrollRevision;
+    if (followReplyToBottom) { stickBottom = true; scrollToBottom(); }   // keep the completed reply at the actual list bottom
     // 整片重建后 iOS 可能留白：两帧后再确认一次底部位置并强制重绘
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (!stickBottom) return;
+      if (!followReplyToBottom) return;
       const c = $("chat");
       if (!c) return;
       c.scrollTop = c.scrollHeight;
@@ -16766,6 +16771,7 @@ async function init() {
   $("chat").addEventListener("pointerdown", () => {
     bottomPinUntil = 0;        // an intentional touch always wins over auto-follow
     chatResizePinToken++;      // ...including a keyboard-resize re-pin still in flight
+    chatUserScrollRevision++;  // distinguish a real read gesture from iOS layout scroll events
     wakeNav();
   }, { passive: true });
   $("chat").addEventListener("touchmove", wakeNav, { passive: true });
