@@ -1131,7 +1131,20 @@
   .msg.assistant .bubble blockquote {
     margin: 7px 0; padding: 3px 0 3px 11px; border-left: 3px solid currentColor;
   }
-  .msg.assistant .bubble .chat-quote { font-weight: inherit; }
+  /* Dialogue quotes in the owner chat use the same compact capsule language as
+     the theater, while keeping the main chat's flat assistant layout intact. */
+  .msg.assistant .bubble span.chat-quote {
+    display: inline;
+    padding: .18em .52em;
+    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--text) 8%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.42);
+    font-weight: inherit;
+    line-height: 1.65;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
   /* keep names/timestamps legible where the metallic gradient goes dark */
   html[data-glass="1"] .msg .name,
   html[data-glass="1"] .msg .time { text-shadow: 0 1px 2px rgba(255,255,255,.45); }
