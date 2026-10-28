@@ -178,7 +178,7 @@ ok((visualStory.match(/<p>/g) || []).length === 1, 'dense Chinese story lines mu
 ok(visualStory.includes('class="chat-quote">“先别走。再陪我一会儿。”</span>'), 'sentence punctuation inside speech must not split its bubble');
 ok(sourceContext.renderRoleplayStoryText('他说:"还不醒？"').includes('class="chat-quote">"还不醒？"</span>'), 'straight-quoted speech must receive the same bubble');
 ok(sourceContext.renderMarkdown('他说:"还不醒？"').includes('他说:"还不醒？"'), 'owner chat must keep its existing quote behavior');
-ok(html.includes('.msg.assistant .bubble span.chat-quote') && html.includes('box-decoration-break: clone;') && html.includes('background: color-mix(in srgb, var(--text) 8%, transparent);'), 'owner chat dialogue quotes must render as compact capsules without changing stored text');
+ok(html.includes('.msg.assistant .bubble span.chat-quote') && html.includes('padding: .02em .52em;') && html.includes('line-height: inherit;') && html.includes('box-decoration-break: clone;') && html.includes('background: color-mix(in srgb, var(--text) 8%, transparent);'), 'owner chat dialogue quotes must render as compact, non-overlapping capsules without changing stored text');
 const fencedCode = '```js\n' + 'const quote = "原样保留。";\n'.repeat(12) + '```';
 ok(sourceContext.roleplayStoryParagraphs(fencedCode) === fencedCode, 'code fences must never be auto-paragraphed');
 const existingParagraphs = '第一段。\n\n第二段。';

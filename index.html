@@ -1135,13 +1135,17 @@
      the theater, while keeping the main chat's flat assistant layout intact. */
   .msg.assistant .bubble span.chat-quote {
     display: inline;
-    padding: .18em .52em;
+    /* Keep vertical padding inside the existing 1.7 line box. A larger
+       inline padding makes iOS paint consecutive wrapped fragments on top of
+       one another, unlike the theater's roomier story line-height. */
+    padding: .02em .52em;
     border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
     border-radius: 9px;
     background: color-mix(in srgb, var(--text) 8%, transparent);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.42);
     font-weight: inherit;
-    line-height: 1.65;
+    line-height: inherit;
+    vertical-align: baseline;
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
   }
