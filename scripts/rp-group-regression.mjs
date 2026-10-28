@@ -41,12 +41,14 @@ assert.equal(context.roleplayMentionSelection(project, "＠江屿，你来").tex
 assert.equal(context.roleplayReplyMembers(project, "继续", ["guest"])[0].id, "guest", "persisted UI selection must determine the next API call");
 assert.equal(context.roleplayReplyMembers(project, "继续", ["removed-member"]).length, 0, "stale selections must not fall back to the lead");
 assert.equal(context.roleplayMentionSelection(project, "a@江屿.example").memberIds.length, 0, "emails are not mentions");
+project.members[0].beautificationProtocol = "使用 <status_panel> 状态栏，保留当前场景与待回应钩子";
 const prompt = context.roleplaySpeakerPrompt(project.members[0], project);
 assert.match(prompt, /只由|仅由「导演」发言/);
 assert.match(prompt, /不替用户决定|不要替用户决定/);
 assert.match(prompt, /保持节奏/);
+assert.match(prompt, /状态栏与显示美化协议[\s\S]*status_panel/, "member beautification protocol must reach the scene request");
 assert.match(prompt, /后台共享不等于人物全知/);
-assert.match(prompt, /<director_status>[\s\S]*<\/director_status>/, "director replies must keep a stable status protocol");
+assert.match(prompt, /<status_panel>[\s\S]*<\/status_panel>/, "director replies must keep the member's stable status protocol");
 const actorWithStatus = { id: "guest", name: "江屹琛", kind: "actor", prompt: "结尾输出 <gts_status>状态</gts_status>" };
 assert.equal(context.roleplayStatusTag(actorWithStatus, project), "gts_status");
 assert.match(context.ensureRoleplayStatusOutput("<scene>深夜｜休息室</scene>\n他抬眼。", actorWithStatus, project), /<gts_status>[\s\S]*<\/gts_status>$/);

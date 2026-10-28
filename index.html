@@ -7354,7 +7354,7 @@ function roleplaySemanticDisplay(answer) {
   // player and intro stay on top, story follows. Only <scene> is hoisted to
   // the strip above the body.
   const unwrapped = source.replace(/<plot\b[^>]*>([\s\S]*?)<\/plot\s*>/gi, (_match, content) => content);
-  if (!/<(?:scene|status|[a-z][\w-]*_status)\b/i.test(unwrapped)) {
+  if (!/<(?:scene|status|[a-z][\w-]*_status|status[_-]?[a-z][\w-]*)\b/i.test(unwrapped)) {
     if (unwrapped !== source) return `<div class="rp-story-body">${renderRoleplayStoryText(unwrapped)}</div>`;
     return "";
   }
@@ -7362,7 +7362,7 @@ function roleplaySemanticDisplay(answer) {
   let body = unwrapped.replace(/<scene\b[^>]*>\s*([\s\S]*?)\s*<\/scene\s*>/gi, (_match, content) => {
     scenes.push(String(content || "").trim()); return "";
   });
-  body = body.replace(/<(status|[a-z][\w-]*_status)\b[^>]*>\s*([\s\S]*?)\s*<\/\1\s*>/gi, (_match, tag, content) => {
+  body = body.replace(/<(status|[a-z][\w-]*_status|status[_-]?[a-z][\w-]*)\b[^>]*>\s*([\s\S]*?)\s*<\/\1\s*>/gi, (_match, tag, content) => {
     statuses.push({ tag: String(tag || ""), content: String(content || "").trim() }); return "";
   }).trim();
   if (!scenes.length && !statuses.length) return "";
@@ -8659,7 +8659,7 @@ function normalizedRoleplayProject(value, conv) {
   };
 }
 function roleplayMembers(project) {
-  return [{ id: "lead", name: project.actorName || "舞台主角", kind: "actor", prompt: project.characterPrompt, ...project.leadChannel, avatar: project.actorAvatar || "" }, ...(project.members || [])];
+  return [{ id: "lead", name: project.actorName || "舞台主角", kind: "actor", prompt: project.characterPrompt, beautificationProtocol: project.beautificationProtocol, ...project.leadChannel, avatar: project.actorAvatar || "" }, ...(project.members || [])];
 }
 function roleplayUserIdentityBlock(project) {
   const name = String(project?.userRole || "").trim();
@@ -8854,8 +8854,8 @@ function roleplayStatusTag(speaker, project, output = "") {
   if (speaker?.id === "lead") ownSources.push(project?.opening, project?.characterPrompt,
     ...(Array.isArray(project?.regexRules) ? project.regexRules.flatMap(rule => [rule?.findRegex, rule?.replaceString]) : []));
   const source = ownSources.filter(Boolean).join("\n");
-  const match = source.match(/<\s*(status|[a-z][\w-]*_status)\b/i)
-    || source.match(/\b(status|[a-z][\w-]*_status)\b/i);
+  const match = source.match(/<\s*(status|[a-z][\w-]*_status|status[_-]?[a-z][\w-]*)\b/i)
+    || source.match(/\b(status|[a-z][\w-]*_status|status[_-]?[a-z][\w-]*)\b/i);
   if (match?.[1]) return match[1];
   return speaker?.kind === "director" ? "director_status" : "rp_status";
 }
@@ -8916,6 +8916,7 @@ function roleplaySpeakerPrompt(speaker, project) {
     speaker.kind === "director" ? "你是本场导演：负责场景、节奏、NPC 和必要的承接；不要接管已加入的角色，也不要替用户决定行动、感情或台词。导演建议不等于已发生事实。"
       : `本轮舞台身份是「${speaker.name}」。主角「${project.actorName}」的人物资料只定义主角；本条以当前成员的人设和视角演出，不替其他成员或用户发言。`,
     speaker.prompt ? `【${speaker.name}的共演资料】\n${speaker.prompt}` : "",
+    speaker.beautificationProtocol ? `【${speaker.name}的状态栏与显示美化协议｜必须遵守】\n${speaker.beautificationProtocol}` : "",
     roleplayPrivateMemoryText(speaker),
     "共享本剧本的世界观、场景、正文与连续性档案。各角色只使用自己在戏内知道的信息；后台共享不等于人物全知。只输出这一成员的正文，不重演整轮对话。",
     roleplayOutputProtocol(speaker, project),
