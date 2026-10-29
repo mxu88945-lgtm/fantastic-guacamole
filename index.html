@@ -8892,9 +8892,10 @@ function roleplayOutputProtocol(speaker, project) {
 function wrapTrailingRoleplayStatusFields(output, tag) {
   const lines = String(output || "").replace(/\r\n?/g, "\n").split("\n");
   while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
-  const statusLabel = /(?:状态|心境|内心|态度|看法|关系|局势|谋划|计划|位置|场景|人员|事件|线索|回
-... 242 bytes omitted ...
-s[index].trim();
+  const statusLabel = /(?:状态|心境|内心|态度|看法|关系|局势|谋划|计划|位置|场景|人员|事件|线索|回应|情绪|动作|穿着|外观|欲望|好感|占有|秘密|目标|想法|印象|判断|身体|称呼|时间|地点)/u;
+  let start = lines.length, matches = 0;
+  for (let index = lines.length - 1; index >= 0; index--) {
+    const line = lines[index].trim();
     if (!line) {
       if (matches) start = index;
       continue;
