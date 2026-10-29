@@ -46,6 +46,6 @@ assert.match(html, /src\/gifts\.js/);
 assert.match(html, /src\/gifts\.css/);
 assert.match(dashboard, /action === "gifts"/);
 assert.match(css, /\.chat-gift-card/);
-assert.match(sw, /role-chat-cache-v259/);
+assert.match(sw, /role-chat-cache-v260/);
 
 console.log("gift system regression passed");

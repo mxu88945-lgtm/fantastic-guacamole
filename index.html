@@ -2646,6 +2646,7 @@
 <!-- RP styles must stay after every owner-theme stylesheet: the theater is a fully isolated surface. -->
 <link rel="stylesheet" href="./src/rp-theater.css" />
 <link rel="stylesheet" href="./src/rp-theater-polish.css" />
+<link rel="stylesheet" href="./src/manuscript-themes.css" />
 </head>
 <body>
 <!-- status-bar-style is "default": iOS draws an opaque status bar tinted by the theme-color meta
@@ -14801,6 +14802,16 @@ const THEMES = [
     "text-dim":"#65707b", accent:"#4a5d6c", "accent-soft":"#dfe3e4", "assistant-bubble":"#eae6e4", "user-bubble":"#e1e0e3",
     "code-bg":"#e7e5e2", "err-bg":"#f9ebea", "err-text":"#a7524a", "item-active":"#e7e5e2" } },
 ];
+THEMES.push(
+  { key: "paper", name: "雾蓝纸笺", dark: false, textColor: "#3e4c57", textDim: "#7b8992", vars: {
+    bg:"#edf2f5", "bg-soft":"#f4f7f9", "bg-panel":"#f8fafb", border:"#cedce5", text:"#3e4c57",
+    "text-dim":"#7b8992", accent:"#617e91", "accent-soft":"#e4ecf1", "assistant-bubble":"#fcfcf9", "user-bubble":"#fcfcf9",
+    "code-bg":"#e7eef2", "err-bg":"#fbecee", "err-text":"#a34850", "item-active":"#dfe9ef" } },
+  { key: "scrapbook", name: "莓红剪贴簿", dark: false, textColor: "#503b37", textDim: "#967b73", vars: {
+    bg:"#faf8f4", "bg-soft":"#fffaf5", "bg-panel":"#fffaf5", border:"#d7aaa2", text:"#503b37",
+    "text-dim":"#967b73", accent:"#974847", "accent-soft":"#f1dfd6", "assistant-bubble":"#fffbf4", "user-bubble":"#8c2935",
+    "code-bg":"#f3e7dd", "err-bg":"#fbe8e6", "err-text":"#a34850", "item-active":"#f0dfd5" } },
+);
 function currentTheme() { return THEMES.find(t => t.key === settings.themeName) || THEMES[0]; }
 function applyTheme() {
   const t = currentTheme();
