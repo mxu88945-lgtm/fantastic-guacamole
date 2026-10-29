@@ -177,7 +177,7 @@ const visualStory = sourceContext.renderRoleplayStoryText(denseStory);
 ok((visualStory.match(/<p>/g) || []).length === 1, 'dense Chinese story lines must stay intact just like main-chat lines');
 ok(visualStory.includes('class="chat-quote">“先别走。再陪我一会儿。”</span>'), 'sentence punctuation inside speech must not split its bubble');
 ok(sourceContext.renderRoleplayStoryText('他说:"还不醒？"').includes('class="chat-quote">"还不醒？"</span>'), 'straight-quoted speech must receive the same bubble');
-ok(sourceContext.renderMarkdown('他说:"还不醒？"').includes('他说:"还不醒？"'), 'owner chat must keep its existing quote behavior');
+ok(sourceContext.renderMarkdown('他说:"还不醒？"').includes('class="chat-quote">"还不醒？"</span>'), 'main-chat straight quotes after Chinese punctuation must receive dialogue capsules');
 ok(html.includes('.msg.assistant .bubble span.chat-quote') && html.includes('padding: .02em .52em;') && html.includes('line-height: inherit;') && html.includes('box-decoration-break: clone;') && html.includes('background: color-mix(in srgb, var(--text) 8%, transparent);'), 'owner chat dialogue quotes must render as compact, non-overlapping capsules without changing stored text');
 const fencedCode = '```js\n' + 'const quote = "原样保留。";\n'.repeat(12) + '```';
 ok(sourceContext.roleplayStoryParagraphs(fencedCode) === fencedCode, 'code fences must never be auto-paragraphed');
