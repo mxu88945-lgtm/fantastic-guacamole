@@ -29,4 +29,31 @@ assert.ok(record.includes('archive-disc') && record.includes('角色'));
 assert.ok(!record.includes('<button') && !record.includes('archive-grade'));
 assert.ok(html.includes('const archiveTheme = !isRoleplayConversation()'), 'the main archive layout must not own RP messages');
 assert.ok(html.includes('priorThemeKey !== t.key') && html.includes('renderMessages();'), 'switching themes must refresh the identity header DOM');
+let sceneTheme = 'scene-academy';
+let sceneActive = true;
+const renderContext = vm.createContext({
+  settings: { themeName: 'vinyl' },
+  currentConv: () => ({ rpProject: { rpTheme: sceneTheme, actorName: 'Lead' } }),
+  isRoleplayConversation: () => sceneActive,
+  nameFor: role => role === 'user' ? 'User' : 'Lead',
+  avatarFor: () => 'https://example.test/lead.png',
+  avatarHtml: () => '<div class="avatar"></div>',
+  isImageRef: value => String(value).startsWith('https:'),
+  escapeHtml: context.escapeHtml,
+  messageContentHtml: () => '<div class="bubble">hello</div>',
+  looksLikeRoleplayRichHtml: () => false,
+  roleplayRegexDisplay: value => value,
+  roleplayMembers: () => [{ id: 'support', avatar: 'https://example.test/support.png' }],
+  document: { createElement: () => ({ classList: { add() {} }, querySelectorAll: () => [] }) },
+});
+vm.runInContext(html.slice(html.indexOf('function mainArchiveHeading('), html.indexOf('function updateScrollControls(')), renderContext);
+for (const theme of ['scene-academy', 'scene-vinyl']) {
+  sceneTheme = theme;
+  const row = renderContext.makeMsgEl('assistant', 'text', { rpSpeakerId: 'support', rpSpeakerName: 'Support', rpSpeakerAvatar: 'https://example.test/support.png' });
+  assert.ok(row.innerHTML.includes('support.png') && row.innerHTML.includes('Support'), 'RP archive header must use the speaking cast member');
+}
+sceneTheme = 'liquid-pearl';
+assert.ok(!renderContext.makeMsgEl('assistant', 'text', {}).innerHTML.includes('archive-heading'), 'liquid RP must retain its original message structure');
+sceneActive = false;
+assert.ok(renderContext.makeMsgEl('user', 'text', {}).innerHTML.includes('archive-heading'), 'main-chat archive selection must remain independent');
 console.log('archive theme regression: scoped identity headers, escaped avatars and decorative record artwork passed');

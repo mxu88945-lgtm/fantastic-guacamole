@@ -1,0 +1,347 @@
+/* Scene-owned editions of the four manuscript themes. */
+body.rp-chat-active[data-rp-theme^="scene-"] {
+  --rp-liquid-panel: rgba(255, 253, 247, .92);
+  --rp-liquid-panel-strong: rgba(255, 253, 247, .97);
+  --rp-liquid-line: #a7a29744;
+  --rp-liquid-chip: #e8e5dc;
+  --rp-liquid-shadow: #41413918;
+}
+html body.rp-chat-active:is([data-rp-theme="scene-paper"], [data-rp-theme="scene-scrapbook"]) #messages .msg {
+  position: relative !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  width: 100% !important;
+  max-width: 820px !important;
+  margin: 26px auto 38px !important;
+  gap: 20px !important;
+}
+html body.rp-chat-active:is([data-rp-theme="scene-paper"], [data-rp-theme="scene-scrapbook"]) #messages :is(.body, .msg-head) {
+  width: 100% !important;
+  min-width: 0 !important;
+  align-items: center !important;
+}
+html body.rp-chat-active:is([data-rp-theme="scene-paper"], [data-rp-theme="scene-scrapbook"]) #messages .msg-head {
+  flex-direction: column !important;
+  gap: 18px !important;
+}
+html body.rp-chat-active:is([data-rp-theme="scene-paper"], [data-rp-theme="scene-scrapbook"]) #messages .msg .name {
+  width: 100% !important;
+  text-align: center !important;
+  color: var(--rp-accent-color) !important;
+  font-size: 18px !important;
+  font-weight: 650 !important;
+  margin: 0 0 14px !important;
+}
+html body.rp-chat-active:is([data-rp-theme="scene-paper"], [data-rp-theme="scene-scrapbook"]) #messages .msg.flat .bubble {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  line-height: 1.95 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html body.rp-chat-active:is([data-rp-theme="scene-paper"], [data-rp-theme="scene-scrapbook"]) #messages :is(.msg-actions, .user-msg-actions) { align-self: center !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-paper"], [data-rp-theme="scene-scrapbook"]) .composer {
+  background: color-mix(in srgb, var(--rp-base-color) 96%, transparent) !important;
+  border: 1px solid var(--rp-liquid-line) !important;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--rp-accent-color) 12%, transparent) !important;
+}
+html body.rp-chat-active:is([data-rp-theme="scene-paper"], [data-rp-theme="scene-scrapbook"]) .main > header {
+  background: color-mix(in srgb, var(--rp-base-color) 95%, transparent) !important;
+  border-bottom: 0 !important;
+}
+html body.rp-chat-active:is([data-rp-theme="scene-paper"], [data-rp-theme="scene-scrapbook"]) .sidebar { background: var(--rp-base-color) !important; }
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg {
+  isolation: isolate !important;
+  padding: 26px 20px 16px !important;
+  background: #fcfcf9 !important;
+  box-shadow: 0 10px 25px #475d6c12 !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg::before,
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg::after {
+  content: '' !important;
+  position: absolute !important;
+  z-index: -1 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 13px !important;
+  background: #fcfcf9 !important;
+  clip-path: polygon(0 50%, 3% 35%, 6% 65%, 10% 24%, 15% 50%, 20% 35%, 25% 65%, 30% 30%, 35% 55%, 40% 20%, 45% 58%, 50% 35%, 55% 60%, 60% 24%, 65% 45%, 70% 20%, 75% 55%, 80% 35%, 85% 66%, 90% 30%, 95% 50%, 100% 35%, 100% 100%, 0 100%) !important;
+  pointer-events: none !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg::before { top: -12px !important; }
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg::after { bottom: -12px !important; transform: rotate(180deg) !important; }
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg .avatar { display: none !important; }
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg .name {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 14px !important;
+  font-family: 'Songti SC', serif !important;
+  letter-spacing: .12em !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg .name::before,
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg .name::after { content: '' !important; width: 30px !important; height: 1px !important; background: #93a9b780 !important; }
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg.flat .bubble {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--rp-text-color) !important;
+  text-align: center !important;
+  background: repeating-linear-gradient(to bottom, transparent 0 calc(1.95em - 1px), #6f8c9f20 calc(1.95em - 1px) 1.95em) !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg.flat .bubble p { text-align: center !important; }
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .chat-quote {
+  display: inline !important;
+  padding: 0 0 2px !important;
+  border: 0 !important;
+  border-bottom: 1px solid #65829773 !important;
+  border-radius: 0 !important;
+  color: #526f84 !important;
+  background: transparent !important;
+  line-height: inherit !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages :is(pre, details, .rp-status-card) { text-align: left !important; }
+html body.rp-chat-active[data-rp-theme="scene-paper"] .composer { border-radius: 2px !important; border-width: 0 0 1px !important; }
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg { padding-top: 76px !important; }
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg::before {
+  content: 'Little moments, kept forever' !important;
+  position: absolute !important;
+  top: 28px !important;
+  left: 50% !important;
+  transform: translateX(-50%) rotate(-2deg) !important;
+  width: 226px !important;
+  padding: 6px 10px !important;
+  border: 1px solid #d7aaa266 !important;
+  background: #f6e7dc !important;
+  color: #a24949 !important;
+  font: 12px/1.3 Georgia, serif !important;
+  text-align: center !important;
+  box-shadow: 0 3px 7px #65443720 !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg::after {
+  content: '' !important;
+  position: absolute !important;
+  width: 58px !important;
+  height: 42px !important;
+  top: 0 !important;
+  left: calc(50% - 29px) !important;
+  background: url('./scrapbook-butterfly.svg') center / contain no-repeat !important;
+  pointer-events: none !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg .avatar {
+  position: relative !important;
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 auto !important;
+  width: 104px !important;
+  height: 116px !important;
+  border: 7px solid #fffdf5 !important;
+  border-bottom-width: 22px !important;
+  border-radius: 1px !important;
+  overflow: visible !important;
+  transform: rotate(-3deg) !important;
+  background: #eadbd1 !important;
+  color: #9d4947 !important;
+  box-shadow: 0 5px 15px #63463c26 !important;
+  font-size: 28px !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg .avatar img { border-radius: 0 !important; }
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg .avatar::before {
+  content: '' !important;
+  position: absolute !important;
+  z-index: 1 !important;
+  width: 68px !important;
+  height: 15px !important;
+  top: -15px !important;
+  left: 10px !important;
+  transform: rotate(7deg) !important;
+  opacity: .88 !important;
+  background: conic-gradient(#a74249 25%, #fff8ed 0 50%, #a74249 0 75%, #fff8ed 0) 0 0 / 10px 10px !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg .avatar::after { content: '✿' !important; position: absolute !important; right: -22px !important; bottom: -20px !important; color: #ab3c47 !important; font-size: 40px !important; line-height: 1 !important; text-shadow: 2px 2px #fff5e8 !important; pointer-events: none !important; }
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg .name::before { content: '✦ ' !important; }
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg.flat .bubble {
+  padding: 22px 18px !important;
+  border: 1px solid #d7aaa2 !important;
+  border-radius: 7px !important;
+  outline: 1px solid #e7c8bd !important;
+  outline-offset: -8px !important;
+  color: var(--rp-text-color) !important;
+  background: radial-gradient(circle, #d9a59c44 1px, transparent 2px) 0 0 / 36px 36px, #fffbf4 !important;
+  box-shadow: 0 10px 20px #5b30201a !important;
+  text-align: left !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg.user .bubble {
+  padding-top: 40px !important;
+  color: #fff7eb !important;
+  background: conic-gradient(#9a333b 25%, #fff6e6 0 50%, #9a333b 0 75%, #fff6e6 0) 0 0 / 16px 24px repeat-x, linear-gradient(150deg, #8c2935, #621c29) !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .chat-quote {
+  display: inline !important;
+  padding: 2px 4px !important;
+  border: 1px solid #dab1a5 !important;
+  border-radius: 4px !important;
+  color: #9d4947 !important;
+  background: #f6e1d4 !important;
+  box-decoration-break: clone !important;
+  -webkit-box-decoration-break: clone !important;
+  line-height: inherit !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg.user .chat-quote { color: #fff7eb !important; border-color: #dba78d80 !important; background: #fff1cf18 !important; }
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] .composer { border-radius: 24px !important; }
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #send-btn { border: 2px solid #dca99c !important; border-radius: 50% !important; background: #913b46 !important; color: #fff8ed !important; }
+
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .msg.archive-row { box-sizing: border-box !important; position: relative !important; width: 100% !important; max-width: 820px !important; min-width: 0 !important; flex: 0 0 auto !important; align-self: center !important; display: flex !important; flex-direction: column !important; align-items: stretch !important; gap: 0 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row *, html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row *::before, html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row *::after { box-sizing: border-box !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row .archive-body { width: 100% !important; min-width: 0 !important; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif !important; font-size: var(--rp-msg-font, 15.5px) !important; font-weight: 450 !important; line-height: 1.95 !important; overflow-wrap: anywhere !important; text-align: left !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row .archive-body :is(.message-content, .bubble) { width: 100% !important; max-width: 100% !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: transparent !important; color: inherit !important; font: inherit !important; line-height: inherit !important; text-align: inherit !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row .archive-body :is(p, .message-story-paragraph) { margin: 0 0 1em !important; text-align: inherit !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row .archive-body :is(.message-content-segments, .roleplay-html-stack) { gap: 18px !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row .archive-heading { position: relative !important; flex: 0 0 auto !important; display: flex !important; align-items: center !important; width: 100% !important; min-width: 0 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row .archive-cover { position: relative !important; display: grid !important; place-items: center !important; width: 100% !important; height: 100% !important; overflow: hidden !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row .archive-cover img { display: block !important; width: 100% !important; height: 100% !important; object-fit: cover !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row .archive-portrait { position: relative !important; flex-shrink: 0 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row .archive-name { display: block !important; overflow-wrap: anywhere !important; font-weight: 500 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row .archive-heading-copy { min-width: 0 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row :is(.message-action-row, .msg-actions) { align-self: flex-start !important; padding: 0 14px !important; margin: 12px 0 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row .archive-body :is(.weijing-status-card, .weijing-scene-strip, .rp-status-card, details) { margin: 20px auto !important; max-width: 100% !important; padding: 16px !important; border: 1px solid #d9d8d0 !important; border-radius: 16px !important; background: #f9f9f5 !important; text-align: left !important; font-size: .92em !important; line-height: 1.8 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-row .archive-body :is(.weijing-status-title, .weijing-czw-status-header, .rp-status-card > header) { font-family: Georgia, 'Times New Roman', 'Songti SC', serif !important; font-size: .8em !important; letter-spacing: .14em !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy { margin: 76px auto 30px !important; padding: 0 18px 18px !important; color: #272a29 !important; background: #fffff6 !important; border: 1px solid #efeee1 !important; border-radius: 2px !important; box-shadow: 0 12px 28px #33362f28 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy::before { content: '♫' !important; position: absolute !important; height: 24px !important; left: 12% !important; right: 12% !important; top: -62px !important; display: grid !important; place-items: center !important; color: #9b8670 !important; font: 18px/24px Georgia, serif !important; background: linear-gradient(#b5a18b80, #b5a18b80) left center / calc(50% - 22px) 1px no-repeat, linear-gradient(#b5a18b80, #b5a18b80) right center / calc(50% - 22px) 1px no-repeat !important; pointer-events: none !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy::after { content: '' !important; position: absolute !important; right: -8px !important; bottom: -20px !important; width: 52px !important; height: 42px !important; background: url('./archive-envelope.svg') center / contain no-repeat !important; transform: rotate(4deg) !important; pointer-events: none !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-heading { min-height: 88px !important; margin: 0 -18px 22px !important; width: calc(100% + 36px) !important; padding: 10px 68px 10px 100px !important; border-bottom: 1px solid #b95c61 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-heading::before { content: '' !important; position: absolute !important; top: -10px !important; left: 42% !important; width: 85px !important; height: 23px !important; transform: rotate(3deg) !important; background: #eddaa480 !important; box-shadow: 0 2px 3px #6c583c12 !important; pointer-events: none !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-portrait { position: absolute !important; left: 16px !important; top: -35px !important; width: 70px !important; height: 88px !important; padding: 5px 5px 16px !important; background: #fff !important; box-shadow: 0 5px 12px #443e3540 !important; transform: rotate(-7deg) !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-cover { color: #735c4c !important; background: #e6e2d9 !important; font: 26px Georgia, serif !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-portrait::after { content: '99' !important; position: absolute !important; bottom: 1px !important; left: 0 !important; right: 0 !important; text-align: center !important; color: #65594f !important; font: italic 12px Georgia, serif !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-name { color: #ac353d !important; font-family: 'Kaiti SC', STKaiti, KaiTi, 'Songti SC', serif !important; font-size: clamp(24px, 5vw, 33px) !important; line-height: 1.2 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy.user .archive-name { color: #28558a !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-grade { position: absolute !important; right: 12px !important; top: 10px !important; display: grid !important; place-items: center !important; width: 48px !important; height: 48px !important; border: 2px solid #ba3e43 !important; border-radius: 50% !important; color: #ba3e43 !important; font: italic 30px/1 'Kaiti SC', Georgia, serif !important; transform: rotate(-12deg) !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy.user .archive-grade { color: #3d8b58 !important; border-color: #3d8b58 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-disc { display: none !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-body :is(.message-quote, .chat-quote) { display: inline !important; color: #a14148 !important; padding: 0 2px !important; border: 0 !important; border-radius: 0 !important; background: linear-gradient(transparent 65%, #fff17d 65%) !important; box-decoration-break: clone !important; -webkit-box-decoration-break: clone !important; line-height: inherit !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-body :is(.message-narration, .chat-narration, em) { color: #6d716b !important; font-style: normal !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-body { padding-bottom: 10px !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl { margin: 35px auto 30px !important; padding: 0 !important; color: #315868 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-heading { min-height: 164px !important; padding: 38px 12px 32px !important; gap: 20px !important; border-top: 1px solid #658694 !important; border-bottom: 1px solid #658694 !important; margin: 8px 0 24px !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-kicker { position: absolute !important; top: -12px !important; left: 0 !important; right: 0 !important; display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 10px !important; color: #557987 !important; font-size: 8px !important; letter-spacing: .12em !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-kicker b { padding: 4px 10px !important; background: #fff !important; font-size: 10px !important; letter-spacing: .22em !important; font-weight: 500 !important; white-space: nowrap !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-kicker > span { max-width: 27% !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-portrait { width: 106px !important; height: 86px !important; margin: 0 4px !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-cover { width: 80px !important; height: 86px !important; border: 1px solid #2d5363 !important; padding: 3px !important; background: #e5edf0 !important; box-shadow: -4px -4px 0 -3px #2d5363, 5px 5px 0 -4px #2d5363 !important; color: #315868 !important; font: 28px Georgia, serif !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-disc { position: absolute !important; right: -4px !important; top: 2px !important; width: 82px !important; height: 82px !important; border-radius: 50% !important; border: 1px solid #5a7d88 !important; background: repeating-radial-gradient(circle, transparent 0 3px, #60828c44 4px, transparent 5px), radial-gradient(circle, #bbd0d4 0 3%, #214956 4% 18%, #557d89 19% 23%, #153d4d 24% 65%, #2d5663 68% 70%) !important; box-shadow: 2px 5px 10px #23465326 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-heading-copy { flex: 1 !important; border-left: 1px solid #7b9aa680 !important; padding-left: 12px !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-heading-copy small { display: block !important; color: #557987 !important; font: 9px/1.4 -apple-system, sans-serif !important; letter-spacing: .13em !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-name { margin: 6px 0 !important; color: #315868 !important; font-family: 'Songti SC', Georgia, serif !important; font-size: 24px !important; line-height: 1.2 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-heading-copy em { display: block !important; color: #7a929d !important; font: italic 11px/1.4 Georgia, serif !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-track { display: flex !important; align-items: center !important; gap: 8px !important; margin-top: 9px !important; font: 8px/1 Georgia, serif !important; letter-spacing: .1em !important; color: #557987 !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-track i { flex: 1 !important; height: 1px !important; background: linear-gradient(90deg, #658694 0 58%, #c9d5d9 58%) !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-caption { position: absolute !important; bottom: -5px !important; left: 50% !important; transform: translateX(-50%) !important; max-width: 95% !important; width: max-content !important; background: #fff !important; padding: 0 10px !important; color: #658694 !important; font: 7px/1.5 -apple-system, sans-serif !important; letter-spacing: .19em !important; text-align: center !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-body :is(.message-quote, .chat-quote) { display: inline !important; color: #b46b43 !important; padding: 1px 5px !important; border: 0 !important; border-radius: 10px !important; background: linear-gradient(100deg, #cfe4e9, #f6d6c7) !important; box-decoration-break: clone !important; -webkit-box-decoration-break: clone !important; line-height: inherit !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-body :is(.message-narration, .chat-narration, em) { color: #7b98a4 !important; font-style: normal !important; }
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-vinyl .archive-body :is(.weijing-status-card, .weijing-scene-strip, .rp-status-card, details) { background: #f7f9fb !important; color: #315868 !important; border-color: #d7e0e4 !important; }
+
+ 
+
+/* Final scene overrides: rich cards remain intact, while native story/status
+   fragments adopt the surrounding page and the user's copy hugs the right. */
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg {
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  flex: 0 0 auto !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg.assistant.flat {
+  display: flex !important;
+  flex-direction: column !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg.assistant.flat > .msg-head {
+  display: flex !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg.user {
+  width: min(88%, 720px) !important;
+  margin-left: auto !important;
+  margin-right: 0 !important;
+  align-self: flex-end !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg.user :is(.bubble, .archive-body) {
+  width: fit-content !important;
+  max-width: 100% !important;
+  align-self: flex-end !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg.user .msg-actions {
+  align-self: flex-end !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg.flat .bubble,
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg .archive-body {
+  font: var(--rp-msg-font-weight, 450) var(--rp-msg-font, 15.5px)/1.95 var(--rp-msg-font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg.archive-row .archive-body .bubble {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--rp-text-color) !important;
+  max-width: 100% !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg .chat-narration {
+  color: var(--rp-narration-color) !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg .rp-story-text > p {
+  text-align: center !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg :is(.rp-status-card, .rp-scene-strip, .weijing-status-card) {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 18px auto !important;
+  padding: 14px 16px !important;
+  border: 1px solid var(--rp-liquid-line) !important;
+  border-radius: 16px !important;
+  background: color-mix(in srgb, var(--rp-base-color) 90%, white) !important;
+  color: var(--rp-text-color) !important;
+  text-align: left !important;
+  font-size: .92em !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg .rp-story-text .chat-quote {
+  padding: 0 0 2px !important;
+  border: 0 !important;
+  border-bottom: 1px solid #65829773 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--rp-quote-color) !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg .rp-story-text .chat-quote {
+  padding: 2px 4px !important;
+  border: 1px solid #dab1a5 !important;
+  border-radius: 4px !important;
+  background: #f6e1d4 !important;
+  color: var(--rp-quote-color) !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-academy"] #messages .msg .rp-story-text .chat-quote {
+  padding: 0 2px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: linear-gradient(transparent 65%, #fff17d 65%) !important;
+  color: var(--rp-quote-color) !important;
+  box-shadow: none !important;
+}
+html body.rp-chat-active[data-rp-theme="scene-vinyl"] #messages .msg .rp-story-text .chat-quote {
+  padding: 1px 5px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: linear-gradient(100deg, #cfe4e9, #f6d6c7) !important;
+  color: var(--rp-quote-color) !important;
+}
+.rp-theme-presets [data-rp-theme="scene-paper"] i { background: #edf2f5; }
+.rp-theme-presets [data-rp-theme="scene-scrapbook"] i { background: linear-gradient(135deg, #a24949, #ead2bd); }
+.rp-theme-presets [data-rp-theme="scene-academy"] i { background: linear-gradient(transparent 65%, #fff17d 65%), #fffff6; }
+.rp-theme-presets [data-rp-theme="scene-vinyl"] i { background: repeating-radial-gradient(circle, #183b49 0 3px, #4c7180 4px 5px); }
+

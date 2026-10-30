@@ -207,11 +207,16 @@ ok(groupCss.includes('height: auto !important; min-height: 0 !important;') && gr
 ok(css.includes('.rp-detail-actions { display: flex;') && css.includes('position: static;') && !css.includes('position: sticky; bottom: 0'), 'role detail actions must stay at the true end of the page instead of covering scrolled content');
 ok(css.includes('.rp-story-text { font-size: var(--rp-msg-font, 15.5px)') && css.includes('.roleplay-opening-text') && css.includes('font-size: var(--rp-msg-font, 15.5px)'), 'RP story and opening text must use a scene-local font size without a main-chat fallback');
 ok(groupCss.includes('.rp-status-card') && groupCss.includes('font-size: var(--rp-msg-font, 15.5px)') && groupCss.includes('.rp-status-card > header') && groupCss.includes('font-size: .72em;'), 'RP status card and its header must scale with the scene font size instead of staying fixed');
-ok((js.match(/data-rp-theme="liquid-/g) || []).length === 2 && !/data-rp-theme="(?:mist|night|paper|rose|amber|lavender|sage|ink)"/.test(js), 'the editor must expose exactly the two new liquid scene themes');
+ok((js.match(/data-rp-theme="liquid-/g) || []).length === 2 && (js.match(/data-rp-theme="scene-/g) || []).length === 4, 'the editor must expose the two liquid and four manuscript scene themes');
 ok(html.includes('const flat = isRoleplayConversation() || settings.chatLayout === "flat" || !!archiveTheme;') && html.includes('const archiveTheme = !isRoleplayConversation()'), 'RP message DOM layout must stay flat and exclude main-chat archive headings');
 ok(polishCss.includes('Scene chat v3: two fully isolated liquid surfaces') && polishCss.includes('body.rp-chat-active[data-rp-theme="liquid-pearl"]') && polishCss.includes('body.rp-chat-active[data-rp-theme="liquid-mist"]') && polishCss.includes('.rp-story-text .chat-quote'), 'the two liquid themes need a final isolated prose, quote and composer layer');
 vm.runInContext(html.slice(html.indexOf('const ROLEPLAY_MEMORY_DEFAULT_SUMMARY_PROMPT'), html.indexOf('function addRoleplayMemory(')), sourceContext);
 const normalized = sourceContext.normalizedRoleplayProject({ greetings: ['cover', 'first opening', '', 'third opening'], openingIndex: 3 }, {title:'test'});
+for (const rpTheme of ['scene-paper', 'scene-scrapbook', 'scene-academy', 'scene-vinyl']) {
+  const saved = sourceContext.normalizedRoleplayProject({ rpTheme, rpBaseColor: '#fafafa', chatTextColor: '#123456' }, { title: 'theme test' });
+  ok(saved.rpTheme === rpTheme && saved.rpBaseColor === '#fafafa' && saved.chatTextColor === '#123456', 'new scene theme and its custom colors must survive save/reload');
+  ok(js.includes('data-rp-theme="' + rpTheme + '"') && group.includes('["' + rpTheme + '"'), 'scene themes must be available in both editor and in-chat settings');
+}
 ok(normalized.greetings.length === 4 && normalized.opening === 'third opening', 'blank swipe slots must not shift card button indexes');
 ok(js.includes('id="rp-import-file"') && js.includes('.png') && js.includes('.zip'), 'RP import input must accept PNG and ZIP character cards');
 ok(js.includes('pngCardJsonFromBytes') && js.includes('zipCardJsonFromBytes'), 'RP import must extract cards from PNG and ZIP files');

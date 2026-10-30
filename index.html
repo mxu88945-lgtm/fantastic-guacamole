@@ -2648,6 +2648,7 @@
 <link rel="stylesheet" href="./src/rp-theater-polish.css" />
 <link rel="stylesheet" href="./src/manuscript-themes.css" />
 <link rel="stylesheet" href="./src/theme-archives.css" />
+<link rel="stylesheet" href="./src/rp-manuscript-themes.css" />
 </head>
 <body>
 <!-- status-bar-style is "default": iOS draws an opaque status bar tinted by the theme-color meta
@@ -6447,6 +6448,10 @@ function toggleRoleplayDisplayMode() {
 const RP_THEME_PRESETS = [
   { id: "liquid-pearl", name: "云瓷米白", base: "#f4f8fb", text: "#34404a", narration: "#6f7b86", quote: "#607f9b", accent: "#7896ad" },
   { id: "liquid-mist", name: "雾霁月蓝", base: "#edf3f8", text: "#293746", narration: "#69798a", quote: "#5f7d9b", accent: "#6f8fab" },
+  { id: "scene-paper", name: "雾蓝纸笺", base: "#f6f8f8", text: "#344b59", narration: "#81949f", quote: "#526f84", accent: "#607e90" },
+  { id: "scene-scrapbook", name: "莓红剪贴簿", base: "#fffaf2", text: "#473530", narration: "#99817a", quote: "#9d4947", accent: "#a24949" },
+  { id: "scene-academy", name: "秋日批注", base: "#fafaf5", text: "#272a29", narration: "#6d716b", quote: "#a14148", accent: "#ac353d" },
+  { id: "scene-vinyl", name: "青橙唱片", base: "#ffffff", text: "#315868", narration: "#7b98a4", quote: "#b46b43", accent: "#416978" },
 ];
 function roleplayThemePreset(project) { return RP_THEME_PRESETS.find(item => item.id === project?.rpTheme) || RP_THEME_PRESETS[0]; }
 function roleplayColorWithAlpha(hex, alpha) {
@@ -7739,7 +7744,8 @@ function makeMsgEl(role, content, opts) {
   opts = opts || {};
   // A scene always uses its own prose layout. Main-chat bubble/flat switches
   // must never rebuild RP messages with a different DOM structure.
-  const archiveTheme = !isRoleplayConversation() && ["academy", "vinyl"].includes(settings.themeName) ? settings.themeName : "";
+  const sceneArchive = { "scene-academy": "academy", "scene-vinyl": "vinyl" }[currentConv()?.rpProject?.rpTheme];
+  const archiveTheme = !isRoleplayConversation() && ["academy", "vinyl"].includes(settings.themeName) ? settings.themeName : (isRoleplayConversation() ? sceneArchive || "" : "");
   const flat = isRoleplayConversation() || settings.chatLayout === "flat" || !!archiveTheme;
   const el = document.createElement("div");
   const stickerOnly = Array.isArray(content) && content.length > 0 && content.every(p => p.type === "sticker");
@@ -7762,7 +7768,7 @@ function makeMsgEl(role, content, opts) {
     : avatarHtml(role);
   if (archiveTheme) {
     el.classList.add("archive-row", `archive-${archiveTheme}`);
-    el.innerHTML = mainArchiveHeading(archiveTheme, displaySpeakerName, avatarFor(role), role === "user")
+    el.innerHTML = mainArchiveHeading(archiveTheme, displaySpeakerName, castAvatar || avatarFor(role), role === "user")
       + `<div class="archive-body">${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState)}</div>`;
   } else if (flat) {
     el.innerHTML = `<div class="msg-head">${speakerAvatar}<span class="name">${nameHtml}</span></div>
@@ -8602,8 +8608,9 @@ function normalizedRoleplayProject(value, conv) {
     : (raw.chatFontSize != null && String(raw.chatFontSize).trim() !== "" && !isNaN(Number(raw.chatFontSize))
       ? String(Math.min(24, Math.max(10, Number(raw.chatFontSize)))) : "");
   const legacyThemeMap = { paper: "liquid-pearl", rose: "liquid-pearl", amber: "liquid-pearl", mist: "liquid-mist", lavender: "liquid-mist", sage: "liquid-mist", night: "liquid-mist", ink: "liquid-mist" };
-  const rpTheme = ["liquid-pearl", "liquid-mist"].includes(raw.rpTheme) ? raw.rpTheme : (legacyThemeMap[raw.rpTheme] || "liquid-pearl");
-  const legacyTheme = Boolean(raw.rpTheme && !["liquid-pearl", "liquid-mist"].includes(raw.rpTheme));
+  const sceneThemeIds = ["liquid-pearl", "liquid-mist", "scene-paper", "scene-scrapbook", "scene-academy", "scene-vinyl"];
+  const rpTheme = sceneThemeIds.includes(raw.rpTheme) ? raw.rpTheme : (legacyThemeMap[raw.rpTheme] || "liquid-pearl");
+  const legacyTheme = Boolean(raw.rpTheme && !sceneThemeIds.includes(raw.rpTheme));
   const rpBaseColor = color("rpBaseColor");
   const stalePearlBase = rpTheme === "liquid-pearl" && ["#f4efe6", "#f7f6f2"].includes(rpBaseColor);
   return {
@@ -17933,13 +17940,13 @@ window.JYCRoleplayBridge = {
     const allowed = {};
     ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor", "chatFontSize", "chatFontFamily", "chatFontWeight", "rpTheme", "rpWallpaper", "rpWallpaperOpacity", "rpOverlayOpacity", "rpBaseColor", "sceneSystemPromptEnabled", "sceneSystemPrompt"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
     const previousPortraits = JSON.stringify(roleplayMembers(normalizedRoleplayProject(conv.rpProject, conv)).map(member => [member.id, member.avatar]));
-    const previousTextTheme = JSON.stringify([conv.rpProject?.chatTextColor, conv.rpProject?.chatNarrationColor, conv.rpProject?.chatQuoteColor, conv.rpProject?.chatFontSize, conv.rpProject?.chatFontFamily, conv.rpProject?.chatFontWeight]);
+    const previousTextTheme = JSON.stringify([conv.rpProject?.rpTheme, conv.rpProject?.chatTextColor, conv.rpProject?.chatNarrationColor, conv.rpProject?.chatQuoteColor, conv.rpProject?.chatFontSize, conv.rpProject?.chatFontFamily, conv.rpProject?.chatFontWeight]);
     rememberRoleplayCards([conv]);
     conv.rpProject = normalizedRoleplayProject({ ...conv.rpProject, ...allowed }, conv);
     conv.updatedAt = Date.now(); saveConversations();
     rememberRoleplayCards([conv]);
     const portraitsChanged = previousPortraits !== JSON.stringify(roleplayMembers(conv.rpProject).map(member => [member.id, member.avatar]));
-    const textThemeChanged = previousTextTheme !== JSON.stringify([conv.rpProject.chatTextColor, conv.rpProject.chatNarrationColor, conv.rpProject.chatQuoteColor, conv.rpProject.chatFontSize, conv.rpProject.chatFontFamily, conv.rpProject.chatFontWeight]);
+    const textThemeChanged = previousTextTheme !== JSON.stringify([conv.rpProject.rpTheme, conv.rpProject.chatTextColor, conv.rpProject.chatNarrationColor, conv.rpProject.chatQuoteColor, conv.rpProject.chatFontSize, conv.rpProject.chatFontFamily, conv.rpProject.chatFontWeight]);
     if (conv.id === currentId && (portraitsChanged || textThemeChanged)) renderMessages();
     if (conv.id === currentId) { updateConversationSpaceUI(); if (typeof applyRoleplayWallpaper === "function") applyRoleplayWallpaper(); }
     window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: id } }));

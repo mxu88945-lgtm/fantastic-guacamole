@@ -6,6 +6,13 @@ if (!bridge) {
   console.error("RP theater bridge is unavailable");
 } else {
   const $ = (id) => document.getElementById(id);
+  const manuscriptColors = {
+    "scene-paper": ["#344b59", "#81949f", "#526f84"],
+    "scene-scrapbook": ["#473530", "#99817a", "#9d4947"],
+    "scene-academy": ["#272a29", "#6d716b", "#a14148"],
+    "scene-vinyl": ["#315868", "#7b98a4", "#b46b43"],
+  };
+  const sceneBases = { "liquid-pearl": "#f4f8fb", "liquid-mist": "#edf3f8", "scene-paper": "#f6f8f8", "scene-scrapbook": "#fffaf2", "scene-academy": "#fafaf5", "scene-vinyl": "#ffffff" };
   const state = { editingId: "", detailId: "", detailMemberId: "lead", librarySection: "hub", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {}, roleManage: false, roleQuery: "", roleSelected: [], importReturnSection: "" };
   // 角色库折叠的组键（视图偏好，关掉剧场即清掉）
   const collapsedRoleGroups = new Set();
@@ -368,6 +375,8 @@ function plainPreviewWithMedia(value) {
                 <div class="rp-card-block-head"><div><strong>本剧场外观</strong><small>只影响剧情窗口，不会修改主聊天</small></div><span class="rp-theme-badge">SCENE ONLY</span></div>
                 <div class="rp-theme-presets" role="radiogroup" aria-label="剧情主题">
                   <button type="button" data-rp-theme="liquid-pearl"><i></i><span>云瓷米白</span></button><button type="button" data-rp-theme="liquid-mist"><i></i><span>雾霁月蓝</span></button>
+                  <button type="button" data-rp-theme="scene-paper"><i></i><span>雾蓝纸笺</span></button><button type="button" data-rp-theme="scene-scrapbook"><i></i><span>莓红剪贴簿</span></button>
+                  <button type="button" data-rp-theme="scene-academy"><i></i><span>秋日批注</span></button><button type="button" data-rp-theme="scene-vinyl"><i></i><span>青橙唱片</span></button>
                 </div>
                 <div class="rp-theme-fields"><label><span>字体</span><select id="rp-field-font-family"><option value="default">系统黑体</option><option value="kai">楷体</option><option value="song">宋体</option></select></label><label><span>字号</span><input id="rp-field-font-size" type="range" min="12" max="20" step="0.5" value="15.5" /><output id="rp-field-font-size-value">15.5</output></label></div>
                 <div class="rp-theme-colors"><label>正文 <input id="rp-field-text-color" type="color" value="#34404a"></label><label>旁白 <input id="rp-field-narration-color" type="color" value="#6f7b86"></label><label>引用 <input id="rp-field-quote-color" type="color" value="#607f9b"></label></div>
@@ -447,6 +456,7 @@ function plainPreviewWithMedia(value) {
       regexRules: state.regexRules.map(({ expanded, ...rule }) => ({ ...rule })),
       description: safeText($("rp-field-description").dataset.full || "", 20000),
       rpTheme: $("rp-scene-theme")?.dataset.theme || "liquid-pearl",
+      rpBaseColor: $("rp-scene-theme")?.dataset.base || "",
       chatFontFamily: $("rp-field-font-family")?.value || "default",
       chatFontSize: $("rp-field-font-size")?.value || "15.5",
       chatTextColor: $("rp-field-text-color")?.value || "",
@@ -499,11 +509,12 @@ function plainPreviewWithMedia(value) {
     $("rp-field-opening").value = state.greetings[state.selectedGreeting] || "";
     $("rp-field-memory").value = safeText(data.memory);
     const legacyTheme = { paper: "liquid-pearl", rose: "liquid-pearl", amber: "liquid-pearl", mist: "liquid-mist", lavender: "liquid-mist", sage: "liquid-mist", night: "liquid-mist", ink: "liquid-mist" }[data.rpTheme];
-    $("rp-scene-theme").dataset.theme = ["liquid-pearl", "liquid-mist"].includes(data.rpTheme) ? data.rpTheme : (legacyTheme || "liquid-pearl");
+    $("rp-scene-theme").dataset.theme = ["liquid-pearl", "liquid-mist", "scene-paper", "scene-scrapbook", "scene-academy", "scene-vinyl"].includes(data.rpTheme) ? data.rpTheme : (legacyTheme || "liquid-pearl");
+    $("rp-scene-theme").dataset.base = data.rpBaseColor || sceneBases[$("rp-scene-theme").dataset.theme];
     $("rp-field-font-family").value = data.chatFontFamily || "default";
     $("rp-field-font-size").value = data.chatFontSize && !isNaN(Number(data.chatFontSize)) ? data.chatFontSize : "15.5";
     $("rp-field-font-size-value").textContent = $("rp-field-font-size").value;
-    const colors = $("rp-scene-theme").dataset.theme === "liquid-mist" ? ["#293746", "#69798a", "#5f7d9b"] : ["#34404a", "#6f7b86", "#607f9b"];
+    const colors = manuscriptColors[$("rp-scene-theme").dataset.theme] || ($("rp-scene-theme").dataset.theme === "liquid-mist" ? ["#293746", "#69798a", "#5f7d9b"] : ["#34404a", "#6f7b86", "#607f9b"]);
     $("rp-field-text-color").value = data.chatTextColor || colors[0];
     $("rp-field-narration-color").value = data.chatNarrationColor || colors[1];
     $("rp-field-quote-color").value = data.chatQuoteColor || colors[2];
@@ -1665,10 +1676,11 @@ function plainPreviewWithMedia(value) {
   $("rp-editor-back").addEventListener("click", leaveEditor);
   document.querySelectorAll("[data-rp-theme]").forEach(button => button.addEventListener("click", () => {
     const theme = button.dataset.rpTheme;
-    const colors = theme === "liquid-mist"
+    const colors = manuscriptColors[theme] || (theme === "liquid-mist"
       ? ["#293746", "#69798a", "#5f7d9b"]
-      : ["#34404a", "#6f7b86", "#607f9b"];
+      : ["#34404a", "#6f7b86", "#607f9b"]);
     $("rp-scene-theme").dataset.theme = theme;
+    $("rp-scene-theme").dataset.base = sceneBases[theme];
     $("rp-field-text-color").value = colors[0]; $("rp-field-narration-color").value = colors[1]; $("rp-field-quote-color").value = colors[2];
     renderSceneTheme();
   }));
