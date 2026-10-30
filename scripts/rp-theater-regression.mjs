@@ -359,4 +359,5 @@ const fenceStandalone = sourceContext.renderMarkdown('```js\nconst a = 1;\n```',
 ok(fenceStandalone.includes('<pre><code>') && fenceStandalone.includes('const a = 1'), 'standalone code fences must still render');
 const sceneFirst = sourceContext.roleplaySemanticDisplay('<scene>雨夜天台</scene>\n正文第一句。');
 ok(sceneFirst.includes('rp-scene-strip') && sceneFirst.indexOf('雨夜天台') < sceneFirst.indexOf('正文第一句'), 'real scene labels must still hoist to the strip above the body');
+ok(html.includes('const recovered = speaker ? wrapTrailingRoleplayStatusFields(text, roleplayStatusTag(speaker, project, text)) : "";'), 'single-role display must recover missing card footer wrappers for existing replies');
 console.log(`RP theater regression checks passed (${checks})`);

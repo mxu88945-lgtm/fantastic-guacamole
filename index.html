@@ -7345,20 +7345,34 @@ function stripRoleplayPresentationalHtmlForPrompt(value) {
 function roleplayRegexDisplay(answer) {
   const text = String(answer || "");
   if (!text.trim() || !isRoleplayConversation()) return text;
-  const rules = normalizedRoleplayProject(currentConv()?.rpProject, currentConv()).regexRules || [];
-  if (!rules.length) return text;
-  let out = text;
-  for (const rule of rules) {
-    if (!rule || rule.disabled || !rule.findRegex || rule.promptOnly) continue;
-    if (Array.isArray(rule.placement) && rule.placement.length && !rule.placement.includes(2)) continue;
-    try {
-      const src = String(rule.findRegex).trim();
-      let re;
-      const m = src.match(/^\/([\s\S]+)\/([a-z]*)$/);
-      if (m) re = new RegExp(m[1], m[2].includes("g") ? m[2] : m[2] + "g"); else re = new RegExp(src, "g");
-      const replacement = normalizeRoleplayRegexPresentation(String(rule.replaceString || ""));
-      out = out.replace(re, replacement.replace(/\{\{match\}\}/gi, "$$&"));
-    } catch (_) {}
+  const project = normalizedRoleplayProject(currentConv()?.rpProject, currentConv());
+  const rules = project.regexRules || [];
+  const applyRules = value => {
+    let out = value;
+    for (const rule of rules) {
+      if (!rule || rule.disabled || !rule.findRegex || rule.promptOnly) continue;
+      if (Array.isArray(rule.placement) && rule.placement.length && !rule.placement.includes(2)) continue;
+      try {
+        const src = String(rule.findRegex).trim();
+        let re;
+        const m = src.match(/^\/([\s\S]+)\/([a-z]*)$/);
+        if (m) re = new RegExp(m[1], m[2].includes("g") ? m[2] : m[2] + "g"); else re = new RegExp(src, "g");
+        const replacement = normalizeRoleplayRegexPresentation(String(rule.replaceString || ""));
+        out = out.replace(re, replacement.replace(/\{\{match\}\}/gi, "$$&"));
+      } catch (_) {}
+    }
+    return out;
+  };
+  // Some models preserve every card-specific footer field but drop the custom
+  // wrapper tag. Give raw-tail regexes the first chance to render it; if none
+  // matched, recover the missing tag and run the card rules once more. This is
+  // display-time too, so older replies repair themselves without rewriting the
+  // stored transcript. Group replies are already repaired with their own speaker.
+  let out = applyRules(text);
+  if (out === text && !project.groupEnabled) {
+    const speaker = roleplayMembers(project)[0];
+    const recovered = speaker ? wrapTrailingRoleplayStatusFields(text, roleplayStatusTag(speaker, project, text)) : "";
+    if (recovered) out = applyRules(recovered);
   }
   if (out === text) return text;
   // Keep HTML fence boundaries. They are layout boundaries, not decoration:
@@ -8898,7 +8912,7 @@ function wrapTrailingRoleplayStatusFields(output, tag) {
 }
 function ensureRoleplayStatusOutput(value, speaker, project) {
   const output = String(value || "").trimEnd();
-  if (!output || !project?.groupEnabled || !speaker) return output;
+  if (!output || !project || !speaker) return output;
   const tag = roleplayStatusTag(speaker, project, output);
   const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const complete = new RegExp(`<${escapedTag}\\b[^>]*>[\\s\\S]*?<\\/${escapedTag}\\s*>`, "i");
@@ -8907,6 +8921,9 @@ function ensureRoleplayStatusOutput(value, speaker, project) {
   if (opening.test(output)) return `${output}</${tag}>`;
   const wrappedFields = wrapTrailingRoleplayStatusFields(output, tag);
   if (wrappedFields) return wrappedFields;
+  // A single-role scene should only repair a footer that the model actually
+  // emitted. Never invent the generic group status card after ordinary prose.
+  if (!project.groupEnabled) return output;
   const scene = /<(?:scene|plot)\b[^>]*>\s*([\s\S]*?)\s*<\/(?:scene|plot)\s*>/i.exec(output)?.[1]?.trim() || "承接上一幕";
   const userName = String(project.userRole || "用户").trim().slice(0, 40) || "用户";
   const content = speaker.kind === "director"
@@ -14535,11 +14552,11 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       }
       // Only the isolated workbench copy runs; app source, chat data and keys stay out of reach.
       if (!independent) assistantMsg.content = consumeWorkbenchDirective(assistantMsg.content);
-      // Group roleplay follows the same two-layer contract as 惟镜: the prompt
-      // asks for one stable status tag, and the saved reply is repaired if a
-      // relay truncates or omits that final block. The raw text stays portable;
-      // display-time rendering below turns the tags into native cards.
-      if (replyProject?.groupEnabled && replySpeaker && !backstageMode)
+      // Roleplay follows the same two-layer contract as 惟镜: the prompt asks
+      // for one stable status tag, and the saved reply is repaired if a relay
+      // truncates or omits that final block. Single-role scenes only repair
+      // fields that were really emitted; group scenes may use their fallback.
+      if (replyProject && replySpeaker && !backstageMode)
         assistantMsg.content = ensureRoleplayStatusOutput(assistantMsg.content, replySpeaker, replyProject);
       // The owner can send a real gift card by emitting the constrained gift
       // marker taught in the system prompt. Keep the card in the transcript so

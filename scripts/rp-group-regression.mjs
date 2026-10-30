@@ -60,6 +60,38 @@ const recoveredStatus = context.ensureRoleplayStatusOutput(`<scene>傍晚｜会�
 局势掌控与谋划：保持主动权`, actorWithStatus, project);
 assert.match(recoveredStatus, /<gts_status>傅时峥此刻心境：[\s\S]*局势掌控与谋划：保持主动权<\/gts_status>$/, "bare card-specific footer fields must be recovered into their custom status tag");
 assert.doesNotMatch(recoveredStatus, /状态：江屹琛已完成本轮回应/, "recovered card fields must not be replaced by the generic fallback footer");
+const singleProject = { ...project, groupEnabled: false };
+const recoveredSingleStatus = context.ensureRoleplayStatusOutput(`<scene>雨夜｜车内</scene>
+他替她理好被风吹散的碎发。
+
+傅时屿此刻心境：心疼她的强撑与疲惫
+对裴以沫的看法：欣赏她的坚实与清醒
+局势掌控与谋划：行程与安保皆在掌控中`, actorWithStatus, singleProject);
+assert.match(recoveredSingleStatus, /<gts_status>傅时屿此刻心境：[\s\S]*局势掌控与谋划：行程与安保皆在掌控中<\/gts_status>$/, "single-role replies must recover emitted card footer fields");
+assert.equal(context.ensureRoleplayStatusOutput("普通剧情正文。", actorWithStatus, singleProject), "普通剧情正文。", "single-role replies must never invent a generic footer after ordinary prose");
+context.normalizeRoleplayRegexPresentation = value => value;
+context.splitRoleplayHtmlFences = () => null;
+context.looksLikeRoleplayRichHtml = () => false;
+const originalCurrentConv = context.currentConv;
+const originalIsRoleplayConversation = context.isRoleplayConversation;
+context.currentConv = () => ({ space: "roleplay", rpProject: {
+  ...singleProject,
+  members: [],
+  actorName: "傅时屿",
+  characterPrompt: actorWithStatus.prompt,
+  regexRules: [{ findRegex: "<gts_status>([\\s\\S]*?)</gts_status>", replaceString: '<div class="card-footer">$1</div>', placement: [2] }],
+} });
+context.isRoleplayConversation = () => true;
+vm.runInContext(source("function roleplayRegexDisplay(", "function roleplayStoryParagraphs("), context);
+const repairedOldReply = context.roleplayRegexDisplay(`他替她理好被风吹散的碎发。
+
+傅时屿此刻心境：心疼她的强撑与疲惫
+对裴以沫的看法：欣赏她的坚实与清醒
+局势掌控与谋划：行程与安保皆在掌控中`);
+assert.match(repairedOldReply, /card-footer/, "an existing single-role reply must re-enter its card regex after its missing footer tag is recovered at display time");
+assert.doesNotMatch(repairedOldReply, /<gts_status>/, "the recovered wrapper must be consumed by the card's display regex");
+context.currentConv = originalCurrentConv;
+context.isRoleplayConversation = originalIsRoleplayConversation;
 const legacy = context.normalizedRoleplayProject({ actorName: "旧角色" }, { title: "旧场次" });
 assert.equal(legacy.groupEnabled, false);
 assert.equal(legacy.sceneSystemPromptEnabled, true, "existing scenes should receive the late scene preset by default");
