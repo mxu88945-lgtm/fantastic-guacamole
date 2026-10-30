@@ -14835,8 +14835,19 @@ THEMES.push(
   { key: "vinyl", name: "青橙唱片", dark: false, textColor: "#315868", textDim: "#7b98a4", vars: {
     bg:"#ffffff", "bg-soft":"#f8fbfc", "bg-panel":"#f8fbfc", border:"#c8d9df", text:"#315868", "text-dim":"#7b98a4", accent:"#416978", "accent-soft":"#edf4f6", "assistant-bubble":"#ffffff", "user-bubble":"#ffffff", "code-bg":"#eaf1f5", "err-bg":"#fbe8e6", "err-text":"#a34850", "item-active":"#dfeaf0" } },
 );
+// Retire these main themes from both the picker and quick cycling. Keep old
+// wallpaper records recoverable rather than deleting any personal assets.
+const RETIRED_MAIN_THEMES = new Set(["snowblush", "diffuse", "gold", "mistgreen", "tidalpearl", "tidalharbor"]);
+for (let i = THEMES.length - 1; i >= 0; i--) {
+  if (RETIRED_MAIN_THEMES.has(THEMES[i].key)) THEMES.splice(i, 1);
+}
 function currentTheme() { return THEMES.find(t => t.key === settings.themeName) || THEMES[0]; }
 function applyTheme() {
+  if (RETIRED_MAIN_THEMES.has(settings.themeName)) {
+    settings.themeName = THEMES[0].key;
+    settings.accent = THEMES[0].vars.accent;
+    saveSettings();
+  }
   const t = currentTheme();
   document.documentElement.setAttribute("data-theme", t.dark ? "dark" : "light");
   const root = document.documentElement;
