@@ -2647,6 +2647,7 @@
 <link rel="stylesheet" href="./src/rp-theater.css" />
 <link rel="stylesheet" href="./src/rp-theater-polish.css" />
 <link rel="stylesheet" href="./src/manuscript-themes.css" />
+<link rel="stylesheet" href="./src/theme-archives.css" />
 </head>
 <body>
 <!-- status-bar-style is "default": iOS draws an opaque status bar tinted by the theme-color meta
@@ -7729,11 +7730,17 @@ function formatLatency(ms) {
   if (ms < 1000) return Math.max(0, Math.round(ms)) + "ms";
   return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + "s";
 }
+function mainArchiveHeading(theme, name, avatar, user) {
+  const portrait = isImageRef(avatar) ? `<img src="${escapeHtml(avatar).replace(/"/g, "&quot;")}" alt="">` : `<span>${escapeHtml(String(name || "角").slice(-1))}</span>`;
+  const vinyl = theme === "vinyl";
+  return `<div class="archive-heading">${vinyl ? '<div class="archive-kicker" aria-hidden="true"><span>REEL 24 / 33⅓ RPM</span><b>✦ SCENE ✦</b><span>CYAN & AMBER ✦</span></div>' : ""}<div class="archive-portrait"><div class="archive-disc" aria-hidden="true"></div><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy">${vinyl ? '<small>SIDE A · CHARACTER ARCHIVE</small>' : ""}<strong class="archive-name">${escapeHtml(name)}</strong>${vinyl ? '<em>Spinning softly, frame by frame.</em><div class="archive-track" aria-hidden="true"><i></i><span>33⅓</span></div>' : ""}</div>${vinyl ? '<div class="archive-caption" aria-hidden="true">ANALOG PHONOGRAPH & CINEMA ARCHIVE</div>' : `<span class="archive-grade" aria-hidden="true">${user ? "A+" : "B−"}</span>`}</div>`;
+}
 function makeMsgEl(role, content, opts) {
   opts = opts || {};
   // A scene always uses its own prose layout. Main-chat bubble/flat switches
   // must never rebuild RP messages with a different DOM structure.
-  const flat = isRoleplayConversation() || settings.chatLayout === "flat";
+  const archiveTheme = !isRoleplayConversation() && ["academy", "vinyl"].includes(settings.themeName) ? settings.themeName : "";
+  const flat = isRoleplayConversation() || settings.chatLayout === "flat" || !!archiveTheme;
   const el = document.createElement("div");
   const stickerOnly = Array.isArray(content) && content.length > 0 && content.every(p => p.type === "sticker");
   const richRoleplay = role === "assistant" && isRoleplayConversation() && typeof content === "string" && looksLikeRoleplayRichHtml(roleplayRegexDisplay(content));
@@ -7753,7 +7760,11 @@ function makeMsgEl(role, content, opts) {
   const speakerAvatar = opts.rpSpeakerName || legacyLead
     ? (isImageRef(castAvatar) ? `<div class="avatar"><img src="${escapeHtml(castAvatar)}" alt=""></div>` : `<div class="avatar">${escapeHtml(displaySpeakerName.slice(0, 1))}</div>`)
     : avatarHtml(role);
-  if (flat) {
+  if (archiveTheme) {
+    el.classList.add("archive-row", `archive-${archiveTheme}`);
+    el.innerHTML = mainArchiveHeading(archiveTheme, displaySpeakerName, avatarFor(role), role === "user")
+      + `<div class="archive-body">${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState)}</div>`;
+  } else if (flat) {
     el.innerHTML = `<div class="msg-head">${speakerAvatar}<span class="name">${nameHtml}</span></div>
       ${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState)}`;
   } else {
@@ -14818,11 +14829,18 @@ THEMES.push(
     "text-dim":"#967b73", accent:"#974847", "accent-soft":"#f1dfd6", "assistant-bubble":"#fffbf4", "user-bubble":"#8c2935",
     "code-bg":"#f3e7dd", "err-bg":"#fbe8e6", "err-text":"#a34850", "item-active":"#f0dfd5" } },
 );
+THEMES.push(
+  { key: "academy", name: "秋日批注", dark: false, textColor: "#272a29", textDim: "#6d716b", vars: {
+    bg:"#fafaf6", "bg-soft":"#fffffa", "bg-panel":"#fffffa", border:"#ded9ca", text:"#272a29", "text-dim":"#6d716b", accent:"#9d343d", "accent-soft":"#f5ede0", "assistant-bubble":"#fffff6", "user-bubble":"#fffff6", "code-bg":"#f1efe5", "err-bg":"#fbe8e6", "err-text":"#a34850", "item-active":"#efe8d9" } },
+  { key: "vinyl", name: "青橙唱片", dark: false, textColor: "#315868", textDim: "#7b98a4", vars: {
+    bg:"#ffffff", "bg-soft":"#f8fbfc", "bg-panel":"#f8fbfc", border:"#c8d9df", text:"#315868", "text-dim":"#7b98a4", accent:"#416978", "accent-soft":"#edf4f6", "assistant-bubble":"#ffffff", "user-bubble":"#ffffff", "code-bg":"#eaf1f5", "err-bg":"#fbe8e6", "err-text":"#a34850", "item-active":"#dfeaf0" } },
+);
 function currentTheme() { return THEMES.find(t => t.key === settings.themeName) || THEMES[0]; }
 function applyTheme() {
   const t = currentTheme();
   document.documentElement.setAttribute("data-theme", t.dark ? "dark" : "light");
   const root = document.documentElement;
+  const priorThemeKey = root.getAttribute("data-theme-key");
   root.setAttribute("data-theme-key", t.key);
   for (const k in t.vars) root.style.setProperty("--" + k, t.vars[k]);
   // Keep readable copy neutral: black/grey on light themes, white/grey on true dark themes.
@@ -14862,6 +14880,8 @@ function applyTheme() {
   applyBubbleStyle();
   applyFont();
   updateSilentUI();
+  if (priorThemeKey !== t.key && [priorThemeKey, t.key].some(key => ["academy", "vinyl"].includes(key))
+      && !isRoleplayConversation() && document.querySelector("#messages .msg")) renderMessages();
   if (typeof webFontCss === "function" && webFontCss(settings.fontFamily)) {
     ensureWebFont(settings.fontFamily).then(applyFont).catch(() => {});
   }
