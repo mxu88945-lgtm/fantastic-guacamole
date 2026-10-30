@@ -222,6 +222,15 @@ html:is([data-theme-key="paper"], [data-theme-key="scrapbook"], [data-theme-key=
   margin-left: auto !important;
   margin-right: 0 !important;
 }
+html:is([data-theme-key="paper"], [data-theme-key="scrapbook"]) body:not(.rp-chat-active) #messages .msg.user > .body {
+  align-items: flex-end;
+}
+html:is([data-theme-key="paper"], [data-theme-key="scrapbook"]) body:not(.rp-chat-active) #messages .msg.user .bubble,
+html:is([data-theme-key="academy"], [data-theme-key="vinyl"]) body:not(.rp-chat-active) #messages .msg.user .archive-body {
+  width: fit-content;
+  max-width: 100%;
+  align-self: flex-end;
+}
 html:is([data-theme-key="paper"], [data-theme-key="scrapbook"], [data-theme-key="academy"], [data-theme-key="vinyl"]) body:not(.rp-chat-active) #messages .msg.user :is(.msg-actions, .user-msg-actions) {
   align-self: flex-end;
 }

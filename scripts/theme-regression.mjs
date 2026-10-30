@@ -36,6 +36,11 @@ ok(manuscriptCss.includes('body:not(.rp-chat-active) #messages .msg.user {')
 ok(manuscriptCss.includes('#messages .msg.user :is(.msg-actions, .user-msg-actions) {')
   && manuscriptCss.includes('align-self: flex-end;'),
   'decorated main-chat user actions no longer follow the right-aligned card')
+ok(manuscriptCss.includes('#messages .msg.user .bubble,')
+  && manuscriptCss.includes('#messages .msg.user .archive-body {')
+  && manuscriptCss.includes('width: fit-content;')
+  && manuscriptCss.includes('max-width: 100%;'),
+  'short user copy no longer hugs the right edge before expanding to the full card width')
 
 const claudeStart = html.indexOf('{ key: "claude", name: "Claude 官端"')
 const claudeEnd = html.indexOf('{ key: "white"', claudeStart)
@@ -206,7 +211,7 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v266";'), 'service worker cache was not bumped for the warm liquid theme')
+ok(sw.includes('const CACHE = "role-chat-cache-v267";'), 'service worker cache was not bumped for the warm liquid theme')
 
 console.log(`theme regression: ${checks} checks passed`)
 
