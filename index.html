@@ -7893,39 +7893,6 @@ function makeMsgEl(role, content, opts) {
     };
     bar.appendChild(moreBtn);
     const hideStats = isRoleplayConversation();
-    if (!hideStats && opts.historyRecall?.sources?.length) {
-      const receipt = document.createElement("button");
-      receipt.type = "button"; receipt.className = "msg-tokens";
-      receipt.style.cssText = "border:0;background:none;padding:0;cursor:pointer;";
-      receipt.textContent = "已召回 " + opts.historyRecall.sources.length + " 条旧原文";
-      receipt.title = opts.historyRecall.sources.map(source => source.roleName + " · " + source.title).join("\n");
-      receipt.onclick = () => showToast(receipt.title, 6500);
-      bar.appendChild(receipt);
-    }
-    if (!hideStats && opts.tokens) {
-      const tk = document.createElement("span");
-      tk.className = "msg-tokens";
-      tk.textContent = Number(opts.tokens).toLocaleString() + " tokens";
-      if (opts.promptAudit) {
-        tk.title = "本轮输入预估：系统 " + fmtTok(opts.promptAudit.system)
-          + " + 对话 " + fmtTok(opts.promptAudit.history)
-          + "；本地存有 " + (opts.promptAudit.storedMessages || opts.promptAudit.totalMessages || 0) + " 条"
-          + (opts.promptAudit.archivedMessages ? "（已归档 " + opts.promptAudit.archivedMessages + " 条）" : "")
-          + "，当前上下文 " + (opts.promptAudit.totalMessages || 0) + " 条，实际发送 "
-          + (opts.promptAudit.historyMessages || 0) + " 条"
-          + (opts.promptAudit.omittedMessages ? "，省略旧消息 " + opts.promptAudit.omittedMessages + " 条" : "")
-          + (opts.promptAudit.memory ? "；记忆上下文 " + opts.promptAudit.memory.used + "/"
-            + opts.promptAudit.memory.budget + " 字"
-            + (opts.promptAudit.memory.duplicateLines ? "，去重 " + opts.promptAudit.memory.duplicateLines + " 行" : "")
-            + (opts.promptAudit.memory.cooldownSuppressed ? "，冷却拦截 " + opts.promptAudit.memory.cooldownSuppressed + " 条" : "") : "")
-          + (opts.promptAudit.currentTime ? "；注入时间 " + opts.promptAudit.currentTime
-            + (opts.promptAudit.timeZone ? "（" + opts.promptAudit.timeZone + "）" : "") : "");
-        if (opts.promptAudit.temporaryPlotRecipient)
-          tk.title += "；临时剧情已发送给 " + opts.promptAudit.temporaryPlotRecipient;
-        tk.onclick = () => showToast(tk.title, 6500);
-      }
-      bar.appendChild(tk);
-    }
     if (!hideStats && opts.timing && Number.isFinite(opts.timing.totalMs)) {
       const tm = document.createElement("span");
       const visibleMs = Number.isFinite(opts.timing.visibleMs)

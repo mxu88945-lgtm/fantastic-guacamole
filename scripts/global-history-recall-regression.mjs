@@ -121,6 +121,7 @@ bounded = context.buildBoundedMemoryContext({ omitted: [], messages: current.mes
 cross = bounded.audit.blocks.find(block => block.key === 'crossExact')
 assert.ok(bounded.text.length <= 6400, 'crowded context must still stay bounded')
 assert.equal(cross.recallSelected, cross.sources.length, 'budget clipping must not inflate the cross-window receipt')
-assert.ok(html.includes('旧聊天检索范围') && html.includes('已召回 '), 'scope and receipt must be visible in the UI')
+assert.ok(html.includes('旧聊天检索范围'), 'history recall scope must remain configurable in the UI')
+assert.ok(!html.includes('receipt.textContent = "已召回 "'), 'verbose recall diagnostics must not crowd the message action row')
 
 console.log('global history recall: archived windows, aliases, scopes, cooldown, exact Unicode pages and receipts passed')
