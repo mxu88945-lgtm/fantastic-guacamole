@@ -90,6 +90,27 @@ const repairedOldReply = context.roleplayRegexDisplay(`他替她理好被风吹�
 局势掌控与谋划：行程与安保皆在掌控中`);
 assert.match(repairedOldReply, /card-footer/, "an existing single-role reply must re-enter its card regex after its missing footer tag is recovered at display time");
 assert.doesNotMatch(repairedOldReply, /<gts_status>/, "the recovered wrapper must be consumed by the card's display regex");
+const footerCard = JSON.parse(readFileSync(new URL('./fixtures/rp-footer-card.json', import.meta.url), 'utf8'));
+const cardReply = '<scene>时间：深夜\n地点：车内</scene>\n正文。\n\n傅时屿此刻心境：克制\n对裴以沫的看法：欣赏\n局势掌控与谋划：等待回应';
+context.currentConv = () => ({ space: 'roleplay', rpProject: { ...singleProject, members: [], actorName: '傅时屿', ...footerCard } });
+const singleCardDisplay = context.roleplayRegexDisplay(cardReply);
+assert.match(singleCardDisplay, /border-top:1px dashed/, 'a successful scene-header rule must not skip recovery of the missing footer wrapper');
+assert.match(singleCardDisplay, /border-left:3px/, 'the actual card scene rule must still render');
+context.currentConv = () => ({ space: 'roleplay', rpProject: { ...singleProject, groupEnabled: true, actorName: '谢聿衡', regexRules: [], members: [{ id: 'fu', name: '傅时屿', ...footerCard }] } });
+for (const metadata of [{ rpSpeakerId: 'fu' }, { rpSpeakerName: '傅时屿' }]) {
+  const display = context.roleplayRegexDisplay(cardReply, metadata);
+  assert.match(display, /border-top:1px dashed/, 'old group messages must use their own speaker card to recover and style the footer');
+  assert.match(display, /border-left:3px/);
+}
+assert.doesNotMatch(context.roleplayRegexDisplay(cardReply, { rpSpeakerId: 'lead' }), /border-top:1px dashed/, 'a member card must not style the lead reply');
+Object.assign(context, {
+  extractAssistantReasoning: text => ({ answer: text, reasoning: '' }),
+  tracePhasesForRender: () => [], thinkBlockHtml: () => '',
+  looksLikeRoleplayRichHtml: text => text.includes('<div'), roleplayRichFrameHtml: text => text,
+  window: {}, imagePartsHtml: () => '', filePartsHtml: () => '', locationPartsHtml: () => '',
+});
+vm.runInContext(source('function bubbleHtml(', '// Keep streamed paragraphs,'), context);
+assert.match(context.messageContentHtml('assistant', cardReply, '', [], '', { rpSpeakerId: 'fu' }), /border-top:1px dashed/, 'the actual saved-message bubble path must pass speaker metadata to the card renderer');
 context.currentConv = originalCurrentConv;
 context.isRoleplayConversation = originalIsRoleplayConversation;
 const legacy = context.normalizedRoleplayProject({ actorName: "旧角色" }, { title: "旧场次" });

@@ -83,7 +83,7 @@ ok(html.includes("【本剧本世界观（本剧场所有角色与 NPC 共用）
 ok(js.includes("function displayGreeting(") && !js.includes("bridge.update(projectId, { ...rp, greetings: processed })"), "openings must be beautified only for display, never rewritten in storage");
 ok(js.includes("if (looksLikeRichGreeting(regexed)) return regexed"), "regex-produced HTML openings must render as HTML, not be re-bubbled");
 ok(js.includes("function cardStructure(") && js.includes("patch.regexRules = extra.regexRules"), "JSON repair must restore lost regex/worldbook");
-ok(html.includes("function roleplayRegexDisplay(") && html.includes("answer = roleplayRegexDisplay(answer)"), "card regex must beautify RP chat messages at display time");
+ok(html.includes("function roleplayRegexDisplay(") && html.includes("answer = roleplayRegexDisplay(answer, message)"), "card regex must beautify RP chat messages with their speaker at display time");
 ok(html.includes("async function continueRoleplayStory()") && html.includes("rp-continue-act") && html.includes("const hideStats = isRoleplayConversation()"), "RP chat needs a ▶ continue button and hides token/latency stats");
 ok(js.includes("showDetail(current.id)") && html.includes("情景与角色资料</button>"), "chat menu 情景与角色资料 opens the 惟镜-style character hub");
 ok(js.includes('id="rp-detail-cast-list"') && js.includes("data-detail-member") && js.includes("rp.groupEnabled && cast.length > 1"), "group role details need an 惟镜-style cast selector");

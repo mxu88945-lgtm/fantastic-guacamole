@@ -1,0 +1,39 @@
+{
+  "regexRules": [
+    {
+      "id": "7649c076-9f9d-4bb1-a28a-c1d1c9d34a31",
+      "scriptName": "透明场景时间栏",
+      "findRegex": "/<scene>([^]*?)<[/]scene>/gi",
+      "replaceString": "<div style='color:var(--chat-text-color, inherit);background:rgba(255,255,255,0.06);backdrop-filter:blur(6px);border-left:3px solid rgba(180,140,90,0.6);padding:10px 14px;margin-bottom:14px;border-radius:4px;font-size:0.9em;line-height:1.6;'>$1</div>",
+      "trimStrings": [],
+      "placement": [
+        2
+      ],
+      "disabled": false,
+      "markdownOnly": false,
+      "promptOnly": false,
+      "runOnEdit": true,
+      "substituteRegex": 0,
+      "minDepth": null,
+      "maxDepth": null
+    },
+    {
+      "id": "3dc2864f-8d91-4b5b-87e9-423bb598a1b4",
+      "scriptName": "透明角色状态栏",
+      "findRegex": "/<gts_status>([^]*?)<[/]gts_status>/gi",
+      "replaceString": "<div style='color:var(--chat-text-color, inherit);background:rgba(255,255,255,0.05);backdrop-filter:blur(6px);border-top:1px dashed rgba(180,140,90,0.4);padding:10px 14px;margin-top:16px;border-radius:4px;font-size:0.85em;line-height:1.7;'>$1</div>",
+      "trimStrings": [],
+      "placement": [
+        2
+      ],
+      "disabled": false,
+      "markdownOnly": false,
+      "promptOnly": false,
+      "runOnEdit": true,
+      "substituteRegex": 0,
+      "minDepth": null,
+      "maxDepth": null
+    }
+  ],
+  "beautificationProtocol": "本卡采用标准结构化美化协议。每轮角色回复必须按以下顺序输出纯文本标记（禁止包含 HTML/CSS，禁止使用 markdown 代码围栏包裹）：\n\n1. 顶部场景栏：\n<scene>时间：[具体时间段与节气]\n地点：[具体空间位置]\n环境：[光线、声音、天气、氛围沉浸感描写]</scene>\n\n2. 剧情正文：\n（以细腻生动的第三人称文学风格展开，聚焦傅时屿的神态、言行、心理及与环境的互动，篇幅充分，语言高级沉稳，绝不代演用户）\n\n3. 底部状态栏：\n<gts_status>傅时屿此刻心境：[当下的核心情绪与心理活动]\n对裴以沫的看法：[此刻对其状态的观察与深层情感态度]\n局势掌控与谋划：[当前在商业或私人博弈上的具体部署与底线考量]</gts_status>"
+}

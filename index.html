@@ -7342,11 +7342,15 @@ function stripRoleplayPresentationalHtmlForPrompt(value) {
     .replace(/[ \t]+\n/g, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 // 惟镜同款：角色卡正则只在显示时跑（存储和发给模型的仍是原文），产出 HTML（音乐播放器等）就整段进 iframe。
-function roleplayRegexDisplay(answer) {
+function roleplayRegexDisplay(answer, message = {}) {
   const text = String(answer || "");
   if (!text.trim() || !isRoleplayConversation()) return text;
   const project = normalizedRoleplayProject(currentConv()?.rpProject, currentConv());
-  const rules = project.regexRules || [];
+  const members = roleplayMembers(project);
+  const speaker = members.find(member => member.id === message.rpSpeakerId)
+    || members.find(member => member.name === message.rpSpeakerName)
+    || members[0];
+  const rules = speaker && speaker.id !== "lead" ? speaker.regexRules || [] : project.regexRules || [];
   const applyRules = value => {
     let out = value;
     for (const rule of rules) {
@@ -7364,16 +7368,11 @@ function roleplayRegexDisplay(answer) {
     return out;
   };
   // Some models preserve every card-specific footer field but drop the custom
-  // wrapper tag. Give raw-tail regexes the first chance to render it; if none
-  // matched, recover the missing tag and run the card rules once more. This is
-  // display-time too, so older replies repair themselves without rewriting the
-  // stored transcript. Group replies are already repaired with their own speaker.
-  let out = applyRules(text);
-  if (out === text && !project.groupEnabled) {
-    const speaker = roleplayMembers(project)[0];
-    const recovered = speaker ? wrapTrailingRoleplayStatusFields(text, roleplayStatusTag(speaker, project, text)) : "";
-    if (recovered) out = applyRules(recovered);
-  }
+  // wrapper tag. Recover at display time without rewriting stored transcripts.
+  const recovered = speaker ? wrapTrailingRoleplayStatusFields(text, roleplayStatusTag(speaker, project, text)) : "";
+  // Repair before any display rule: a scene-header match must not prevent footer
+  // recovery. Use this message's speaker so old group replies keep their own card.
+  let out = applyRules(recovered || text);
   if (out === text) return text;
   // Keep HTML fence boundaries. They are layout boundaries, not decoration:
   // each page must be sandboxed separately just like Weijing renders it.
@@ -7632,7 +7631,7 @@ if (typeof window !== "undefined") window.addEventListener("message", event => {
     enterRoleplayCardAction(data.text || data.message || data.prompt || data.content || data.value, data.label);
   }
 });
-function bubbleHtml(role, content, reasoning, streaming, traces, responseState) {
+function bubbleHtml(role, content, reasoning, streaming, traces, responseState, message = {}) {
   let text = content, stickerParts = "";
   if (Array.isArray(content)) {
     stickerParts = content.filter(p => p.type === "sticker").map(p => stickerHtml(p)).join("");
@@ -7657,7 +7656,7 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState) 
       !!streaming && (!!reason.trim() || hasRunningTrace) && !answer.trim(),
       traces, responseState, streaming);
   }
-  if (role === "assistant" && !streaming && isRoleplayConversation() && !looksLikeRoleplayRichHtml(answer)) answer = roleplayRegexDisplay(answer);
+  if (role === "assistant" && !streaming && isRoleplayConversation() && !looksLikeRoleplayRichHtml(answer)) answer = roleplayRegexDisplay(answer, message);
   const useRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && looksLikeRoleplayRichHtml(answer);
   const semanticRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && !useRoleplayHtml
     ? roleplaySemanticDisplay(answer) : "";
@@ -7678,15 +7677,15 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState) 
   }
   return stickerParts + thinkHtml + textHtml;
 }
-function messageContentHtml(role, content, reasoning, traces, responseState) {
+function messageContentHtml(role, content, reasoning, traces, responseState, message = {}) {
   const giftCards = window.JYCGifts?.renderGiftPartsHtml?.(content) || "";
   const media = imagePartsHtml(content) + filePartsHtml(content) + locationPartsHtml(content) + giftCards;
-  if (!media) return `<div class="bubble">${bubbleHtml(role, content, reasoning, false, traces, responseState)}</div>`;
+  if (!media) return `<div class="bubble">${bubbleHtml(role, content, reasoning, false, traces, responseState, message)}</div>`;
   const rest = content.filter(p => p.type !== "image" && p.type !== "file" && p.type !== "gift" && !isLocationPart(p));
   const hasTextOrSticker = rest.some(p => p.type === "sticker" || (p.type === "text" && (p.text || "").trim()));
   const hasReasoning = role === "assistant" && (!!(reasoning || "").trim() || (Array.isArray(traces) && traces.length));
   return `<div class="msg-media">${media}</div>` +
-    ((hasTextOrSticker || hasReasoning) ? `<div class="bubble">${bubbleHtml(role, rest, reasoning, false, traces, responseState)}</div>` : "");
+    ((hasTextOrSticker || hasReasoning) ? `<div class="bubble">${bubbleHtml(role, rest, reasoning, false, traces, responseState, message)}</div>` : "");
 }
 // Keep streamed paragraphs, media and animated indicators mounted. Replacing
 // the entire subtree for every token repeatedly invalidates glass compositing.
@@ -7763,7 +7762,7 @@ function makeMsgEl(role, content, opts) {
   const flat = isRoleplayConversation() || settings.chatLayout === "flat" || !!archiveTheme;
   const el = document.createElement("div");
   const stickerOnly = Array.isArray(content) && content.length > 0 && content.every(p => p.type === "sticker");
-  const richRoleplay = role === "assistant" && isRoleplayConversation() && typeof content === "string" && looksLikeRoleplayRichHtml(roleplayRegexDisplay(content));
+  const richRoleplay = role === "assistant" && isRoleplayConversation() && typeof content === "string" && looksLikeRoleplayRichHtml(roleplayRegexDisplay(content, opts));
   el.className = "msg " + role + (flat ? " flat" : "") + (stickerOnly ? " sticker-only" : "") + (richRoleplay ? " roleplay-rich-message" : "");
   const timeHtml = (settings.showTime && opts.ts) ? `<span class="msg-time">${formatTime(opts.ts)}</span>` : "";
   const rpProject = role === "assistant" && isRoleplayConversation() ? currentConv()?.rpProject : null;
@@ -7783,14 +7782,14 @@ function makeMsgEl(role, content, opts) {
   if (archiveTheme) {
     el.classList.add("archive-row", `archive-${archiveTheme}`);
     el.innerHTML = mainArchiveHeading(archiveTheme, displaySpeakerName, castAvatar || avatarFor(role), role === "user")
-      + `<div class="archive-body">${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState)}</div>`;
+      + `<div class="archive-body">${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState, opts)}</div>`;
   } else if (flat) {
     el.innerHTML = `<div class="msg-head">${speakerAvatar}<span class="name">${nameHtml}</span></div>
-      ${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState)}`;
+      ${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState, opts)}`;
   } else {
     el.innerHTML = `${speakerAvatar}
       <div class="body"><div class="name">${nameHtml}</div>
-      ${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState)}</div>`;
+      ${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState, opts)}</div>`;
   }
   if (Array.isArray(content)) {
     const imageParts = content.filter(p => p.type === "image" && p.dataUrl);
@@ -14356,7 +14355,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
         && !(assistantMsg.traces || []).length;
       updateStreamBubble(bubble, empty ? TYPING_HTML
         : bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, true,
-          assistantMsg.traces, assistantMsg.responseState) + '<span class="cursor"></span>');
+          assistantMsg.traces, assistantMsg.responseState, assistantMsg) + '<span class="cursor"></span>');
       if (stickBottom && chatUserScrollRevision === replyScrollRevision) scrollToBottom();   // don't yank the view if the user scrolled up to read history
     });
   };
@@ -14524,7 +14523,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       finishMessageTrace(assistantMsg, emptyTrace.id, "error", "空回复");
       assistantMsg.responseState = "error";
       bubble.innerHTML = bubbleHtml("assistant", "", "", false,
-        assistantMsg.traces, assistantMsg.responseState);
+        assistantMsg.traces, assistantMsg.responseState, assistantMsg);
       showError("模型返回了空回复。可能原因：thinking 模型不支持图片输入、temperature 设置有冲突，或接口限制。请打开浏览器控制台查看详细错误。");
       showToast("❌ 空回复（可能不支持图片/thinking 冲突）", 5000);
     } else {
@@ -14581,7 +14580,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       } else {
         if (segs && segs.length === 1 && segs[0].kind === "text") assistantMsg.content = segs[0].text;
         bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, false,
-          assistantMsg.traces, assistantMsg.responseState);
+          assistantMsg.traces, assistantMsg.responseState, assistantMsg);
       }
       // now append the countdown cards as their own messages (after江屹琛's reply)
       remRes.reminders.forEach(r => addReminderMessage(r.text, r.mins));
@@ -14601,14 +14600,14 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
         el.remove();
       } else {
         bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, false,
-          assistantMsg.traces, assistantMsg.responseState);
+          assistantMsg.traces, assistantMsg.responseState, assistantMsg);
       }
     } else {
       if (!(assistantMsg.traces || []).length) startMessageTrace(assistantMsg, "thinking", "");
       finishRunningTraces(assistantMsg, "error", "接口连接中断，可重新生成");
       assistantMsg.responseState = "error";
       bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, false,
-        assistantMsg.traces, assistantMsg.responseState);
+        assistantMsg.traces, assistantMsg.responseState, assistantMsg);
       showError(e.message || String(e));
       showToast("❌ " + (e.message || String(e)).slice(0, 80), 5000);
     }
