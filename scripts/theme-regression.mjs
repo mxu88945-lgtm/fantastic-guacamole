@@ -2,6 +2,7 @@ import fs from 'node:fs'
 
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')
 const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8')
+const manuscriptCss = fs.readFileSync(new URL('../src/manuscript-themes.css', import.meta.url), 'utf8')
 let checks = 0
 
 const ok = (value, message) => {
@@ -26,6 +27,15 @@ ok(html.includes('root.setAttribute("data-theme-key", t.key);'),
 ok(html.includes('html[data-theme-key="white"] .model-quick {')
   && html.includes('background: var(--item-active); border-color: var(--border);'),
   'minimal white model picker has no visible pill surface')
+ok(manuscriptCss.includes('body:not(.rp-chat-active) #messages .msg.user {')
+  && manuscriptCss.includes('width: min(88%, 720px);')
+  && manuscriptCss.includes('align-self: flex-end;')
+  && manuscriptCss.includes('margin-left: auto !important;')
+  && manuscriptCss.includes('margin-right: 0 !important;'),
+  'decorated main-chat themes no longer dock user message cards to the right')
+ok(manuscriptCss.includes('#messages .msg.user :is(.msg-actions, .user-msg-actions) {')
+  && manuscriptCss.includes('align-self: flex-end;'),
+  'decorated main-chat user actions no longer follow the right-aligned card')
 
 const claudeStart = html.indexOf('{ key: "claude", name: "Claude 官端"')
 const claudeEnd = html.indexOf('{ key: "white"', claudeStart)
@@ -196,7 +206,7 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v265";'), 'service worker cache was not bumped for the warm liquid theme')
+ok(sw.includes('const CACHE = "role-chat-cache-v266";'), 'service worker cache was not bumped for the warm liquid theme')
 
 console.log(`theme regression: ${checks} checks passed`)
 
