@@ -2,6 +2,12 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const manuscript = readFileSync(new URL('../src/manuscript-themes.css', import.meta.url), 'utf8');
+const archives = readFileSync(new URL('../src/theme-archives.css', import.meta.url), 'utf8');
+assert.match(manuscript, /body:not\(\.rp-chat-active\) \.main > \.chat\s*\{[^}]*min-height: 0;[^}]*overflow-x: hidden;[^}]*flex: 1 1 0;/, 'main chat must shrink within the keyboard viewport and own scrolling');
+assert.match(manuscript, /body:not\(\.rp-chat-active\) \.main > \.composer-wrap\s*\{[^}]*flex: 0 0 auto;/, 'composer must remain outside the scrolling message list');
+assert.match(manuscript, /body:not\(\.rp-chat-active\) \.main > header\s*\{[^}]*border-bottom: 0;/, 'manuscript header must not draw a line across the dashboard');
+assert.match(archives, /\.msg\.archive-row\s*\{[^}]*align-items: stretch;/, 'archive sizing must override the ordinary flat user row alignment');
 const context = vm.createContext({
   isImageRef: value => /^(https?:\/\/|data:image\/)/.test(value || ''),
   escapeHtml: value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),

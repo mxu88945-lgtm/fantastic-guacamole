@@ -41,7 +41,7 @@ html:is([data-theme-key="paper"], [data-theme-key="scrapbook"]) body:not(.rp-cha
 }
 html:is([data-theme-key="paper"], [data-theme-key="scrapbook"]) body:not(.rp-chat-active) .main > header {
   background: color-mix(in srgb, var(--bg) 95%, transparent);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0;
 }
 html:is([data-theme-key="paper"], [data-theme-key="scrapbook"]) body:not(.rp-chat-active) .sidebar { background: var(--bg-panel); }
 
@@ -190,6 +190,35 @@ html[data-theme-key="scrapbook"] body:not(.rp-chat-active) #messages .chat-quote
 html[data-theme-key="scrapbook"] body:not(.rp-chat-active) #messages .msg.user .chat-quote { color: #fff7eb; border-color: #dba78d80; background: #fff1cf18; }
 html[data-theme-key="scrapbook"] body:not(.rp-chat-active) .composer { border-radius: 24px; }
 html[data-theme-key="scrapbook"] body:not(.rp-chat-active) #send-btn { border: 2px solid #dca99c; border-radius: 50%; background: #913b46; color: #fff8ed; }
+/* Keep all manuscript pages inside the existing visual-viewport shell. The chat
+   is the only scroll owner; a wide page must never drag the composer sideways. */
+html:is([data-theme-key="paper"], [data-theme-key="scrapbook"], [data-theme-key="academy"], [data-theme-key="vinyl"]) body:not(.rp-chat-active) .main {
+  min-height: 0;
+  overflow: hidden;
+}
+html:is([data-theme-key="paper"], [data-theme-key="scrapbook"], [data-theme-key="academy"], [data-theme-key="vinyl"]) body:not(.rp-chat-active) .main > .chat {
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  overflow-x: hidden;
+  flex: 1 1 0;
+}
+html:is([data-theme-key="paper"], [data-theme-key="scrapbook"], [data-theme-key="academy"], [data-theme-key="vinyl"]) body:not(.rp-chat-active) #messages {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+html:is([data-theme-key="paper"], [data-theme-key="scrapbook"], [data-theme-key="academy"], [data-theme-key="vinyl"]) body:not(.rp-chat-active) #messages .msg {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+html:is([data-theme-key="paper"], [data-theme-key="scrapbook"], [data-theme-key="academy"], [data-theme-key="vinyl"]) body:not(.rp-chat-active) .main > .composer-wrap {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
 @media (max-width: 600px) {
   html:is([data-theme-key="paper"], [data-theme-key="scrapbook"]) body:not(.rp-chat-active) #messages { padding-left: 14px; padding-right: 14px; }
 }
