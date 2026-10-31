@@ -68,7 +68,7 @@ ok(html.includes('e.target.value = "";\n    await setChatBgFile(file);'),
 ok(html.includes('await restoreChatBackground();'), "legacy or IndexedDB background is not restored during startup");
 ok(html.includes('$("bg-clear").onclick = clearChatBackground;'), "background clear does not remove IndexedDB state");
 
-ok(sw.includes('const CACHE = "role-chat-cache-v272";'), "service worker cache was not bumped for reasoning effort controls");
+ok(sw.includes('const CACHE = "role-chat-cache-v273";'), "service worker cache was not bumped for reasoning effort controls");
 
 ok(html.includes('id="mainFontSize"') && html.includes('id="mainFontSizeVal"') && html.includes('id="mainFontSizeSample"') && !html.includes('data-fs="small"'), "main chat font size must be a slider with a number readout and a live preview");
 ok(html.includes('data-web-font="noto-sans-sc"') && html.includes('data-web-font="noto-serif-sc"') && html.includes('data-web-font="lxgw-wenkai"'), "downloadable Chinese font choices are missing");

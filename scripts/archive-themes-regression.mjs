@@ -3,12 +3,13 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const manuscript = readFileSync(new URL('../src/manuscript-themes.css', import.meta.url), 'utf8');
+const rpManuscript = readFileSync(new URL('../src/rp-manuscript-themes.css', import.meta.url), 'utf8');
 const archives = readFileSync(new URL('../src/theme-archives.css', import.meta.url), 'utf8');
 const catalogContext = vm.createContext({ settings: { themeName: 'snowblush' } });
 vm.runInContext(html.slice(html.indexOf('const THEMES = ['), html.indexOf('function applyTheme()')), catalogContext);
 const keys = vm.runInContext('THEMES.map(theme => theme.key)', catalogContext);
 for (const key of ['snowblush', 'diffuse', 'gold', 'mistgreen', 'tidalpearl', 'tidalharbor']) assert.ok(!keys.includes(key), `retired theme ${key} must not appear in picker or cycling`);
-for (const key of ['claude', 'white', 'frostbubble', 'amberglow', 'liquidglass', 'paper', 'scrapbook', 'academy', 'vinyl']) assert.ok(keys.includes(key), `retained theme ${key} must remain available`);
+for (const key of ['claude', 'white', 'frostbubble', 'amberglow', 'liquidglass', 'paper', 'scrapbook', 'academy', 'vinyl', 'letter']) assert.ok(keys.includes(key), `retained theme ${key} must remain available`);
 assert.equal(catalogContext.currentTheme().key, 'claude', 'a retired saved theme must have a usable fallback');
 assert.ok(!archives.includes('archive-castle.svg') && archives.includes("content: '♫'"), 'autumn divider should use a quiet musical rule');
 assert.match(manuscript, /body:not\(\.rp-chat-active\) \.main > \.chat\s*\{[^}]*min-height: 0;[^}]*overflow-x: hidden;[^}]*flex: 1 1 0;/, 'main chat must shrink within the keyboard viewport and own scrolling');
@@ -53,11 +54,18 @@ const renderContext = vm.createContext({
   document: { createElement: () => ({ classList: { add() {} }, querySelectorAll: () => [] }) },
 });
 vm.runInContext(html.slice(html.indexOf('function mainArchiveHeading('), html.indexOf('function updateScrollControls(')), renderContext);
-for (const theme of ['scene-academy', 'scene-vinyl', 'scene-mobile']) {
+for (const theme of ['scene-academy', 'scene-vinyl', 'scene-mobile', 'scene-letter']) {
   sceneTheme = theme;
   const row = renderContext.makeMsgEl('assistant', 'text', { rpSpeakerId: 'support', rpSpeakerName: 'Support', rpSpeakerAvatar: 'https://example.test/support.png' });
   assert.ok(row.innerHTML.includes('support.png') && row.innerHTML.includes('Support'), 'RP archive header must use the speaking cast member');
 }
+
+assert.ok(html.includes('key: "letter", name: "雾白来信"'), 'main Mist Letter theme is missing');
+assert.ok(html.includes('"scene-letter": "letter"'), 'RP Mist Letter archive mapping is missing');
+assert.ok(html.includes('theme === "letter"'), 'Mist Letter profile heading is missing');
+assert.ok(manuscript.includes('[data-theme-key="letter"]') && manuscript.includes('.msg.archive-letter.user'), 'main Mist Letter user-right layout is missing');
+assert.ok(rpManuscript.includes('[data-rp-theme="scene-letter"]') && rpManuscript.includes('.msg.archive-letter.user'), 'RP Mist Letter user-right layout is missing');
+assert.ok(manuscript.includes(':is(.message-quote,.chat-quote)') && rpManuscript.includes(':is(.message-quote,.chat-quote)'), 'Mist Letter quote capsules are missing');
 sceneTheme = 'liquid-pearl';
 assert.ok(!renderContext.makeMsgEl('assistant', 'text', {}).innerHTML.includes('archive-heading'), 'liquid RP must retain its original message structure');
 sceneActive = false;
