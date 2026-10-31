@@ -57,3 +57,24 @@ ok(html.includes('id="model-alias-input"') && html.includes("function modelShown
   "users cannot rename the model pill");
 ok(html.includes("flex: 0 1 auto; width: auto; min-width: 0; max-width: 72vw"),
   "the model pill can push the send button off the composer");
+
+// iOS can retain an 844px layout viewport while only 360px remains above the keyboard.
+const sheet = { scrollTop: 0, getBoundingClientRect: () => ({ top: 63, bottom: 387 }) };
+const input = { getBoundingClientRect: () => ({ top: 460, bottom: 496 }) };
+let open = true;
+const overlay = { style: {}, classList: { contains: () => open }, querySelector: () => sheet };
+const viewport = { height: 360, width: 390, offsetTop: 45, offsetLeft: 0 };
+const syncStart = html.indexOf('function syncModelConfigViewport()');
+const syncEnd = html.indexOf('function openModelConfig()', syncStart);
+const sync = new Function('$', 'window', 'document', 'requestAnimationFrame',
+  html.slice(syncStart, syncEnd) + '; return syncModelConfigViewport;'
+)(id => id === 'model-config-overlay' ? overlay : input,
+  { visualViewport: viewport, innerHeight: 844, innerWidth: 390 },
+  { activeElement: input }, callback => callback());
+sync();
+ok(overlay.style.height === '360px' && overlay.style.top === '45px', 'model sheet ignores the visible keyboard viewport');
+ok(sheet.scrollTop === 125, 'focused model alias does not scroll into the visible sheet');
+open = false;
+viewport.height = 844;
+sync();
+ok(overlay.style.height === '360px', 'closed model sheet should ignore viewport events');

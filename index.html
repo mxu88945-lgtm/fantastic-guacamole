@@ -695,6 +695,7 @@
   .model-config-trigger-chevron { flex: 0 0 auto; color: var(--text-dim); font-size: 11px; }
   .model-config-overlay {
     position: fixed; inset: 0; z-index: 90; display: none; align-items: flex-end; justify-content: center;
+    box-sizing: border-box;
     padding: 18px; padding-bottom: max(18px, env(safe-area-inset-bottom));
     background: rgba(20,20,24,.28); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
   }
@@ -702,6 +703,7 @@
   .model-config-overlay.open { display: flex; }
   .model-config-sheet {
     width: min(520px, 100%); padding: 8px 18px 18px; border: 1px solid rgba(255,255,255,.7);
+    box-sizing: border-box; max-height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
     border-radius: 32px; background: color-mix(in srgb, var(--bg-soft) 88%, transparent);
     box-shadow: 0 24px 70px rgba(0,0,0,.2);
     backdrop-filter: blur(26px) saturate(1.35); -webkit-backdrop-filter: blur(26px) saturate(1.35);
@@ -15514,6 +15516,28 @@ function fitModelQuickWidth() {
   const trigger = $("model-config-btn");
   if (trigger) trigger.style.removeProperty("width");
 }
+function syncModelConfigViewport() {
+  const overlay = $("model-config-overlay");
+  if (!overlay?.classList.contains("open")) return;
+  const viewport = window.visualViewport;
+  overlay.style.top = (viewport?.offsetTop || 0) + "px";
+  overlay.style.left = (viewport?.offsetLeft || 0) + "px";
+  overlay.style.width = (viewport?.width || window.innerWidth) + "px";
+  overlay.style.height = (viewport?.height || window.innerHeight) + "px";
+  overlay.style.right = "auto";
+  overlay.style.bottom = "auto";
+  const input = $("model-alias-input");
+  if (document.activeElement === input) {
+    requestAnimationFrame(() => {
+      if (!overlay.classList.contains("open") || document.activeElement !== input) return;
+      const sheet = overlay.querySelector(".model-config-sheet");
+      const field = input.getBoundingClientRect();
+      const box = sheet.getBoundingClientRect();
+      if (field.bottom > box.bottom - 16) sheet.scrollTop += field.bottom - box.bottom + 16;
+      else if (field.top < box.top + 16) sheet.scrollTop -= box.top + 16 - field.top;
+    });
+  }
+}
 function openModelConfig() {
   renderModelQuick();
   const overlay = $("model-config-overlay");
@@ -15521,9 +15545,11 @@ function openModelConfig() {
   overlay.setAttribute("aria-hidden", "false");
   $("model-config-btn").setAttribute("aria-expanded", "true");
   document.body.classList.add("model-config-open");
+  syncModelConfigViewport();
 }
 function closeModelConfig() {
   const overlay = $("model-config-overlay");
+  if (overlay.contains(document.activeElement)) document.activeElement.blur();
   overlay.classList.remove("open");
   overlay.setAttribute("aria-hidden", "true");
   $("model-config-btn").setAttribute("aria-expanded", "false");
@@ -17143,6 +17169,12 @@ async function init() {
   $("model-quick").addEventListener("change", () => pickModel($("model-quick").value));
   $("model-select").addEventListener("change", () => pickModel($("model-select").value));
   $("model-config-btn").onclick = openModelConfig;
+  window.addEventListener("resize", syncModelConfigViewport, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", syncModelConfigViewport, { passive: true });
+    window.visualViewport.addEventListener("scroll", syncModelConfigViewport, { passive: true });
+  }
+  $("model-alias-input").addEventListener("focus", syncModelConfigViewport);
   $("model-config-done").onclick = closeModelConfig;
   $("model-config-overlay").onclick = (event) => {
     if (event.target === $("model-config-overlay")) closeModelConfig();
