@@ -17412,6 +17412,16 @@ function roleplayPublicProject(conv) {
     projectFiles: conversationProjectFiles(conv),
   });
 }
+// 点卡预览用的卡工程：只有卡、没有对话，不进对话栏；只有确认开场白/继续时才落成对话。
+function roleplayCardPublicProject(card) {
+  if (!card || card.ownerRoleId !== settings.activeRoleId) return null;
+  const p = roleplayCardTemplate(card.rpProject);
+  return cloneChatData({
+    id: card.id, familyId: "", title: String(card.sourceTitle || p.title || `${p.actorName} · 角色卡`).slice(0, 80),
+    updatedAt: card.updatedAt || 0, messageCount: 0, memoryCount: 0, privateMemoryCount: 0,
+    rpProject: p, projectFiles: [], cardPreview: true,
+  });
+}
 // Card templates outlive scene membership. Never archive chat text, private
 // memories, API credentials, or temporary plot instructions with a reusable card.
 function roleplayCardTemplate(project, member = null) {
@@ -18047,7 +18057,13 @@ window.JYCRoleplayBridge = {
   },
   startWithGreeting(id, index, forceNew = false) {
     if (abortController) { showToast("等当前回复结束后再选择开场"); return null; }
-    const source = conversations.find(conv => conv.id === id && conv.roleId === settings.activeRoleId);
+    let source = conversations.find(conv => conv.id === id && conv.roleId === settings.activeRoleId);
+    // 点卡只预览、不建对话：第一次确认开场白时，才把这张卡落成对话。
+    if (!source) {
+      const restored = restoreRoleplayCard(id);
+      if (!restored) return null;
+      source = conversations.find(conv => conv.id === restored.id);
+    }
     return roleplaySceneFromGreeting(source, Number(index), forceNew);
   },
   exportSceneTxt(id) {
@@ -18070,7 +18086,7 @@ window.JYCRoleplayBridge = {
   },
   role: () => ({ roleId: settings.activeRoleId, roleName: String(settings.aiName || activeRole()?.name || "当前角色"), roleAvatar: settings.aiAvatar || "" }),
   list: () => roleConvs().filter(isRoleplayConversation).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).map(roleplayPublicProject),
-  get: id => roleplayPublicProject(conversations.find(conv => conv.id === id)),
+  get: id => roleplayPublicProject(conversations.find(conv => conv.id === id)) || roleplayCardPublicProject(roleplayCardLibrary.find(card => card.id === id)),
   current: () => roleplayPublicProject(currentConv()),
   create(draft) {
     const conv = newConversation("roleplay");
@@ -18086,7 +18102,16 @@ window.JYCRoleplayBridge = {
   },
   update(id, draft) {
     const conv = conversations.find(item => item.id === id && isRoleplayConversation(item));
-    return conv ? roleplaySaveDraft(conv, draft) : null;
+    if (conv) return roleplaySaveDraft(conv, draft);
+    // 预览中的卡：编辑只改卡本身，不落对话栏；对话栏只在确认开场白/继续时才出现。
+    const card = roleplayCardLibrary.find(item => item.id === id && item.ownerRoleId === settings.activeRoleId);
+    if (!card) return null;
+    card.rpProject = roleplayCardTemplate(draft);
+    card.sourceTitle = String(draft?.title || card.sourceTitle || "").slice(0, 80);
+    card.updatedAt = Date.now();
+    void persistRoleplayCardLibrary();
+    window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { cardId: card.id } }));
+    return roleplayCardPublicProject(card);
   },
   duplicate(id) {
     const source = conversations.find(item => item.id === id && isRoleplayConversation(item));
@@ -18109,7 +18134,14 @@ window.JYCRoleplayBridge = {
     window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
     return true;
   },
-  openConversation: id => switchConversation(id, true),
+  openConversation: id => {
+    if (!conversations.some(conv => conv.id === id)) {
+      const restored = restoreRoleplayCard(id);
+      if (!restored) return false;
+      return switchConversation(restored.id, true);
+    }
+    return switchConversation(id, true);
+  },
   toast: showToast,
   isMobile,
   closeSidebar,

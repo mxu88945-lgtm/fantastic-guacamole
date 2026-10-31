@@ -952,12 +952,8 @@ function plainPreviewWithMedia(value) {
   }
 
   function openRoleEntry(entry) {
-    if (entry.savedCardId) {
-      if (!confirm("用这张已留存的角色卡新建剧本？原对话和原剧本不会改动。")) return;
-      const restored = bridge.restoreCard(entry.savedCardId);
-      if (restored) { bridge.toast("角色卡已恢复为新剧本"); showDetail(restored.id); }
-      return;
-    }
+    // 点卡只进详情预览，不建对话；对话栏只在详情里点了继续、或确认开场白时才出现。
+    if (entry.savedCardId) { showDetail(entry.savedCardId); return; }
     showDetail(entry.project.id, entry.member.id);
   }
 
@@ -969,9 +965,10 @@ function plainPreviewWithMedia(value) {
   }
 
   function editRoleEntry(entry) {
+    // 编辑卡只改卡本身，不建对话；保存/自动保存都走卡更新。
     if (entry.savedCardId) {
-      const restored = bridge.restoreCard(entry.savedCardId);
-      if (restored) showEditor(restored, "main");
+      const project = bridge.get(entry.savedCardId);
+      if (project) showEditor(project, "main");
       return;
     }
     if (entry.member.id === "lead") {
