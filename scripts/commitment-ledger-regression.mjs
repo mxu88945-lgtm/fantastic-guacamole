@@ -77,6 +77,6 @@ ok(role.commitmentLedger[0].status === 'done' && role.commitmentLedger[0].resolv
   'completion marker did not resolve the matching ledger item')
 ok(context.ledger.companionLedgerPrompt() === '', 'resolved item stayed in the active prompt')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v270";'), 'service worker cache was not bumped for ledger release')
+ok(sw.includes('const CACHE = "role-chat-cache-v271";'), 'service worker cache was not bumped for ledger release')
 
 console.log(`commitment ledger regression: ${checks} checks passed`)

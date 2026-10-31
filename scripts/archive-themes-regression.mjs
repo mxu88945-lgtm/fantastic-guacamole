@@ -27,6 +27,12 @@ assert.ok(head.includes('A+') && !head.includes('archive-kicker'));
 const record = context.mainArchiveHeading('vinyl', '角色', '', false);
 assert.ok(record.includes('archive-disc') && record.includes('角色'));
 assert.ok(!record.includes('<button') && !record.includes('archive-grade'));
+assert.ok(keys.includes('mobile'), 'the mobile card theme must be selectable in main chat');
+const mobile = context.mainArchiveHeading('mobile', '<角色>', '', true);
+assert.ok(mobile.includes('&lt;角色&gt;') && mobile.includes('我的消息') && mobile.includes('mobile-status'));
+assert.ok(!mobile.includes('archive-grade') && !mobile.includes('3759908261'));
+assert.ok(archives.includes('.archive-mobile.user .archive-heading { flex-direction: row-reverse;'), 'user mobile identity must dock right');
+assert.ok(archives.includes('margin-left: auto !important; margin-right: 0 !important;'), 'short and long user messages must anchor right');
 assert.ok(html.includes('const archiveTheme = !isRoleplayConversation()'), 'the main archive layout must not own RP messages');
 assert.ok(html.includes('priorThemeKey !== t.key') && html.includes('renderMessages();'), 'switching themes must refresh the identity header DOM');
 let sceneTheme = 'scene-academy';
@@ -47,7 +53,7 @@ const renderContext = vm.createContext({
   document: { createElement: () => ({ classList: { add() {} }, querySelectorAll: () => [] }) },
 });
 vm.runInContext(html.slice(html.indexOf('function mainArchiveHeading('), html.indexOf('function updateScrollControls(')), renderContext);
-for (const theme of ['scene-academy', 'scene-vinyl']) {
+for (const theme of ['scene-academy', 'scene-vinyl', 'scene-mobile']) {
   sceneTheme = theme;
   const row = renderContext.makeMsgEl('assistant', 'text', { rpSpeakerId: 'support', rpSpeakerName: 'Support', rpSpeakerAvatar: 'https://example.test/support.png' });
   assert.ok(row.innerHTML.includes('support.png') && row.innerHTML.includes('Support'), 'RP archive header must use the speaking cast member');

@@ -247,6 +247,7 @@ if (bridge) {
     ["scene-paper", "雾蓝纸笺", "#f6f8f8", "#344b59", "#81949f", "#526f84"],
     ["scene-scrapbook", "莓红剪贴簿", "#fffaf2", "#473530", "#99817a", "#9d4947"],
     ["scene-academy", "秋日批注", "#fafaf5", "#272a29", "#6d716b", "#a14148"],
+    ["scene-mobile", "白笺通讯", "#fafafc", "#242429", "#797982", "#34343b"],
     ["scene-vinyl", "青橙唱片", "#ffffff", "#315868", "#7b98a4", "#b46b43"],
   ];
   function appearanceSection() {

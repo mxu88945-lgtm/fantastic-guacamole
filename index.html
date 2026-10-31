@@ -6463,6 +6463,7 @@ const RP_THEME_PRESETS = [
   { id: "scene-paper", name: "雾蓝纸笺", base: "#f6f8f8", text: "#344b59", narration: "#81949f", quote: "#526f84", accent: "#607e90" },
   { id: "scene-scrapbook", name: "莓红剪贴簿", base: "#fffaf2", text: "#473530", narration: "#99817a", quote: "#9d4947", accent: "#a24949" },
   { id: "scene-academy", name: "秋日批注", base: "#fafaf5", text: "#272a29", narration: "#6d716b", quote: "#a14148", accent: "#ac353d" },
+  { id: "scene-mobile", name: "白笺通讯", base: "#fafafc", text: "#242429", narration: "#797982", quote: "#34343b", accent: "#777781" },
   { id: "scene-vinyl", name: "青橙唱片", base: "#ffffff", text: "#315868", narration: "#7b98a4", quote: "#b46b43", accent: "#416978" },
 ];
 function roleplayThemePreset(project) { return RP_THEME_PRESETS.find(item => item.id === project?.rpTheme) || RP_THEME_PRESETS[0]; }
@@ -7571,14 +7572,16 @@ function roleplayRichDocument(value, token, compact = false) {
   const guard = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob: https:; media-src data: blob: https:; font-src data: https:; style-src 'unsafe-inline' https:; script-src 'unsafe-inline'; connect-src https:; frame-src 'none'; form-action 'none'; base-uri 'none'">`;
   const compactCss = compact ? `body{padding:0!important;display:flow-root!important}#returnHomeText{position:static!important;inset:auto!important;transform:none!important;writing-mode:horizontal-tb!important;margin:12px auto!important}` : "";
   const base = `<style>:root{--rp-story-font-size:${typography.size};--rp-story-font-family:${typography.family};--rp-story-font-weight:${typography.weight}}html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important}body{margin:0!important}*{box-sizing:border-box;max-width:100%}.rp-mixed-paragraph{display:block;margin:0 0 .62em;font-size:var(--rp-story-font-size);font-family:var(--rp-story-font-family);font-weight:var(--rp-story-font-weight);line-height:1.7;white-space:normal;overflow-wrap:anywhere}.chat-quote{padding:.18em .45em;border-radius:8px;background:rgba(120,110,128,.12);color:#50739a;box-decoration-break:clone;-webkit-box-decoration-break:clone;line-height:1.65}${compactCss}</style><script>addEventListener('message',function(e){if(e.source!==parent||e.data?.type!=='jyc-rp-typography')return;document.documentElement.style.setProperty('--rp-story-font-size',e.data.size);document.documentElement.style.setProperty('--rp-story-font-family',e.data.family);document.documentElement.style.setProperty('--rp-story-font-weight',e.data.weight)})<\/script>`;
+  const mobileTheme = currentConv()?.rpProject?.rpTheme === "scene-mobile";
+  const mobileCss = mobileTheme ? `<style>html,body{background:transparent!important;color:#242429!important;text-align:left!important}.chat-quote{display:table!important;width:fit-content;max-width:100%;margin:10px 0;padding:8px 13px;border:1px solid #dddde3;border-radius:17px;background:linear-gradient(120deg,#f2f2f5,#e5e5ea);color:#34343b;line-height:1.7;text-align:left}section,[class*=status-card],[class*=scene-card]{background:#fafafc!important;color:#45454d!important;border-color:#e8e8ed!important;border-radius:18px!important;box-shadow:none!important}</style>` : "";
   const measure = `(${roleplayFrameContentHeight.toString()})()`;
   const reporter = `<script>(function(){var token=${JSON.stringify(token)},raf=0,last=-1;var height=function(){try{return ${measure}}catch(_){return 40}};var send=function(){if(raf)return;raf=requestAnimationFrame(function(){raf=0;var next=Math.max(40,Math.min(height(),6000));if(next===last)return;last=next;parent.postMessage({type:'jyc-rp-frame-height',token:token,height:next},'*')})};var pick=function(node){if(!node)return null;var explicit=node.getAttribute('data-prompt')||node.getAttribute('data-message')||node.getAttribute('data-opening')||node.getAttribute('data-scene')||node.getAttribute('data-choice');var text=(explicit||node.innerText||node.textContent||'').replace(/\\s+/g,' ').trim();if(!text)return null;return{text:text.slice(0,4000),label:(node.innerText||node.textContent||text).replace(/\\s+/g,' ').trim().slice(0,160)}};document.addEventListener('click',function(event){var node=event.target&&event.target.closest?event.target.closest('[data-prompt],[data-message],[data-opening],[data-scene],[data-choice],button,[role="button"],a[href],[onclick],.script-card,.scene-card,.choice-card'):null;if(!node)return;var action=pick(node);if(!action)return;setTimeout(function(){parent.postMessage({type:'jyc-rp-card-action',token:token,text:action.text,label:action.label},'*')},0)},false);addEventListener('load',send);addEventListener('resize',send);document.addEventListener('toggle',send,true);if(window.ResizeObserver){var observer=new ResizeObserver(send);observer.observe(document.body);addEventListener('unload',function(){observer.disconnect()})}setTimeout(send,60);setTimeout(send,400)})()<\/script>`;
   const playerBridge = /<audio\b[^>]*\bid=["']musicPlayer["']/i.test(source) && /\bid=["']playBtn["']/i.test(source) && !/<script\b/i.test(source)
     ? `<script>(${roleplayPlayerCompatibility.toString()})()<\/script>` : "";
   let documentHtml = source;
-  if (/<head\b[^>]*>/i.test(documentHtml)) documentHtml = documentHtml.replace(/<head\b[^>]*>/i, match => `${match}${guard}${base}${greetingBridge}`);
-  else if (/<html\b[^>]*>/i.test(documentHtml)) documentHtml = documentHtml.replace(/<html\b[^>]*>/i, match => `${match}<head>${guard}${base}${greetingBridge}</head>`);
-  else documentHtml = `<!doctype html><html><head>${guard}${base}${greetingBridge}</head><body>${documentHtml}</body></html>`;
+  if (/<head\b[^>]*>/i.test(documentHtml)) documentHtml = documentHtml.replace(/<head\b[^>]*>/i, match => `${match}${guard}${base}${mobileCss}${greetingBridge}`);
+  else if (/<html\b[^>]*>/i.test(documentHtml)) documentHtml = documentHtml.replace(/<html\b[^>]*>/i, match => `${match}<head>${guard}${base}${mobileCss}${greetingBridge}</head>`);
+  else documentHtml = `<!doctype html><html><head>${guard}${base}${mobileCss}${greetingBridge}</head><body>${documentHtml}</body></html>`;
   return /<\/body>/i.test(documentHtml) ? documentHtml.replace(/<\/body>/i, `${playerBridge}${reporter}</body>`) : `${documentHtml}${playerBridge}${reporter}`;
 }
 function roleplayRichFrameHtml(value, preview = false) {
@@ -7762,6 +7765,7 @@ function formatLatency(ms) {
 }
 function mainArchiveHeading(theme, name, avatar, user) {
   const portrait = isImageRef(avatar) ? `<img src="${escapeHtml(avatar).replace(/"/g, "&quot;")}" alt="">` : `<span>${escapeHtml(String(name || "角").slice(-1))}</span>`;
+  if (theme === "mobile") return `<div class="archive-heading"><div class="mobile-status" aria-hidden="true"><span>MESSAGE</span><span>⌁ ▰</span></div><div class="archive-portrait"><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy"><strong class="archive-name">${escapeHtml(name)}</strong><small>${user ? "我的消息" : "角色来信"}</small></div></div>`;
   const vinyl = theme === "vinyl";
   return `<div class="archive-heading">${vinyl ? '<div class="archive-kicker" aria-hidden="true"><span>REEL 24 / 33⅓ RPM</span><b>✦ SCENE ✦</b><span>CYAN & AMBER ✦</span></div>' : ""}<div class="archive-portrait"><div class="archive-disc" aria-hidden="true"></div><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy">${vinyl ? '<small>SIDE A · CHARACTER ARCHIVE</small>' : ""}<strong class="archive-name">${escapeHtml(name)}</strong>${vinyl ? '<em>Spinning softly, frame by frame.</em><div class="archive-track" aria-hidden="true"><i></i><span>33⅓</span></div>' : ""}</div>${vinyl ? '<div class="archive-caption" aria-hidden="true">ANALOG PHONOGRAPH & CINEMA ARCHIVE</div>' : `<span class="archive-grade" aria-hidden="true">${user ? "A+" : "B−"}</span>`}</div>`;
 }
@@ -7769,8 +7773,8 @@ function makeMsgEl(role, content, opts) {
   opts = opts || {};
   // A scene always uses its own prose layout. Main-chat bubble/flat switches
   // must never rebuild RP messages with a different DOM structure.
-  const sceneArchive = { "scene-academy": "academy", "scene-vinyl": "vinyl" }[currentConv()?.rpProject?.rpTheme];
-  const archiveTheme = !isRoleplayConversation() && ["academy", "vinyl"].includes(settings.themeName) ? settings.themeName : (isRoleplayConversation() ? sceneArchive || "" : "");
+  const sceneArchive = { "scene-academy": "academy", "scene-vinyl": "vinyl", "scene-mobile": "mobile" }[currentConv()?.rpProject?.rpTheme];
+  const archiveTheme = !isRoleplayConversation() && ["academy", "vinyl", "mobile"].includes(settings.themeName) ? settings.themeName : (isRoleplayConversation() ? sceneArchive || "" : "");
   const flat = isRoleplayConversation() || settings.chatLayout === "flat" || !!archiveTheme;
   const el = document.createElement("div");
   const stickerOnly = Array.isArray(content) && content.length > 0 && content.every(p => p.type === "sticker");
@@ -8633,7 +8637,7 @@ function normalizedRoleplayProject(value, conv) {
     : (raw.chatFontSize != null && String(raw.chatFontSize).trim() !== "" && !isNaN(Number(raw.chatFontSize))
       ? String(Math.min(24, Math.max(10, Number(raw.chatFontSize)))) : "");
   const legacyThemeMap = { paper: "liquid-pearl", rose: "liquid-pearl", amber: "liquid-pearl", mist: "liquid-mist", lavender: "liquid-mist", sage: "liquid-mist", night: "liquid-mist", ink: "liquid-mist" };
-  const sceneThemeIds = ["liquid-pearl", "liquid-mist", "scene-paper", "scene-scrapbook", "scene-academy", "scene-vinyl"];
+  const sceneThemeIds = ["liquid-pearl", "liquid-mist", "scene-paper", "scene-scrapbook", "scene-academy", "scene-vinyl", "scene-mobile"];
   const rpTheme = sceneThemeIds.includes(raw.rpTheme) ? raw.rpTheme : (legacyThemeMap[raw.rpTheme] || "liquid-pearl");
   const legacyTheme = Boolean(raw.rpTheme && !sceneThemeIds.includes(raw.rpTheme));
   const rpBaseColor = color("rpBaseColor");
@@ -14834,6 +14838,8 @@ THEMES.push(
 THEMES.push(
   { key: "academy", name: "秋日批注", dark: false, textColor: "#272a29", textDim: "#6d716b", vars: {
     bg:"#fafaf6", "bg-soft":"#fffffa", "bg-panel":"#fffffa", border:"#ded9ca", text:"#272a29", "text-dim":"#6d716b", accent:"#9d343d", "accent-soft":"#f5ede0", "assistant-bubble":"#fffff6", "user-bubble":"#fffff6", "code-bg":"#f1efe5", "err-bg":"#fbe8e6", "err-text":"#a34850", "item-active":"#efe8d9" } },
+  { key: "mobile", name: "白笺通讯", dark: false, textColor: "#242429", textDim: "#797982", vars: {
+    bg:"#fafafc", "bg-soft":"#f8fbfc", "bg-panel":"#f8fbfc", border:"#e8e8ed", text:"#242429", "text-dim":"#797982", accent:"#777781", "accent-soft":"#f1f1f4", "assistant-bubble":"#ffffff", "user-bubble":"#ffffff", "code-bg":"#eaf1f5", "err-bg":"#fbe8e6", "err-text":"#a34850", "item-active":"#e7e7ec" } },
   { key: "vinyl", name: "青橙唱片", dark: false, textColor: "#315868", textDim: "#7b98a4", vars: {
     bg:"#ffffff", "bg-soft":"#f8fbfc", "bg-panel":"#f8fbfc", border:"#c8d9df", text:"#315868", "text-dim":"#7b98a4", accent:"#416978", "accent-soft":"#edf4f6", "assistant-bubble":"#ffffff", "user-bubble":"#ffffff", "code-bg":"#eaf1f5", "err-bg":"#fbe8e6", "err-text":"#a34850", "item-active":"#dfeaf0" } },
 );
@@ -14893,7 +14899,7 @@ function applyTheme() {
   applyBubbleStyle();
   applyFont();
   updateSilentUI();
-  if (priorThemeKey !== t.key && [priorThemeKey, t.key].some(key => ["academy", "vinyl"].includes(key))
+  if (priorThemeKey !== t.key && [priorThemeKey, t.key].some(key => ["academy", "vinyl", "mobile"].includes(key))
       && !isRoleplayConversation() && document.querySelector("#messages .msg")) renderMessages();
   if (typeof webFontCss === "function" && webFontCss(settings.fontFamily)) {
     ensureWebFont(settings.fontFamily).then(applyFont).catch(() => {});
