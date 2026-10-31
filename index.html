@@ -18100,6 +18100,22 @@ window.JYCRoleplayBridge = {
     window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
     return roleplayPublicProject(conv);
   },
+  saveCard(draft) {
+    // 编辑器保存新剧本：只留存成角色卡，不建对话；对话栏只在确认开场白/继续时才出现。
+    const template = roleplayCardTemplate(draft);
+    const actorName = String(template.actorName || draft?.title || "未命名角色").slice(0, 80);
+    const card = {
+      id: JSON.stringify([settings.activeRoleId, `card-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, "lead", actorName]),
+      ownerRoleId: settings.activeRoleId, sourceId: "",
+      sourceTitle: String(draft?.title || template.title || `${actorName} · 角色卡`).slice(0, 80),
+      memberId: "lead", kind: "actor", updatedAt: Date.now(), rpProject: template,
+    };
+    roleplayCardLibrary.push(card);
+    void persistRoleplayCardLibrary();
+    window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { cardId: card.id } }));
+    window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
+    return roleplayCardPublicProject(card);
+  },
   update(id, draft) {
     const conv = conversations.find(item => item.id === id && isRoleplayConversation(item));
     if (conv) return roleplaySaveDraft(conv, draft);

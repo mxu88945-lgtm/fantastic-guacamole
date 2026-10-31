@@ -932,6 +932,7 @@ function plainPreviewWithMedia(value) {
         const card = savedCards.find((item) => item.id === entry.savedCardId);
         const groupIndex = card ? sessionGroup.get(card.sourceId) : undefined;
         if (groupIndex !== undefined) push(`live:${groups[groupIndex].title}`, groups[groupIndex].title).entries.push(entry);
+        else if (card && !card.sourceId) push(`card:${card.id}`, card.sourceTitle || "未命名剧本").entries.push(entry);
         else push(`orphan:${card?.sourceTitle || "原剧本"}`, `${card?.sourceTitle || "原剧本"}（原剧本）`).entries.push(entry);
       } else {
         const groupIndex = sessionGroup.get(entry.project.id);
@@ -1342,7 +1343,7 @@ function plainPreviewWithMedia(value) {
     if (state.avatarPending) { bridge.toast("头像正在处理，稍等一下再保存"); return; }
     const draft = currentDraft();
     if (!validateDraft(draft)) return;
-    const project = state.editingId ? bridge.update(state.editingId, draft) : bridge.create(draft);
+    const project = state.editingId ? bridge.update(state.editingId, draft) : bridge.saveCard(draft);
     if (!project) { bridge.toast("剧本保存失败，请重试"); return; }
     state.editingId = project.id;
     bridge.toast("剧本已保存");
