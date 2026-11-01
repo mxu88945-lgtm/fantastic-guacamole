@@ -6774,6 +6774,40 @@ function loadEarlierMessages() {
   renderMessages();
   chat.scrollTop = top + (chat.scrollHeight - before);
 }
+// 记住每张剧情卡片上次的真实高度：重新打开对话时卡片直接按真实高度占位，
+// 不再先按默认 240px 画、加载完再撑开，减少“卡一下”和正文被推着跳。
+const RP_FRAME_HEIGHT_KEY = "jyc-rp-frame-heights";
+let rpFrameHeights = null;
+function rpFrameHeightStore() {
+  if (rpFrameHeights) return rpFrameHeights;
+  try { rpFrameHeights = new Map(JSON.parse(localStorage.getItem(RP_FRAME_HEIGHT_KEY) || "[]")); } catch (_) { rpFrameHeights = new Map(); }
+  return rpFrameHeights;
+}
+function rpFrameHeightKey(frame) {
+  const mid = frame?.closest?.(".msg[data-mid]")?.dataset.mid;
+  if (!mid) return "";
+  const frames = [...frame.closest(".msg").querySelectorAll(".roleplay-html-frame")];
+  return `${mid}:${frames.indexOf(frame)}`;
+}
+let rpFrameHeightSaveTimer = 0;
+function rememberRoleplayFrameHeight(frame, height) {
+  const key = rpFrameHeightKey(frame);
+  if (!key || !(height > 40)) return;
+  const store = rpFrameHeightStore();
+  store.delete(key); store.set(key, height);
+  while (store.size > 600) store.delete(store.keys().next().value);
+  clearTimeout(rpFrameHeightSaveTimer);
+  rpFrameHeightSaveTimer = setTimeout(() => { try { localStorage.setItem(RP_FRAME_HEIGHT_KEY, JSON.stringify([...store])); } catch (_) {} }, 800);
+}
+function applyRememberedRoleplayFrameHeights(box) {
+  const store = rpFrameHeightStore();
+  if (!store.size) return;
+  box.querySelectorAll(".msg[data-mid] .roleplay-html-frame").forEach(frame => {
+    if (frame.style.height) return;
+    const height = store.get(rpFrameHeightKey(frame));
+    if (height) frame.style.height = `${height}px`;
+  });
+}
 function renderMessages() {
   const box = $("messages");
   applyRoleplayTextTheme(box);
@@ -6862,6 +6896,7 @@ function renderMessages() {
   }
   renderReplyVariantNav(box);
   renderReminderPin();
+  applyRememberedRoleplayFrameHeights(box);
   if (preserve) {
     box.querySelectorAll('.msg[data-mid]').forEach(el => {
       const oldCard = richCards.get(el.dataset.mid);
@@ -7327,7 +7362,13 @@ function normalizeRoleplayRegexPresentation(value) {
         const property = prefix.split(":")[0].trim().toLowerCase();
         return `${prefix}${property === "min-height" ? "0" : property === "max-height" ? "none" : "auto"}`;
       })
-      .replace(/(\btouch-action\s*:\s*)none\b/gi, "$1pan-y");
+      .replace(/(\btouch-action\s*:\s*)none\b/gi, "$1pan-y")
+      // 「透明」卡片常用很淡的白色（rgba(255,255,255,0.05)）做底和描边，只在深色背景上看得见；
+      // 换成同样淡的中性灰，浅色纸面和深色主题都能看出状态栏的边框和底色。
+      .replace(/rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*(0?\.\d+)\s*\)/gi, (_m, alpha) => {
+        const a = Number(alpha);
+        return a > 0.35 ? _m : `rgba(128,128,128,${Math.min(0.32, Math.max(0.08, a * 2)).toFixed(2)})`;
+      });
     if (hadViewportPosition) output = output.replace(/\b(?:inset|top|right|bottom|left)\s*:\s*[^;{}]+;?/gi, "");
     if (hasDarkSurface(output)) return output;
     return output.replace(/(^|[;{])(\s*color\s*:\s*)([^;{}]+)/gi, (match, start, prefix, raw) => {
@@ -7687,7 +7728,16 @@ if (typeof window !== "undefined") window.addEventListener("message", event => {
   }
   if (data.type === "jyc-rp-frame-height") {
     const followLatest = frame.dataset.rpPreview !== "true" && frame.closest("#messages") && stickBottom;
+    const chat = frame.closest("#chat");
+    const before = frame.getBoundingClientRect();
     frame.style.height = `${Math.max(40, Math.min(Number(data.height) || 40, 6000))}px`;
+    rememberRoleplayFrameHeight(frame, parseInt(frame.style.height, 10));
+    // iOS Safari 没有 overflow-anchor：视口上方的卡片（懒加载/重载后）报回真实高度时，
+    // 下面的正文会被整体推走，看起来像“跳到中间/顶上”。这里手动补偿，保持正在读的位置不动。
+    if (!followLatest && chat) {
+      const delta = frame.getBoundingClientRect().height - before.height;
+      if (delta && before.bottom <= chat.getBoundingClientRect().top + 4) chat.scrollTop += delta;
+    }
     // Rich RP cards report their real height after the reply has already been
     // rendered. Re-pin only when the live chat was following the newest turn;
     // previews and a user who scrolled up must remain exactly where they are.
@@ -8009,7 +8059,8 @@ function updateScrollControls() {
   const fromBottom = Math.max(0, max - fromTop);
   const scrollable = max > 120;
   topBtn.classList.toggle("show", scrollControlsAwake && scrollable && fromTop > 180);
-  bottomBtn.classList.toggle("show", scrollControlsAwake && scrollable && fromBottom > 180);
+  // 离最新消息较远时，「回到底部」一直留着，不再几秒后自己消失。
+  bottomBtn.classList.toggle("show", scrollable && (fromBottom > 900 || (scrollControlsAwake && fromBottom > 180)));
 }
 function wakeScrollControls() {
   scrollControlsAwake = true;
