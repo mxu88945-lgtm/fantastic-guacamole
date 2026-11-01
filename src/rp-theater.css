@@ -568,7 +568,7 @@ body.rp-chat-active .send-btn { background: var(--accent); color: #fff; }
 .rp-theme-colors input { width: 28px; height: 28px; border: 0; padding: 0; background: none; }
 .rp-theme-preview { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: color-mix(in srgb, var(--bg-soft) 82%, transparent); line-height: 1.8; color: var(--preview-body, var(--text)); }
 .rp-theme-preview em { display: block; color: var(--preview-narration, var(--text-dim)); } .rp-theme-preview strong { color: var(--preview-quote, var(--text)); }
-body.rp-chat-active #messages .msg .bubble { font-weight: 480; letter-spacing: .01em; line-height: 1.82; -webkit-font-smoothing: antialiased; }
+body.rp-chat-active #messages .msg .bubble { font-weight: 400; letter-spacing: normal; line-height: 1.82; -webkit-font-smoothing: antialiased; }
 body.rp-chat-active #messages .msg .name { font-weight: 650; }
 @media (max-width: 560px) { .rp-theme-presets { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .rp-theme-presets button { font-size: 11px; } .rp-theme-fields, .rp-theme-colors { grid-template-columns: 1fr; } }
 
@@ -587,7 +587,7 @@ body.rp-chat-active #messages .msg .think > summary {
   filter: none !important;
   text-shadow: none !important;
   -webkit-font-smoothing: antialiased;
-  text-rendering: geometricPrecision;
+  text-rendering: optimizeLegibility;
 }
 body.rp-chat-active .main > .composer-wrap,
 body.rp-chat-active .main > .composer-wrap::before,

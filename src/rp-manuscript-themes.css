@@ -413,3 +413,52 @@ html body.rp-chat-active[data-rp-theme="scene-letter"] .composer { border: 1px s
   html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .msg.archive-letter { padding: 0 18px 20px !important; border-radius: 24px !important; }
   html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter .letter-cover { margin-left: -18px !important; margin-right: -18px !important; }
 }
+
+/* 2026-11-01 对齐惟镜：剧场正文清晰度 + 顶栏。
+   之前剧场正文默认字重 450/460（PingFang 会落到 Medium，发糊），加 geometricPrecision 渲染、
+   顶栏整条毛玻璃横幅，看起来比惟镜和主聊天「虚、不紧实」。场景主题下统一回到惟镜的排版。 */
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg.flat .bubble,
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg .archive-body {
+  font-weight: var(--rp-msg-font-weight, 400) !important;
+  letter-spacing: normal !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg .archive-body :is(.bubble, .rp-story-text, .roleplay-opening-text, .message-plain-text) {
+  font-weight: inherit !important;
+  letter-spacing: normal !important;
+  line-height: inherit !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages,
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg,
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg .bubble {
+  text-rendering: optimizeLegibility !important;
+}
+/* 场景/状态卡里的逐行信息（时间、地点、环境）紧凑排，和惟镜一致。 */
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg .archive-body :is(.rp-status-card, .rp-scene-strip, .weijing-status-card, .weijing-scene-strip) {
+  line-height: 1.8 !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg .rp-story-text :is(div, section, aside, blockquote, details) p {
+  margin: 0 !important;
+}
+/* 顶栏：不要整条毛玻璃横幅，回到主聊天的透明浮动按钮 + 细雾顶。 */
+html body.rp-chat-active[data-rp-theme^="scene-"] .main > header {
+  background: transparent !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] .main > header::before {
+  content: "" !important;
+  display: block !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #rp-chat-identity {
+  background: color-mix(in srgb, var(--bg-panel) 82%, transparent) !important;
+  box-shadow: 0 4px 14px rgba(24,26,32,.06) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  backdrop-filter: blur(10px) !important;
+}
+html body.rp-chat-active[data-rp-theme^="scene-"] #rp-chat-mode {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
