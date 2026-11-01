@@ -286,6 +286,13 @@ html[data-theme-key="letter"] body:not(.rp-chat-active) #messages .archive-lette
 }
 html[data-theme-key="letter"] body:not(.rp-chat-active) #messages .archive-letter :is(.weijing-status-card,.weijing-scene-strip,.rp-status-card,details) { border: 1px solid #d9dde0; border-radius: 18px; color: #454b50; background: #f6f5f1; box-shadow: none; }
 html[data-theme-key="letter"] body:not(.rp-chat-active) #messages .archive-letter.user :is(.msg-actions,.user-msg-actions) { align-self: flex-end; }
+html[data-theme-key="letter"] body:not(.rp-chat-active) #messages .archive-letter.user .archive-portrait { margin-left: auto; margin-right: 0; }
+html[data-theme-key="letter"] body:not(.rp-chat-active) #messages .archive-letter.user .archive-heading-copy { align-items: flex-end; text-align: right; }
+html[data-theme-key="letter"] body:not(.rp-chat-active) #messages .archive-letter.user .letter-stats { justify-content: flex-end; }
+html[data-theme-key="letter"] body:not(.rp-chat-active) #messages .archive-letter.user .archive-body { text-align: right; }
+html[data-theme-key="letter"] body:not(.rp-chat-active) #messages .archive-letter.user .archive-body :is(.bubble,.message-plain-text,.rp-story-text) {
+  display: block; width: fit-content; max-width: 100%; margin-left: auto; margin-right: 0; text-align: left;
+}
 html[data-theme-key="letter"] body:not(.rp-chat-active) .composer { border: 1px solid #d8dcde; border-radius: 25px; background: #faf9f6f2; box-shadow: 0 8px 24px #3d4c5610; }
 html[data-theme-key="letter"] body:not(.rp-chat-active) .main > .composer-wrap { flex: 0 0 auto; min-width: 0; width: 100%; box-sizing: border-box; }
 @media (max-width: 600px) {

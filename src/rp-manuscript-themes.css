@@ -402,6 +402,11 @@ html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter
 html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter :is(.message-quote,.chat-quote) { display: inline !important; padding: .18em .68em !important; border: 1px solid #cdd5da !important; border-radius: 14px !important; color: var(--rp-quote-color) !important; background: #e7ecef !important; line-height: 1.72 !important; box-decoration-break: clone !important; -webkit-box-decoration-break: clone !important; }
 html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter :is(.weijing-status-card,.weijing-scene-strip,.rp-status-card,details) { border: 1px solid #d9dde0 !important; border-radius: 18px !important; color: #454b50 !important; background: #f6f5f1 !important; box-shadow: none !important; }
 html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter.user :is(.msg-actions,.user-msg-actions) { align-self: flex-end !important; }
+html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter.user .archive-portrait { margin-left: auto !important; margin-right: 0 !important; }
+html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter.user .archive-heading-copy { align-items: flex-end !important; text-align: right !important; }
+html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter.user .letter-stats { justify-content: flex-end !important; }
+html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter.user .archive-body { text-align: right !important; }
+html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter.user .archive-body :is(.bubble,.message-plain-text,.rp-story-text) { display: block !important; width: fit-content !important; max-width: 100% !important; margin-left: auto !important; margin-right: 0 !important; text-align: left !important; }
 html body.rp-chat-active[data-rp-theme="scene-letter"] .composer { border: 1px solid #d8dcde !important; border-radius: 25px !important; background: #faf9f6f2 !important; box-shadow: 0 8px 24px #3d4c5610 !important; }
 .rp-theme-presets [data-rp-theme="scene-letter"] i { background: linear-gradient(135deg,#faf9f6 0 48%,#71818b 49% 100%); }
 @media(max-width:600px) {
