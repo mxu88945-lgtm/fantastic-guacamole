@@ -363,3 +363,26 @@ html[data-theme="dark"] body > .rp-mention-tools .rp-mention-options,
 html[data-theme="dark"] .rp-mention-head { background: #232327; }
 html[data-theme="dark"] .rp-mention-head strong,
 html[data-theme="dark"] body > .rp-mention-tools .rp-mention-options > button { color: #ececf0; }
+
+/* 惟镜卡片自带的场景栏/状态栏类名（weijing-*）。惟镜在自己的样式表里画它们，
+   卡片正则只输出 class，不带内联样式；搬到顾祁砚后没有这些规则就成了纯文字。 */
+body.rp-chat-active #messages :is(.weijing-scene-strip, .weijing-status-card, .weijing-character-message, .weijing-workshop-scene, .weijing-workshop-status) { display: block; width: 100%; min-width: 0; box-sizing: border-box; overflow-wrap: anywhere; }
+body.rp-chat-active #messages :is(.weijing-scene-strip, .weijing-workshop-scene) { margin: 0 0 13px; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--accent, #8a61d8) 16%, transparent); border-left: 4px solid color-mix(in srgb, var(--accent, #8a61d8) 70%, transparent); border-radius: 5px 15px 15px 5px; color: inherit; background: color-mix(in srgb, var(--accent, #8a61d8) 6%, transparent); box-shadow: 0 7px 18px rgba(60, 50, 90, .05); font-size: .9em; line-height: 1.72; white-space: pre-wrap; text-align: left; }
+body.rp-chat-active #messages :is(.weijing-status-card, .weijing-workshop-status) { margin: 14px 0 0; padding: 11px 13px; border: 1px solid color-mix(in srgb, var(--accent, #8567a8) 18%, transparent); border-radius: 14px; color: inherit; background: color-mix(in srgb, var(--accent, #8567a8) 5%, transparent); box-shadow: 0 7px 18px rgba(60, 50, 90, .045); font-size: .86em; line-height: 1.76; white-space: pre-wrap; text-align: left; }
+body.rp-chat-active #messages .weijing-status-title { display: block; margin-bottom: 5px; color: color-mix(in srgb, var(--accent, #8a61a8) 80%, currentColor); font-size: .83em; letter-spacing: .08em; }
+body.rp-chat-active #messages :is(.weijing-scene-strip + .weijing-status-card, .weijing-status-card:first-child) { margin-top: 0; }
+body.rp-chat-active #messages .weijing-status-card-czw { overflow: hidden; border-color: rgba(48, 66, 55, .28); color: #3d4940; background: #edf2ed; }
+body.rp-chat-active #messages .weijing-czw-status-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -11px -13px 12px; padding: 12px 13px; color: #f1f6f1; background: linear-gradient(115deg, #18231c, #304237); }
+body.rp-chat-active #messages .weijing-czw-status-header strong { color: inherit; font-size: .96em; }
+body.rp-chat-active #messages .weijing-czw-status-header span { color: #c5d7c7; font-size: .68em; letter-spacing: .18em; }
+body.rp-chat-active #messages .weijing-czw-status-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+body.rp-chat-active #messages .weijing-czw-status-field { min-width: 0; padding: 9px 10px; border-radius: 10px; background: rgba(255,255,255,.56); }
+body.rp-chat-active #messages .weijing-czw-status-field.wide { grid-column: 1 / -1; background: rgba(255,255,255,.78); }
+body.rp-chat-active #messages .weijing-czw-status-field :is(b, span) { display: block; }
+body.rp-chat-active #messages .weijing-czw-status-field b { margin-bottom: 3px; color: #55705a; font-size: .72em; }
+body.rp-chat-active #messages .weijing-czw-status-field span { color: #3d4940; font-size: .89em; line-height: 1.6; white-space: pre-wrap; }
+html[data-theme="dark"] body.rp-chat-active #messages :is(.weijing-scene-strip, .weijing-status-card, .weijing-workshop-scene, .weijing-workshop-status) { background: rgba(255,255,255,.05); box-shadow: none; }
+@media (max-width: 390px) {
+  body.rp-chat-active #messages .weijing-czw-status-fields { grid-template-columns: 1fr; gap: 7px; }
+  body.rp-chat-active #messages .weijing-czw-status-field.wide { grid-column: auto; }
+}
