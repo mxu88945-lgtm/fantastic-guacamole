@@ -463,11 +463,11 @@ html body.rp-chat-active[data-rp-theme^="scene-"] #rp-chat-mode {
   backdrop-filter: none !important;
 }
 
-/* 2026-11-01 「+」菜单：主聊天去掉 AI 帮答；剧场只留 AI 帮答 + 图片，做成惟镜式底部「更多」面板。 */
-#plus-menu .plus-sheet-head, #plus-menu .plus-sheet-hint { display: none; }
+/* 2026-11-01 「+」菜单：主聊天和剧场都是惟镜式底部「更多」面板；主聊天去掉 AI 帮答；剧场只留 AI 帮答 + 图片，并可看/换帮答通道。 */
+#plus-menu .plus-sheet-head, #plus-menu .plus-sheet-hint, #plus-menu .plus-sheet-route { display: none; }
 body:not(.rp-chat-active) #plus-menu button[data-act="assist"] { display: none !important; }
 body.rp-chat-active #plus-menu button:is([data-act="file"], [data-act="gift"], [data-act="location"], [data-act="draw"]) { display: none !important; }
-html body.rp-chat-active #plus-menu.show {
+html body #plus-menu.show {
   display: grid !important; position: fixed !important; z-index: 90 !important;
   left: 0 !important; right: 0 !important; top: auto !important; bottom: 0 !important; width: auto !important; max-width: none !important;
   grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 10px; justify-items: center;
@@ -476,23 +476,38 @@ html body.rp-chat-active #plus-menu.show {
   box-shadow: 0 0 0 100vmax rgba(28, 28, 34, .26), 0 -8px 30px rgba(0, 0, 0, .06) !important;
   -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
 }
-html body.rp-chat-active #plus-menu.show .plus-sheet-head {
+html body #plus-menu.show .plus-sheet-head {
   grid-column: 1 / -1; position: relative; display: flex; align-items: center; justify-content: center; width: 100%; min-height: 30px; margin-bottom: 6px;
 }
-html body.rp-chat-active #plus-menu .plus-sheet-head b { color: #2c2c32; font-size: 15px; font-weight: 600; }
-html body.rp-chat-active #plus-menu .plus-sheet-head button {
+html body #plus-menu .plus-sheet-head b { color: #2c2c32; font-size: 15px; font-weight: 600; }
+html body #plus-menu .plus-sheet-head button {
   position: absolute; right: -4px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; padding: 0 !important;
   display: grid !important; place-items: center; border: 0; border-radius: 50%; background: transparent !important; color: #6b6b73; font-size: 20px; line-height: 1;
 }
-html body.rp-chat-active #plus-menu.show > button:not([data-act="close"]) {
+html body #plus-menu.show > button:not([data-act="close"]) {
   display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 0 !important;
   border: 0 !important; background: transparent !important; color: #2c2c32 !important; font-size: 14px !important; font-weight: 600; text-align: center;
 }
-html body.rp-chat-active #plus-menu.show > button:not([data-act="close"]) svg {
+html body #plus-menu.show > button:not([data-act="close"]) svg {
   box-sizing: border-box; width: 64px !important; height: 64px !important; padding: 20px; border-radius: 18px;
   background: #fff; color: #3a3a40 !important; box-shadow: 0 4px 14px rgba(30, 30, 40, .05);
 }
-html body.rp-chat-active #plus-menu.show > button:not([data-act="close"]):active svg { transform: scale(.96); }
+html body #plus-menu.show > button:not([data-act="close"]):active svg { transform: scale(.96); }
 html body.rp-chat-active #plus-menu.show .plus-sheet-hint {
   grid-column: 1 / -1; display: block; margin: 8px 0 0; color: #8b8b92; font-size: 13px; text-align: center;
 }
+html body.rp-chat-active #plus-menu.show .plus-sheet-route {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 6px;
+  padding: 10px 12px; border-radius: 14px; background: #fff; box-shadow: 0 4px 14px rgba(30, 30, 40, .04);
+}
+html body #plus-menu .plus-sheet-route span { flex-shrink: 0; color: #6b6b73; font-size: 13px; font-weight: 600; }
+html body #plus-menu .plus-sheet-route select {
+  flex: 1 1 0; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid rgba(40, 40, 50, .1); border-radius: 10px;
+  background: #f6f6f7; color: #2c2c32; font-size: 13px; text-overflow: ellipsis;
+}
+html[data-theme="dark"] body #plus-menu.show { background: #232327 !important; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .45) !important; }
+html[data-theme="dark"] body #plus-menu .plus-sheet-head b,
+html[data-theme="dark"] body #plus-menu.show > button:not([data-act="close"]) { color: #ececf0 !important; }
+html[data-theme="dark"] body #plus-menu.show > button:not([data-act="close"]) svg,
+html[data-theme="dark"] body #plus-menu.show .plus-sheet-route { background: #2f2f35; color: #e2e2e8 !important; box-shadow: none; }
+html[data-theme="dark"] body #plus-menu .plus-sheet-route select { background: #232327; color: #ececf0; border-color: rgba(255, 255, 255, .12); }

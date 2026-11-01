@@ -340,3 +340,26 @@ body.rp-chat-active #messages :is(.rp-story-text, .roleplay-opening-text) :is(pr
     padding-inline: 14px;
   }
 }
+
+/* 2026-11-01 剧场 @ 选择：惟镜式底部面板（标题 + 关闭、大头像、遮罩）。 */
+body > .rp-mention-tools { position: fixed; inset: 0; z-index: 95; max-width: none; height: auto; margin: 0; }
+body > .rp-mention-tools[hidden] { display: none; }
+.rp-mention-backdrop { position: absolute; inset: 0; background: rgba(28, 28, 34, .28); }
+body > .rp-mention-tools .rp-mention-options {
+  position: absolute; left: 0; right: 0; bottom: 0; top: auto; width: auto; max-height: min(72dvh, 620px);
+  padding: 6px 18px calc(18px + env(safe-area-inset-bottom)); border: 0; border-radius: 26px 26px 0 0;
+  background: #f8f7fa; box-shadow: 0 -10px 34px rgba(0, 0, 0, .1);
+  -webkit-overflow-scrolling: touch;
+}
+.rp-mention-head { position: sticky; top: -6px; z-index: 1; display: flex; align-items: center; justify-content: space-between; margin: 0 -18px 4px; padding: 18px 22px 12px; background: #f8f7fa; }
+.rp-mention-head strong { color: #2c2c32; font-size: 15px; font-weight: 700; letter-spacing: .02em; }
+.rp-mention-close { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #55555d; font-size: 20px; line-height: 1; cursor: pointer; }
+body > .rp-mention-tools .rp-mention-options > button { gap: 16px; padding: 12px 8px; border-radius: 16px; color: #2c2c32; }
+body > .rp-mention-tools .rp-mention-options > button[aria-selected="true"] { background: transparent; }
+body > .rp-mention-tools .rp-mention-options > button:active { background: rgba(40, 40, 50, .05); }
+body > .rp-mention-tools .rp-mention-portrait { width: 52px; height: 52px; border-radius: 15px; font-size: 18px; font-weight: 600; }
+.rp-mention-name { font-size: 15px; font-weight: 600; }
+html[data-theme="dark"] body > .rp-mention-tools .rp-mention-options,
+html[data-theme="dark"] .rp-mention-head { background: #232327; }
+html[data-theme="dark"] .rp-mention-head strong,
+html[data-theme="dark"] body > .rp-mention-tools .rp-mention-options > button { color: #ececf0; }

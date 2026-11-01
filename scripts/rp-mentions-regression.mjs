@@ -29,7 +29,7 @@ class Element {
 class TestEvent { constructor(type) { this.type = type; } preventDefault() {} stopImmediatePropagation() {} }
 const root = new Element("div"), composer = new Element("div"), input = new Element("textarea");
 composer.className = "composer"; root.append(composer); composer.append(input);
-const document = { activeElement: input, createElement: tag => new Element(tag), getElementById: id => id === "input" ? input : null, addEventListener() {} };
+const document = { body: root, documentElement: { classList: { add() {}, remove() {} } }, activeElement: input, createElement: tag => new Element(tag), getElementById: id => id === "input" ? input : null, addEventListener() {} };
 const scene = { id: "scene", space: "roleplay", rpProject: { actorName: "周竞尧", groupEnabled: true, members: [{ id: "guest", name: "江屹琛", kind: "actor", enabled: true }, { id: "director", name: "导演", kind: "director", enabled: true }] } };
 const window = { JYCRoleplayBridge: { current: () => scene }, events: {}, addEventListener(type, listener) { (this.events[type] ||= []).push(listener); } };
 const context = vm.createContext({ document, window, Event: TestEvent, console });
@@ -39,7 +39,9 @@ const tools = root.query(".rp-mention-tools"), list = root.query(".rp-mention-op
 assert.equal(tools.hidden, true, "the picker must stay out of the layout until @ is typed");
 input.value = "@"; input.selectionStart = 1; input.dispatchEvent(new TestEvent("input"));
 assert.equal(list.hidden, false, "typing @ must actually open a member picker");
-assert.equal(list.children.length, 3);
+assert.equal(list.children.length, 4, "header + three members");
+assert.equal(list.children[0].className, "rp-mention-head", "惟镜式面板需要「选择 @ 的角色」标题栏");
+assert.equal(tools.parent, root, "@ 面板挂在 body 上，遮罩能盖住顶栏");
 const guest = list.children.find(option => option.dataset.mentionId === "guest");
 const click = new TestEvent("click"); click.target = guest.children[1]; list.dispatchEvent(click);
 assert.equal(input.value, "@江屹琛 ", "the picker must insert the selected @ target back into the composer");

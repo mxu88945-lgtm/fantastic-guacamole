@@ -22,9 +22,13 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
     list.hidden = true;
     list.setAttribute("role", "listbox");
     list.setAttribute("aria-label", "选择本轮发言成员");
-    tools.append(list);
-    composer.before(tools);
-    let ids = [], selectedSceneId = "", query = null, offered = [], activeIndex = 0, composing = false;
+    // 惟镜式底部面板：挂在 body 上，带遮罩、标题和关闭按钮。
+    const backdrop = document.createElement("div");
+    backdrop.className = "rp-mention-backdrop";
+    tools.append(backdrop, list);
+    document.body.append(tools);
+    const touchUI = () => { try { return window.matchMedia("(hover: none) and (pointer: coarse)").matches; } catch (_) { return false; } };
+    let ids = [], selectedSceneId = "", query = null, offered = [], activeIndex = 0, composing = false, dismissedKey = "";
 
     function currentScene() {
       try { const scene = bridge.current(); return scene?.rpProject?.groupEnabled ? scene : null; }
@@ -34,7 +38,13 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
       const p = scene.rpProject;
       return [{ id: "lead", name: p.actorName || "舞台主角", avatar: p.actorAvatar || "", kind: "actor" }, ...(p.members || [])];
     }
+    function dismiss() {
+      const range = mentionQuery(input.value, input.selectionStart ?? input.value.length);
+      dismissedKey = range ? `${input.value}|${range.start}` : "";
+      hide();
+    }
     function hide() {
+      document.documentElement.classList.remove("rp-mention-open");
       list.hidden = true;
       tools.hidden = true;
       input.setAttribute("aria-expanded", "false");
@@ -61,9 +71,17 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
       ids = selectedFromText(cast);
       query = mentionQuery(input.value, input.selectionStart ?? input.value.length);
       if (!query || composing) { hide(); return; }
+      if (dismissedKey && dismissedKey === `${input.value}|${query.start}`) { hide(); return; }
+      dismissedKey = "";
+      const wasHidden = list.hidden;
       offered = cast.filter(member => !query.query || member.name.toLowerCase().includes(query.query.toLowerCase()));
       activeIndex = Math.min(activeIndex, Math.max(0, offered.length - 1));
       list.replaceChildren();
+      const head = document.createElement("div"); head.className = "rp-mention-head";
+      const title = document.createElement("strong"); title.textContent = "选择 @ 的角色";
+      const close = document.createElement("button"); close.type = "button"; close.className = "rp-mention-close"; close.dataset.mentionClose = "1"; close.setAttribute("aria-label", "关闭"); close.textContent = "×";
+      head.append(title, close);
+      list.append(head);
       if (!offered.length) {
         const empty = document.createElement("p"); empty.textContent = "没有匹配的成员，可在右侧群聊设置中添加"; list.append(empty);
       }
@@ -75,12 +93,15 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
         if (/^(https?:\/\/|data:image\/)/.test(member.avatar || "")) { const image = document.createElement("img"); image.src = member.avatar; image.alt = ""; portrait.append(image); }
         else portrait.textContent = member.name.slice(0, 1);
         const name = document.createElement("span"); name.textContent = member.name;
-        const hint = document.createElement("small"); hint.textContent = member.kind === "director" ? "导演" : member.id === "lead" ? "主角" : "共演角色";
-        option.append(portrait, name, hint);
+        name.className = "rp-mention-name";
+        option.append(portrait, name);
         list.append(option);
       });
       tools.hidden = false;
       list.hidden = false;
+      document.documentElement.classList.add("rp-mention-open");
+      // 手机上像惟镜一样先收起键盘，让面板从屏幕底部完整升起。
+      if (wasHidden && touchUI() && document.activeElement === input) input.blur();
       input.setAttribute("aria-controls", list.id);
       input.setAttribute("aria-expanded", "true");
       input.setAttribute("aria-activedescendant", `rp-mention-option-${activeIndex}`);
@@ -102,7 +123,9 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
       refresh();
     }
     list.addEventListener("pointerdown", event => event.preventDefault());
-    list.addEventListener("click", event => { const option = event.target.closest("[data-mention-id]"); if (option) choose(option.dataset.mentionId); });
+    backdrop.addEventListener("pointerdown", event => event.preventDefault());
+    backdrop.addEventListener("click", event => { event.preventDefault(); dismiss(); });
+    list.addEventListener("click", event => { if (event.target.closest("[data-mention-close]")) { dismiss(); return; } const option = event.target.closest("[data-mention-id]"); if (option) choose(option.dataset.mentionId); });
     input.addEventListener("input", () => { activeIndex = 0; refresh(); });
     input.addEventListener("click", refresh);
     input.addEventListener("compositionstart", () => { composing = true; hide(); });
@@ -111,7 +134,7 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
       if (list.hidden || event.isComposing) return;
       if (["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"].includes(event.key)) {
         event.preventDefault(); event.stopImmediatePropagation();
-        if (event.key === "Escape") { hide(); return; }
+        if (event.key === "Escape") { dismiss(); return; }
         if ((event.key === "Enter" || event.key === "Tab") && offered[activeIndex]) { choose(offered[activeIndex].id); return; }
         if (event.key === "ArrowDown") activeIndex = (activeIndex + 1) % Math.max(1, offered.length);
         if (event.key === "ArrowUp") activeIndex = (activeIndex + offered.length - 1) % Math.max(1, offered.length);

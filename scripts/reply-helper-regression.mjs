@@ -55,3 +55,5 @@ console.log("reply helper regression: passed");
   assert.ok(css.includes('body.rp-chat-active #plus-menu button:is([data-act="file"], [data-act="gift"], [data-act="location"], [data-act="draw"]) { display: none !important; }'), "theater menu must keep only AI 帮答 + 图片");
   assert.ok(html.includes('<div class="plus-sheet-head"><b>更多</b>'), "theater sheet header missing");
 }
+assert.ok(html.includes('id="reply-helper-provider"') && html.includes('function replyHelperRuntimeConfig()'), "AI 帮答 needs a visible, selectable API route");
+assert.ok(html.includes('REPLY_HELPER_MAX_TOKENS, helperCfg));'), "AI 帮答 must call the route it shows");
