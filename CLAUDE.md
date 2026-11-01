@@ -657,3 +657,7 @@
 
 ## 2026-11-01 惟镜 weijing-* 类名样式（sw v280）
 - 惟镜卡片正则只输出 class（weijing-scene-strip / weijing-status-card / weijing-status-title / weijing-czw-* / weijing-workshop-*），样式在惟镜 runtime-enhancements.css。顾祁砚此前只在档案主题里有这些规则，普通剧场里就是纯文字。已把基础样式移植到 rp-group.css（body.rp-chat-active #messages 范围，强调色跟主题）。
+
+## 2026-11-01 v281
+- 关键：带 <div> 的正则结果会整段进 iframe（roleplayRegexDisplay 包 <!doctype html>），宿主页 CSS 进不去。weijing-* 样式另注入 roleplayRichDocument 的 base <style>（用 currentColor 混色，深浅主题都可）；并去掉 weijing div 内首尾空白（pre-wrap 会显示成空行）。
+- 剧场用户身份可换头像：rpProject.userAvatar（仅本剧本），avatarFor("user") 在剧场优先用它。

@@ -386,3 +386,6 @@ html[data-theme="dark"] body.rp-chat-active #messages :is(.weijing-scene-strip, 
   body.rp-chat-active #messages .weijing-czw-status-fields { grid-template-columns: 1fr; gap: 7px; }
   body.rp-chat-active #messages .weijing-czw-status-field.wide { grid-column: auto; }
 }
+.rp-user-avatar-row { display: flex; align-items: center; gap: 12px; margin: 4px 0 12px; }
+.rp-user-avatar-row .rp-cast-avatar { width: 52px; height: 52px; flex-basis: 52px; }
+.rp-user-avatar-row .rp-cast-add { margin: 0; }
