@@ -47,3 +47,11 @@ assert.ok(html.includes("isNoReplyPlaceholder(m)) continue;"), "old failed place
 assert.ok(html.includes("if (last && last.role === m.role) last.content = mergeApiContent"), "consecutive user turns must be merged for alternating provider APIs");
 
 console.log("reply helper regression: passed");
+
+// 2026-11-01: 主聊天不显示 AI 帮答；剧场「+」是惟镜式底部面板，只留 AI 帮答 + 图片。
+{
+  const css = (await import("node:fs")).readFileSync(new URL("../src/rp-manuscript-themes.css", import.meta.url), "utf8");
+  assert.ok(css.includes('body:not(.rp-chat-active) #plus-menu button[data-act="assist"] { display: none !important; }'), "main chat must hide AI 帮答");
+  assert.ok(css.includes('body.rp-chat-active #plus-menu button:is([data-act="file"], [data-act="gift"], [data-act="location"], [data-act="draw"]) { display: none !important; }'), "theater menu must keep only AI 帮答 + 图片");
+  assert.ok(html.includes('<div class="plus-sheet-head"><b>更多</b>'), "theater sheet header missing");
+}

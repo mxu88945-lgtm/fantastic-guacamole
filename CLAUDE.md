@@ -642,3 +642,6 @@
 - 场景主题(scene-*)正文字重默认 400（原 450/460/480 在 PingFang 落到 Medium 发糊），letter-spacing normal，去掉 geometricPrecision 改 optimizeLegibility。
 - 场景卡内逐行信息 line-height 1.8、嵌套 p 无外边距。
 - 场景主题顶栏去掉整条毛玻璃横幅，恢复主聊天透明浮动 + header::before 细雾顶；身份胶囊减轻 blur。
+
+## 2026-11-01 「+」菜单（sw v276）
+- 主聊天隐藏 AI 帮答。剧场「+」改成惟镜式底部「更多」面板（标题+关闭、方块图标），只留 AI 帮答和图片，底部提示「AI 帮答只填入输入框」。positionPlusMenu 在 rp-chat-active 时交给 CSS。
