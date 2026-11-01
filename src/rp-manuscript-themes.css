@@ -309,7 +309,7 @@ html body.rp-chat-active[data-rp-theme^="scene-"] #messages .msg :is(.rp-status-
   text-align: left !important;
   font-size: .92em !important;
 }
-html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg .rp-story-text .chat-quote {
+html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg :is(.rp-story-text,.roleplay-opening-text) :is(.chat-quote,.message-quote) {
   padding: 0 0 2px !important;
   border: 0 !important;
   border-bottom: 1px solid #65829773 !important;
@@ -318,14 +318,14 @@ html body.rp-chat-active[data-rp-theme="scene-paper"] #messages .msg .rp-story-t
   box-shadow: none !important;
   color: var(--rp-quote-color) !important;
 }
-html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg .rp-story-text .chat-quote {
+html body.rp-chat-active[data-rp-theme="scene-scrapbook"] #messages .msg :is(.rp-story-text,.roleplay-opening-text) :is(.chat-quote,.message-quote) {
   padding: 2px 4px !important;
   border: 1px solid #dab1a5 !important;
   border-radius: 4px !important;
   background: #f6e1d4 !important;
   color: var(--rp-quote-color) !important;
 }
-html body.rp-chat-active[data-rp-theme="scene-academy"] #messages .msg .rp-story-text .chat-quote {
+html body.rp-chat-active[data-rp-theme="scene-academy"] #messages .msg :is(.rp-story-text,.roleplay-opening-text) :is(.chat-quote,.message-quote) {
   padding: 0 2px !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -333,7 +333,7 @@ html body.rp-chat-active[data-rp-theme="scene-academy"] #messages .msg .rp-story
   color: var(--rp-quote-color) !important;
   box-shadow: none !important;
 }
-html body.rp-chat-active[data-rp-theme="scene-vinyl"] #messages .msg .rp-story-text .chat-quote {
+html body.rp-chat-active[data-rp-theme="scene-vinyl"] #messages .msg :is(.rp-story-text,.roleplay-opening-text) :is(.chat-quote,.message-quote) {
   padding: 1px 5px !important;
   border: 0 !important;
   border-radius: 10px !important;
@@ -357,6 +357,7 @@ html body.rp-chat-active[data-rp-theme="scene-mobile"] #messages .archive-mobile
 html body.rp-chat-active[data-rp-theme="scene-mobile"] #messages .archive-mobile .archive-heading-copy small {display: block !important;margin-top: 4px !important;color: #93939b !important;font-size: 12px !important;letter-spacing: .06em !important;}
 html body.rp-chat-active[data-rp-theme="scene-mobile"] #messages .archive-mobile .archive-body {line-height: 1.95 !important;text-align: left !important;}
 html body.rp-chat-active[data-rp-theme="scene-mobile"] #messages .archive-mobile .archive-body :is(.message-quote,.chat-quote) {display: table !important;width: fit-content !important;max-width: 100% !important;margin: 10px 0 !important;padding: 8px 13px !important;color: #34343b !important;background: linear-gradient(120deg,#f2f2f5,#e5e5ea) !important;border: 1px solid #dddde3 !important;border-radius: 17px !important;box-shadow: 0 3px 10px #29293606 !important;line-height: 1.7 !important;overflow-wrap: anywhere !important;text-align: left !important;box-decoration-break: clone !important;-webkit-box-decoration-break: clone !important;}
+html body.rp-chat-active[data-rp-theme="scene-mobile"] #messages .msg :is(.rp-story-text,.roleplay-opening-text) :is(.message-quote,.chat-quote) {display: inline !important;width: auto !important;max-width: 100% !important;margin: 0 !important;padding: .22em .72em !important;color: #34343b !important;background: linear-gradient(120deg,#f2f2f5,#e5e5ea) !important;border: 1px solid #dddde3 !important;border-radius: 17px !important;box-shadow: 0 3px 10px #29293606 !important;line-height: 1.7 !important;text-align: left !important;box-decoration-break: clone !important;-webkit-box-decoration-break: clone !important;}
 html body.rp-chat-active[data-rp-theme="scene-mobile"] #messages .archive-mobile.user .archive-heading {flex-direction: row-reverse !important;text-align: right !important;}
 html body.rp-chat-active[data-rp-theme="scene-mobile"] #messages .archive-mobile.user .archive-body {text-align: right !important;}
 html body.rp-chat-active[data-rp-theme="scene-mobile"] #messages .archive-mobile.user .archive-body :is(p,.message-story-paragraph,.rp-story-text,.bubble) {width: fit-content !important;max-width: 100% !important;margin-left: auto !important;margin-right: 0 !important;text-align: left !important;}
@@ -400,6 +401,7 @@ html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter
 html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter .archive-body .bubble { width: 100% !important; max-width: 100% !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; color: inherit !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter .chat-narration { color: var(--rp-narration-color) !important; }
 html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter :is(.message-quote,.chat-quote) { display: inline !important; padding: .18em .68em !important; border: 1px solid #cdd5da !important; border-radius: 14px !important; color: var(--rp-quote-color) !important; background: #e7ecef !important; line-height: 1.72 !important; box-decoration-break: clone !important; -webkit-box-decoration-break: clone !important; }
+html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .msg :is(.rp-story-text,.roleplay-opening-text) :is(.message-quote,.chat-quote) { display: inline !important; padding: .18em .68em !important; border: 1px solid #cdd5da !important; border-radius: 14px !important; color: var(--rp-quote-color) !important; background: #e7ecef !important; line-height: 1.72 !important; box-shadow: none !important; box-decoration-break: clone !important; -webkit-box-decoration-break: clone !important; }
 html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter :is(.weijing-status-card,.weijing-scene-strip,.rp-status-card,details) { border: 1px solid #d9dde0 !important; border-radius: 18px !important; color: #454b50 !important; background: #f6f5f1 !important; box-shadow: none !important; }
 html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter.user :is(.msg-actions,.user-msg-actions) { align-self: flex-end !important; }
 html body.rp-chat-active[data-rp-theme="scene-letter"] #messages .archive-letter.user .archive-portrait { margin-left: auto !important; margin-right: 0 !important; }

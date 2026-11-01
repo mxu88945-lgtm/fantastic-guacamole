@@ -68,6 +68,11 @@ assert.ok(rpManuscript.includes('[data-rp-theme="scene-letter"]') && rpManuscrip
 assert.ok(manuscript.includes('.archive-letter.user .archive-portrait') && manuscript.includes('width: fit-content; max-width: 100%; margin-left: auto;'), 'main Mist Letter user identity and short dialogue must dock right');
 assert.ok(rpManuscript.includes('.archive-letter.user .archive-heading-copy') && rpManuscript.includes('width: fit-content !important; max-width: 100% !important; margin-left: auto !important;'), 'RP Mist Letter user identity and short dialogue must dock right');
 assert.ok(manuscript.includes(':is(.message-quote,.chat-quote)') && rpManuscript.includes(':is(.message-quote,.chat-quote)'), 'Mist Letter quote capsules are missing');
+for (const theme of ['scene-paper', 'scene-scrapbook', 'scene-academy', 'scene-vinyl', 'scene-mobile', 'scene-letter']) {
+  assert.ok(rpManuscript.includes(`[data-rp-theme="${theme}"] #messages .msg :is(.rp-story-text,.roleplay-opening-text) :is(.chat-quote,.message-quote)`) || rpManuscript.includes(`[data-rp-theme="${theme}"] #messages .msg :is(.rp-story-text,.roleplay-opening-text) :is(.message-quote,.chat-quote)`), `${theme} must theme dialogue in both replies and opening text`);
+  assert.ok(html.includes(`"${theme}": \`<style>`), `${theme} must theme dialogue inside rich opening cards`);
+}
+assert.ok(html.includes('${base}${manuscriptCss}${greetingBridge}'), 'rich opening cards must inject the active manuscript theme after the generic quote CSS');
 sceneTheme = 'liquid-pearl';
 assert.ok(!renderContext.makeMsgEl('assistant', 'text', {}).innerHTML.includes('archive-heading'), 'liquid RP must retain its original message structure');
 sceneActive = false;
