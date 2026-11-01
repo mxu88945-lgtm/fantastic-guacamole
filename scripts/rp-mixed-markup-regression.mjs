@@ -12,7 +12,7 @@ run("function escapeHtml(", "// ---------- Rendering messages ----------");
 run("function roleplayRichSource(", "// Older imported player templates");
 run("function roleplayPlayerCompatibility(", "function restoreRoleplayOpeningCard(");
 run("function roleplayMembers(", "function roleplayMentionSelection(");
-run("function roleplayStatusTag(", "function roleplayTemporaryPlotPrompt(");
+run("function roleplayCardStatusSource(", "function roleplayTemporaryPlotPrompt(");
 
 // The supplied card uses a scene regex plus ordinary, explicitly spaced prose.
 // The old code sent the entire result into one iframe and collapsed those breaks.

@@ -1,0 +1,21 @@
+// 2026-11-01: 共演角色有正则，但模型把状态栏写成别的标签 / 不包标签 / 多空行时，显示层要像惟镜一样修回卡片自己的格式。
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+import assert from "node:assert/strict";
+const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const grab = (a, b) => html.slice(html.indexOf(a), html.indexOf(b, html.indexOf(a)));
+const ctx = vm.createContext({ console });
+vm.runInContext(grab("function roleplayCardStatusSource(", "function roleplayOutputProtocol("), ctx);
+vm.runInContext(grab("function wrapTrailingRoleplayStatusFields(", "function ensureRoleplayStatusOutput("), ctx);
+vm.runInContext(grab("function normalizeRoleplayStatusForCard(", "// Keep the model's own paragraph boundaries"), ctx);
+const su = { id: "m1", name: "苏苒", regexRules: [{ findRegex: "/<su_status>\\s*心绪起伏：(.*?)\\n审视与权衡：(.*?)\\n藏匿的索求：(.*?)\\s*<\\/su_status>/s", replaceString: "<div>$1</div>" }] };
+assert.equal(ctx.roleplayStatusTag(su, {}, "正文 <status>x</status>"), "su_status", "card tag must win over the model's wrong tag");
+const labels = ctx.roleplayCardStatusLabels(su, {}, "su_status");
+assert.deepEqual([...labels], ["心绪起伏", "审视与权衡", "藏匿的索求"]);
+const bare = ctx.normalizeRoleplayStatusForCard("正文。\n\n心绪起伏：虚脱\n\n审视与权衡：看清\n\n藏匿的索求：第一把刀", "su_status", labels);
+assert.ok(bare.includes("<su_status>心绪起伏：虚脱"), "custom card fields without a wrapper must be wrapped");
+const tidy = ctx.tidyRoleplayStatusBlock(bare, "su_status");
+assert.ok(new RegExp("<su_status>\\s*心绪起伏：(.*?)\\n审视与权衡：(.*?)\\n藏匿的索求：(.*?)\\s*</su_status>", "s").test(tidy), "blank lines inside the block must be tidied for strict card regex");
+const wrongTag = ctx.normalizeRoleplayStatusForCard("<status>心绪起伏: a\n审视与权衡：b\n藏匿的索求：c</status>\n正文", "su_status", labels);
+assert.ok(/^正文\n\n<su_status>/.test(wrongTag), "a mis-tagged block is renamed to the card tag and moved after the story");
+console.log("rp status card regression: card tag, custom field wrapping, tidy and rename passed");

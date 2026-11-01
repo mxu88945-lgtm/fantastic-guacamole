@@ -7390,10 +7390,17 @@ function roleplayRegexDisplay(answer, message = {}) {
   };
   // Some models preserve every card-specific footer field but drop the custom
   // wrapper tag. Recover at display time without rewriting stored transcripts.
-  const recovered = speaker ? wrapTrailingRoleplayStatusFields(text, roleplayStatusTag(speaker, project, text)) : "";
+  const statusTag = speaker ? roleplayStatusTag(speaker, project, text) : "";
+  const recovered = speaker ? normalizeRoleplayStatusForCard(text, statusTag, roleplayCardStatusLabels(speaker, project, statusTag)) : "";
   // Repair before any display rule: a scene-header match must not prevent footer
   // recovery. Use this message's speaker so old group replies keep their own card.
   let out = applyRules(recovered || text);
+  const rawStatusLeft = value => statusTag && new RegExp(`<${statusTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(value);
+  if (rules.length && rawStatusLeft(out)) {
+    // 卡片正则往往按固定格式写（字段之间单换行、全角冒号）；模型多空一行或用半角冒号就整段匹配不上。
+    const tidy = tidyRoleplayStatusBlock(recovered || text, statusTag);
+    if (tidy !== (recovered || text)) { const second = applyRules(tidy); if (!rawStatusLeft(second)) out = second; }
+  }
   if (out === text) return text;
   // Keep HTML fence boundaries. They are layout boundaries, not decoration:
   // each page must be sandboxed separately just like Weijing renders it.
@@ -7401,6 +7408,42 @@ function roleplayRegexDisplay(answer, message = {}) {
   if (looksLikeRoleplayRichHtml(out)) return out;
   if (/<(?:div|span|audio|img|section|table|details|p)\b/i.test(out)) return `<!doctype html><html><body style="font:15px/1.8 -apple-system,sans-serif;white-space:pre-wrap">${out}</body></html>`;
   return out;
+}
+// Display-time status repair, mirroring 惟镜: rename a mis-tagged status block to the
+// card's tag, wrap bare trailing fields, and keep one final block after the story.
+function normalizeRoleplayStatusForCard(text, tag, cardLabels = []) {
+  let out = String(text || "");
+  if (!tag) return "";
+  const esc = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const own = new RegExp(`<${esc}\\b[^>]*>[\\s\\S]*?<\\/${esc}\\s*>`, "gi");
+  if (!own.test(out)) {
+    const foreign = /<(status|[a-z][\w-]*_status|status[_-]?[a-z][\w-]*)\b[^>]*>([\s\S]*?)<\/\1\s*>/gi;
+    const blocks = [...out.matchAll(foreign)].filter(m => m[1].toLowerCase() !== tag.toLowerCase() && m[1].toLowerCase() !== "director_status");
+    if (blocks.length) {
+      const last = blocks[blocks.length - 1];
+      out = out.slice(0, last.index) + `<${tag}>${String(last[2] || "").trim()}</${tag}>` + out.slice(last.index + last[0].length);
+    } else {
+      const wrapped = wrapTrailingRoleplayStatusFields(out, tag, cardLabels);
+      if (wrapped) out = wrapped;
+    }
+  }
+  own.lastIndex = 0;
+  const found = [...out.matchAll(own)];
+  if (found.length) {
+    const finalBlock = found[found.length - 1][0].trim();
+    const body = out.replace(own, "").replace(/\n{3,}/g, "\n\n").trim();
+    out = body ? `${body}\n\n${finalBlock}` : finalBlock;
+  }
+  return out === String(text || "") ? "" : out;
+}
+function tidyRoleplayStatusBlock(text, tag) {
+  if (!tag) return text;
+  const esc = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return String(text || "").replace(new RegExp(`(<${esc}\\b[^>]*>)([\\s\\S]*?)(<\\/${esc}\\s*>)`, "gi"), (_m, open, body, close) => {
+    const lines = String(body).replace(/\r\n?/g, "\n").split("\n").map(line => line.trim()).filter(Boolean)
+      .map(line => line.replace(/^([^：:\n]{1,24}):\s*/u, "$1："));
+    return `${open}${lines.join("\n")}${close}`;
+  });
 }
 // Keep the model's own paragraph boundaries. RP used to split long source lines into
 // extra visual paragraphs, which made story replies feel much more fragmented than
@@ -8897,16 +8940,37 @@ function roleplayReplyMembers(project, userText = "", memberIds = []) {
   // 不再有主角兜底或自动轮流；没有明确 @ 就不发起任何角色请求。
   return [];
 }
-function roleplayStatusTag(speaker, project, output = "") {
-  const ownSources = [output, speaker?.beautificationProtocol, speaker?.greeting, speaker?.prompt,
+function roleplayCardStatusSource(speaker, project) {
+  const ownSources = [speaker?.beautificationProtocol, speaker?.greeting, speaker?.prompt,
     ...(Array.isArray(speaker?.regexRules) ? speaker.regexRules.flatMap(rule => [rule?.findRegex, rule?.replaceString]) : [])];
   if (speaker?.id === "lead") ownSources.push(project?.opening, project?.characterPrompt,
     ...(Array.isArray(project?.regexRules) ? project.regexRules.flatMap(rule => [rule?.findRegex, rule?.replaceString]) : []));
-  const source = ownSources.filter(Boolean).join("\n");
-  const match = source.match(/<\s*(status|[a-z][\w-]*_status|status[_-]?[a-z][\w-]*)\b/i)
-    || source.match(/\b(status|[a-z][\w-]*_status|status[_-]?[a-z][\w-]*)\b/i);
+  return ownSources.filter(Boolean).join("\n");
+}
+// 惟镜同款：状态栏标签以角色卡（正则/美化/开场/人设）为准，模型输出只作最后兜底。
+// 以前先看输出：模型写错标签（如 <status> 而卡里是 <su_status>）时就会照错的走，正则永远匹配不上。
+function roleplayStatusTag(speaker, project, output = "") {
+  const card = roleplayCardStatusSource(speaker, project);
+  const tagged = /<\s*\\?\/?\s*(status|[a-z][\w-]*_status|status[_-]?[a-z][\w-]*)\b/i;
+  const bare = /\b(status|[a-z][\w-]*_status|status[_-]?[a-z][\w-]*)\b/i;
+  const match = card.match(tagged) || String(output || "").match(tagged) || card.match(bare);
   if (match?.[1]) return match[1];
   return speaker?.kind === "director" ? "director_status" : "rp_status";
+}
+// Field labels the card's own status panel uses (from regex find patterns and sample blocks).
+function roleplayCardStatusLabels(speaker, project, tag) {
+  const card = roleplayCardStatusSource(speaker, project);
+  const rules = [...(Array.isArray(speaker?.regexRules) ? speaker.regexRules : []),
+    ...(speaker?.id === "lead" && Array.isArray(project?.regexRules) ? project.regexRules : [])];
+  const esc = String(tag || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const samples = esc ? [...card.matchAll(new RegExp(`<${esc}\\b[^>]*>([\\s\\S]*?)<\\/${esc}\\s*>`, "gi"))].map(m => m[1]) : [];
+  const source = [...rules.map(rule => rule?.findRegex), speaker?.beautificationProtocol, ...samples].filter(Boolean).join("\n");
+  const labels = new Set();
+  for (const m of source.matchAll(/【([\u4e00-\u9fff][^】\n]{0,15})】|([\u4e00-\u9fff][\u4e00-\u9fff/／·]{0,15})\s*(?:\\s[*+?]?)?\s*[：:]/gu)) {
+    const label = String(m[1] || m[2] || "").trim();
+    if (label) labels.add(label);
+  }
+  return [...labels].slice(0, 60);
 }
 function roleplayOutputProtocol(speaker, project) {
   if (!project?.groupEnabled || !speaker) return "";
@@ -8914,7 +8978,7 @@ function roleplayOutputProtocol(speaker, project) {
   if (speaker.kind === "director") return `【本轮输出结构｜必须执行】首个非空字符必须是 <scene>，按“<scene>时间｜地点｜场景</scene> → 剧情正文 → <${tag}>状态栏</${tag}>”输出。末尾有且只有一个闭合的 <${tag}>，逐行保留【当前场景】【在场人员】【外部事件】【公开线索】【待回应钩子】；写本轮结束时已经成立的具体事实，不输出 HTML/CSS，不解释标签。`;
   return `【本轮输出结构｜必须执行】首个非空字符必须是 <scene>，按“<scene>时间｜地点｜场景</scene> → 剧情正文 → <${tag}>状态栏</${tag}>”输出。末尾有且只有一个闭合的 <${tag}>；若角色卡规定了状态字段，必须逐项保留且写本轮结束时的具体值。只输出纯文本标签，不输出 HTML/CSS，不解释标签。`;
 }
-function wrapTrailingRoleplayStatusFields(output, tag) {
+function wrapTrailingRoleplayStatusFields(output, tag, cardLabels = []) {
   const lines = String(output || "").replace(/\r\n?/g, "\n").split("\n");
   while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
   const statusLabel = /(?:状态|心境|内心|态度|看法|关系|局势|谋划|计划|位置|场景|人员|事件|线索|回应|情绪|动作|穿着|外观|欲望|好感|占有|秘密|目标|想法|印象|判断|身体|称呼|时间|地点)/u;
@@ -8927,7 +8991,7 @@ function wrapTrailingRoleplayStatusFields(output, tag) {
     }
     const field = line.match(/^\s*(?:[-*]\s*)?(?:\*\*)?(?:【([^】\n]{1,32})】|([^：:\n]{1,32})[：:])(?:\*\*)?\s*\S[\s\S]*$/u);
     const label = String(field?.[1] || field?.[2] || "").trim();
-    if (!field || !statusLabel.test(label)) break;
+    if (!field || !(statusLabel.test(label) || cardLabels.includes(label))) break;
     matches++;
     start = index;
   }
@@ -8945,7 +9009,7 @@ function ensureRoleplayStatusOutput(value, speaker, project) {
   if (complete.test(output)) return output;
   const opening = new RegExp(`<${escapedTag}\\b[^>]*>`, "i");
   if (opening.test(output)) return `${output}</${tag}>`;
-  const wrappedFields = wrapTrailingRoleplayStatusFields(output, tag);
+  const wrappedFields = wrapTrailingRoleplayStatusFields(output, tag, roleplayCardStatusLabels(speaker, project, tag));
   if (wrappedFields) return wrappedFields;
   // A single-role scene should only repair a footer that the model actually
   // emitted. Never invent the generic group status card after ordinary prose.

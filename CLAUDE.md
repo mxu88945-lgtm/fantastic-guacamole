@@ -650,3 +650,7 @@
 - 主聊天「+」也改成惟镜式底部「更多」面板（#plus-menu 启动时挪到 body，遮罩盖住顶栏）。
 - 剧场 @ 选择改成惟镜式底部面板（rp-mentions.js：挂 body、遮罩、标题「选择 @ 的角色」+×、52px 头像；手机上打开时收起键盘；关掉后同一个 @ 不再自动弹出）。
 - AI 帮答新增 settings.replyHelperProviderId / replyHelperModel，剧场「+」面板里可见可换；默认跟随当前对话接口。completeOnce 第 4 参可传显式通道对象。修了旧问题：帮答原本用全局接口的 key/地址配当前对话的模型，会串通道。
+
+## 2026-11-01 剧场状态栏正则对齐惟镜（sw v278）
+- 原因：roleplayStatusTag 先看模型输出再看卡片，模型写错标签就跟着错；补包只认通用字段名（状态/内心…），卡片自定义字段（如 心绪起伏/审视与权衡/藏匿的索求）不会被包回去；字段间多空行/半角冒号让严格正则匹配不上。
+- 改：卡片标签优先（输出只兜底）；roleplayCardStatusLabels 从正则 findRegex/美化/样例块里取字段名用于补包；normalizeRoleplayStatusForCard 改名错标签、补包、把状态栏挪到正文后；状态块没被正则吃掉时再用 tidyRoleplayStatusBlock（去空行、半角冒号转全角）重跑一次。只改显示，不动存档。新增 rp-status-card-regression.mjs。
