@@ -541,3 +541,4 @@ html[data-theme="dark"] body #plus-menu.show > button:not([data-act="close"]) { 
 html[data-theme="dark"] body #plus-menu.show > button:not([data-act="close"]) svg,
 html[data-theme="dark"] body #plus-menu.show .plus-sheet-route { background: #2f2f35; color: #e2e2e8 !important; box-shadow: none; }
 html[data-theme="dark"] body #plus-menu .plus-sheet-route select { background: #232327; color: #ececf0; border-color: rgba(255, 255, 255, .12); }
+html body.rp-chat-active[data-rp-theme="scene-mistnote"] #messages .msg.archive-mistnote.user .archive-body { width: fit-content !important; min-width: 72px; max-width: 100% !important; margin-left: auto !important; margin-right: 0 !important; text-align: left !important; }
