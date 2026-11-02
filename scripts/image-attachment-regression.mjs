@@ -15,8 +15,16 @@ requireText('function openImageGallery(parts, initialIndex = 0)', 'swipeable ima
 requireText('image-gallery-nav', 'image gallery navigation controls are missing')
 requireText('Math.abs(dx) > 45', 'image gallery does not support touch swipes')
 requireText('data-gallery-index="${index}"', 'message images are not grouped into a gallery')
-requireText('push(String(reader.result || ""), file.type || "image/jpeg")', 'small images must keep original data')
-requireText('const MAX_EDGE = 2048', 'large phone photos must be downscaled before staging')
+requireText('const CHAT_IMAGE_MAX_EDGE = 2048;', 'chat images are not capped before entering conversation state')
+requireText('async function prepareChatImage(file)', 'memory-safe image preparation is missing')
+requireText('let imageStageQueue = Promise.resolve()', 'multiple selected images are not decoded serially on iOS')
+requireText('previewDataUrl || p.dataUrl', 'message bubbles still decode the full provider image for thumbnails')
+requireText('previewDataUrl || part.dataUrl', 'composer preview still decodes the full provider image')
+requireText('【此前发送过一张图片】', 'older image pixels are still resent on later requests')
+requireText('try { await dbWriteQueue; } catch (_) {}', 'image sends can overlap IndexedDB cloning with request serialization')
+if (html.includes('push(String(reader.result || ""), file.type || "image/jpeg")')) {
+  throw new Error('image staging still keeps an unbounded original base64 payload')
+}
 requireText(
   'function openComposerFilePicker(inputId)',
   'iOS-safe composer picker helper is missing',
@@ -34,11 +42,11 @@ requireText(
   'file action does not use the iOS-safe picker path',
 )
 
-if (!sw.includes('const CACHE = "role-chat-cache-v301";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v302";')) {
   throw new Error('service worker cache was not bumped for the image fixes')
 }
 
-console.log('image attachment regression: 11 checks passed')
+console.log('image attachment regression: 18 checks passed')
 
 {
   const { readFileSync } = await import("node:fs");

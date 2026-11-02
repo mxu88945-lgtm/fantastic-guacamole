@@ -4642,6 +4642,10 @@ let settings = {
 };
 let pendingAttachments = []; // image / sticker / text-file parts staged for the next message
 let attachmentStaging = [];  // in-flight image/file reads (iOS PWA race fix)
+let imageStageQueue = Promise.resolve(); // decode large photos one at a time on memory-limited iPhones
+const CHAT_IMAGE_MAX_EDGE = 2048;
+const CHAT_IMAGE_PREVIEW_EDGE = 420;
+const CHAT_IMAGE_MAX_BYTES = 30 * 1024 * 1024;
 const TEXT_FILE_MAX_BYTES = 1024 * 1024; // 1MB; larger prompt payloads are unreliable across providers
 const REFERENCE_FILE_PROMPT_CHAR_BUDGET = 8000; // stored file stays whole; model receives a safe representative excerpt
 // A text file deserves one fuller first read, but must not evict the living scene
@@ -7366,7 +7370,7 @@ function stickerHtml(p) {
 function imagePartsHtml(content) {
   if (!Array.isArray(content)) return "";
   const images = content.filter(p => p.type === "image" && p.dataUrl);
-  return images.map((p, index) => `<img class="msg-img" data-gallery-index="${index}" src="${escapeHtml(p.dataUrl)}" alt="聊天图片">`).join("");
+  return images.map((p, index) => `<img class="msg-img" data-gallery-index="${index}" src="${escapeHtml(p.previewDataUrl || p.dataUrl)}" alt="聊天图片">`).join("");
 }
 function filePartsHtml(content) {
   if (!Array.isArray(content)) return "";
@@ -10070,22 +10074,24 @@ function apiMessagesFor(isAnthropic, sourceMessages) {
   const newest = source[source.length - 1];
   const fullReferenceMessage = newest && newest.role === "user" && hasReferenceAttachment(newest)
     ? newest : null;
-  // v300：只把最近 2 条带图消息的图片真正发出去；更早的图换成一句文字。
-  // 以前每轮都把历史里所有原图 base64 重新塞进请求，几张大图就让 iPhone 发送时白屏。
-  const imageMessages = new Set();
-  for (let i = source.length - 1; i >= 0 && imageMessages.size < 2; i--) {
-    const c = sendContent(source[i]);
-    if (Array.isArray(c) && c.some(part => part?.type === "image" && !part.desc && part.dataUrl)) imageMessages.add(source[i]);
-  }
+  // Only a picture in the current user turn is sent as pixels. Older pictures
+  // stay intact in the local gallery, but become a tiny marker on the wire.
+  const newestUserMessage = [...source].reverse().find(message => message?.role === "user");
+  const newestVisualMessage = newestUserMessage
+    && Array.isArray(sendContent(newestUserMessage))
+    && sendContent(newestUserMessage).some(part => part?.type === "image" && part.dataUrl && !part.desc)
+    ? newestUserMessage : null;
   for (const m of source) {
     if (m.role === "reminder" || m._compactedBy || m._summary || isNoReplyPlaceholder(m)) continue;
     const fileBudget = m === fullReferenceMessage
       ? REFERENCE_FILE_PROMPT_CHAR_BUDGET : REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET;
-    const sourceContent = sendContent(m);
+    const rawContent = sendContent(m);
+    const sourceContent = m === newestVisualMessage || !Array.isArray(rawContent) ? rawContent
+      : rawContent.map(part => part?.type === "image" && part.dataUrl
+        ? { type: "text", text: part.desc ? `【图片内容】${part.desc}` : "【此前发送过一张图片】" }
+        : part);
     let promptContent = isRoleplayConversation() && m.role === "assistant" && typeof sourceContent === "string"
       ? stripRoleplayPresentationalHtmlForPrompt(sourceContent) : sourceContent;
-    if (Array.isArray(promptContent) && !imageMessages.has(m) && promptContent.some(part => part?.type === "image" && !part.desc))
-      promptContent = promptContent.map(part => part?.type === "image" && !part.desc ? { type: "text", text: "（之前发过一张图片）" } : part);
     const content = toApiContent(promptContent, isAnthropic, fileBudget);
     if (!apiContentHasValue(content)) continue;
     const last = out[out.length - 1];
@@ -10128,22 +10134,22 @@ function geminiContentsFor(sourceMessages) {
   const newest = source[source.length - 1];
   const fullReferenceMessage = newest && newest.role === "user" && hasReferenceAttachment(newest)
     ? newest : null;
-  // v300：只把最近 2 条带图消息的图片真正发出去；更早的图换成一句文字。
-  // 以前每轮都把历史里所有原图 base64 重新塞进请求，几张大图就让 iPhone 发送时白屏。
-  const imageMessages = new Set();
-  for (let i = source.length - 1; i >= 0 && imageMessages.size < 2; i--) {
-    const c = sendContent(source[i]);
-    if (Array.isArray(c) && c.some(part => part?.type === "image" && !part.desc && part.dataUrl)) imageMessages.add(source[i]);
-  }
+  const newestUserMessage = [...source].reverse().find(message => message?.role === "user");
+  const newestVisualMessage = newestUserMessage
+    && Array.isArray(sendContent(newestUserMessage))
+    && sendContent(newestUserMessage).some(part => part?.type === "image" && part.dataUrl && !part.desc)
+    ? newestUserMessage : null;
   for (const m of source) {
     if (m.role === "reminder" || m._compactedBy || m._summary || isNoReplyPlaceholder(m)) continue;
     const fileBudget = m === fullReferenceMessage
       ? REFERENCE_FILE_PROMPT_CHAR_BUDGET : REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET;
-    const sourceContent = sendContent(m);
+    const rawContent = sendContent(m);
+    const sourceContent = m === newestVisualMessage || !Array.isArray(rawContent) ? rawContent
+      : rawContent.map(part => part?.type === "image" && part.dataUrl
+        ? { type: "text", text: part.desc ? `【图片内容】${part.desc}` : "【此前发送过一张图片】" }
+        : part);
     let promptContent = isRoleplayConversation() && m.role === "assistant" && typeof sourceContent === "string"
       ? stripRoleplayPresentationalHtmlForPrompt(sourceContent) : sourceContent;
-    if (Array.isArray(promptContent) && !imageMessages.has(m) && promptContent.some(part => part?.type === "image" && !part.desc))
-      promptContent = promptContent.map(part => part?.type === "image" && !part.desc ? { type: "text", text: "（之前发过一张图片）" } : part);
     const parts = geminiPartsForContent(promptContent, fileBudget);
     if (!parts.length) continue;
     const role = m.role === "assistant" ? "model" : "user";
@@ -12833,55 +12839,103 @@ function handleAvatarFile(file, which) {
   reader.readAsDataURL(file);
 }
 
-// Stage an image to send: small images keep the original data URL; large phone photos
-// are downscaled to a 2048px long edge (v299) so they cannot crash iOS.
+function fitChatImageSize(width, height, maxEdge) {
+  width = Math.max(1, Number(width) || 1); height = Math.max(1, Number(height) || 1);
+  const scale = Math.min(1, maxEdge / Math.max(width, height));
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+}
+function canvasToChatBlob(canvas, quality = .82) {
+  return new Promise((resolve, reject) => canvas.toBlob(
+    blob => blob ? resolve(blob) : reject(new Error("图片压缩失败")), "image/jpeg", quality));
+}
+function blobToChatDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("图片读取失败"));
+    reader.readAsDataURL(blob);
+  });
+}
+async function decodeChatImage(file) {
+  // Decode straight from the File/Blob, avoiding a second, original-size base64
+  // copy beside the decoded pixels in iPhone WebKit.
+  if (typeof createImageBitmap === "function") {
+    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); }
+    catch (_) { try { return await createImageBitmap(file); } catch (_) {} }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error("图片解码失败"));
+      image.src = url;
+    });
+    return image;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+async function prepareChatImage(file) {
+  const image = await decodeChatImage(file);
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  if (!sourceWidth || !sourceHeight) throw new Error("图片没有可用尺寸");
+  const full = fitChatImageSize(sourceWidth, sourceHeight, CHAT_IMAGE_MAX_EDGE);
+  const preview = fitChatImageSize(sourceWidth, sourceHeight, CHAT_IMAGE_PREVIEW_EDGE);
+  const draw = (size) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = size.width; canvas.height = size.height;
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("浏览器无法处理这张图片");
+    context.fillStyle = "#fff"; context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  };
+  let fullCanvas, previewCanvas;
+  try {
+    fullCanvas = draw(full);
+    const fullBlob = await canvasToChatBlob(fullCanvas, .82);
+    fullCanvas.width = 1; fullCanvas.height = 1;
+    previewCanvas = draw(preview);
+    const previewBlob = await canvasToChatBlob(previewCanvas, .72);
+    previewCanvas.width = 1; previewCanvas.height = 1;
+    const dataUrl = await blobToChatDataUrl(fullBlob);
+    const previewDataUrl = await blobToChatDataUrl(previewBlob);
+    return { dataUrl, previewDataUrl, mediaType: "image/jpeg" };
+  } finally {
+    if (image && typeof image.close === "function") image.close();
+    if (fullCanvas) { fullCanvas.width = 1; fullCanvas.height = 1; }
+    if (previewCanvas) { previewCanvas.width = 1; previewCanvas.height = 1; }
+  }
+}
+
+// Every selected chat image is bounded before it enters conversation state. The
+// bubble gets a separate tiny preview; full-size pixels are only used for gallery/API.
 // Returns a Promise that resolves once the image is staged (or has failed).
-// The whole chain (FileReader → Image decode → canvas) is async; on iOS PWA it
+// The whole chain (Blob decode → canvas → compact JPEG) is async; on iOS PWA it
 // can be slow, so send() awaits these via `attachmentStaging` to avoid the race where
 // the user taps 发送 before pendingAttachments is populated and we silently return.
 function stageImageFile(file) {
   if (!file || !file.type.startsWith("image/")) return Promise.resolve();
-  // v299：iPhone 原图常有 4–12 MB，转成 base64 再存进对话、写 IndexedDB、发给模型、
-  // 上云，同一时间会有好几份在内存里，WebContent 直接被杀（发图白屏卡死）。
-  // 小图（长边 ≤ 2048 且 ≤ 1.5 MB）保留原图；大图按长边 2048 转 JPEG 0.9，
-  // 模型识图本身也会缩到这个尺寸以内，肉眼看不出差别。解码用 objectURL，不先读成大字符串。
-  const MAX_EDGE = 2048, KEEP_BYTES = 1.5 * 1024 * 1024;
-  const p = new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    const done = () => { try { URL.revokeObjectURL(url); } catch (_) {} resolve(); };
-    const push = (dataUrl, mediaType) => {
-      pendingAttachments.push({ type: "image", dataUrl, mediaType, name: file.name || "聊天图片" });
+  if (file.size > CHAT_IMAGE_MAX_BYTES) {
+    showToast("图片太大了（上限 30MB），请先在相册里裁剪一下", 4200);
+    return Promise.resolve();
+  }
+  const p = imageStageQueue.then(async () => {
+    try {
+      const prepared = await prepareChatImage(file);
+      pendingAttachments.push({ type: "image", ...prepared, name: file.name || "聊天图片" });
       renderAttachPreview();
-    };
-    const keepOriginal = () => {
-      const reader = new FileReader();
-      reader.onerror = () => { showToast("❌ 图片读取失败，换张图试试"); done(); };
-      reader.onload = () => { push(String(reader.result || ""), file.type || "image/jpeg"); done(); };
-      reader.readAsDataURL(file);
-    };
-    img.onerror = () => { showToast("❌ 图片解码失败（iOS 有时不支持该格式），换张图试试"); done(); };
-    img.onload = () => {
-      const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
-      const edge = Math.max(w0, h0);
-      if ((edge <= MAX_EDGE && file.size <= KEEP_BYTES) || /gif/i.test(file.type)) { keepOriginal(); return; }
-      try {
-        const scale = Math.min(1, MAX_EDGE / edge);
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, Math.round(w0 * scale)); canvas.height = Math.max(1, Math.round(h0 * scale));
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-        canvas.width = canvas.height = 0; // 立即释放 iOS 画布内存
-        push(dataUrl, "image/jpeg");
-        done();
-      } catch (error) { console.warn("image downscale failed", error); keepOriginal(); }
-    };
-    img.src = url;
+    } catch (error) {
+      console.warn("chat image prepare failed", error);
+      showToast("❌ 图片处理失败（iOS 有时不支持该格式），换张图试试", 4200);
+    }
   });
+  imageStageQueue = p.catch(() => {});
   attachmentStaging.push(p);
-  p.then(() => { attachmentStaging = attachmentStaging.filter((x) => x !== p); });
+  p.then(() => { attachmentStaging = attachmentStaging.filter((x) => x !== p); },
+    () => { attachmentStaging = attachmentStaging.filter((x) => x !== p); });
   return p;
 }
 function formatFileSize(bytes) {
@@ -12937,7 +12991,7 @@ function renderAttachPreview() {
     d.className = "attach-thumb";
     d.innerHTML = (part.type === "file"
       ? fileCardHtml(part)
-      : `<img src="${part.dataUrl}" alt="">`)
+      : `<img src="${part.previewDataUrl || part.dataUrl}" alt="">`)
       + `<button class="rm" title="移除">✕</button>`;
     d.querySelector(".rm").onclick = () => { pendingAttachments.splice(i, 1); renderAttachPreview(); };
     // 发送前点缩略图看大图，确认没选错。
@@ -13642,6 +13696,13 @@ async function send(opts) {
   }
   if (!appendLastMessageFast()) renderMessages();
   touchConversation();
+  // Keep IndexedDB's full transcript clone from overlapping with request JSON /
+  // base64 construction; the double peak is enough to kill iPhone WebKit.
+  if (Array.isArray(userContent) && userContent.some(part => part?.type === "image" && part.dataUrl)) {
+    flushConversationSave();
+    try { await dbWriteQueue; } catch (_) {}
+    await new Promise(resolve => requestAnimationFrame(() => resolve()));
+  }
   pinToBottom();
   markSeen();
   if (silent) return;   // 旁白模式：只记录，不触发 AI 回复
@@ -17509,7 +17570,7 @@ async function init() {
       caches.keys().then(keys => {
         const nums = keys.map(k => (k.match(/role-chat-cache-v(\d+)/) || [])[1]).filter(Boolean).map(Number);
         const el = $("app-version-label");
-        if (el) el.textContent = nums.length ? `当前版本：v${Math.max(...nums)}` : "当前版本：v300 或更新（正在缓存）";
+        if (el) el.textContent = nums.length ? `当前版本：v${Math.max(...nums)}` : "当前版本：v302 或更新（正在缓存）";
         if (!nums.length && tries > 0) setTimeout(() => readAppVersion(tries - 1), 2000);
       }).catch(() => {});
     } catch (_) {}
