@@ -132,7 +132,7 @@ await context.persistRoleplayCardLibrary();
 assert.equal(JSON.stringify(disk.get("roleplayCardLibrary")), durable);
 failReads = false;
 
-assert.ok(html.includes("roleplayCards: clone(roleplayCardLibrary)"), "cloud payload must carry the standalone library");
+assert.ok(html.includes("roleplayCards: roleplayCardLibrary }"), "cloud payload must carry the standalone library");
 assert.ok(html.includes("roleplayCards: cloneChatData(roleplayCardLibrary)"), "file backups must carry the standalone library");
 assert.ok(ui.includes("bridge.savedCards?.()") && ui.includes("if (entry.savedCardId) { showDetail(entry.savedCardId); return; }"), "saved cards must open the preview before creating a conversation");
 console.log("RP library regression: removal, deletion, reload, recovery, owner isolation and failed-read protection passed");

@@ -31,6 +31,21 @@
     });
   })();
 
+/* v295 异常退出记录：启动写“在用”标记，正常切后台/关闭时清掉。下次启动若标记还在，
+   说明上次是被系统杀掉（多半是内存），在屏幕上提示一次，方便截图排查。 */
+(function () {
+  try {
+    var KEY = "jyc_alive", prev = localStorage.getItem(KEY);
+    if (prev) { localStorage.setItem("jyc_last_crash", prev); window.__jycLastCrash = prev; }
+    var mark = function () { try { localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), stage: window.__jycStage || "启动", conv: window.__jycConvInfo || "" })); } catch (_) {} };
+    window.__jycMark = function (stage, info) { window.__jycStage = stage; if (info != null) window.__jycConvInfo = info; mark(); };
+    mark();
+    var clear = function () { try { localStorage.removeItem(KEY); } catch (_) {} };
+    addEventListener("pagehide", clear);
+    document.addEventListener("visibilitychange", function () { if (document.hidden) clear(); else mark(); });
+  } catch (_) {}
+})();
+
 /* Pre-paint theme priming: iOS standalone snapshots the status-bar color at
    launch, so restore the last-applied theme BEFORE the first paint. applyTheme
    persists both values whenever the user switches themes. */
@@ -4666,6 +4681,7 @@ let sbConfigKey = ""; // identifies the URL/key pair used to create `sb`
 let cloudUser = null;   // logged-in user object
 let applyingCloud = false;
 let pushTimer = null;
+let lastCloudPushAt = 0;
 let cloudPushQueue = Promise.resolve(); // serialize uploads so an older payload cannot land last
 let ttsAudio = null;
 let ttsBtnActive = null;
@@ -5264,8 +5280,9 @@ function flushConversationSave() {
   if (!convSavePending) return;
   convSavePending = false; clearTimeout(convSaveTimer);
   conversations.forEach(pruneReplyVariantsForConversation);
-  const snapshot = (typeof structuredClone === "function") ? structuredClone(conversations) : JSON.parse(JSON.stringify(conversations));
-  queueConversationWrite(snapshot, currentId);
+  // v295：IndexedDB put 自己会做一次结构化复制，这里不再先整份 structuredClone，
+  // 少一份全量对话在内存里（长剧场 + 图片时这一份就是几十 MB，iOS 会被杀掉白屏）。
+  queueConversationWrite(conversations, currentId);
 }
 function saveConversations() {
   localStorage.setItem("jyc_current", currentId);
@@ -5465,8 +5482,11 @@ async function pullCloud(navigationAtStart) {
 function schedulePush() {
   if (applyingCloud || !cloudUser) return;
   clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => { void pushCloudNow(); }, 1500);
+  // v295：整份对话上云很吃内存，合并成至少间隔 20 秒一次；切到后台时立即补推。
+  const wait = Math.max(6000, 20000 - (Date.now() - lastCloudPushAt));
+  pushTimer = setTimeout(() => { pushTimer = null; void pushCloudNow(); }, wait);
 }
+document.addEventListener("visibilitychange", () => { if (document.hidden && pushTimer && cloudUser && !applyingCloud) { clearTimeout(pushTimer); pushTimer = 0; void pushCloudNow(); } });
 function pushCloudNow() {
   if (!cloudUser) return Promise.resolve();
   const userId = cloudUser.id;
@@ -5479,7 +5499,9 @@ function pushCloudNow() {
   // Capture an immutable payload now. Each queued upload runs after the previous one,
   // so network completion order can no longer roll the cloud back to older state.
   const clone = value => (typeof structuredClone === "function") ? structuredClone(value) : JSON.parse(JSON.stringify(value));
-  const payload = { conversations: clone(conversations), settings: clone(syncedSettings), roleplayCards: clone(roleplayCardLibrary) };
+  lastCloudPushAt = Date.now();
+  // 对话和角色卡不再整份复制：上传时序列化的就是当时最新的数据，只会更新、不会回滚。
+  const payload = { conversations, settings: clone(syncedSettings), roleplayCards: roleplayCardLibrary };
   cloudPushQueue = cloudPushQueue.catch(() => undefined).then(async () => {
     if (!configAtQueueTime || cloudConfigSignature() !== configAtQueueTime) return;
     const client = await getSb();
@@ -6856,6 +6878,7 @@ function rpFrameWindowSetup() {
 }
 function renderMessages() {
   rpFrameWindowSetup();
+  try { window.__jycMark?.("显示对话", `${isRoleplayConversation() ? "剧场" : "聊天"} · ${messages.length} 条`); } catch (_) {}
   const box = $("messages");
   applyRoleplayTextTheme(box);
   const scroller = $("chat");
@@ -10465,6 +10488,7 @@ async function oneShotResponseText(resp, isAnthropic, isGemini) {
 }
 function chatRuntimeSettings() { return settings; }
 async function streamChat(onDelta, onReasoning, requestSettings = null, speaker = null) {
+  try { window.__jycMark?.("等待/接收回复"); } catch (_) {}
   const settings = requestSettings || chatRuntimeSettings();
   const rpProject = isRoleplayConversation() ? normalizedRoleplayProject(currentConv().rpProject, currentConv()) : null;
   const activeSpeaker = rpProject ? speaker || roleplayMembers(rpProject)[0] : null;
@@ -16957,6 +16981,12 @@ function closeSidebar() {
 
 // ---------- Wire up ----------
 async function init() {
+  setTimeout(() => {
+    try {
+      const c = window.__jycLastCrash && JSON.parse(window.__jycLastCrash);
+      if (c && c.at) showToast(`上次异常退出：${new Date(c.at).toLocaleTimeString("zh-CN", { hour12: false })} · ${c.stage}${c.conv ? " · " + c.conv : ""}`, 6000);
+    } catch (_) {}
+  }, 1500);
   await loadState();
   await restoreChatBackground();
   await initWorkbench();

@@ -675,3 +675,7 @@
 
 ## 2026-11-02 v294 剧情卡片 iframe 按需加载（iOS 崩溃“重复出现问题”/打开慢）
 - 每张剧情 HTML 卡片是独立 iframe 文档，60 条窗口里同时挂几十个会撑爆 iOS WebContent 内存。roleplayRichFrameHtml 非预览时改写 data-rp-srcdoc；rpFrameWindowSetup()（renderMessages 开头调用一次）用 IntersectionObserver（root #chat，上下 1400px）进入才写 srcdoc，远离且已加载数 > 8 时移除 srcdoc、保留高度；含 <audio> 的不卸。MutationObserver 接管新插入的卡片。预览（开场白预览）仍直接 srcdoc。未真机验证。
+
+## 2026-11-02 v295 白屏/崩溃：减少整份数据复制 + 异常退出记录
+- 她 22:45 又在主页附近白屏（iOS 进程被杀）。flushConversationSave 不再先 structuredClone 全部对话（IDB put 自带复制）；云同步 payload 不再 clone conversations/角色卡，推送合并为至少间隔 20 秒（最少 6 秒防抖），切后台立即补推。
+- 新增 jyc_alive 标记（首个 script）：启动写、pagehide/隐藏清；下次启动若还在 → 存 jyc_last_crash 并在 init 后 toast「上次异常退出：时间 · 阶段 · 剧场/聊天 N 条」。阶段由 window.__jycMark 在 renderMessages、streamChat 写入。rp-library 回归断言随 payload 改动更新。未真机验证。
