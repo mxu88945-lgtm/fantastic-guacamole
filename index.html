@@ -6812,7 +6812,50 @@ function applyRememberedRoleplayFrameHeights(box) {
     if (height) frame.style.height = `${height}px`;
   });
 }
+// v294：剧情卡片 iframe 按需加载/卸载。每张卡片都是独立网页，60 条消息同时挂着
+// 几十个 iframe 会把 iPhone Safari 内存撑爆，出现“重复出现问题”和打开很慢。
+// 现在只有屏幕附近的卡片真正加载，离开很远的卸成空白但保留高度；含音乐的卡片不卸。
+const RP_FRAME_KEEP_ALIVE = 8;
+let rpFrameObserver = null, rpFrameMutation = null;
+function rpFrameLoad(frame) {
+  if (!frame?.dataset.rpSrcdoc || frame.hasAttribute("srcdoc")) return;
+  frame.srcdoc = frame.dataset.rpSrcdoc;
+}
+function rpFrameUnload(frame) {
+  if (!frame?.dataset.rpSrcdoc || !frame.hasAttribute("srcdoc")) return;
+  if (/<audio\b/i.test(frame.dataset.rpSrcdoc)) return;
+  const h = frame.getBoundingClientRect().height;
+  if (h > 40) frame.style.height = `${Math.round(h)}px`;
+  frame.removeAttribute("srcdoc");
+}
+function rpFrameWindowSetup() {
+  const box = $("messages");
+  if (!box || rpFrameMutation) return;
+  const root = $("chat") || null;
+  const near = new Set();
+  if ("IntersectionObserver" in window) {
+    rpFrameObserver = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) { near.add(entry.target); rpFrameLoad(entry.target); }
+        else { near.delete(entry.target); }
+      });
+      const loaded = [...box.querySelectorAll(".roleplay-html-frame[data-rp-srcdoc][srcdoc]")].filter(f => !near.has(f));
+      for (let i = 0; i < loaded.length - RP_FRAME_KEEP_ALIVE; i++) rpFrameUnload(loaded[i]);
+    }, { root, rootMargin: "1400px 0px 1400px 0px" });
+  }
+  const scan = () => box.querySelectorAll(".roleplay-html-frame[data-rp-srcdoc]:not([data-rp-watched])").forEach(frame => {
+    frame.dataset.rpWatched = "1";
+    if (rpFrameObserver) rpFrameObserver.observe(frame); else rpFrameLoad(frame);
+  });
+  rpFrameMutation = new MutationObserver(() => {
+    scan();
+    [...near].forEach(f => { if (!f.isConnected) { near.delete(f); rpFrameObserver?.unobserve(f); } });
+  });
+  rpFrameMutation.observe(box, { childList: true, subtree: true });
+  scan();
+}
 function renderMessages() {
+  rpFrameWindowSetup();
   const box = $("messages");
   applyRoleplayTextTheme(box);
   const scroller = $("chat");
@@ -7708,7 +7751,7 @@ function roleplayRichFrameHtml(value, preview = false) {
   const content = segments.map(segment => {
     if (segment.kind === "text") return `<div class="roleplay-opening-text">${roleplaySemanticDisplay(segment.value) || renderRoleplayStoryText(segment.value)}</div>`;
     const token = `rp-${uid()}`;
-    return `<iframe loading="lazy" class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}"${preview ? ' data-rp-preview="true"' : ""} title="角色卡互动内容" sandbox="allow-scripts" allow="autoplay" onload="this.classList.add('loaded');this.closest('.roleplay-html-card')?.classList.add('loaded')" onerror="this.classList.add('failed');this.closest('.roleplay-html-card')?.classList.add('failed')" srcdoc="${attribute(roleplayRichDocument(segment.value, token, !!split))}"></iframe>`;
+    return `<iframe loading="lazy" class="roleplay-html-frame" data-rp-frame-token="${attribute(token)}"${preview ? ' data-rp-preview="true"' : ""} title="角色卡互动内容" sandbox="allow-scripts" allow="autoplay" onload="this.classList.add('loaded');this.closest('.roleplay-html-card')?.classList.add('loaded')" onerror="this.classList.add('failed');this.closest('.roleplay-html-card')?.classList.add('failed')" ${preview ? "srcdoc" : "data-rp-srcdoc"}="${attribute(roleplayRichDocument(segment.value, token, !!split))}"></iframe>`;
   }).join("");
   return `<div class="roleplay-html-card"><button type="button" class="rp-opening-reset" hidden onclick="restoreRoleplayOpeningCard(this.parentElement)" title="恢复原始开场">重看原始开场</button><div class="roleplay-html-stack">${content}</div></div>`;
 }

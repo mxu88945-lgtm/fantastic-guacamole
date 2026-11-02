@@ -672,3 +672,6 @@
 
 ## 2026-11-02 v293 剧场接口管理返回
 - 共演设置（及剧本记忆页）点「添加 / 管理 API 接口」→ 设置「模型与服务」；顶部返回键现在关掉设置并重开共演设置（从记忆页进的回到记忆页）。实现：bridge.openApiSettings(returnTo) 存 window.__settingsReturnTo，settings-back 优先调用；openSettings/closeSettings 都会清掉，避免主设置误跳。
+
+## 2026-11-02 v294 剧情卡片 iframe 按需加载（iOS 崩溃“重复出现问题”/打开慢）
+- 每张剧情 HTML 卡片是独立 iframe 文档，60 条窗口里同时挂几十个会撑爆 iOS WebContent 内存。roleplayRichFrameHtml 非预览时改写 data-rp-srcdoc；rpFrameWindowSetup()（renderMessages 开头调用一次）用 IntersectionObserver（root #chat，上下 1400px）进入才写 srcdoc，远离且已加载数 > 8 时移除 srcdoc、保留高度；含 <audio> 的不卸。MutationObserver 接管新插入的卡片。预览（开场白预览）仍直接 srcdoc。未真机验证。
