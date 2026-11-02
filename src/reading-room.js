@@ -244,6 +244,7 @@ if (!bridge) {
 
   function render() {
     clearTimeout(autoTimer);
+    if (!$("reading-room-panel").classList.contains("open")) return;
     const currentRole = role();
     const name = roleName();
     $("reading-room-title").textContent = `⌇ ${name}的陪读书房`;
@@ -417,8 +418,9 @@ if (!bridge) {
     finally { busy = false; $("reading-recap").disabled = false; }
   }
 
-  function openPanel() {
-    render(); $("reading-room-panel").classList.add("open");
+  async function openPanel() {
+    await ready();
+    $("reading-room-panel").classList.add("open"); render();
     void compactLinkedPageChats().then((changed) => { if (changed) render(); });
   }
   function closePanel() {
@@ -431,17 +433,17 @@ if (!bridge) {
     const books = roleBooks(targetRoleId);
     const activeId = state.activeByRole[String(targetRoleId || roleId())];
     const book = books.find((item) => item.id === activeId) || books[0] || null;
-    if (!book) return { count: books.length, active: null };
+    if (!book) return { loaded: !!loadPromise, count: books.length, active: null };
     const pages = bookPages(book);
     return { count: books.length, active: { title: book.title, progress: Math.round((Math.min(book.page + pageStep(), pages.length) / pages.length) * 100) } };
   }
 
-  async function exportSnapshot() { await ready; return state; }
+  async function exportSnapshot() { await ready(); return state; }
   async function restoreSnapshot(snapshot) {
-    await ready; state = normalize(snapshot); await compactLinkedPageChats(); await persist(); render();
+    await ready(); state = normalize(snapshot); await compactLinkedPageChats(); await persist(); render();
   }
   async function reassignRole(fromRoleId, toRoleId) {
-    await ready; let changed = false;
+    await ready(); let changed = false;
     state.books.forEach((book) => { if (book.roleId === fromRoleId) { book.roleId = toRoleId; changed = true; } });
     if (state.activeByRole[fromRoleId] && !state.activeByRole[toRoleId]) state.activeByRole[toRoleId] = state.activeByRole[fromRoleId];
     delete state.activeByRole[fromRoleId];
@@ -475,7 +477,9 @@ if (!bridge) {
   window.addEventListener("resize", () => { if ($("reading-room-panel").classList.contains("open")) render(); });
   window.addEventListener("jyc:role-changed", () => { if ($("reading-room-panel").classList.contains("open")) render(); });
 
-  const ready = (async () => {
+  let loadPromise;
+  function ready() { return loadPromise ||= load(); }
+  async function load() {
     try {
       const raw = await bridge.dbGet(DB_KEY);
       state = normalize(raw);
@@ -483,11 +487,13 @@ if (!bridge) {
     }
     catch (error) { console.warn("Reading room load failed", error); state = normalize(null); }
     render();
-  })();
+    window.dispatchEvent(new CustomEvent("jyc:reading-updated"));
+  }
 
   window.addEventListener("jyc:app-ready", () => {
-    void compactLinkedPageChats().then((changed) => { if (changed) render(); });
+    if (loadPromise) void loadPromise.then(() => compactLinkedPageChats()).then((changed) => { if (changed) render(); });
   }, { once: true });
 
-  window.JYCReadingRoom = { open: openPanel, close: closePanel, summary, exportSnapshot, restoreSnapshot, reassignRole, ready };
+  window.JYCReadingRoom = { open: openPanel, close: closePanel, summary, exportSnapshot, restoreSnapshot, reassignRole, ready: null };
+  Object.defineProperty(window.JYCReadingRoom, "ready", { get: ready });
 }

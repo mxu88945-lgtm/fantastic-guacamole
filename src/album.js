@@ -94,7 +94,7 @@ if (!bridge) {
   }
 
   function render() {
-    if (!state.ready) return;
+    if (!state.ready || !$("album-panel").classList.contains("open")) return;
     updateDynamicLabels();
     state.visible = currentList();
     $("album-count").textContent = `${roleEntries().length} 张`;
@@ -142,7 +142,8 @@ if (!bridge) {
     }
   }
 
-  function openPanel() {
+  async function openPanel() {
+    await ready();
     $("album-panel").classList.add("open");
     closeComposer();
     render();
@@ -291,29 +292,29 @@ if (!bridge) {
     anchor.click();
   }
 
-  function addFromDataUrl(dataUrl, name = "聊天图片") {
+  async function addFromDataUrl(dataUrl, name = "聊天图片") {
     if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
       bridge.toast("这张图片不是可保存的本地图片");
       return;
     }
-    openPanel();
+    await openPanel();
     openComposer([{ dataUrl, name }]);
   }
 
   async function exportSnapshot() {
-    if (!state.ready) await ready;
+    if (!state.ready) await ready();
     return state.entries;
   }
 
   async function restoreSnapshot(snapshot) {
-    if (!state.ready) await ready;
+    if (!state.ready) await ready();
     state.entries = normalizeEntries(snapshot);
     await persist();
     render();
   }
 
   async function reassignRole(fromRoleId, toRoleId) {
-    if (!state.ready) await ready;
+    if (!state.ready) await ready();
     let changed = false;
     for (const entry of state.entries) {
       if (entry.roleId === fromRoleId) {
@@ -327,7 +328,7 @@ if (!bridge) {
   function summary(targetRoleId) {
     const list = state.entries.filter((entry) => entry.roleId === String(targetRoleId || roleId()))
       .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
-    return { count: list.length, latest: list[0] || null };
+    return { loaded: state.ready, count: list.length, latest: list[0] || null };
   }
 
   // Model access stays behind this role-scoped query instead of exposing the
@@ -389,7 +390,11 @@ if (!bridge) {
   $("sidebar-album")?.addEventListener("click", openPanel);
   window.addEventListener("jyc:role-changed", render);
 
-  const ready = (async () => {
+  let loadPromise;
+  function ready() {
+    return loadPromise ||= load();
+  }
+  async function load() {
     try {
       state.entries = normalizeEntries(await bridge.dbGet(DB_KEY));
     } catch (error) {
@@ -398,7 +403,9 @@ if (!bridge) {
     }
     state.ready = true;
     render();
-  })();
+    window.dispatchEvent(new CustomEvent("jyc:album-updated"));
+  }
 
-  window.JYCAlbum = { open: openPanel, addFromDataUrl, exportSnapshot, restoreSnapshot, reassignRole, summary, findForModel, ready };
+  window.JYCAlbum = { open: openPanel, addFromDataUrl, exportSnapshot, restoreSnapshot, reassignRole, summary, findForModel, ready: null };
+  Object.defineProperty(window.JYCAlbum, "ready", { get: ready });
 }

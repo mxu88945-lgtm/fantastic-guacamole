@@ -68,26 +68,24 @@ if (!bridge) {
 
     let album = { count: 0, latest: null };
     try {
-      if (window.JYCAlbum?.ready) await window.JYCAlbum.ready;
       album = window.JYCAlbum?.summary?.(data.roleId) || album;
     } catch (error) {
       console.warn("Dashboard album summary failed", error);
     }
     const albumCard = document.querySelector(".dashboard-album-card");
-    $("dashboard-album-meta").textContent = album.count ? `${album.count} 张照片` : "还没有照片";
+    $("dashboard-album-meta").textContent = album.count ? `${album.count} 张照片` : album.loaded === false ? "点击查看相册" : "还没有照片";
     albumCard.classList.toggle("has-photo", !!album.latest?.dataUrl);
     albumCard.style.backgroundImage = album.latest?.dataUrl ? `url(${JSON.stringify(album.latest.dataUrl).slice(1, -1)})` : "";
 
     let reading = { count: 0, active: null };
     try {
-      if (window.JYCReadingRoom?.ready) await window.JYCReadingRoom.ready;
       reading = window.JYCReadingRoom?.summary?.(data.roleId) || reading;
     } catch (error) {
       console.warn("Dashboard reading summary failed", error);
     }
     $("dashboard-reading-meta").textContent = reading.active
       ? `《${reading.active.title}》· ${reading.active.progress}%`
-      : reading.count ? `${reading.count} 本书，选一本继续` : "和 TA 打开一本书";
+      : reading.count ? `${reading.count} 本书，选一本继续` : reading.loaded === false ? "点击进入书房" : "和 TA 打开一本书";
 
     const music = window.JYCMusic?.summary?.() || { connected: false, song: null, queueCount: 0 };
     $("dashboard-music-meta").textContent = music.song

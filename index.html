@@ -9,6 +9,8 @@
 <meta name="apple-mobile-web-app-title" content="Role Chat" />
 <meta name="theme-color" content="#f8f8f6" />
 <script>
+  // An explicit low-memory entry uses the same origin, DB and records.
+  window.__jycSafeBoot = new URLSearchParams(location.search).get("safe") === "1";
   /* Visible error banner (2026-10-11): on the iPhone home-screen app there is no console, so a
      startup or tap error that leaves the UI dead must show itself for a screenshot. */
   (function () {
@@ -4903,7 +4905,8 @@ async function loadState() {
   // persistence domains. One malformed legacy value must never prevent a valid
   // IndexedDB conversation snapshot from loading.
   const legacyCurrent = readStoredText("jyc_current") || null;
-  const legacyRoleplaySource = readStoredJson("jyc_conversations");
+  // Do not parse a second legacy transcript beside the canonical IDB snapshot.
+  let legacyRoleplaySource = null;
   let stored = null;
   try { stored = await dbGet("conversations"); } catch (e) { console.warn("IndexedDB load failed", e); }
   if (Array.isArray(stored)) {
@@ -4914,6 +4917,7 @@ async function loadState() {
   } else {
     const cs = readStoredJson("jyc_conversations");
     if (Array.isArray(cs)) {
+      legacyRoleplaySource = cs;
       conversations = cs;
       currentId = legacyCurrent;
       try { conversations = await migrateConversationsToDb(cs, currentId); }
@@ -5023,6 +5027,7 @@ async function loadState() {
   }
   // give every message a stable id (for deleting and stable references)
   for (const c of conversations) for (const m of c.messages) if (!m.id) m.id = uid();
+  window.__jycMark?.("启动：角色库");
   try { mergeRoleplayCardLibrary(await dbGet("roleplayCardLibrary")); }
   catch (error) { console.warn("role card library load failed", error); }
   try {
@@ -5031,9 +5036,12 @@ async function loadState() {
   }
   catch (error) { console.warn("role card delete list load failed", error); }
   rememberRoleplayCards(Array.isArray(legacyRoleplaySource) ? legacyRoleplaySource : []);
-  rememberRoleplayCards(conversations);
+  // Existing scenes are archived on the first library visit (savedRoleplayCards)
+  // or before editing/deletion, rather than cloning every template at cold boot.
   saveSettings();
-  saveConversations();
+  // Reading/migrating in memory is not a new user edit. The next actual edit
+  // persists these idempotent defaults; boot must not clone the entire archive
+  // or mark it newer than the cloud merely because it was opened.
 }
 // Persona fields bundled into a switchable 角色. Memory V2 keeps each role's
 // searchable entries and summary isolated instead of leaking them across personas.
@@ -5458,7 +5466,7 @@ async function pullCloud(navigationAtStart) {
         const rr = activeRole();
         ROLE_FIELDS.forEach(f => { if (rr[f] !== undefined) settings[f] = rr[f]; });
       } }
-    queueConversationWrite((typeof structuredClone === "function") ? structuredClone(conversations) : JSON.parse(JSON.stringify(conversations)), currentId);
+    queueConversationWrite(conversations, currentId);
     saveSettings();
     applyingCloud = false;
     localStorage.setItem("jyc_dataAt", String(cloudAt || Date.now()));   // local now matches cloud
@@ -5981,15 +5989,11 @@ function createConversation() {
   conversations.unshift(conv);
   switchConversation(conv.id, true);
 }
-// Land on the greeting home page. Keep exactly one empty conversation; purge any extras.
+// Home is navigation only. Preserve the selected conversation and all records.
 function goHome() {
   if (abortController) abortController.abort();
-  let empty = privateRoleConvs().find(c => c.messages.length === 0);
-  if (!empty) { empty = newConversation(); conversations.unshift(empty); }
-  // Remove other empty conversations of THIS role so they don't pile up (leave other roles' alone)
-  conversations = conversations.filter(c => c.messages.length > 0 || c.id === empty.id || c.roleId !== settings.activeRoleId || isRoleplayConversation(c));
-  saveConversations();
-  switchConversation(empty.id);
+  renderedConversationId = null;
+  $("messages").replaceChildren();
   window.dispatchEvent(new CustomEvent("jyc:dashboard-open"));
 }
 function deleteConversation(id, ev) {
@@ -6522,7 +6526,7 @@ function applyRoleplayWallpaper(projectOverride = null) {
   if (active) document.documentElement.setAttribute("data-chat-bg", "0");
   const project = projectOverride || (active ? normalizedRoleplayProject(currentConv()?.rpProject, currentConv()) : null);
   const preset = roleplayThemePreset(project);
-  const image = active && project?.rpWallpaper ? project.rpWallpaper : "";
+  const image = active && !window.__jycSafeBoot && project?.rpWallpaper ? project.rpWallpaper : "";
   const base = active ? (project.rpBaseColor || preset.base) : "";
   const wallpaperOpacity = Math.max(0, Math.min(1, Number(project?.rpWallpaperOpacity ?? 1)));
   const overlayOpacity = Math.max(0, Math.min(1, Number(project?.rpOverlayOpacity ?? .65)));
@@ -15372,7 +15376,7 @@ function applyChatBg() {
     if (typeof applyRoleplayWallpaper === "function") applyRoleplayWallpaper();
     return;
   }
-  const imageUrl = chatBgObjectUrl || settings.chatBg || "";
+  const imageUrl = window.__jycSafeBoot ? "" : (chatBgObjectUrl || settings.chatBg || "");
   document.documentElement.setAttribute("data-chat-bg", imageUrl ? "1" : "0");
   if (imageUrl) {
     const dark = currentTheme().dark;
@@ -17008,8 +17012,10 @@ async function init() {
       if (c && c.at) showToast(`上次异常退出：${new Date(c.at).toLocaleTimeString("zh-CN", { hour12: false })} · ${c.stage}${c.conv ? " · " + c.conv : ""}`, 6000);
     } catch (_) {}
   }, 1500);
+  window.__jycMark?.("启动：读取记录");
   await loadState();
-  await restoreChatBackground();
+  window.__jycMark?.("启动：界面");
+  if (!window.__jycSafeBoot) await restoreChatBackground();
   await initWorkbench();
   applyTheme();
   // On phones, start with the sidebar tucked away so the chat is front-and-center.
@@ -17560,11 +17566,13 @@ async function init() {
   renderCharLockScreen();
 
   // restore cloud session (if previously logged in) and sync
-  initCloud().catch(e => console.warn("cloud init:", e));
+  if (!window.__jycSafeBoot) initCloud().catch(e => console.warn("cloud init:", e));
 
   // Resume task cards, mailbox, cycle reminders and cloud sync when the PWA returns.
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) onAppActive(); });
-  setTimeout(onAppActive, 2000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && !window.__jycSafeBoot) onAppActive(); });
+  if (!window.__jycSafeBoot) setTimeout(onAppActive, 2000);
+  window.__jycMark?.("首页就绪");
+  if (window.__jycSafeBoot) showToast("已用轻量模式打开：自动云同步暂缓，记录保留", 6000);
   window.dispatchEvent(new CustomEvent("jyc:app-ready"));
 }
 window.JYCAlbumBridge = {
