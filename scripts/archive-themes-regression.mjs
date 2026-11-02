@@ -31,6 +31,8 @@ assert.ok(!record.includes('<button') && !record.includes('archive-grade'));
 assert.ok(keys.includes('mobile'), 'the mobile card theme must be selectable in main chat');
 const mobile = context.mainArchiveHeading('mobile', '<角色>', '', true);
 assert.ok(mobile.includes('&lt;角色&gt;') && mobile.includes('我的消息') && mobile.includes('mobile-status'));
+const mobileCharacter = context.mainArchiveHeading('mobile', '顾祁砚', '', false);
+assert.ok(mobileCharacter.includes('他的来信') && !mobileCharacter.includes('角色来信'), 'main mobile character cards must use the requested letter label');
 assert.ok(!mobile.includes('archive-grade') && !mobile.includes('3759908261'));
 assert.ok(archives.includes('.archive-mobile.user .archive-heading { flex-direction: row-reverse;'), 'user mobile identity must dock right');
 assert.ok(archives.includes('margin-left: auto !important; margin-right: 0 !important;'), 'short and long user messages must anchor right');
