@@ -112,4 +112,8 @@ html:is([data-theme-key="academy"], [data-theme-key="vinyl"]) body:not(.rp-chat-
 .archive-mistnote.user .archive-body :is(.message-quote,.chat-quote) { margin-left: auto; margin-right: 0; background: linear-gradient(135deg,#e5edf1,#d7e3e9); }
 .archive-mistnote.user :is(.msg-actions,.user-msg-actions) { align-self: flex-end; }
 .theme-choice-grid button.mistnote i { border: 1px solid #c8d4da; border-radius: 9px; background: linear-gradient(145deg,#fbfcfc 0 48%,#dce7ec 49% 74%,#91a6b2 75%) !important; }
-@media(max-width:600px) { .archive-row.archive-mistnote { padding-left: 14px; padding-right: 14px; } .archive-mistnote.user { width: 92%; } .archive-mistnote .archive-body { padding: 18px 17px; } }
+@media(max-width:600px) {
+  html[data-theme-key="mistnote"] body:not(.rp-chat-active) #messages .archive-row.archive-mistnote:not(.user) { padding-left: 0; padding-right: 0; }
+  html[data-theme-key="mistnote"] body:not(.rp-chat-active) #messages .archive-row.archive-mistnote.user { width: 92%; padding-left: 14px; padding-right: 14px; }
+  .archive-mistnote .archive-body { padding: 18px 17px; }
+}
