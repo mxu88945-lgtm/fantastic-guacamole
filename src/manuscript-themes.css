@@ -300,3 +300,11 @@ html[data-theme-key="letter"] body:not(.rp-chat-active) .main > .composer-wrap {
   html[data-theme-key="letter"] body:not(.rp-chat-active) #messages .msg.archive-letter { padding: 0 18px 20px; border-radius: 24px; }
   html[data-theme-key="letter"] body:not(.rp-chat-active) #messages .archive-letter .letter-cover { margin-left: -18px; margin-right: -18px; }
 }
+
+/* 雾蓝长笺主聊天：轻雾画布与独立的身份条/正文页。 */
+html[data-theme-key="mistnote"] body:not(.rp-chat-active) { background: radial-gradient(circle at 78% 8%,#cddae18c,transparent 28%),#f3f6f7; }
+html[data-theme-key="mistnote"] body:not(.rp-chat-active) .main,
+html[data-theme-key="mistnote"] body:not(.rp-chat-active) .main > .chat { min-height: 0; min-width: 0; width: 100%; overflow-x: hidden; }
+html[data-theme-key="mistnote"] body:not(.rp-chat-active) #messages { box-sizing: border-box; width: 100%; min-width: 0; }
+html[data-theme-key="mistnote"] body:not(.rp-chat-active) .composer { border: 1px solid #ccd8de; border-radius: 27px; background: #f9fbfcf2; box-shadow: 0 9px 26px #3d525e17; }
+html[data-theme-key="mistnote"] body:not(.rp-chat-active) .main > .composer-wrap { flex: 0 0 auto; min-width: 0; width: 100%; box-sizing: border-box; }

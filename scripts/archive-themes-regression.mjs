@@ -9,7 +9,7 @@ const catalogContext = vm.createContext({ settings: { themeName: 'snowblush' } }
 vm.runInContext(html.slice(html.indexOf('const THEMES = ['), html.indexOf('function applyTheme()')), catalogContext);
 const keys = vm.runInContext('THEMES.map(theme => theme.key)', catalogContext);
 for (const key of ['snowblush', 'diffuse', 'gold', 'mistgreen', 'tidalpearl', 'tidalharbor']) assert.ok(!keys.includes(key), `retired theme ${key} must not appear in picker or cycling`);
-for (const key of ['claude', 'white', 'frostbubble', 'amberglow', 'liquidglass', 'paper', 'scrapbook', 'academy', 'vinyl', 'letter']) assert.ok(keys.includes(key), `retained theme ${key} must remain available`);
+for (const key of ['claude', 'white', 'frostbubble', 'amberglow', 'liquidglass', 'paper', 'scrapbook', 'academy', 'vinyl', 'letter', 'mistnote']) assert.ok(keys.includes(key), `retained theme ${key} must remain available`);
 assert.equal(catalogContext.currentTheme().key, 'claude', 'a retired saved theme must have a usable fallback');
 assert.ok(!archives.includes('archive-castle.svg') && archives.includes("content: '♫'"), 'autumn divider should use a quiet musical rule');
 assert.match(manuscript, /body:not\(\.rp-chat-active\) \.main > \.chat\s*\{[^}]*min-height: 0;[^}]*overflow-x: hidden;[^}]*flex: 1 1 0;/, 'main chat must shrink within the keyboard viewport and own scrolling');
@@ -56,7 +56,7 @@ const renderContext = vm.createContext({
   document: { createElement: () => ({ classList: { add() {} }, querySelectorAll: () => [] }) },
 });
 vm.runInContext(html.slice(html.indexOf('function mainArchiveHeading('), html.indexOf('function updateScrollControls(')), renderContext);
-for (const theme of ['scene-academy', 'scene-vinyl', 'scene-mobile', 'scene-letter']) {
+for (const theme of ['scene-academy', 'scene-vinyl', 'scene-mobile', 'scene-letter', 'scene-mistnote']) {
   sceneTheme = theme;
   const row = renderContext.makeMsgEl('assistant', 'text', { rpSpeakerId: 'support', rpSpeakerName: 'Support', rpSpeakerAvatar: 'https://example.test/support.png' });
   assert.ok(row.innerHTML.includes('support.png') && row.innerHTML.includes('Support'), 'RP archive header must use the speaking cast member');
@@ -65,12 +65,17 @@ for (const theme of ['scene-academy', 'scene-vinyl', 'scene-mobile', 'scene-lett
 assert.ok(html.includes('key: "letter", name: "雾白来信"'), 'main Mist Letter theme is missing');
 assert.ok(html.includes('"scene-letter": "letter"'), 'RP Mist Letter archive mapping is missing');
 assert.ok(html.includes('theme === "letter"'), 'Mist Letter profile heading is missing');
+assert.ok(html.includes('key: "mistnote", name: "雾蓝长笺"'), 'main Mist Note theme is missing');
+assert.ok(html.includes('"scene-mistnote": "mistnote"'), 'RP Mist Note archive mapping is missing');
+assert.ok(html.includes('theme === "mistnote"'), 'Mist Note identity heading is missing');
+assert.ok(archives.includes('.archive-mistnote.user') && archives.includes('display: table; width: fit-content; max-width: 100%;'), 'main Mist Note right-side user and independent quote bubbles are missing');
+assert.ok(rpManuscript.includes('[data-rp-theme="scene-mistnote"]') && rpManuscript.includes('margin: 0 0 1.18em !important'), 'RP Mist Note prose spacing is missing');
 assert.ok(manuscript.includes('[data-theme-key="letter"]') && manuscript.includes('.msg.archive-letter.user'), 'main Mist Letter user-right layout is missing');
 assert.ok(rpManuscript.includes('[data-rp-theme="scene-letter"]') && rpManuscript.includes('.msg.archive-letter.user'), 'RP Mist Letter user-right layout is missing');
 assert.ok(manuscript.includes('.archive-letter.user .archive-portrait') && manuscript.includes('width: fit-content; max-width: 100%; margin-left: auto;'), 'main Mist Letter user identity and short dialogue must dock right');
 assert.ok(rpManuscript.includes('.archive-letter.user .archive-heading-copy') && rpManuscript.includes('width: fit-content !important; max-width: 100% !important; margin-left: auto !important;'), 'RP Mist Letter user identity and short dialogue must dock right');
 assert.ok(manuscript.includes(':is(.message-quote,.chat-quote)') && rpManuscript.includes(':is(.message-quote,.chat-quote)'), 'Mist Letter quote capsules are missing');
-for (const theme of ['scene-paper', 'scene-scrapbook', 'scene-academy', 'scene-vinyl', 'scene-mobile', 'scene-letter']) {
+for (const theme of ['scene-paper', 'scene-scrapbook', 'scene-academy', 'scene-vinyl', 'scene-mobile', 'scene-letter', 'scene-mistnote']) {
   assert.ok(rpManuscript.includes(`[data-rp-theme="${theme}"] #messages .msg :is(.rp-story-text,.roleplay-opening-text) :is(.chat-quote,.message-quote)`) || rpManuscript.includes(`[data-rp-theme="${theme}"] #messages .msg :is(.rp-story-text,.roleplay-opening-text) :is(.message-quote,.chat-quote)`), `${theme} must theme dialogue in both replies and opening text`);
   assert.ok(html.includes(`"${theme}": \`<style>`), `${theme} must theme dialogue inside rich opening cards`);
 }
