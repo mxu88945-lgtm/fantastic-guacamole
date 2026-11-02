@@ -666,3 +666,6 @@
 - 剧情卡片 iframe 拿不到宿主 CSS 变量：新增 roleplayStoryColors()，把本剧场 正文/旁白/引用色 作为 --rp-story-text/-narration/-quote 注入 iframe；manuscriptCss 里写死的正文色、对白色改为 var(..., 原色)；iframe 新增 .chat-narration 旁白色；改色时 postMessage 一并下发。云瓷米白/雾霁月蓝 卡片内不再是写死的 #50739a。
 - 剧场用户消息一律 renderRoleplayStoryText（原先只有雾蓝长笺拆胶囊），与惟镜一致：所有剧场主题下用户的“对白”成胶囊、*旁白* 用旁白色。
 - 剧场主题仍是「共演设置 → 本剧场外观」单独选，不跟主聊天主题；惟镜是全局一套。
+
+## 2026-11-02 v292 共演设置紧凑化
+- rp-group.css 末尾追加 v292 块（只改 CSS）：顶栏/关闭钮缩小；主菜单行高 46px、细分隔线从文字处起；成员改成一组列表（不再卡片套卡片），头像 38px、行内边距 9px；展开后说明 12px/1.55，输入框和下拉 40px，小按钮 32px 胶囊；底栏收紧。未真机验证。
