@@ -12815,28 +12815,52 @@ function handleAvatarFile(file, which) {
   reader.readAsDataURL(file);
 }
 
-// Stage an image to send: keep the original data URL and media type. The chat only
-// renders a CSS thumbnail; the stored/provider payload must not lose image quality.
+// Stage an image to send: small images keep the original data URL; large phone photos
+// are downscaled to a 2048px long edge (v299) so they cannot crash iOS.
 // Returns a Promise that resolves once the image is staged (or has failed).
 // The whole chain (FileReader → Image decode → canvas) is async; on iOS PWA it
 // can be slow, so send() awaits these via `attachmentStaging` to avoid the race where
 // the user taps 发送 before pendingAttachments is populated and we silently return.
 function stageImageFile(file) {
   if (!file || !file.type.startsWith("image/")) return Promise.resolve();
+  // v299：iPhone 原图常有 4–12 MB，转成 base64 再存进对话、写 IndexedDB、发给模型、
+  // 上云，同一时间会有好几份在内存里，WebContent 直接被杀（发图白屏卡死）。
+  // 小图（长边 ≤ 2048 且 ≤ 1.5 MB）保留原图；大图按长边 2048 转 JPEG 0.9，
+  // 模型识图本身也会缩到这个尺寸以内，肉眼看不出差别。解码用 objectURL，不先读成大字符串。
+  const MAX_EDGE = 2048, KEEP_BYTES = 1.5 * 1024 * 1024;
   const p = new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onerror = () => { showToast("❌ 图片读取失败，换张图试试"); resolve(); };
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => { showToast("❌ 图片解码失败（iOS 有时不支持该格式），换张图试试"); resolve(); };
-      img.onload = () => {
-        pendingAttachments.push({ type: "image", dataUrl: String(reader.result || ""), mediaType: file.type || "image/jpeg", name: file.name || "聊天图片" });
-        renderAttachPreview();
-        resolve();
-      };
-      img.src = reader.result;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    const done = () => { try { URL.revokeObjectURL(url); } catch (_) {} resolve(); };
+    const push = (dataUrl, mediaType) => {
+      pendingAttachments.push({ type: "image", dataUrl, mediaType, name: file.name || "聊天图片" });
+      renderAttachPreview();
     };
-    reader.readAsDataURL(file);
+    const keepOriginal = () => {
+      const reader = new FileReader();
+      reader.onerror = () => { showToast("❌ 图片读取失败，换张图试试"); done(); };
+      reader.onload = () => { push(String(reader.result || ""), file.type || "image/jpeg"); done(); };
+      reader.readAsDataURL(file);
+    };
+    img.onerror = () => { showToast("❌ 图片解码失败（iOS 有时不支持该格式），换张图试试"); done(); };
+    img.onload = () => {
+      const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
+      const edge = Math.max(w0, h0);
+      if ((edge <= MAX_EDGE && file.size <= KEEP_BYTES) || /gif/i.test(file.type)) { keepOriginal(); return; }
+      try {
+        const scale = Math.min(1, MAX_EDGE / edge);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(w0 * scale)); canvas.height = Math.max(1, Math.round(h0 * scale));
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        canvas.width = canvas.height = 0; // 立即释放 iOS 画布内存
+        push(dataUrl, "image/jpeg");
+        done();
+      } catch (error) { console.warn("image downscale failed", error); keepOriginal(); }
+    };
+    img.src = url;
   });
   attachmentStaging.push(p);
   p.then(() => { attachmentStaging = attachmentStaging.filter((x) => x !== p); });

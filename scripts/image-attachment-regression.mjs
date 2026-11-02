@@ -15,7 +15,8 @@ requireText('function openImageGallery(parts, initialIndex = 0)', 'swipeable ima
 requireText('image-gallery-nav', 'image gallery navigation controls are missing')
 requireText('Math.abs(dx) > 45', 'image gallery does not support touch swipes')
 requireText('data-gallery-index="${index}"', 'message images are not grouped into a gallery')
-requireText('String(reader.result || "")', 'original image data is not retained for preview and sending')
+requireText('push(String(reader.result || ""), file.type || "image/jpeg")', 'small images must keep original data')
+requireText('const MAX_EDGE = 2048', 'large phone photos must be downscaled before staging')
 requireText(
   'function openComposerFilePicker(inputId)',
   'iOS-safe composer picker helper is missing',
@@ -33,7 +34,7 @@ requireText(
   'file action does not use the iOS-safe picker path',
 )
 
-if (!sw.includes('const CACHE = "role-chat-cache-v298";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v299";')) {
   throw new Error('service worker cache was not bumped for the image fixes')
 }
 
