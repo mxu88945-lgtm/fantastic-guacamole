@@ -687,3 +687,7 @@
 
 ## 2026-11-03 v299 发图白屏
 - stageImageFile 改用 objectURL 解码；长边 ≤2048 且 ≤1.5MB（或 GIF）保留原图，否则缩到长边 2048 的 JPEG 0.9 再入对话，画布用完清零。原因：iPhone 原图 base64 后在对话/IDB/请求/云同步里同时多份，WebContent 被杀。image-attachment 回归断言同步更新。未真机验证。
+
+## 2026-11-03 v300 发图仍白屏：历史图片不再每轮重发 + 版本号显示
+- apiMessagesFor 只对最近 2 条带图消息发真实图片，更早的图换成「（之前发过一张图片）」。原因：每轮都把历史全部原图 base64 塞进请求 JSON。
+- 设置 → 检查更新 显示「当前版本：vN」（读 caches.keys() 中 role-chat-cache-vN），无需手动维护。

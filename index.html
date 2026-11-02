@@ -3913,7 +3913,7 @@
           <div style="margin-top:8px;">
             <button class="mini-btn primary" id="update-btn">🔄 强制刷新到最新版</button>
           </div>
-          <span class="hint">桌面 App 没更新到最新功能时点这个：会清掉缓存、拉取最新代码（不会动你的聊天和设置）。</span>
+          <span class="hint" id="app-version-label" style="display:block;font-weight:600;">当前版本：读取中…</span><span class="hint">桌面 App 没更新到最新功能时点这个：会清掉缓存、拉取最新代码（不会动你的聊天和设置）。</span>
         </div>
 
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>隐私锁</div>
@@ -10070,13 +10070,22 @@ function apiMessagesFor(isAnthropic, sourceMessages) {
   const newest = source[source.length - 1];
   const fullReferenceMessage = newest && newest.role === "user" && hasReferenceAttachment(newest)
     ? newest : null;
+  // v300：只把最近 2 条带图消息的图片真正发出去；更早的图换成一句文字。
+  // 以前每轮都把历史里所有原图 base64 重新塞进请求，几张大图就让 iPhone 发送时白屏。
+  const imageMessages = new Set();
+  for (let i = source.length - 1; i >= 0 && imageMessages.size < 2; i--) {
+    const c = sendContent(source[i]);
+    if (Array.isArray(c) && c.some(part => part?.type === "image" && !part.desc && part.dataUrl)) imageMessages.add(source[i]);
+  }
   for (const m of source) {
     if (m.role === "reminder" || m._compactedBy || m._summary || isNoReplyPlaceholder(m)) continue;
     const fileBudget = m === fullReferenceMessage
       ? REFERENCE_FILE_PROMPT_CHAR_BUDGET : REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET;
     const sourceContent = sendContent(m);
-    const promptContent = isRoleplayConversation() && m.role === "assistant" && typeof sourceContent === "string"
+    let promptContent = isRoleplayConversation() && m.role === "assistant" && typeof sourceContent === "string"
       ? stripRoleplayPresentationalHtmlForPrompt(sourceContent) : sourceContent;
+    if (Array.isArray(promptContent) && !imageMessages.has(m) && promptContent.some(part => part?.type === "image" && !part.desc))
+      promptContent = promptContent.map(part => part?.type === "image" && !part.desc ? { type: "text", text: "（之前发过一张图片）" } : part);
     const content = toApiContent(promptContent, isAnthropic, fileBudget);
     if (!apiContentHasValue(content)) continue;
     const last = out[out.length - 1];
@@ -10119,13 +10128,22 @@ function geminiContentsFor(sourceMessages) {
   const newest = source[source.length - 1];
   const fullReferenceMessage = newest && newest.role === "user" && hasReferenceAttachment(newest)
     ? newest : null;
+  // v300：只把最近 2 条带图消息的图片真正发出去；更早的图换成一句文字。
+  // 以前每轮都把历史里所有原图 base64 重新塞进请求，几张大图就让 iPhone 发送时白屏。
+  const imageMessages = new Set();
+  for (let i = source.length - 1; i >= 0 && imageMessages.size < 2; i--) {
+    const c = sendContent(source[i]);
+    if (Array.isArray(c) && c.some(part => part?.type === "image" && !part.desc && part.dataUrl)) imageMessages.add(source[i]);
+  }
   for (const m of source) {
     if (m.role === "reminder" || m._compactedBy || m._summary || isNoReplyPlaceholder(m)) continue;
     const fileBudget = m === fullReferenceMessage
       ? REFERENCE_FILE_PROMPT_CHAR_BUDGET : REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET;
     const sourceContent = sendContent(m);
-    const promptContent = isRoleplayConversation() && m.role === "assistant" && typeof sourceContent === "string"
+    let promptContent = isRoleplayConversation() && m.role === "assistant" && typeof sourceContent === "string"
       ? stripRoleplayPresentationalHtmlForPrompt(sourceContent) : sourceContent;
+    if (Array.isArray(promptContent) && !imageMessages.has(m) && promptContent.some(part => part?.type === "image" && !part.desc))
+      promptContent = promptContent.map(part => part?.type === "image" && !part.desc ? { type: "text", text: "（之前发过一张图片）" } : part);
     const parts = geminiPartsForContent(promptContent, fileBudget);
     if (!parts.length) continue;
     const role = m.role === "assistant" ? "model" : "user";
@@ -17484,6 +17502,14 @@ async function init() {
   // Local backup / restore
   $("export-btn").onclick = exportBackup;
   $("update-btn").onclick = forceUpdate;
+  // 显示当前实际在用的缓存版本（来自 sw.js 的 role-chat-cache-vN），方便确认是否已更新。
+  try {
+    caches.keys().then(keys => {
+      const nums = keys.map(k => (k.match(/role-chat-cache-v(\d+)/) || [])[1]).filter(Boolean).map(Number);
+      const el = $("app-version-label");
+      if (el) el.textContent = nums.length ? `当前版本：v${Math.max(...nums)}` : "当前版本：未缓存（在线）";
+    }).catch(() => {});
+  } catch (_) {}
   $("import-btn").onclick = () => $("importFile").click();
   $("importFile").onchange = (e) => importBackup(e.target.files[0]);
 
