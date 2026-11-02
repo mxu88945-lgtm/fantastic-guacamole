@@ -679,3 +679,8 @@
 ## 2026-11-02 v295 白屏/崩溃：减少整份数据复制 + 异常退出记录
 - 她 22:45 又在主页附近白屏（iOS 进程被杀）。flushConversationSave 不再先 structuredClone 全部对话（IDB put 自带复制）；云同步 payload 不再 clone conversations/角色卡，推送合并为至少间隔 20 秒（最少 6 秒防抖），切后台立即补推。
 - 新增 jyc_alive 标记（首个 script）：启动写、pagehide/隐藏清；下次启动若还在 → 存 jyc_last_crash 并在 init 后 toast「上次异常退出：时间 · 阶段 · 剧场/聊天 N 条」。阶段由 window.__jycMark 在 renderMessages、streamChat 写入。rp-library 回归断言随 payload 改动更新。未真机验证。
+
+## 2026-11-02 v296 iOS 启动救援：主页不再背后渲染长剧场
+- 根因：主页虽然盖住聊天区，init 仍会在背后渲染当前窗口最近 60 条；长剧情的 HTML 卡片会把整份 iframe 文档复制进 DOM，冷启动即出现白屏/“重复出现问题”。现在首页启动不建聊天 DOM，点“继续聊天”或打开窗口时才渲染；剧情首屏降为最近 18 条，更早内容仍可按需加载。
+- iOS 切后台只做本地 IDB 保存，不再同时强制序列化整份云同步 payload；回到前台再排队上传，避免瞬时双倍内存。
+- 强刷链接的时间戳 query 不再形成无限多个 CacheStorage 条目，同一路径只保留一个离线副本。

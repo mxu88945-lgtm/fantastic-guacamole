@@ -28,6 +28,9 @@ ok(html.includes('src="./src/dashboard.js"'), "dashboard module is not loaded");
 ok(html.includes('href="./src/dashboard.css"'), "dashboard stylesheet is not loaded");
 ok(html.includes("window.JYCDashboardBridge"), "dashboard bridge is missing");
 ok(html.includes("const target = latestRoleConversation() || currentConv()"), "continue-chat card does not restore the latest role conversation");
+ok(html.includes("const RP_RENDER_WINDOW = 18") && html.includes('window.addEventListener("jyc:chat-opened", ensureCurrentConversationRendered)'), "long RP chats are not deferred and windowed on iOS");
+ok(html.includes('renderedConversationId = null;\n  $("messages").replaceChildren();'), "startup still renders the hidden chat behind the dashboard");
+ok(html.includes('if (document.hidden) { clearTimeout(pushTimer); pushTimer = null; }'), "backgrounding still starts a full cloud upload beside the IndexedDB save");
 ok(html.includes('new CustomEvent("jyc:dashboard-open")'), "home navigation event is missing");
 ok(html.includes('switchConversation(c.id, true)'), "conversation list does not enter chat mode");
 ok(css.includes("body.dashboard-open .main > .composer-wrap"), "composer is not hidden on the dashboard");
@@ -39,7 +42,8 @@ ok(js.includes('window.addEventListener("jyc:role-changed"'), "dashboard does no
 ok(js.includes('window.JYCGameRoom?.open?.()'), "dashboard does not open the game room");
 ok(js.includes('window.JYCAlbum?.summary?.(data.roleId)'), "dashboard album summary is not role-isolated");
 ok(album.includes("function summary(targetRoleId)"), "album summary API is missing");
-ok(sw.includes('const CACHE = "role-chat-cache-v295";'), "service worker cache was not bumped for the RP theater release");
+ok(sw.includes("const cacheRequest = new Request(url.origin + url.pathname"), "cache-busting launch URLs still create duplicate iOS cache entries");
+ok(sw.includes('const CACHE = "role-chat-cache-v296";'), "service worker cache was not bumped for the RP theater release");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "dashboard change introduced duplicate DOM ids");

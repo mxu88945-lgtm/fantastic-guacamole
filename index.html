@@ -5482,11 +5482,16 @@ async function pullCloud(navigationAtStart) {
 function schedulePush() {
   if (applyingCloud || !cloudUser) return;
   clearTimeout(pushTimer);
-  // v295：整份对话上云很吃内存，合并成至少间隔 20 秒一次；切到后台时立即补推。
+  // 整份对话上云很吃内存，合并成至少间隔 20 秒一次。
   const wait = Math.max(6000, 20000 - (Date.now() - lastCloudPushAt));
   pushTimer = setTimeout(() => { pushTimer = null; void pushCloudNow(); }, wait);
 }
-document.addEventListener("visibilitychange", () => { if (document.hidden && pushTimer && cloudUser && !applyingCloud) { clearTimeout(pushTimer); pushTimer = 0; void pushCloudNow(); } });
+document.addEventListener("visibilitychange", () => {
+  // iOS 切后台时 flushConversationSave 已经会复制整份数据进 IDB；不要再同时
+  // 序列化一份云 payload。先取消，回来后再排队，避免瞬时双倍内存把进程杀掉。
+  if (document.hidden) { clearTimeout(pushTimer); pushTimer = null; }
+  else if (cloudUser && !applyingCloud) schedulePush();
+});
 function pushCloudNow() {
   if (!cloudUser) return Promise.resolve();
   const userId = cloudUser.id;
@@ -5935,12 +5940,14 @@ function deriveTitle(msgs) {
 function switchConversation(id, openChatView) {
   if (id === currentId && currentConv()) {
     updateConversationSpaceUI();
-    if (openChatView) window.dispatchEvent(new CustomEvent("jyc:chat-opened", { detail: { conversationId: id } }));
+    if (openChatView) {
+      ensureCurrentConversationRendered();
+      window.dispatchEvent(new CustomEvent("jyc:chat-opened", { detail: { conversationId: id } }));
+    }
     if (isMobile()) closeSidebar();
     return true;
   }
   if (abortController) abortController.abort();
-  renderLimit = RENDER_WINDOW;
   const target = conversations.find(c => c.id === id);
   // A sidebar item can become stale if cloud data is replaced between rendering
   // the list and the tap. Do not leave currentId pointing at a missing chat.
@@ -5949,6 +5956,7 @@ function switchConversation(id, openChatView) {
     showToast("对话刚刚同步更新了，请再点一次", 2600);
     return false;
   }
+  renderLimit = initialRenderWindow(target);
   chatNavigationRevision++;
   currentId = target.id;
   messages = target.messages;
@@ -6791,11 +6799,22 @@ function renderReplyVariantNav(box) {
 // Long chats only draw the most recent rows; older ones load on demand. Display only:
 // what the model receives is decided by the prompt builder, not by this window.
 const RENDER_WINDOW = 60;
+const RP_RENDER_WINDOW = 18;
 let renderLimit = RENDER_WINDOW;
+let renderedConversationId = null;
+function initialRenderWindow(conv) {
+  return isRoleplayConversation(conv) ? RP_RENDER_WINDOW : RENDER_WINDOW;
+}
+function ensureCurrentConversationRendered() {
+  if (renderedConversationId === currentId && $("messages")?.childElementCount) return;
+  renderLimit = initialRenderWindow(currentConv());
+  renderMessages();
+  jumpToBottom();
+}
 function loadEarlierMessages() {
   const chat = $("chat");
   const before = chat.scrollHeight, top = chat.scrollTop;
-  renderLimit += 80;
+  renderLimit += isRoleplayConversation() ? 24 : 80;
   stickBottom = false;
   renderMessages();
   chat.scrollTop = top + (chat.scrollHeight - before);
@@ -6880,6 +6899,7 @@ function renderMessages() {
   rpFrameWindowSetup();
   try { window.__jycMark?.("显示对话", `${isRoleplayConversation() ? "剧场" : "聊天"} · ${messages.length} 条`); } catch (_) {}
   const box = $("messages");
+  renderedConversationId = currentId || "";
   applyRoleplayTextTheme(box);
   const scroller = $("chat");
   const preserve = isRoleplayConversation() && box.dataset.conversationId === currentId;
@@ -16981,6 +17001,7 @@ function closeSidebar() {
 
 // ---------- Wire up ----------
 async function init() {
+  window.addEventListener("jyc:chat-opened", ensureCurrentConversationRendered);
   setTimeout(() => {
     try {
       const c = window.__jycLastCrash && JSON.parse(window.__jycLastCrash);
@@ -16999,7 +17020,11 @@ async function init() {
   setupSettingsNavigation();
   setupAccordion();
   renderConvList();
-  renderMessages();
+  // 首页默认会覆盖聊天区。iPhone 冷启动时不要在它背后同时构造几十条
+  // 长剧情卡片/iframe；真正进入聊天时再按需渲染，避免 WebContent 被杀白屏。
+  renderLimit = initialRenderWindow(currentConv());
+  renderedConversationId = null;
+  $("messages").replaceChildren();
   updateConvTitle();
   updateConversationSpaceUI();
   renderConversationProjectFiles();
@@ -18503,7 +18528,8 @@ window.JYCDashboardBridge = {
   newChat: createConversation,
   focusChat: () => {
     const target = latestRoleConversation() || currentConv();
-    if (target && target.id !== currentId) switchConversation(target.id);
+    if (target) switchConversation(target.id, true);
+    else window.dispatchEvent(new CustomEvent("jyc:chat-opened"));
     requestAnimationFrame(() => $("input")?.focus());
   },
   openChatWithDraft: (text) => {
