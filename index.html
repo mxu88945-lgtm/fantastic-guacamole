@@ -7790,7 +7790,7 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState, 
   const semanticRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && !useRoleplayHtml
     ? roleplaySemanticDisplay(answer) : "";
   let textHtml = answer
-    ? (useRoleplayHtml ? roleplayRichFrameHtml(answer) : (semanticRoleplayHtml || (role === "assistant" ? (isRoleplayConversation() ? renderRoleplayStoryText(answer) : renderMarkdown(answer)) : escapeHtml(answer).replace(/\n/g, "<br>"))))
+    ? (useRoleplayHtml ? roleplayRichFrameHtml(answer) : (semanticRoleplayHtml || (role === "assistant" ? (isRoleplayConversation() ? renderRoleplayStoryText(answer) : renderMarkdown(answer)) : (userQuoteCapsules() ? renderMarkdown(answer, true) : escapeHtml(answer).replace(/\n/g, "<br>")))))
     : "";
   // turn [贴纸:名字] tokens in the assistant's reply into the actual sticker image
   if (role === "assistant" && !useRoleplayHtml) {
@@ -7805,6 +7805,10 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState, 
     textHtml = textHtml.replace(/\[\s*(?:记忆|记住|存记忆|memory)\s*[:：][^\]]*\]/gi, "");
   }
   return stickerParts + thinkHtml + textHtml;
+}
+// 雾蓝长笺：用户自己的消息也像惟镜那样，把对白拆成单独的胶囊，叙述文字留在外面。
+function userQuoteCapsules() {
+  return isRoleplayConversation() ? currentConv()?.rpProject?.rpTheme === "scene-mistnote" : settings.themeName === "mistnote";
 }
 function messageContentHtml(role, content, reasoning, traces, responseState, message = {}) {
   const giftCards = window.JYCGifts?.renderGiftPartsHtml?.(content) || "";
