@@ -16312,11 +16312,13 @@ function updateStatusLine() {
   el.textContent = `${ap ? ap.name + " · " : ""}${getModelDisplayLabel(m)}`;
 }
 function openSettings(force) {
+  window.__settingsReturnTo = null;
   const panel = $("settings-panel");
   if (force) panel.classList.add("open"); else panel.classList.toggle("open");
   if (panel.classList.contains("open")) showSettingsHome();
 }
 function closeSettings() {
+  window.__settingsReturnTo = null;
   $("settings-panel").classList.remove("open");
   showSettingsHome();
 }
@@ -17013,7 +17015,12 @@ async function init() {
       closeConversationProjectFiles();
   });
   $("settings-close").onclick = closeSettings;
-  $("settings-back").onclick = showSettingsHome;
+  $("settings-back").onclick = () => {
+    // 从剧场「共演设置」进来的接口管理：返回直接回到共演设置，不落到主设置首页。
+    const back = window.__settingsReturnTo;
+    if (typeof back === "function") { window.__settingsReturnTo = null; closeSettings(); try { back(); } catch (error) { console.warn(error); } return; }
+    showSettingsHome();
+  };
   document.querySelectorAll("[data-edit]").forEach(btn =>
     btn.onclick = () => openBigEditor(btn.dataset.edit, btn.dataset.title));
   $("editor-done").onclick = closeBigEditor;
@@ -18144,7 +18151,7 @@ function roleplaySceneFromGreeting(source, index, forceNew = false) {
 }
 window.JYCRoleplayBridge = {
   renderOpeningPreview: value => roleplayRichFrameHtml(value, true),
-  openApiSettings() { openSettings(true); showSettingsTab("services"); },
+  openApiSettings(returnTo) { openSettings(true); showSettingsTab("services"); window.__settingsReturnTo = typeof returnTo === "function" ? returnTo : null; },
   memoryRuntimeInfo() {
     const runtime = memoryRuntimeConfig();
     const source = runtime.source === "role" ? "当前角色独立记忆 API" : runtime.source === "global" ? "全局记忆 API" : "沿用当前聊天渠道";

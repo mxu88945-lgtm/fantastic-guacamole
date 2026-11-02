@@ -669,3 +669,6 @@
 
 ## 2026-11-02 v292 共演设置紧凑化
 - rp-group.css 末尾追加 v292 块（只改 CSS）：顶栏/关闭钮缩小；主菜单行高 46px、细分隔线从文字处起；成员改成一组列表（不再卡片套卡片），头像 38px、行内边距 9px；展开后说明 12px/1.55，输入框和下拉 40px，小按钮 32px 胶囊；底栏收紧。未真机验证。
+
+## 2026-11-02 v293 剧场接口管理返回
+- 共演设置（及剧本记忆页）点「添加 / 管理 API 接口」→ 设置「模型与服务」；顶部返回键现在关掉设置并重开共演设置（从记忆页进的回到记忆页）。实现：bridge.openApiSettings(returnTo) 存 window.__settingsReturnTo，settings-back 优先调用；openSettings/closeSettings 都会清掉，避免主设置误跳。

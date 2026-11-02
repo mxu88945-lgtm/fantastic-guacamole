@@ -689,7 +689,7 @@ if (bridge) {
         renderMemory(); setMemoryStatus("这条剧情记忆已删除。", "success"); bridge.toast("剧情记忆已删除");
       }
     }
-    else if (button.hasAttribute("data-api")) { close(); if (panel.hidden) bridge.openApiSettings(); }
+    else if (button.hasAttribute("data-api")) { const fromMemory = !!panel.querySelector("[data-memory-back]"); close(); if (panel.hidden) bridge.openApiSettings(() => { open(); if (fromMemory) renderMemoryPage(); }); }
     else if (button.hasAttribute("data-detail")) { close(); if (panel.hidden) window.JYCRoleplay?.editCurrent(); }
     else if (button.hasAttribute("data-export-scene")) { if (!dirty || save()) bridge.exportSceneTxt(sceneId); }
     else if (button.hasAttribute("data-import-scene")) panel.querySelector("#rp-scene-import-file").click();
