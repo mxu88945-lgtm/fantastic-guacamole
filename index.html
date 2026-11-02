@@ -38,7 +38,15 @@
 (function () {
   try {
     var KEY = "jyc_alive", prev = localStorage.getItem(KEY);
-    if (prev) { localStorage.setItem("jyc_last_crash", prev); window.__jycLastCrash = prev; }
+    if (prev) {
+      localStorage.setItem("jyc_last_crash", prev);
+      window.__jycLastCrash = prev;
+      // The installed iPhone app owns its own storage container. Recover inside
+      // that same app so its original conversations remain available; a Safari
+      // safe-mode tab can have a separate, empty container.
+      window.__jycSafeBoot = true;
+      window.__jycRecoveredFromCrash = true;
+    }
     var mark = function () { try { localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), stage: window.__jycStage || "启动", conv: window.__jycConvInfo || "" })); } catch (_) {} };
     window.__jycMark = function (stage, info) { window.__jycStage = stage; if (info != null) window.__jycConvInfo = info; mark(); };
     mark();
@@ -17572,7 +17580,9 @@ async function init() {
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !window.__jycSafeBoot) onAppActive(); });
   if (!window.__jycSafeBoot) setTimeout(onAppActive, 2000);
   window.__jycMark?.("首页就绪");
-  if (window.__jycSafeBoot) showToast("已用轻量模式打开：自动云同步暂缓，记录保留", 6000);
+  if (window.__jycSafeBoot) showToast(window.__jycRecoveredFromCrash
+    ? "检测到上次异常退出，已自动轻量恢复；原记录保留"
+    : "已用轻量模式打开：自动云同步暂缓，记录保留", 6000);
   window.dispatchEvent(new CustomEvent("jyc:app-ready"));
 }
 window.JYCAlbumBridge = {

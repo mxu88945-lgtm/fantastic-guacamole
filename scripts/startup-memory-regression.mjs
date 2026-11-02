@@ -83,4 +83,8 @@ const dashboard = readFileSync(new URL("../src/dashboard.js", import.meta.url), 
 const render = dashboard.slice(dashboard.indexOf("async function render()"), dashboard.indexOf("function show()"));
 assert.ok(!render.includes(".ready"), "dashboard summaries must not activate lazy payloads");
 assert.ok(html.includes('if (!window.__jycSafeBoot) initCloud()'), "recovery entry must suppress automatic full cloud payloads");
+assert.ok(html.indexOf('window.__jycSafeBoot = true;') < html.indexOf('await loadState();'),
+  "an unclean installed-app exit must switch to safe boot before reading its archive");
+assert.ok(html.includes('window.__jycRecoveredFromCrash = true;'),
+  "automatic installed-app recovery must be distinguishable from a Safari query entry");
 console.log("startup memory regression: lazy payloads, shared loads, hidden DOM, open/export fidelity and read-only home passed");
