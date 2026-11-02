@@ -661,3 +661,8 @@
 ## 2026-11-01 v281
 - 关键：带 <div> 的正则结果会整段进 iframe（roleplayRegexDisplay 包 <!doctype html>），宿主页 CSS 进不去。weijing-* 样式另注入 roleplayRichDocument 的 base <style>（用 currentColor 混色，深浅主题都可）；并去掉 weijing div 内首尾空白（pre-wrap 会显示成空行）。
 - 剧场用户身份可换头像：rpProject.userAvatar（仅本剧本），avatarFor("user") 在剧场优先用它。
+
+## 2026-11-02 v291 剧场气泡跟随主题
+- 剧情卡片 iframe 拿不到宿主 CSS 变量：新增 roleplayStoryColors()，把本剧场 正文/旁白/引用色 作为 --rp-story-text/-narration/-quote 注入 iframe；manuscriptCss 里写死的正文色、对白色改为 var(..., 原色)；iframe 新增 .chat-narration 旁白色；改色时 postMessage 一并下发。云瓷米白/雾霁月蓝 卡片内不再是写死的 #50739a。
+- 剧场用户消息一律 renderRoleplayStoryText（原先只有雾蓝长笺拆胶囊），与惟镜一致：所有剧场主题下用户的“对白”成胶囊、*旁白* 用旁白色。
+- 剧场主题仍是「共演设置 → 本剧场外观」单独选，不跟主聊天主题；惟镜是全局一套。

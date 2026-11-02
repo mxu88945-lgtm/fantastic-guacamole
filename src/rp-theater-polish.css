@@ -437,3 +437,7 @@ html body.rp-chat-active .composer-hint { display: none !important; }
   html body.rp-chat-active #messages .msg { margin-bottom: 19px !important; }
   html body.rp-chat-active .composer { border-radius: 25px !important; }
 }
+
+/* v291: 剧场里用户自己的消息也走 rp-story-text（同惟镜：所有主题下对白成胶囊、*旁白* 用旁白色）。 */
+html body.rp-chat-active #messages .msg.user .rp-story-text .chat-narration { color: var(--rp-narration-color, #6f7b86) !important; font-style: normal !important; }
+html body.rp-chat-active #messages .msg.user .rp-story-text > p:last-child { margin-bottom: 0 !important; }
