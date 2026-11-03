@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import vm from "node:vm";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../src/dashboard.css", import.meta.url), "utf8");
@@ -38,11 +39,46 @@ ok(html.includes('switchConversation(c.id, true)'), "conversation list does not 
 ok(css.includes("body.dashboard-open .main > .composer-wrap"), "composer is not hidden on the dashboard");
 ok(css.includes("body.dashboard-open .main > header > #toggle-sidebar"), "sidebar button is still visible on the dashboard");
 ok(css.includes("body.dashboard-open .main > header > #rp-chat-identity") && css.includes("body.dashboard-open .main > header > #rp-chat-mode"), "RP controls can leak into the dashboard header");
-ok(html.includes('isRoleplayConversation(conv) && !document.body.classList.contains("dashboard-open")'), "dashboard does not suspend the restored RP conversation shell");
+ok(html.includes('function isRoleplaySurfaceActive(conv = currentConv())') && html.includes('const active = isRoleplaySurfaceActive(conv);'), "dashboard does not suspend the restored RP conversation shell");
+ok(html.includes('typeof isRoleplaySurfaceActive === "function" && isRoleplaySurfaceActive()'), "main wallpaper can recurse back into a dashboard-suspended RP wallpaper");
 ok(html.includes("syncConversationSurface: updateConversationSpaceUI"), "dashboard bridge cannot resync the shared conversation shell");
 ok(js.includes("bridge.syncConversationSurface?.();"), "dashboard visibility changes do not resync the shared conversation shell");
 ok(sidechat.includes('!document.body.classList.contains("dashboard-open")') && sidechat.includes('"jyc:dashboard-open"'), "RP side chat can survive on the dashboard");
 ok(sidechatCss.includes("body.dashboard-open > .rp-sidechat-tab") && sidechatCss.includes("body.dashboard-open > .rp-sidechat-panel"), "dashboard lacks a defensive RP side-chat boundary");
+
+// Exercise the wallpaper hand-off instead of only checking selectors. A
+// restored RP record under the dashboard must fall through to the main
+// wallpaper exactly once, never bounce recursively between both owners.
+const surfaceSource = html.slice(html.indexOf("function isRoleplaySurfaceActive"), html.indexOf("function roleplayDisplayMode"));
+const rpWallpaperSource = html.slice(html.indexOf("function applyRoleplayWallpaper"), html.indexOf("function applyRoleplayTextTheme"));
+const mainWallpaperSource = html.slice(html.indexOf("function applyChatBg"), html.indexOf("const PET_DEFS"));
+const classSet = new Set(["dashboard-open"]);
+const nodes = {
+  "chat-bg": { style: {} },
+  "rp-wallpaper-bg": { style: {} },
+};
+const rootStyle = { setProperty() {}, removeProperty() {} };
+const context = vm.createContext({
+  currentConv: () => ({ space: "roleplay", rpProject: {} }),
+  isRoleplayConversation: () => true,
+  document: {
+    body: { classList: { contains: name => classSet.has(name), toggle() {} }, dataset: {}, style: rootStyle },
+    documentElement: { setAttribute() {}, style: rootStyle },
+  },
+  $: id => nodes[id] || { hidden: false, textContent: "", setAttribute() {} },
+  settings: { chatBg: "", chatBgDim: 35, chatBgBlur: 6, aiName: "顾祁砚" },
+  window: { __jycSafeBoot: false },
+  normalizedRoleplayProject: value => value || {},
+  roleplayThemePreset: () => ({ id: "liquid-pearl", base: "#f4f8fb", text: "#34404a", narration: "#6f7b86", quote: "#607f9b", accent: "#7896ad" }),
+  roleplayColorWithAlpha: () => "rgba(244,248,251,1)",
+  currentTheme: () => ({ dark: false, vars: { bg: "#fff" } }),
+  syncStatusBarToWallpaper() {},
+  chatBgObjectUrl: "",
+  updateRoleplayDisplayMode() {}, updateBrand() {}, applyChatBg: undefined,
+});
+vm.runInContext(`${surfaceSource}\n${rpWallpaperSource}\n${mainWallpaperSource}`, context);
+context.applyRoleplayWallpaper();
+ok(nodes["rp-wallpaper-bg"].style.display === "none" && nodes["chat-bg"].style.display === "none", "dashboard wallpaper hand-off did not terminate cleanly");
 ok(html.includes('id="toggle-sidebar"') && html.includes('$("toggle-sidebar").onclick = toggleSidebar'), "main chat lost its sidebar button");
 ok(css.includes("grid-template-columns: 1.12fr .88fr 1fr"), "desktop dashboard grid is missing");
 ok(css.includes("@media (max-width: 600px)"), "mobile dashboard layout is missing");
@@ -51,7 +87,7 @@ ok(js.includes('window.JYCGameRoom?.open?.()'), "dashboard does not open the gam
 ok(js.includes('window.JYCAlbum?.summary?.(data.roleId)'), "dashboard album summary is not role-isolated");
 ok(album.includes("function summary(targetRoleId)"), "album summary API is missing");
 ok(sw.includes("const cacheRequest = new Request(url.origin + url.pathname"), "cache-busting launch URLs still create duplicate iOS cache entries");
-ok(sw.includes('const CACHE = "role-chat-cache-v303";'), "service worker cache was not bumped for the RP theater release");
+ok(sw.includes('const CACHE = "role-chat-cache-v304";'), "service worker cache was not bumped for the RP theater release");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "dashboard change introduced duplicate DOM ids");
