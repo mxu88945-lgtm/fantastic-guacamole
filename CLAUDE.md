@@ -691,3 +691,10 @@
 ## 2026-11-03 v300 发图仍白屏：历史图片不再每轮重发 + 版本号显示
 - apiMessagesFor 只对最近 2 条带图消息发真实图片，更早的图换成「（之前发过一张图片）」。原因：每轮都把历史全部原图 base64 塞进请求 JSON。
 - 设置 → 检查更新 显示「当前版本：vN」（读 caches.keys() 中 role-chat-cache-vN），无需手动维护。
+
+## 2026-11-03 v305 分对话存储 + 启动排队 + 后台压旧图（Hark）
+- 根因：所有对话（含 base64 图）是 IDB 单键 "conversations"，每次保存整份结构化复制重写 → iOS「重复出现问题」。
+- 现在每个对话存 `conv:<id>`，顺序存 `convIds`；保存只写当前对话 + 签名变化/convForceDirty 的对话；删掉的对话删键。首次启动从旧 "conversations" 拆分，旧值保留当备份、不再读取。拆分失败（如空间不足）convSplitOk=false，继续整份旧方式保存。
+- 启动：initCloud 延后 4s，onAppActive 8s，40s 后 shrinkOldChatImages 一张张把无 previewDataUrl 且 >700KB 的旧图压到 2048（切后台暂停）。
+- 板块 JS 未改成按需加载：各模块启动只挂监听、体量小，且 gifts/rp-theater/rp-group 被聊天渲染直接用到，收益小风险大。src/rp-sidechat.js 未被引用（死代码）。
+- 新回归 scripts/conversation-split-regression.mjs。未真机验证。

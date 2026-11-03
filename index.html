@@ -4804,26 +4804,85 @@ async function dbDelete(key) {
     tx.onabort = () => reject(tx.error || new Error("IndexedDB delete aborted"));
   });
 }
+// v305：每个对话单独存一个键（conv:<id>），保存时只写改过的那几个。
+// 以前所有对话连同图片存成一个 "conversations" 大值，每发一句就整份复制重写，
+// 长剧场 + 图片时 iPhone 内存被挤爆（重复出现问题 / 白屏）。旧的 "conversations"
+// 值迁移后原样保留当备份，启动不再读它。
+const CONV_KEY_PREFIX = "conv:";
+const convSavedMeta = new WeakMap();      // conv 对象 → 上次写入时的签名
+let convSavedIds = null;                  // 上次写入的 id 顺序（字符串）
+const convForceDirty = new Set();         // 原地改了内容（如压缩旧图）的对话 id
+let convSplitOk = false;                  // 拆分没成功（例如空间不够）就继续按旧方式整份保存，保证不丢
+function convSignature(conv) {
+  const msgs = Array.isArray(conv.messages) ? conv.messages : [];
+  const last = msgs[msgs.length - 1];
+  const lastLen = !last ? 0 : typeof last.content === "string" ? last.content.length
+    : Array.isArray(last.content) ? last.content.length : 0;
+  let meta = "";
+  try { const { messages: _m, ...rest } = conv; meta = JSON.stringify(rest, (k, v) => typeof v === "string" && v.length > 400 ? v.length + ":" + v.slice(0, 24) + v.slice(-24) : v); } catch (_) { meta = String(Math.random()); }
+  return msgs.length + "|" + (last?.id || "") + "|" + lastLen + "|" + meta;
+}
 function queueConversationWrite(snapshot, selectedId) {
+  const list = Array.isArray(snapshot) ? snapshot : [];
   dbWriteQueue = dbWriteQueue.then(async () => {
-    await dbPut("conversations", snapshot);
+    if (!convSplitOk) {
+      await dbPut("conversations", list);
+      await dbPut("currentId", selectedId || "");
+      localStorage.removeItem("jyc_conversations");
+      return;
+    }
+    const ids = list.map(c => c.id);
+    for (const conv of list) {
+      if (!conv || !conv.id) continue;
+      const sig = convSignature(conv);
+      const prev = convSavedMeta.get(conv);
+      if (conv.id !== selectedId && prev && prev.sig === sig && prev.msgs === conv.messages && !convForceDirty.has(conv.id)) continue;
+      await dbPut(CONV_KEY_PREFIX + conv.id, conv);
+      convSavedMeta.set(conv, { sig, msgs: conv.messages });
+      convForceDirty.delete(conv.id);
+    }
+    const idsKey = JSON.stringify(ids);
+    if (idsKey !== convSavedIds) {
+      const before = convSavedIds ? JSON.parse(convSavedIds) : [];
+      await dbPut("convIds", ids);
+      for (const gone of before) if (!ids.includes(gone)) { try { await dbDelete(CONV_KEY_PREFIX + gone); } catch (_) {} }
+      convSavedIds = idsKey;
+    }
     await dbPut("currentId", selectedId || "");
-    // The verified IndexedDB copy is now canonical. Removing the legacy JSON is what
-    // frees localStorage space previously consumed by embedded chat images.
     localStorage.removeItem("jyc_conversations");
   }).catch(err => {
-    console.warn("IndexedDB save failed; keeping localStorage fallback", err);
-    try { localStorage.setItem("jyc_conversations", JSON.stringify(snapshot)); } catch (_) {}
+    console.warn("IndexedDB save failed", err);
+    // 不再把整份对话塞回 5 MB 的 localStorage（塞不下还会再复制一份）。
   });
   return dbWriteQueue;
 }
+async function loadSplitConversations() {
+  const ids = await dbGet("convIds");
+  if (!Array.isArray(ids)) return null;
+  const out = [];
+  for (const id of ids) {
+    const conv = await dbGet(CONV_KEY_PREFIX + id);
+    if (conv && conv.id) { out.push(conv); convSavedMeta.set(conv, { sig: convSignature(conv), msgs: conv.messages }); }
+  }
+  convSavedIds = JSON.stringify(out.map(c => c.id));
+  convSplitOk = true;
+  return out;
+}
+async function splitLegacyConversations(legacy) {
+  for (const conv of legacy) if (conv && conv.id) await dbPut(CONV_KEY_PREFIX + conv.id, conv);
+  const ids = legacy.filter(c => c && c.id).map(c => c.id);
+  await dbPut("convIds", ids);
+  const check = await dbGet("convIds");
+  if (!Array.isArray(check) || check.length !== ids.length) throw new Error("split verify failed");
+  legacy.forEach(conv => conv && conv.id && convSavedMeta.set(conv, { sig: convSignature(conv), msgs: conv.messages }));
+  convSavedIds = JSON.stringify(ids);
+  convSplitOk = true;
+}
 async function migrateConversationsToDb(legacy, legacyCurrent) {
-  await dbPut("conversations", legacy);
+  await splitLegacyConversations(legacy);
   await dbPut("currentId", legacyCurrent || "");
-  const verify = await dbGet("conversations");
-  if (!Array.isArray(verify) || verify.length !== legacy.length) throw new Error("IndexedDB migration verification failed");
   localStorage.removeItem("jyc_conversations");
-  return verify;
+  return legacy;
 }
 async function refreshStorageStatus() {
   const el = $("storage-status"); if (!el) return;
@@ -4920,7 +4979,14 @@ async function loadState() {
   // Do not parse a second legacy transcript beside the canonical IDB snapshot.
   let legacyRoleplaySource = null;
   let stored = null;
-  try { stored = await dbGet("conversations"); } catch (e) { console.warn("IndexedDB load failed", e); }
+  try { stored = await loadSplitConversations(); } catch (e) { console.warn("IndexedDB split load failed", e); }
+  if (!Array.isArray(stored)) {
+    // 第一次用 v305：从旧的整份 "conversations" 拆开（旧值保留不删，当备份）。
+    try {
+      stored = await dbGet("conversations");
+      if (Array.isArray(stored)) await splitLegacyConversations(stored);
+    } catch (e) { console.warn("IndexedDB legacy load/split failed", e); }
+  }
   if (Array.isArray(stored)) {
     conversations = stored;
     // IndexedDB copy is canonical; a leftover legacy copy only eats the 5 MB localStorage.
@@ -12944,6 +13010,38 @@ function stageImageFile(file) {
     () => { attachmentStaging = attachmentStaging.filter((x) => x !== p); });
   return p;
 }
+// v305：以前发的原图（几 MB 一张）在后台一张一张压到长边 2048，压完的对话标记为要重存。
+// 只在前台、非轻量模式下跑；每张之间歇 1.5 秒，切后台就暂停，下次启动接着来。
+let oldImageShrinkRunning = false;
+async function shrinkOldChatImages() {
+  if (oldImageShrinkRunning || window.__jycSafeBoot) return;
+  oldImageShrinkRunning = true;
+  let shrunk = 0;
+  try {
+    for (const conv of conversations.slice()) {
+      let changed = false;
+      for (const m of conv.messages || []) {
+        if (!Array.isArray(m.content)) continue;
+        for (const part of m.content) {
+          if (document.hidden) { if (changed) { convForceDirty.add(conv.id); saveConversations(); } return; }
+          if (part?.type !== "image" || typeof part.dataUrl !== "string") continue;
+          if (part.previewDataUrl || part.dataUrl.length < 700000 || /^data:image\/gif/i.test(part.dataUrl)) continue;
+          try {
+            const blob = await (await fetch(part.dataUrl)).blob();
+            const prepared = await prepareChatImage(blob);
+            if (prepared.dataUrl && prepared.dataUrl.length < part.dataUrl.length) {
+              part.dataUrl = prepared.dataUrl; part.previewDataUrl = prepared.previewDataUrl; part.mediaType = "image/jpeg";
+              changed = true; shrunk++;
+            } else part.previewDataUrl = prepared.previewDataUrl;
+          } catch (e) { console.warn("old image shrink skipped", e); part.previewDataUrl = part.previewDataUrl || ""; }
+          await new Promise(r => setTimeout(r, 1500));
+        }
+      }
+      if (changed) { convForceDirty.add(conv.id); saveConversations(); await new Promise(r => setTimeout(r, 3000)); }
+    }
+    if (shrunk) console.info("old chat images shrunk:", shrunk);
+  } finally { oldImageShrinkRunning = false; }
+}
 function formatFileSize(bytes) {
   const n = Number(bytes) || 0;
   if (n < 1024) return n + " B";
@@ -17695,11 +17793,13 @@ async function init() {
   renderCharLockScreen();
 
   // restore cloud session (if previously logged in) and sync
-  if (!window.__jycSafeBoot) initCloud().catch(e => console.warn("cloud init:", e));
+  // v305：启动的活排队做，不同时挤：先首页，4 秒后云同步，8 秒后补任务/信箱，40 秒后压旧图。
+  if (!window.__jycSafeBoot) setTimeout(() => initCloud().catch(e => console.warn("cloud init:", e)), 4000);
 
   // Resume task cards, mailbox, cycle reminders and cloud sync when the PWA returns.
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !window.__jycSafeBoot) onAppActive(); });
-  if (!window.__jycSafeBoot) setTimeout(onAppActive, 2000);
+  if (!window.__jycSafeBoot) setTimeout(onAppActive, 8000);
+  if (!window.__jycSafeBoot) setTimeout(() => { shrinkOldChatImages().catch(() => {}); }, 40000);
   window.__jycMark?.("首页就绪");
   if (window.__jycSafeBoot) showToast(window.__jycRecoveredFromCrash
     ? "检测到上次异常退出，已自动轻量恢复；原记录保留"
