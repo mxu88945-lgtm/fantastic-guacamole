@@ -8023,18 +8023,25 @@ function rpBackstageOwnHistoryText(conv = currentConv()) {
 function buildBackstageNotesMemoryText() {
   if (isRoleplayConversation()) return "";
   const all = [];
+  const query = typeof currentMemoryRecallQuery === "function" ? currentMemoryRecallQuery() : "";
+  const named = [];
   roleConvs().filter(isRoleplayConversation).forEach(conv => {
     const title = conv.title || conv.rpProject?.title || "未命名剧本";
     (conv.rpBackstageNotes || []).forEach(note => all.push({ note, title }));
+    // 她只说剧名（或剧名前半、戏里角色名）也算点名这部剧：带上这部最近 3 篇
+    const keys = [title, title.split(/[·・\-—|｜:：（(]/)[0], conv.rpProject?.actorName, conv.rpProject?.userRole]
+      .map(v => String(v || "").replace(/的故事$/, "").trim()).filter(v => v.length >= 2);
+    if (keys.some(k => query.includes(k))) named.push(...(conv.rpBackstageNotes || []).slice(-3).map(note => ({ note, title })));
   });
   if (!all.length) return "";
   all.sort((a, b) => (a.note.ts || 0) - (b.note.ts || 0));
-  const query = typeof currentMemoryRecallQuery === "function" ? currentMemoryRecallQuery() : "";
-  const intent = /(?:幕后|手记|吐槽|吃醋|演戏|剧场|那场戏|这场戏|戏里|出戏)/.test(query);
+  const intent = named.length > 0 || /(?:幕后|手记|吐槽|吃醋|演戏|剧场|剧本|那部剧|这部剧|那场戏|这场戏|戏里|出戏)/.test(query);
   // 只带最近 24 小时内最新的 1 篇；旧的只在话题命中时翻出来，不全量推送
   const recent = all.filter(x => Date.now() - (x.note.ts || 0) < 864e5).slice(-1);
   const recalled = rpBackstageRecall(all, query, recent.map(x => x.note.id), intent ? 3 : 2);
+  named.forEach(x => { if (!recalled.some(r => r.note.id === x.note.id) && !recent.some(r => r.note.id === x.note.id)) recalled.push(x); });
   if (intent && !recalled.length) recalled.push(...all.filter(x => !recent.some(r => r.note.id === x.note.id)).slice(-2));
+  recalled.splice(5);
   const rows = [...recalled, ...recent];
   if (!rows.length) return "";
   return ["【你的幕后手记·你本人演戏时私下写的真心话】",
@@ -12216,7 +12223,7 @@ function buildBoundedMemoryContext(historyWindow) {
   const roleplayExperience = typeof buildSharedRoleplayExperienceText === "function" ? buildSharedRoleplayExperienceText() : "";
   const roleplayExperienceMatched = roleplayExperience.includes("【本轮话题命中的剧场档案】");
   const backstageNotesText = typeof buildBackstageNotesMemoryText === "function" ? buildBackstageNotesMemoryText() : "";
-  const backstageNotesMatched = backstageNotesText.split("\n- [").length > 2 || /(?:幕后|手记|吐槽|吃醋|演戏|剧场|戏里)/.test(typeof currentMemoryRecallQuery === "function" ? currentMemoryRecallQuery() : "");
+  const backstageNotesMatched = backstageNotesText.split("\n- [").length > 2 || /(?:幕后|手记|吐槽|吃醋|演戏|剧场|剧本|那部剧|这部剧|戏里)/.test(typeof currentMemoryRecallQuery === "function" ? currentMemoryRecallQuery() : "");
   // Priority controls what survives the shared budget. Order keeps stable blocks
   // before dynamic exact recall so provider prompt caching remains effective.
   const blocks = [

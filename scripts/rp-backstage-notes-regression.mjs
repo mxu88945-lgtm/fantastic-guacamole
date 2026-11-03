@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 // v307: 幕后手记 — the actor's private rant tag is hidden from the stage and saved per RP conversation.
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-assert.ok(sw.includes("role-chat-cache-v311"), "sw cache version");
+assert.ok(sw.includes("role-chat-cache-v312"), "sw cache version");
 const a = html.indexOf("const RP_NOTE_TAG"), b = html.indexOf("function rpBackstageNoteRule");
 const { hide, TAG } = new Function(`${html.slice(a, b)}; return { hide: hideRpBackstageNotes, TAG: RP_NOTE_TAG };`)();
 assert.equal(hide("他抬眼。\n[幕后:她又对那个男配笑，我演得很憋屈。]").trim(), "他抬眼。");
@@ -50,6 +50,9 @@ console.log("RP backstage notes v310 reply regression passed");
   q = "你上次是不是因为陆屿吃醋了";
   const hit = api.main();
   assert.ok(hit.includes("陆屿那段") && hit.includes("《谢聿衡的故事》"), "recall old note by topic");
+  q = "谢聿衡那部剧你还记得吗";
+  const named = api.main();
+  assert.ok(named.includes("陆屿那段") && named.includes("憋屈"), "naming the script pulls its notes");
   assert.ok(api.own(rp).includes("你之前在这本戏的幕后写过"), "RP side sees own notes");
   assert.ok(api.snip("他抬眼。[记忆:x]").indexOf("记忆") < 0, "scene snippet strips tags");
 }
