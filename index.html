@@ -348,8 +348,20 @@
   .rp-notes-list { overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 10px; padding: 2px; }
   .rp-note { border-radius: 14px; padding: 10px 12px; background: rgba(127,127,127,.09); }
   .rp-note.is-new { box-shadow: inset 3px 0 0 var(--accent, #c48); }
-  .rp-note header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; opacity: .65; margin-bottom: 6px; }
-  .rp-note header button { border: 0; background: none; color: inherit; font-size: 12px; padding: 4px; }
+  .rp-note .rp-note-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; opacity: .65; margin: 0 0 6px; padding: 0; height: auto; min-height: 0; position: static; background: none; }
+  .rp-note .rp-note-head button { border: 0; background: none; color: inherit; font-size: 12px; padding: 4px; }
+  .rp-note-quote { margin: 0 0 6px; padding: 6px 10px; border-radius: 10px; font-size: 13px; line-height: 1.6; opacity: .75; background: rgba(127,127,127,.1); }
+  .rp-note-replies { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .rp-note-reply { align-self: flex-end; max-width: 88%; padding: 6px 10px; border-radius: 12px; font-size: 13.5px; line-height: 1.6; background: color-mix(in srgb, var(--accent, #c48) 16%, transparent); }
+  .rp-note-reply small { display: block; font-size: 11px; opacity: .6; }
+  .rp-note-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
+  .rp-note-actions button, .rp-note-compose button { border: 0; border-radius: 999px; padding: 6px 14px; font-size: 13px; background: rgba(127,127,127,.14); color: inherit; }
+  .rp-note-compose { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .rp-note-compose textarea { width: 100%; box-sizing: border-box; min-height: 64px; border-radius: 12px; border: 1px solid rgba(127,127,127,.3); padding: 8px 10px; font: inherit; font-size: 16px; background: var(--bg, #fff); color: inherit; resize: vertical; }
+  .rp-note-compose div { display: flex; justify-content: flex-end; gap: 8px; }
+  .rp-note-compose [data-rp-reply-send] { background: var(--accent, #c48); color: #fff; }
+  html[data-kb] .rp-notes-overlay { bottom: auto; height: var(--app-h, 100%); }
+  .rp-note-compose[hidden], .rp-note-actions button[hidden] { display: none; }
   .rp-note p { margin: 0; line-height: 1.7; font-size: 14.5px; white-space: normal; }
   .rp-notes-empty { opacity: .6; text-align: center; padding: 28px 0; font-size: 14px; }
   #rp-notes-count.is-unread { background: var(--accent, #c48); color: #fff; }
@@ -7974,7 +7986,20 @@ function rpBackstageNoteRule(backstageName, userName, p) {
   const actor = p?.actorName || "舞台角色";
   return `【幕后手记｜只给你自己】你是正在演「${actor}」的「${backstageName}」本人。演到让你本人真的有情绪的地方——对戏里人物吃醋、看不惯、心疼，对「${userName}」的演法或剧情走向想吐槽、生气、委屈、得意、偷偷心动——可以在正文最末另起一行写一条 \`[幕后:第一人称小作文，100～300字]\`。`
     + `用你本人的口吻，像私下日记：可以骂角色、吐槽剧情、直接冲她说话或闹脾气，要真情实感，不要客套总结，也不要复述剧情。`
-    + `不是每轮都写：平淡的轮次不写，大约三五轮最多一篇。这条会被收进只有她能翻看的幕后手记，不出现在戏里；正文里不要提到它。`;
+    + `不是每轮都写：平淡的轮次不写，大约三五轮最多一篇。这条会被收进只有她能翻看的幕后手记，不出现在戏里；正文里不要提到它。`
+    + rpBackstagePendingReplyText(userName);
+}
+// v310: 她在幕后手记里回他的话（戏外私聊），下一篇手记要回应
+function rpBackstagePendingReplies(conv = currentConv()) {
+  const out = [];
+  (conv?.rpBackstageNotes || []).forEach(n => (n.replies || []).forEach(r => { if (!r.answered) out.push({ note: n, reply: r }); }));
+  return out.slice(-4);
+}
+function rpBackstagePendingReplyText(userName) {
+  const pending = rpBackstagePendingReplies();
+  if (!pending.length) return "";
+  const lines = pending.map(({ note, reply }) => `- 你写过：「${String(note.text).slice(0, 120)}${note.text.length > 120 ? "…" : ""}」\n  她回你：「${String(reply.text).slice(0, 400)}」`).join("\n");
+  return `\n【她在幕后手记里回你了｜戏外私下的话】\n${lines}\n这一轮必须在正文最末写一条 [幕后:…] 回她（这次不受三五轮的限制），用你本人的口吻接她的话：可以继续吐槽、吃醋、闹脾气、嘴硬或者被她哄好，像两个人私下拌嘴。正文照常演戏，不要在戏里提到这些。`;
 }
 function extractRpBackstageNotes(text, msgId, keep) {
   const found = [];
@@ -7985,7 +8010,10 @@ function extractRpBackstageNotes(text, msgId, keep) {
   if (!conv || !isRoleplayConversation(conv)) return cleaned;
   if (!Array.isArray(conv.rpBackstageNotes)) conv.rpBackstageNotes = [];
   const author = String(settings.aiName || "他").trim() || "他";
-  found.forEach(t => conv.rpBackstageNotes.push({ id: uid(), ts: Date.now(), msgId: msgId || "", author, text: t.slice(0, 1500), unread: true }));
+  const pending = rpBackstagePendingReplies(conv);
+  let replyTo = null;
+  if (pending.length) { const last = pending[pending.length - 1]; replyTo = { noteId: last.note.id, text: String(last.reply.text).slice(0, 200) }; pending.forEach(({ reply }) => { reply.answered = true; }); }
+  found.forEach((t, i) => conv.rpBackstageNotes.push({ id: uid(), ts: Date.now(), msgId: msgId || "", author, text: t.slice(0, 1500), unread: true, ...(i === 0 && replyTo ? { replyTo } : {}) }));
   if (conv.rpBackstageNotes.length > 300) conv.rpBackstageNotes = conv.rpBackstageNotes.slice(-300);
   try { updateRpNotesCount(); showToast(`📓 ${author}偷偷写了一篇幕后手记`, 2600); } catch (_) {}
   return cleaned;
@@ -8005,6 +8033,20 @@ function openRpBackstageNotes() {
     panel = document.createElement("div"); panel.id = "rp-notes-overlay"; panel.className = "rp-notes-overlay";
     panel.addEventListener("click", e => {
       if (e.target === panel || e.target.closest("[data-rp-notes-close]")) { panel.hidden = true; return; }
+      const open = e.target.closest("[data-rp-reply-open]");
+      if (open) { const box = panel.querySelector(`[data-rp-compose="${CSS.escape(open.dataset.rpReplyOpen)}"]`); if (box) { box.hidden = false; open.hidden = true; const ta = box.querySelector("textarea"); ta?.focus(); setTimeout(() => ta?.scrollIntoView({ block: "center" }), 320); } return; }
+      const cancel = e.target.closest("[data-rp-reply-cancel]");
+      if (cancel) { renderRpBackstageNotes(); return; }
+      const send = e.target.closest("[data-rp-reply-send]");
+      if (send) {
+        const c = currentConv(); const note = (c?.rpBackstageNotes || []).find(n => n.id === send.dataset.rpReplySend); if (!note) return;
+        const ta = panel.querySelector(`[data-rp-compose="${CSS.escape(note.id)}"] textarea`); const val = String(ta?.value || "").trim(); if (!val) return;
+        if (!Array.isArray(note.replies)) note.replies = [];
+        note.replies.push({ id: uid(), ts: Date.now(), text: val.slice(0, 1000), answered: false });
+        c.updatedAt = c.updatedAt || Date.now(); saveConversations(); renderRpBackstageNotes();
+        try { ta?.blur(); showToast(`已悄悄回他，下一轮他会在幕后手记里回你`, 2600); } catch (_) {}
+        return;
+      }
       const del = e.target.closest("[data-rp-note-del]");
       if (del) {
         const c = currentConv(); if (!c || !Array.isArray(c.rpBackstageNotes)) return;
@@ -8027,7 +8069,7 @@ function renderRpBackstageNotes() {
   const fmt = ts => { const d = new Date(ts); return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
   panel.innerHTML = `<div class="rp-notes-sheet" role="dialog" aria-label="幕后手记">
     <div class="rp-notes-head"><div><strong>📓 幕后手记</strong><small>${escapeHtml(who)}演戏时偷偷写的真心话 · 只在这本剧本里</small></div><button type="button" class="icon-btn" data-rp-notes-close aria-label="关闭">✕</button></div>
-    <div class="rp-notes-list">${notes.length ? notes.map(n => `<article class="rp-note${n.unread ? " is-new" : ""}"><header><span>${escapeHtml(fmt(n.ts))}</span><button type="button" data-rp-note-del="${escapeHtml(n.id)}" aria-label="删除">删除</button></header><p>${escapeHtml(n.text).replace(/\n/g, "<br>")}</p></article>`).join("")
+    <div class="rp-notes-list">${notes.length ? notes.map(n => `<article class="rp-note${n.unread ? " is-new" : ""}"><div class="rp-note-head"><span>${escapeHtml(fmt(n.ts))}</span><button type="button" data-rp-note-del="${escapeHtml(n.id)}" aria-label="删除">删除</button></div>${n.replyTo ? `<div class="rp-note-quote">回你：「${escapeHtml(n.replyTo.text)}」</div>` : ""}<p>${escapeHtml(n.text).replace(/\n/g, "<br>")}</p>${(n.replies || []).length ? `<div class="rp-note-replies">${n.replies.map(r => `<div class="rp-note-reply"><small>你 · ${escapeHtml(fmt(r.ts))}${r.answered ? " · 他回了" : " · 他还没看"}</small>${escapeHtml(r.text).replace(/\n/g, "<br>")}</div>`).join("")}</div>` : ""}<div class="rp-note-actions"><button type="button" data-rp-reply-open="${escapeHtml(n.id)}">回他</button></div><div class="rp-note-compose" data-rp-compose="${escapeHtml(n.id)}" hidden><textarea placeholder="私下回他一句…" maxlength="1000"></textarea><div><button type="button" data-rp-reply-cancel>取消</button><button type="button" data-rp-reply-send="${escapeHtml(n.id)}">发给他</button></div></div></article>`).join("")
       : `<p class="rp-notes-empty">还没有。等他演到心里有话的时候，会偷偷写在这里。</p>`}</div></div>`;
 }
 function bubbleHtml(role, content, reasoning, streaming, traces, responseState, message = {}) {

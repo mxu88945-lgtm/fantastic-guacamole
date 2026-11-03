@@ -25,7 +25,7 @@ ok(html.includes('必须先搜索，不能直接说记录不存在'),
   'the model is not told to search before denying a concrete report exists')
 ok(!html.includes('indexedDB.deleteDatabase'),
   'update path must not delete the canonical conversation database')
-ok(sw.includes('const CACHE = "role-chat-cache-v309";'),
+ok(sw.includes('const CACHE = "role-chat-cache-v310";'),
   'service worker cache was not bumped for history recall fixes')
 
 console.log('history recall regression: 11 checks passed')

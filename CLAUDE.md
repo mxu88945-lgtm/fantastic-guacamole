@@ -711,3 +711,8 @@
 - 回复后 extractRpBackstageNotes 剥离并存进 conv.rpBackstageNotes（每剧本独立，最多 300 条，unread 标记，toast 提示）；独立群演/暂停后台模式只剥离不存。bubbleHtml 先 hideRpBackstageNotes（含流式未闭合的标记）。
 - 入口：剧场顶栏「⋯」菜单 → 幕后手记（带未读数），底部弹层可删除单条。回归 scripts/rp-backstage-notes-regression.mjs。未真机验证。
 - v307：共演设置面板（rp-group.js 链接区第一行）加「📓 幕后手记」入口（bridge.openBackstageNotes / backstageNotesCount），她找的是这个面板而不是顶栏⋯菜单。手记只由「由本体出演」的主角（非 independent）写；其他独立成员不写。
+
+## 2026-11-03 v310 幕后手记可以回他（Hark）
+- 每篇手记下加「回他」：她的话存在 note.replies（answered:false）。rpBackstageNoteRule 末尾拼 rpBackstagePendingReplyText：把未回的（最多 4 条）塞进 prompt，要求这一轮必须写一条 [幕后:…] 回她。extractRpBackstageNotes 存新手记时把这些标记为已回，新手记带 replyTo，显示为「回你：「…」」。
+- 修卡片顶上的大空白：手记头原本用 <header>，吃到了全局 header 样式，现在改成 div.rp-note-head。
+- 键盘：html[data-kb] .rp-notes-overlay 用 --app-h 高度，聚焦后 scrollIntoView。
