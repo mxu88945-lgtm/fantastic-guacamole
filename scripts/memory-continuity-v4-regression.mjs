@@ -61,7 +61,7 @@ ok(rpMemoryContext.checkNearDuplicate('顾祁砚把钥匙交给惟惟。', '顾�
 ok(!rpMemoryContext.checkNearDuplicate('顾祁砚在雨夜修好了播放器。', '周惟惟在午后整理了世界书。'),
   'unrelated roleplay memories were incorrectly merged')
 
-const recallStart = html.indexOf('function currentMemoryRecallQuery(')
+const recallStart = html.indexOf('const mainChatRecallIndexByConversation = new WeakMap();')
 const recallEnd = html.indexOf('function memoryRecallTurn(', recallStart)
 ok(recallStart >= 0 && recallEnd > recallStart, 'recall helper section not found')
 const context = {
@@ -163,6 +163,6 @@ ok(!quotaContext.checkQuota({ message: 'relay unavailable' }),
 ok(quotaContext.checkBalance({ message: 'memory HTTP 402 — {"error":{"message":"Insufficient balance"}}' }),
   'balance error detector misses the provider 402 wording')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v307";'), 'service worker cache was not bumped for the maintenance cleanup')
+ok(sw.includes('const CACHE = "role-chat-cache-v308";'), 'service worker cache was not bumped for the maintenance cleanup')
 
 console.log('memory continuity v4 regression: 36 checks passed')

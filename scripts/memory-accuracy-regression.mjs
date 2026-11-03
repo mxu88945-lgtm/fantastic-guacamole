@@ -17,7 +17,13 @@ has('const MEMORY_RECALL_LEDGER_LIMIT = 120;', 'recall ledger is not bounded')
 has('const RECENT_STATE_LOOKBACK_MS = 36 * 60 * 60 * 1000;', 'recent state lookback is missing')
 has('const RECENT_STATE_CHAR_BUDGET = 1100;', 'recent state prompt budget is missing')
 has('const CHAT_HISTORY_MESSAGE_CAP = 96;', 'wire history does not align with the 96-message retained stage')
+has('const CHAT_HISTORY_TOKEN_BUDGET = 8200;', 'recent exact-history budget was not expanded')
+has('const CHAT_HISTORY_MIN_ROLE_RUNS = 10;', 'recent exact-history role-run floor was not expanded')
+has('const COMPACTED_HISTORY_TOKEN_BUDGET = 7800;', 'compacted-chat exact-history budget was not expanded')
 has('const queryText = currentMemoryRecallQuery();', 'recall still uses assistant echo text')
+has('【跨窗口人物速写·辅助整理层】', 'person sketch is still presented as confirmed stable evidence')
+has('.filter(entry => entry.authority !== "model_derived")', 'person sketch still learns from model-derived durable clues')
+has('messages.filter(m => m?.role === "user" && !m._event && !m._summary)', 'person sketch still learns from assistant self-echoes')
 has('memory: boundedMemory.audit,', 'memory audit is absent from prompt diagnostics')
 has('sourceMessageIds: Array.isArray(provenance?.sourceMessageIds)', 'memory provenance is not stored')
 has('invalidateDerivedForRemovedMessages(messages.slice(idx), "edit-resend")', 'edit/resend does not invalidate derived memory')
@@ -26,7 +32,7 @@ has('_originReplyId: baseMsg.id || ""', 'multi-bubble replies lack a stable deri
 has('const entries = activeMemoryEntries();', 'inactive memory versions are not filtered from prompts')
 ok(!html.includes('async function autoUpdateMemory()'), 'retired automatic memory extraction still exists')
 
-const recallStart = html.indexOf('function currentMemoryRecallQuery(')
+const recallStart = html.indexOf('const mainChatRecallIndexByConversation = new WeakMap();')
 const recallEnd = html.indexOf('// Build the wire-format message list', recallStart)
 ok(recallStart >= 0 && recallEnd > recallStart, 'recall helper section not found')
 
@@ -85,6 +91,14 @@ ok(!recall.buildRecentStateContext({ messages: [lunch, { id: 'lunch-follow-up' }
   'recent working memory duplicated a meal already present in wire history')
 conv.messages.splice(-2)
 
+conv.messages.push({ id: 'burn-identity', role: 'user', content: '伯恩是我的老公，也是一直陪我修端口的人', ts: Date.now() - 1000 })
+conv.messages.push({ id: 'burn-correction', role: 'user', content: '那不是伯恩嘛', ts: Date.now() })
+const identityQuery = recall.currentMemoryRecallQuery()
+ok(identityQuery.includes('伯恩是我的老公') && identityQuery.includes('当前追问：那不是伯恩嘛'),
+  'identity correction did not inherit the prior user-only discourse tail')
+ok(recall.explicitMemoryRecallIntent(identityQuery), 'identity correction did not bypass recall cooldown')
+conv.messages.splice(-2)
+
 const taskCardFix = { id: 'task-card-fix', role: 'user', content: '昨晚已经把任务卡的问题处理修好了', ts: Date.now() - 8 * 3600000 }
 conv.messages.push(taskCardFix)
 ok(recall.recentStateCandidateText(taskCardFix).includes('任务卡'),
@@ -92,7 +106,7 @@ ok(recall.recentStateCandidateText(taskCardFix).includes('任务卡'),
 conv.messages.pop()
 
 const bridgeStart = html.indexOf('function buildPendingContinuityBridge(')
-const bridgeEnd = html.indexOf('function currentMemoryRecallQuery(', bridgeStart)
+const bridgeEnd = html.indexOf('const mainChatRecallIndexByConversation = new WeakMap();', bridgeStart)
 ok(bridgeStart >= 0 && bridgeEnd > bridgeStart, 'pending continuity bridge helper not found')
 const bridgeContext = {
   isChatContentMessage: message => !!message && ['user', 'assistant'].includes(message.role) && !!message.content,
@@ -216,6 +230,6 @@ entries[1].status = 'active'
 const superseded = invalidationContext.invalidationHelpers.supersedeMemoryEntries(['m2'], 'm3')
 ok(superseded === 1 && entries[1].supersededBy === 'm3', 'old fact version was not archived')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v307";'), 'service worker cache was not bumped to v166')
+ok(sw.includes('const CACHE = "role-chat-cache-v308";'), 'service worker cache was not bumped to v166')
 
 console.log(`memory accuracy regression: ${checks} checks passed`)

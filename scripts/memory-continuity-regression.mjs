@@ -260,7 +260,7 @@ if (sseResult !== '连续性档案' || requestBodies[0].stream !== false) {
 }
 
 const bridgeStart = html.indexOf('function buildPendingContinuityBridge(')
-const bridgeEnd = html.indexOf('function currentMemoryRecallQuery(', bridgeStart)
+const bridgeEnd = html.indexOf('const mainChatRecallIndexByConversation = new WeakMap();', bridgeStart)
 if (bridgeStart < 0 || bridgeEnd < 0) throw new Error('continuity bridge helper section not found')
 const bridgeContext = {
   PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET: 900,
@@ -375,7 +375,7 @@ if (failedCompaction || savedAfterFailure || failureConversation.messages.length
   throw new Error('failed compaction mutated or saved preserved raw messages')
 }
 
-if (!sw.includes('const CACHE = "role-chat-cache-v307";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v308";')) {
   throw new Error('service worker cache was not bumped for lazy summary upgrade')
 }
 

@@ -111,7 +111,7 @@ context.roleplayRecallTerms = value => String(value || '').match(/[\u4e00-\u9fff
 context.currentMemoryRecallQuery = () => '今晚吃什么';
 vm.runInContext(html.slice(html.indexOf('function buildSharedRoleplayExperienceText()'), html.indexOf('function buildConversationProjectText(')), context);
 const indexOnly = context.buildSharedRoleplayExperienceText();
-ok(indexOnly.includes('共同演出索引') && indexOnly.includes('测试剧本') && !indexOnly.includes('戏内已经离婚') && indexOnly.length < 900, 'unrelated owner turns must receive only a compact RP index');
+ok(indexOnly === '', 'unrelated owner turns must not receive theater names or archives');
 context.currentMemoryRecallQuery = () => '周竞尧和顾里的剧情';
 const shared = context.buildSharedRoleplayExperienceText();
 ok(shared.includes('戏内已经离婚') && shared.includes('顾里：归还信物') && shared.includes('不代表本体真实经历') && shared.length <= 2600, 'topic-matched private prompts must include a bounded RP archive with fiction boundaries');

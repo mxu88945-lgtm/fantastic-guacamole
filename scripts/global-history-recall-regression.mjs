@@ -14,8 +14,12 @@ const otherRole = { id: 'other-raw', role: 'assistant', content: '米米今天�
 const current = { id: 'current', roleId: 'gu', title: '现在窗口', messages: [{ id: 'query', role: 'user', content: '茉莉花茶', ts: now }] }
 const old = { id: 'old', roleId: 'gu', title: '去年窗口', messages: [archived, { id: 'summary', role: 'assistant', content: '这段摘要不应该被当成旧原文证据。', _summary: true }] }
 const other = { id: 'other', roleId: 'shen', title: '其他角色窗口', messages: [otherRole, { id: 'event', role: 'assistant', content: '系统事件米米', _event: true }] }
+const identityUser = { id: 'burn-user', role: 'user', content: '伯恩是惟惟的老公，也是陪她修端口的人。', ts: now - 3000 }
+const identityEcho = { id: 'burn-assistant', role: 'assistant', content: '伯恩只是普通同事。', ts: now - 1000 }
+const identityWindow = { id: 'identity', roleId: 'gu', title: '身份原话', messages: [identityUser, identityEcho] }
+const rpWindow = { id: 'rp', roleId: 'gu', space: 'roleplay', title: '舞台', messages: [{ id: 'rp-burn', role: 'assistant', content: '伯恩是戏内陌生人。', ts: now }] }
 const context = {
-  conversations: [current, old, other], messages: current.messages,
+  conversations: [current, old, other, identityWindow, rpWindow], messages: current.messages,
   settings: { activeRoleId: 'gu', aiName: '顾祁砚', crossChat: true, historyRecallScope: 'all', historyRecallAliases: '米米|小米|小鹦鹉', roles: [{ id: 'gu', aiName: '顾祁砚' }, { id: 'shen', aiName: '沈衍' }] },
   currentConv: () => current, userRef: () => '惟惟',
   messageText: m => m?.content || '', messageImages: () => [],
@@ -31,7 +35,7 @@ vm.runInContext(`const MEMORY_RECALL_COOLDOWN_TURNS = 4;
   const RECENT_STATE_MAX_ITEMS = 8;
   const RECENT_STATE_CHAR_BUDGET = 1100;
   const RECALL_NEIGHBOR_CHAR_BUDGET = 520;
-  ${slice('function currentMemoryRecallQuery(', '// Build the wire-format message list')}`, context)
+  ${slice('const mainChatRecallIndexByConversation = new WeakMap();', '// Build the wire-format message list')}`, context)
 vm.runInContext(slice('function retrieveCrossChat(', 'function memoryContextInstructionLine('), context)
 vm.runInContext(slice('function searchHistoryRecall(', '// Web search via'), context)
 context.normalizedPromptFact = s => String(s || '').trim().toLowerCase()
@@ -65,8 +69,18 @@ result = context.retrieveCrossChat()
 context.commitRecallKeys(result.keys, result.turn)
 current.messages.push({ id: 'follow', role: 'user', content: '茉莉花茶很好喝', ts: now + 1 })
 assert.equal(context.retrieveCrossChat().selectedCount, 0, 'ordinary repeat matches should honor cooldown')
+current.messages.push({ id: 'continuation', role: 'user', content: '那后来呢', ts: now + 1.5 })
+assert.equal(context.retrieveCrossChat().selectedCount, 1, 'referential follow-up must keep exact evidence across the cooldown window')
 current.messages.push({ id: 'explicit', role: 'user', content: '你还记得茉莉花茶吗', ts: now + 2 })
 assert.equal(context.retrieveCrossChat().selectedCount, 1, 'an explicit recall request must bypass cooldown')
+
+current.messages.push({ id: 'burn-prior', role: 'user', content: '我说的是一直陪我修端口的那个人', ts: now + 2.1 })
+current.messages.push({ id: 'burn-query', role: 'user', content: '那不是伯恩嘛', ts: now + 2.2 })
+result = context.retrieveCrossChat()
+assert.equal(result.indexUsed, true, 'main-chat cross-window recall did not use the raw-text index')
+assert.ok(result.indexedConversations >= 2, 'raw-text index did not cover the role\'s main-chat windows')
+assert.equal(result.hits[0].m.id, 'burn-user', 'user identity evidence did not outrank a newer assistant mistake')
+assert.ok(!result.hits.some(hit => hit.c.id === 'rp'), 'automatic main-chat recall indexed an RP transcript')
 
 const long = { id: 'long', role: 'assistant', content: '前段。'.repeat(1000) + '米米完整原话的关键细节。\n' + '🙂末尾段。'.repeat(1300), ts: now + 3, _compactedBy: 's2' }
 other.messages.push(long)
