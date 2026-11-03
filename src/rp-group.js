@@ -294,7 +294,7 @@ if (bridge) {
       ${appearanceSection()}<section id="rp-scene-preset-section"><div class="rp-group-section-head"><h3>剧情系统预设</h3><label class="rp-cast-check"><input id="rp-scene-system-enabled" type="checkbox" ${draft.sceneSystemPromptEnabled !== false ? "checked" : ""}>启用</label></div><p class="rp-group-note">仅本剧本、每轮隐藏发送，并放在角色卡、世界观和记忆之后执行。不会改动顾祁砚本体或其他剧本。</p><label>系统预设<textarea id="rp-scene-system-prompt" rows="12" maxlength="30000" placeholder="填写本剧本每轮都要遵守的写作要求……">${escape(draft.sceneSystemPrompt || adultScenePreset.content || "")}</textarea></label><div class="rp-cast-add"><button type="button" data-fill-scene-preset="adult-fiction">恢复“成人剧情 · 直接连贯”</button><button type="button" data-clear-scene-preset>清空</button></div><p class="rp-group-note">成人预设限定为成年人、自愿情节；会要求连贯描写，同时不替你的角色新增台词、动作、心理或同意。</p></section>
       <section id="rp-temporary-section"><div class="rp-group-section-head"><h3>临时剧情</h3><span class="rp-group-note">正文不显示</span></div><p class="rp-group-note">仅本对话生效。群聊只有本轮被你 @ 且符合接收范围的角色能看到；单人剧情直接发送或续演即可。</p><label>生效时长<select id="rp-temporary-mode"><option value="once" ${draft.temporaryPlotMode === "once" ? "selected" : ""}>仅下一次（默认）</option><option value="counted" ${draft.temporaryPlotMode === "counted" ? "selected" : ""}>持续指定次数</option><option value="persistent" ${draft.temporaryPlotMode === "persistent" ? "selected" : ""}>持续到手动结束</option></select></label><label id="rp-temporary-uses-wrap">剩余成功次数<input id="rp-temporary-uses" type="number" min="1" max="100" value="${Number(draft.temporaryPlotRemainingUses) || 3}"></label><fieldset id="rp-plot-recipients" class="rp-plot-recipients"></fieldset><label>幕后安排<textarea id="rp-temporary-plot" rows="12" maxlength="120000" placeholder="例如：让他接到一通紧急电话；或保持缓慢对峙，不急着和解……">${escape(draft.temporaryPlot || "")}</textarea></label><div class="rp-cast-add"><button type="button" data-clear-plot>清空 / 结束</button></div><p class="rp-group-note">成功回复后按次数消耗；失败或停止时保留。持续方向会沿最新进展推进，不要求重复已经发生的事件。</p></section>
       <section id="rp-scene-memory" class="rp-memory-link-card"><button type="button" data-open-memory><span><strong>长期记忆</strong><small id="rp-scene-memory-count"></small></span><b>›</b></button><p class="rp-group-note">自动总结、关键词召回、角色私人核心记忆和注入位置都在这里设置。</p></section>
-      <section class="rp-group-links"><button type="button" data-detail>情景与角色资料 ›</button><button type="button" data-export-scene>导出当前对话 TXT ↓</button><button type="button" data-import-scene>导入对话 TXT · 新建副本 ↑</button><input type="file" id="rp-scene-import-file" accept=".txt,.json,text/plain,application/json" hidden><button type="button" data-home>回到顾祁砚本体主页 ›</button></section></div>
+      <section class="rp-group-links"><button type="button" data-backstage-notes><span>📓 幕后手记<small data-backstage-count style="opacity:.6;font-weight:400"></small></span></button><button type="button" data-detail>情景与角色资料 ›</button><button type="button" data-export-scene>导出当前对话 TXT ↓</button><button type="button" data-import-scene>导入对话 TXT · 新建副本 ↑</button><input type="file" id="rp-scene-import-file" accept=".txt,.json,text/plain,application/json" hidden><button type="button" data-home>回到顾祁砚本体主页 ›</button></section></div>
       <footer><small id="rp-group-save-state">成员设置只属于当前窗口</small><button type="button" data-save>保存并返回对戏</button></footer></aside>`;
     panel.hidden = false;
     const apiButton = document.createElement("button");
@@ -303,6 +303,8 @@ if (bridge) {
     apiButton.textContent = "添加 / 管理 API 接口 ›";
     panel.querySelector(".rp-group-links").prepend(apiButton);
     panel.querySelector("[data-home]").textContent = `回到${bridge.role().roleName}本体主页 ›`;
+    { const n = bridge.backstageNotesCount?.() || { total: 0, unread: 0 }; const el = panel.querySelector("[data-backstage-count]");
+      if (el) el.textContent = n.unread ? `（${n.unread} 篇新的）` : n.total ? `（${n.total}）` : ""; }
     panel.querySelectorAll(".rp-group-links button").forEach(button => {
       button.textContent = button.textContent.replace(/\s*[›↓↑]\s*$/u, "");
     });
@@ -693,6 +695,7 @@ if (bridge) {
     else if (button.hasAttribute("data-detail")) { close(); if (panel.hidden) window.JYCRoleplay?.editCurrent(); }
     else if (button.hasAttribute("data-export-scene")) { if (!dirty || save()) bridge.exportSceneTxt(sceneId); }
     else if (button.hasAttribute("data-import-scene")) panel.querySelector("#rp-scene-import-file").click();
+    else if (button.hasAttribute("data-backstage-notes")) { bridge.openBackstageNotes?.(); const el = panel.querySelector("[data-backstage-count]"); if (el) el.textContent = ""; }
     else if (button.hasAttribute("data-home")) { close(); if (panel.hidden) bridge.exitToHome(); }
   });
   panel.addEventListener("keydown", event => {

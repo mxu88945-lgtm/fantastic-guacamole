@@ -18576,6 +18576,8 @@ function roleplaySceneFromGreeting(source, index, forceNew = false) {
   return roleplayPublicProject(conv);
 }
 window.JYCRoleplayBridge = {
+  openBackstageNotes: () => openRpBackstageNotes(),
+  backstageNotesCount: () => { const n = currentConv()?.rpBackstageNotes || []; return { total: n.length, unread: n.filter(x => x.unread).length }; },
   renderOpeningPreview: value => roleplayRichFrameHtml(value, true),
   openApiSettings(returnTo) { openSettings(true); showSettingsTab("services"); window.__settingsReturnTo = typeof returnTo === "function" ? returnTo : null; },
   memoryRuntimeInfo() {
