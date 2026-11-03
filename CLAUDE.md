@@ -698,3 +698,8 @@
 - 启动：initCloud 延后 4s，onAppActive 8s，40s 后 shrinkOldChatImages 一张张把无 previewDataUrl 且 >700KB 的旧图压到 2048（切后台暂停）。
 - 板块 JS 未改成按需加载：各模块启动只挂监听、体量小，且 gifts/rp-theater/rp-group 被聊天渲染直接用到，收益小风险大。src/rp-sidechat.js 未被引用（死代码）。
 - 新回归 scripts/conversation-split-regression.mjs。未真机验证。
+
+## 2026-11-03 v306 剧场「幕后手记」（Hark）
+- 单人剧场 prompt（buildRoleplayProjectText）加 rpBackstageNoteRule：他本人演戏有情绪时在末尾写 `[幕后:100～300字]`，三五轮最多一篇，可吐槽角色/吃醋/冲她生气。
+- 回复后 extractRpBackstageNotes 剥离并存进 conv.rpBackstageNotes（每剧本独立，最多 300 条，unread 标记，toast 提示）；独立群演/暂停后台模式只剥离不存。bubbleHtml 先 hideRpBackstageNotes（含流式未闭合的标记）。
+- 入口：剧场顶栏「⋯」菜单 → 幕后手记（带未读数），底部弹层可删除单条。回归 scripts/rp-backstage-notes-regression.mjs。未真机验证。
