@@ -4,6 +4,8 @@ const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../src/dashboard.css", import.meta.url), "utf8");
 const js = readFileSync(new URL("../src/dashboard.js", import.meta.url), "utf8");
 const album = readFileSync(new URL("../src/album.js", import.meta.url), "utf8");
+const sidechat = readFileSync(new URL("../src/rp-sidechat.js", import.meta.url), "utf8");
+const sidechatCss = readFileSync(new URL("../src/rp-sidechat.css", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 
 let checks = 0;
@@ -35,6 +37,12 @@ ok(html.includes('new CustomEvent("jyc:dashboard-open")'), "home navigation even
 ok(html.includes('switchConversation(c.id, true)'), "conversation list does not enter chat mode");
 ok(css.includes("body.dashboard-open .main > .composer-wrap"), "composer is not hidden on the dashboard");
 ok(css.includes("body.dashboard-open .main > header > #toggle-sidebar"), "sidebar button is still visible on the dashboard");
+ok(css.includes("body.dashboard-open .main > header > #rp-chat-identity") && css.includes("body.dashboard-open .main > header > #rp-chat-mode"), "RP controls can leak into the dashboard header");
+ok(html.includes('isRoleplayConversation(conv) && !document.body.classList.contains("dashboard-open")'), "dashboard does not suspend the restored RP conversation shell");
+ok(html.includes("syncConversationSurface: updateConversationSpaceUI"), "dashboard bridge cannot resync the shared conversation shell");
+ok(js.includes("bridge.syncConversationSurface?.();"), "dashboard visibility changes do not resync the shared conversation shell");
+ok(sidechat.includes('!document.body.classList.contains("dashboard-open")') && sidechat.includes('"jyc:dashboard-open"'), "RP side chat can survive on the dashboard");
+ok(sidechatCss.includes("body.dashboard-open > .rp-sidechat-tab") && sidechatCss.includes("body.dashboard-open > .rp-sidechat-panel"), "dashboard lacks a defensive RP side-chat boundary");
 ok(html.includes('id="toggle-sidebar"') && html.includes('$("toggle-sidebar").onclick = toggleSidebar'), "main chat lost its sidebar button");
 ok(css.includes("grid-template-columns: 1.12fr .88fr 1fr"), "desktop dashboard grid is missing");
 ok(css.includes("@media (max-width: 600px)"), "mobile dashboard layout is missing");
@@ -43,7 +51,7 @@ ok(js.includes('window.JYCGameRoom?.open?.()'), "dashboard does not open the gam
 ok(js.includes('window.JYCAlbum?.summary?.(data.roleId)'), "dashboard album summary is not role-isolated");
 ok(album.includes("function summary(targetRoleId)"), "album summary API is missing");
 ok(sw.includes("const cacheRequest = new Request(url.origin + url.pathname"), "cache-busting launch URLs still create duplicate iOS cache entries");
-ok(sw.includes('const CACHE = "role-chat-cache-v302";'), "service worker cache was not bumped for the RP theater release");
+ok(sw.includes('const CACHE = "role-chat-cache-v303";'), "service worker cache was not bumped for the RP theater release");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "dashboard change introduced duplicate DOM ids");

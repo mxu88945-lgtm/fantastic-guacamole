@@ -369,12 +369,12 @@ pullBtn.textContent = "↻";
 });
 
 function refreshVisibility() {
-const inScene =!!currentSceneId();
+const inScene =!!currentSceneId() && !document.body.classList.contains("dashboard-open");
 tab.hidden =!inScene;
 if (!inScene) close();
 else if (!panel.hidden) { history = loadHistory(); render();}
 }
-for (const ev of ["jyc:chat-opened", "jyc:role-changed", "jyc:roleplay-updated"]) {
+for (const ev of ["jyc:chat-opened", "jyc:dashboard-open", "jyc:role-changed", "jyc:roleplay-updated"]) {
 window.addEventListener(ev, refreshVisibility);
 }
 // iOS 键盘避让

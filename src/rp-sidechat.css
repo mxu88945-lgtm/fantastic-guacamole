@@ -48,6 +48,8 @@
   animation: rp-sidechat-in 0.22s ease-out;
 }
 .rp-sidechat-panel[hidden] { display: none; }
+body.dashboard-open > .rp-sidechat-tab,
+body.dashboard-open > .rp-sidechat-panel { display: none !important; }
 @keyframes rp-sidechat-in {
   from { transform: translateX(40px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }

@@ -106,6 +106,7 @@ if (!bridge) {
     open = true;
     panel.hidden = false;
     document.body.classList.add("dashboard-open");
+    bridge.syncConversationSurface?.();
     panel.querySelector(".dashboard-scroll").scrollTop = 0;
     render();
     if (bridge.isMobile()) bridge.closeSidebar();
@@ -115,6 +116,7 @@ if (!bridge) {
     open = false;
     panel.hidden = true;
     document.body.classList.remove("dashboard-open");
+    bridge.syncConversationSurface?.();
   }
 
   async function runAction(action) {
