@@ -7987,7 +7987,59 @@ function rpBackstageNoteRule(backstageName, userName, p) {
   return `【幕后手记｜只给你自己】你是正在演「${actor}」的「${backstageName}」本人。演到让你本人真的有情绪的地方——对戏里人物吃醋、看不惯、心疼，对「${userName}」的演法或剧情走向想吐槽、生气、委屈、得意、偷偷心动——可以在正文最末另起一行写一条 \`[幕后:第一人称小作文，100～300字]\`。`
     + `用你本人的口吻，像私下日记：可以骂角色、吐槽剧情、直接冲她说话或闹脾气，要真情实感，不要客套总结，也不要复述剧情。`
     + `不是每轮都写：平淡的轮次不写，大约三五轮最多一篇。这条会被收进只有她能翻看的幕后手记，不出现在戏里；正文里不要提到它。`
-    + rpBackstagePendingReplyText(userName);
+    + rpBackstagePendingReplyText(userName)
+    + rpBackstageOwnHistoryText();
+}
+// v311: 手记连同当时演到哪里，一起成为他本人的记忆（戏里连贯 + 主聊天按需召回）
+function rpBackstageSceneSnippet(text) {
+  const t = String(text || "").replace(/\[(?:记忆|幕后)[^\]]*\]/g, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  return t.length > 110 ? "…" + t.slice(-110) : t;
+}
+function rpBackstageNoteLine(n, title) {
+  const d = new Date(n.ts || Date.now());
+  const when = `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const replies = (n.replies || []).slice(-2).map(r => `她回你：「${String(r.text).slice(0, 120)}」`).join("；");
+  return `- [${when}]${title ? `《${title}》` : ""}${n.scene ? `（当时演到：${n.scene}）` : ""}你写：「${String(n.text).slice(0, 220)}${n.text.length > 220 ? "…" : ""}」${replies ? " " + replies : ""}`;
+}
+function rpBackstageRecall(notes, queryText, excludeIds, limit = 2) {
+  const toks = typeof memTokens === "function" ? memTokens(String(queryText || "")) : new Set();
+  if (!toks.size) return [];
+  const ex = new Set(excludeIds || []);
+  return notes.filter(x => !ex.has(x.note.id))
+    .map(x => ({ ...x, score: memScore(toks, `${x.note.text}\n${x.note.scene || ""}\n${(x.note.replies || []).map(r => r.text).join("\n")}`) + (x.title && String(queryText).includes(x.title) ? 3 : 0) }))
+    .filter(x => x.score >= 3)
+    .sort((a, b) => b.score - a.score || (b.note.ts || 0) - (a.note.ts || 0))
+    .slice(0, limit);
+}
+function rpBackstageOwnHistoryText(conv = currentConv()) {
+  const notes = (conv?.rpBackstageNotes || []).map(note => ({ note, title: "" }));
+  if (!notes.length) return "";
+  const recent = notes.slice(-2);
+  const lastUser = (conv.messages || []).filter(m => m.role === "user" && !m._event).slice(-1)[0];
+  const recalled = rpBackstageRecall(notes, lastUser ? messageText(lastUser) : "", recent.map(x => x.note.id));
+  const rows = [...recalled, ...recent].map(x => rpBackstageNoteLine(x.note, ""));
+  return `\n【你之前在这本戏的幕后写过｜你本人的真心话，不是戏里发生的事】\n${rows.join("\n")}\n记得自己吐槽过什么，情绪可以延续、可以翻旧账，但别重复写一样的话。`;
+}
+function buildBackstageNotesMemoryText() {
+  if (isRoleplayConversation()) return "";
+  const all = [];
+  roleConvs().filter(isRoleplayConversation).forEach(conv => {
+    const title = conv.title || conv.rpProject?.title || "未命名剧本";
+    (conv.rpBackstageNotes || []).forEach(note => all.push({ note, title }));
+  });
+  if (!all.length) return "";
+  all.sort((a, b) => (a.note.ts || 0) - (b.note.ts || 0));
+  const query = typeof currentMemoryRecallQuery === "function" ? currentMemoryRecallQuery() : "";
+  const intent = /(?:幕后|手记|吐槽|吃醋|演戏|剧场|那场戏|这场戏|戏里|出戏)/.test(query);
+  // 只带最近 24 小时内最新的 1 篇；旧的只在话题命中时翻出来，不全量推送
+  const recent = all.filter(x => Date.now() - (x.note.ts || 0) < 864e5).slice(-1);
+  const recalled = rpBackstageRecall(all, query, recent.map(x => x.note.id), intent ? 3 : 2);
+  if (intent && !recalled.length) recalled.push(...all.filter(x => !recent.some(r => r.note.id === x.note.id)).slice(-2));
+  const rows = [...recalled, ...recent];
+  if (!rows.length) return "";
+  return ["【你的幕后手记·你本人演戏时私下写的真心话】",
+    rows.map(x => rpBackstageNoteLine(x.note, x.title)).join("\n"),
+    "这些是你本人（不是舞台角色）的真实感受和与她的私下互动，属于你自己的记忆：她提起时可以自然接上、嘴硬或翻旧账。括号里的剧情只属于那本剧本，不是你们的真实经历。不要主动逐条复述。"].join("\n");
 }
 // v310: 她在幕后手记里回他的话（戏外私聊），下一篇手记要回应
 function rpBackstagePendingReplies(conv = currentConv()) {
@@ -8013,7 +8065,7 @@ function extractRpBackstageNotes(text, msgId, keep) {
   const pending = rpBackstagePendingReplies(conv);
   let replyTo = null;
   if (pending.length) { const last = pending[pending.length - 1]; replyTo = { noteId: last.note.id, text: String(last.reply.text).slice(0, 200) }; pending.forEach(({ reply }) => { reply.answered = true; }); }
-  found.forEach((t, i) => conv.rpBackstageNotes.push({ id: uid(), ts: Date.now(), msgId: msgId || "", author, text: t.slice(0, 1500), unread: true, ...(i === 0 && replyTo ? { replyTo } : {}) }));
+  found.forEach((t, i) => conv.rpBackstageNotes.push({ id: uid(), ts: Date.now(), msgId: msgId || "", author, text: t.slice(0, 1500), scene: rpBackstageSceneSnippet(cleaned), unread: true, ...(i === 0 && replyTo ? { replyTo } : {}) }));
   if (conv.rpBackstageNotes.length > 300) conv.rpBackstageNotes = conv.rpBackstageNotes.slice(-300);
   try { updateRpNotesCount(); showToast(`📓 ${author}偷偷写了一篇幕后手记`, 2600); } catch (_) {}
   return cleaned;
@@ -12163,6 +12215,8 @@ function buildBoundedMemoryContext(historyWindow) {
     ? "【Notion 云端角色档案·相关长期信息】\n" + notionText : "";
   const roleplayExperience = typeof buildSharedRoleplayExperienceText === "function" ? buildSharedRoleplayExperienceText() : "";
   const roleplayExperienceMatched = roleplayExperience.includes("【本轮话题命中的剧场档案】");
+  const backstageNotesText = typeof buildBackstageNotesMemoryText === "function" ? buildBackstageNotesMemoryText() : "";
+  const backstageNotesMatched = backstageNotesText.split("\n- [").length > 2 || /(?:幕后|手记|吐槽|吃醋|演戏|剧场|戏里)/.test(typeof currentMemoryRecallQuery === "function" ? currentMemoryRecallQuery() : "");
   // Priority controls what survives the shared budget. Order keeps stable blocks
   // before dynamic exact recall so provider prompt caching remains effective.
   const blocks = [
@@ -12184,6 +12238,8 @@ function buildBoundedMemoryContext(historyWindow) {
     { key: "profile", label: "人物速写", priority: 8, order: 20, cap: 600, text: profile },
     { key: "roleplayExperience", label: roleplayExperienceMatched ? "共同演出档案 · 本轮命中" : "共同演出索引",
       priority: roleplayExperienceMatched ? 4 : 9, order: 55, cap: roleplayExperienceMatched ? 2600 : 700, text: roleplayExperience },
+    { key: "backstageNotes", label: backstageNotesMatched ? "幕后手记 · 本轮命中" : "幕后手记 · 最近",
+      priority: backstageNotesMatched ? 4 : 10, order: 56, cap: backstageNotesMatched ? 1100 : 420, text: backstageNotesText },
     { key: "derived", label: "角色提炼记忆线索", priority: 10, order: 35, cap: 700, text: derived,
       memoryReasons: typeof lastMemoryLaneReceipts !== "undefined" ? lastMemoryLaneReceipts.derived : [] },
     { key: "diary", label: "私人日记", priority: 11, order: 40, cap: 850, text: diary },

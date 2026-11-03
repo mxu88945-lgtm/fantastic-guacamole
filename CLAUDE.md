@@ -716,3 +716,8 @@
 - 每篇手记下加「回他」：她的话存在 note.replies（answered:false）。rpBackstageNoteRule 末尾拼 rpBackstagePendingReplyText：把未回的（最多 4 条）塞进 prompt，要求这一轮必须写一条 [幕后:…] 回她。extractRpBackstageNotes 存新手记时把这些标记为已回，新手记带 replyTo，显示为「回你：「…」」。
 - 修卡片顶上的大空白：手记头原本用 <header>，吃到了全局 header 样式，现在改成 div.rp-note-head。
 - 键盘：html[data-kb] .rp-notes-overlay 用 --app-h 高度，聚焦后 scrollIntoView。
+
+## 2026-11-03 v311 幕后手记接入他本人的记忆（Hark）
+- 每篇手记存 scene（当时正文末尾约 110 字），这样他知道自己吐槽的是哪段戏。
+- 戏里：rpBackstageOwnHistoryText 会带上这本戏最近 2 篇手记，再加最多 2 篇和她最新一句相关的旧手记（memScore≥3），让他记得自己吐槽过什么，能翻旧账，也不会重复写。
+- 主聊天：buildBackstageNotesMemoryText 是 v309 记忆预算里的一个 block（key backstageNotes）。平时只带 24 小时内最新的 1 篇（priority 10，cap 420）。只有她的话题命中手记内容、剧名或幕后/吃醋/演戏等字眼时才翻出旧的，最多 3 篇（priority 4，cap 1100），用 currentMemoryRecallQuery（这样短追问也带得上前文）。标注为本人真实感受，括号里的剧情只属于剧本，不改剧场隔离、不并入长期事实库。
