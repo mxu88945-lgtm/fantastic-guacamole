@@ -7032,6 +7032,20 @@ function rpFrameWindowSetup() {
   rpFrameMutation.observe(box, { childList: true, subtree: true });
   scan();
 }
+function roleplayHashText(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36) + ":" + text.length;
+}
+function roleplayRenderLookSignature(project) {
+  const p = project || {};
+  return roleplayHashText(JSON.stringify([p.rpTheme, p.rpBaseColor, p.chatTextColor, p.chatNarrationColor, p.chatQuoteColor, p.chatFontSize, p.chatFontFamily, p.chatFontWeight, p.regexRules, p.members && p.members.map(member => member && member.regexRules)]));
+}
+function roleplayRenderSignature(lookSig, m) {
+  let content = "";
+  try { content = typeof m.content === "string" ? m.content : JSON.stringify(m.content); } catch (_) { content = String(m.content || ""); }
+  return lookSig + "|" + roleplayHashText(content + "|" + (m.rpSpeakerId || "") + "|" + (m.rpSpeakerName || ""));
+}
 function renderMessages() {
   rpFrameWindowSetup();
   try { window.__jycMark?.("显示对话", `${isRoleplayConversation() ? "剧场" : "聊天"} · ${messages.length} 条`); } catch (_) {}
@@ -7041,7 +7055,10 @@ function renderMessages() {
   const scroller = $("chat");
   const preserve = isRoleplayConversation() && box.dataset.conversationId === currentId;
   const oldTop = scroller?.scrollTop || 0;
-  const richCards = new Map(preserve ? [...box.querySelectorAll('.msg[data-mid]')].map(el => [el.dataset.mid, el.querySelector('.roleplay-html-card')]).filter(([, card]) => card) : []);
+  // v328: 只在消息内容和剧场排版都没变时才复用旧卡片；以前改了字号、颜色或模型文本，
+  // 旧 iframe 仍被换回去，要杀掉 App 重开才生效。
+  const richCards = new Map(preserve ? [...box.querySelectorAll('.msg[data-mid]')].map(el => [el.dataset.mid, { card: el.querySelector('.roleplay-html-card'), sig: el.dataset.rpSig || "" }]).filter(([, item]) => item.card) : []);
+  const rpLookSig = isRoleplayConversation() ? roleplayRenderLookSignature(currentConv()?.rpProject) : "";
   box.dataset.conversationId = currentId || "";
   if (messages.length === 0) {
     const who = (settings.userName && settings.userName !== "你") ? `<span class="greet-name">, ${escapeHtml(settings.userName)}</span>` : "";
@@ -7106,6 +7123,7 @@ function renderMessages() {
     });
     el.dataset.idx = i;
     if (m.id) el.dataset.mid = m.id;
+    if (rpLookSig) el.dataset.rpSig = roleplayRenderSignature(rpLookSig, m);
     if (m._summary && el.querySelector(".bubble")) {
       const bubble = el.querySelector(".bubble");
       bubble.classList.add("summary");
@@ -7126,9 +7144,9 @@ function renderMessages() {
   applyRememberedRoleplayFrameHeights(box);
   if (preserve) {
     box.querySelectorAll('.msg[data-mid]').forEach(el => {
-      const oldCard = richCards.get(el.dataset.mid);
+      const old = richCards.get(el.dataset.mid);
       const newCard = el.querySelector('.roleplay-html-card');
-      if (oldCard && newCard) newCard.replaceWith(oldCard);
+      if (old && newCard && old.sig && old.sig === el.dataset.rpSig) newCard.replaceWith(old.card);
     });
     if (scroller) scroller.scrollTop = oldTop;
     const renderedId = currentId;

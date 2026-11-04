@@ -91,11 +91,11 @@ console.log('archive theme regression: scoped identity headers, escaped avatars 
 const htmlMist = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 assert.ok(htmlMist.includes('const mistTime = !hideStats && Number.isFinite(Number(opts.ts));') && htmlMist.includes('tm.className = "msg-latency msg-local-time"'), 'Every main-chat theme footer shows local time instead of latency');
 assert.ok(archives.includes('.archive-mistnote:not(.user) .mistnote-kicker { flex-direction: row-reverse; }'), 'Mist Note kicker: his on the right');
-// v316 暗夜流光（v327 起浅色）
+// v316 暗夜流光（v328 起浅色）
 assert.ok(html.includes('key: "nightglow", name: "暗夜流光", dark: false') && html.includes('"scene-nightglow": "nightglow"') && html.includes('theme === "nightglow"'), 'Nightglow theme wiring missing');
 assert.ok(archives.includes('.archive-nightglow.user .archive-heading { flex-direction: row-reverse !important; }') && archives.includes('color:#a8383c!important') && archives.includes('"Huiwen-mincho"') && archives.includes('#f6f1ee'), 'Nightglow user right + red serif quotes missing');
 assert.ok(rpManuscript.includes('[data-rp-theme="scene-nightglow"]'), 'RP Nightglow css missing');
-// v327: card-authored HTML in the theater still takes the scene theme (quotes marked as .chat-quote, nightglow font)
+// v328: card-authored HTML in the theater still takes the scene theme (quotes marked as .chat-quote, nightglow font)
 {
   const i = html.indexOf("const themeTakeover"); const line = html.slice(i, html.indexOf("\n", i));
   const take = new Function("manuscriptTheme", `${line.replace("const themeTakeover", "var themeTakeover")}; return themeTakeover;`);
@@ -106,12 +106,23 @@ assert.ok(rpManuscript.includes('[data-rp-theme="scene-nightglow"]'), 'RP Nightg
   assert.ok(!take("scene-mistnote").includes("Huiwen-mincho"), "font only for nightglow");
   assert.ok(html.includes("`${themeTakeover}${playerBridge}${reporter}</body>`"), "takeover injected into frame");
 }
-console.log("archive theme v327 card-html takeover regression passed");
-// v327: like Weijing, card HTML without scripts / full document renders inline (card <style> stripped) so the scene theme applies
+console.log("archive theme v328 card-html takeover regression passed");
+// v328: like Weijing, card HTML without scripts / full document renders inline (card <style> stripped) so the scene theme applies
 {
   assert.ok(html.includes("roleplayCanInlineHtml(answer) ? roleplayInlineHtml(answer) : roleplayRichFrameHtml(answer)"), "inline route for style-only card html");
   const i = html.indexOf("function roleplayCanInlineHtml"); const body = html.slice(i, html.indexOf("function roleplayInlineHtml", i));
   assert.ok(/script,style,iframe/.test(body) && body.includes('name.startsWith("on")'), "sanitizer strips style/script and handlers");
   assert.ok(body.includes("<script\\\\b|<!doctype\\\\s+html|<html\\\\b".replace(/\\\\/g, "\\")), "scripted / full-document cards stay in iframe");
 }
-console.log("archive theme v327 inline card html regression passed");
+console.log("archive theme v328 inline card html regression passed");
+// v328: re-rendered scene keeps an old card iframe only when content + look are unchanged
+{
+  assert.ok(html.includes("old.sig && old.sig === el.dataset.rpSig) newCard.replaceWith(old.card)"), "stale card must not be swapped back");
+  const i = html.indexOf("function roleplayHashText"); const j = html.indexOf("function renderMessages()", i);
+  const ctx = new Function(`${html.slice(i, j)}; return { roleplayRenderLookSignature, roleplayRenderSignature };`)();
+  const a = ctx.roleplayRenderLookSignature({ rpTheme: "scene-nightglow", chatFontSize: "16px" });
+  assert.notEqual(a, ctx.roleplayRenderLookSignature({ rpTheme: "scene-nightglow", chatFontSize: "18px" }), "font size changes the look");
+  assert.notEqual(ctx.roleplayRenderSignature(a, { content: "甲" }), ctx.roleplayRenderSignature(a, { content: "乙" }), "edited text changes the sig");
+  assert.equal(ctx.roleplayRenderSignature(a, { content: "甲" }), ctx.roleplayRenderSignature(a, { content: "甲" }));
+}
+console.log("archive theme v328 stale-card regression passed");
