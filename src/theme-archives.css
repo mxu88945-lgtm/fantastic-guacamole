@@ -157,3 +157,11 @@ html:is([data-theme-key="academy"], [data-theme-key="vinyl"]) body:not(.rp-chat-
 html[data-theme-key="nightglow"] body:not(.rp-chat-active) { background: #2a231e; }
 html[data-theme-key="nightglow"] body:not(.rp-chat-active) .composer { border: 1px solid #2c2f36; border-radius: 27px; background: #121317f2; box-shadow: 0 9px 26px #0000008c; }
 html[data-theme-key="nightglow"] body:not(.rp-chat-active) .composer textarea { color: #ece2d6; }
+/* 暗夜流光液态背景：暖棕底上三团琥珀/玫瑰/橘色柔光慢慢流动。只有一层，只动 transform；有壁纸时壁纸盖在上面。 */
+@keyframes ngFlow { 0% { transform: translate3d(-6%,-4%,0) rotate(0deg) scale(1.05); } 50% { transform: translate3d(5%,3%,0) rotate(8deg) scale(1.15); } 100% { transform: translate3d(-3%,6%,0) rotate(-6deg) scale(1.08); } }
+html[data-theme-key="nightglow"] body:not(.rp-chat-active) .main,
+html body.rp-chat-active[data-rp-theme="scene-nightglow"]:not(.rp-wallpaper-active) .main { overflow: hidden; }
+html[data-theme-key="nightglow"] body:not(.rp-chat-active) .main::before,
+html body.rp-chat-active[data-rp-theme="scene-nightglow"]:not(.rp-wallpaper-active) .main::before { content: ''; position: absolute; inset: -25%; z-index: 0; pointer-events: none; background: radial-gradient(38% 32% at 22% 28%, rgba(214,140,72,.40), transparent 70%), radial-gradient(34% 30% at 78% 42%, rgba(196,92,104,.30), transparent 70%), radial-gradient(40% 34% at 46% 82%, rgba(232,176,96,.28), transparent 72%); animation: ngFlow 26s ease-in-out infinite alternate; will-change: transform; }
+html body.rp-chat-active[data-rp-theme="scene-nightglow"]:not(.rp-wallpaper-active) .main > :is(.chat,.composer-wrap) { background: transparent !important; }
+@media (prefers-reduced-motion: reduce) { html .main::before { animation: none !important; } }
