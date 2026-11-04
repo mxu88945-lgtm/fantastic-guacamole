@@ -8420,7 +8420,21 @@ function makeMsgEl(role, content, opts) {
     };
     bar.appendChild(moreBtn);
     const hideStats = isRoleplayConversation();
-    if (!hideStats && opts.timing && Number.isFinite(opts.timing.totalMs)) {
+    // 雾蓝长笺主聊天：尾部不显示首字/完成耗时，改成这条消息的本地时间（点一下仍可看渠道耗时）
+    const mistTime = !hideStats && settings.themeName === "mistnote" && Number.isFinite(Number(opts.ts));
+    if (mistTime) {
+      const d = new Date(Number(opts.ts)), now = new Date();
+      const hm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+      const tm = document.createElement("span");
+      tm.className = "msg-latency msg-local-time";
+      tm.textContent = d.toDateString() === now.toDateString() ? hm : `${d.getMonth() + 1}月${d.getDate()}日 ${hm}`;
+      if (opts.timing && Number.isFinite(opts.timing.totalMs)) {
+        const visibleMs = Number.isFinite(opts.timing.visibleMs) ? opts.timing.visibleMs : opts.timing.firstTokenMs;
+        tm.title = "首字 " + formatLatency(visibleMs) + " · 完成 " + formatLatency(opts.timing.totalMs);
+        tm.onclick = () => showToast(tm.title, 4000);
+      }
+      bar.appendChild(tm);
+    } else if (!hideStats && opts.timing && Number.isFinite(opts.timing.totalMs)) {
       const tm = document.createElement("span");
       const visibleMs = Number.isFinite(opts.timing.visibleMs)
         ? opts.timing.visibleMs : opts.timing.firstTokenMs;

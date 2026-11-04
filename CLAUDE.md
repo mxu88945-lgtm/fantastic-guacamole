@@ -722,3 +722,7 @@
 - 戏里：rpBackstageOwnHistoryText 会带上这本戏最近 2 篇手记，再加最多 2 篇和她最新一句相关的旧手记（memScore≥3），让他记得自己吐槽过什么，能翻旧账，也不会重复写。
 - 主聊天：buildBackstageNotesMemoryText 是 v309 记忆预算里的一个 block（key backstageNotes）。平时只带 24 小时内最新的 1 篇（priority 10，cap 420）。只有她的话题命中手记内容、剧名或幕后/吃醋/演戏等字眼时才翻出旧的，最多 3 篇（priority 4，cap 1100），用 currentMemoryRecallQuery（这样短追问也带得上前文）。标注为本人真实感受，括号里的剧情只属于剧本，不改剧场隔离、不并入长期事实库。
 - v312：主聊天里只要说出剧名（或剧名的前半、戏里的角色名），或者说「那部剧」「剧本」，就会带上那部剧最近 3 篇手记，最多 5 篇。
+
+## 2026-11-04 v313 雾蓝长笺主聊天：用户卡片右对齐 + 尾部改本地时间（Hark）
+- 手机端用户行原本是 width 92%、左右各 padding 14px，右边缘比顾祁砚的卡片往里缩了一截。现在改成和他的卡片一样，用 margin-right: calc(50% - 50vw + 10px)，离屏幕右边 10px。
+- makeMsgEl：settings.themeName==="mistnote" 且不在剧场时，助手消息尾部不再显示「首字/完成」，改显示 opts.ts 的本地时间（当天显示 HH:MM，跨天显示 M月D日 HH:MM），点一下 toast 仍能看到耗时。其他主题不变。

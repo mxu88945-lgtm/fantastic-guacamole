@@ -69,7 +69,7 @@ assert.ok(html.includes('key: "mistnote", name: "雾蓝长笺"'), 'main Mist Not
 assert.ok(html.includes('"scene-mistnote": "mistnote"'), 'RP Mist Note archive mapping is missing');
 assert.ok(html.includes('theme === "mistnote"'), 'Mist Note identity heading is missing');
 assert.ok(archives.includes('.archive-mistnote.user') && archives.includes('display: table; width: fit-content; max-width: 100%;'), 'main Mist Note right-side user and independent quote bubbles are missing');
-assert.ok(archives.includes('width: calc(100vw - 20px); max-width: calc(100vw - 20px);') && archives.includes('margin-left: calc(50% - 50vw + 10px) !important;') && archives.includes('.archive-row.archive-mistnote.user { width: 92%; padding-left: 14px; padding-right: 14px; }'), 'main Mist Note character cards must fill the mobile viewport without widening user cards');
+assert.ok(archives.includes('width: calc(100vw - 20px); max-width: calc(100vw - 20px);') && archives.includes('margin-left: calc(50% - 50vw + 10px) !important;') && archives.includes('.archive-row.archive-mistnote.user { width: min(92%, calc(100vw - 20px)); padding-left: 0; padding-right: 0; margin-left: auto !important; margin-right: calc(50% - 50vw + 10px) !important; }'), 'main Mist Note character cards must fill the mobile viewport without widening user cards');
 assert.ok(archives.includes('.archive-mistnote:not(.user) .archive-body :is(.message-quote,.chat-quote)') && archives.includes('display: table !important; box-sizing: border-box; width: fit-content !important; max-width: 100% !important;') && archives.includes('overflow-wrap: anywhere; box-decoration-break: slice;'), 'main Mist Note character dialogue must stay in one content-sized bubble and wrap only at the prose width');
 assert.ok(rpManuscript.includes('[data-rp-theme="scene-mistnote"]') && rpManuscript.includes('margin: 0 0 1.18em !important'), 'RP Mist Note prose spacing is missing');
 assert.ok(manuscript.includes('[data-theme-key="letter"]') && manuscript.includes('.msg.archive-letter.user'), 'main Mist Letter user-right layout is missing');
@@ -87,3 +87,6 @@ assert.ok(!renderContext.makeMsgEl('assistant', 'text', {}).innerHTML.includes('
 sceneActive = false;
 assert.ok(renderContext.makeMsgEl('user', 'text', {}).innerHTML.includes('archive-heading'), 'main-chat archive selection must remain independent');
 console.log('archive theme regression: scoped identity headers, escaped avatars and decorative record artwork passed');
+
+const htmlMist = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+assert.ok(htmlMist.includes('settings.themeName === "mistnote" && Number.isFinite(Number(opts.ts))') && htmlMist.includes('tm.className = "msg-latency msg-local-time"'), 'Mist Note footer shows local time instead of latency');
