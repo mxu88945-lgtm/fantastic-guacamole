@@ -147,13 +147,13 @@ html:is([data-theme-key="academy"], [data-theme-key="vinyl"]) body:not(.rp-chat-
 #messages .archive-nightglow .archive-body :is(p,.message-story-paragraph,.rp-mixed-paragraph) { margin: 0 0 1.15em !important; line-height: 2 !important; }
 #messages .archive-nightglow .archive-body :is(p,.message-story-paragraph,.rp-mixed-paragraph):last-child { margin-bottom: 0 !important; }
 #messages .archive-nightglow .archive-body :is(.message-narration,.chat-narration,em) { color: #6b7480 !important; font-style: normal !important; }
-#messages .msg.archive-nightglow .archive-body :is(span.chat-quote,.message-quote,blockquote.chat-quote,.chat-quote) { display: inline !important; margin: 0 !important; padding: 0 1px !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: linear-gradient(90deg,#e0a01c,#6bb03a 34%,#15a58c 66%,#3b7ee6) !important; -webkit-background-clip: text !important; background-clip: text !important; color: transparent !important; -webkit-text-fill-color: transparent !important; font-weight: 700 !important; filter: drop-shadow(0 0 5px rgba(60,150,200,.22)) !important; line-height: inherit !important; box-decoration-break: clone !important; -webkit-box-decoration-break: clone !important; }
+#messages .msg.archive-nightglow .archive-body :is(span.chat-quote,.message-quote,blockquote.chat-quote,.chat-quote) { display: inline !important; margin: 0 !important; padding: 0 1px !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background:none!important;color:#a8383c!important;-webkit-text-fill-color:#a8383c!important;font-weight:500!important;filter:none!important; line-height: inherit !important; box-decoration-break: clone !important; -webkit-box-decoration-break: clone !important; }
 #messages .archive-nightglow .archive-body :is(.weijing-status-card,.weijing-scene-strip,.rp-status-card,details,[class*='private']) { margin: 20px 0 !important; padding: 16px 18px !important; border: 1px solid #dbe3ec !important; border-left: 3px solid #9fb3c8 !important; border-radius: 14px !important; color: #3a4350 !important; background: #fbfdff !important; box-shadow: none !important; line-height: 1.8 !important; }
 #messages .archive-nightglow.user .archive-heading { flex-direction: row-reverse !important; }
 #messages .archive-nightglow.user .archive-heading-copy { text-align: right !important; }
 #messages .msg.archive-nightglow.user .archive-body { width: fit-content !important; min-width: 60px !important; max-width: 100% !important; margin-left: auto !important; margin-right: 0 !important; text-align: left !important; }
 #messages .archive-nightglow.user :is(.msg-actions,.user-msg-actions) { align-self: flex-end !important; }
-.theme-choice-grid button.nightglow i { border: 1px solid #dbe3ec; border-radius: 9px; background: linear-gradient(145deg,#eef4fa 0 55%,#e0a01c 56% 66%,#15a58c 67% 80%,#3b7ee6 81%) !important; }
+.theme-choice-grid button.nightglow i { border: 1px solid #dbe3ec; border-radius: 9px; background: linear-gradient(145deg,#eef4fa 0 60%,#a8383c 61% 78%,#2a3038 79%) !important; }
 html[data-theme-key="nightglow"] body:not(.rp-chat-active) { background: #eef4fa; }
 html[data-theme-key="nightglow"] body:not(.rp-chat-active) .composer { border: 1px solid #d9e2eb; border-radius: 27px; background: #ffffffeb; box-shadow: 0 9px 26px #38608c1f; }
 html[data-theme-key="nightglow"] body:not(.rp-chat-active) .composer textarea { color: #2a3038; }
@@ -165,3 +165,7 @@ html[data-theme-key="nightglow"] body:not(.rp-chat-active) .main::before,
 html body.rp-chat-active[data-rp-theme="scene-nightglow"]:not(.rp-wallpaper-active) .main::before { content: ''; position: absolute; inset: -25%; z-index: 0; pointer-events: none; background: radial-gradient(38% 32% at 22% 28%, rgba(150,200,240,.50), transparent 70%), radial-gradient(34% 30% at 78% 42%, rgba(200,185,240,.38), transparent 70%), radial-gradient(40% 34% at 46% 82%, rgba(255,205,170,.38), transparent 72%); animation: ngFlow 26s ease-in-out infinite alternate; will-change: transform; }
 html body.rp-chat-active[data-rp-theme="scene-nightglow"]:not(.rp-wallpaper-active) .main > :is(.chat,.composer-wrap) { background: transparent !important; }
 @media (prefers-reduced-motion: reduce) { html .main::before { animation: none !important; } }
+
+/* v324 暗夜流光：宋体正文 + 暗红对白（她发的参考图） */
+#messages .archive-nightglow .archive-body, #messages .archive-nightglow .archive-body * { font-family: "Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif !important; }
+#messages .archive-nightglow .archive-body :is(p,.message-story-paragraph,.rp-mixed-paragraph) { letter-spacing: .02em !important; }
