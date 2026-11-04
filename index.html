@@ -8041,13 +8041,33 @@ if (typeof window !== "undefined") window.addEventListener("message", event => {
 });
 // ===== v306 幕后手记（剧场里他本人的私下吐槽小作文）=====
 const RP_NOTE_TAG = /(?:\[\s*幕后(?:手记)?\s*[:：]([\s\S]*?)\]|【\s*幕后(?:手记)?\s*[:：]([\s\S]*?)】)/g;
+// v329: 模型有时把标记写成标题——「[幕后:顾祁砚本人]」后面另起一段才是手记正文。
+// 以前只收到“顾祁砚本人”几个字，真正的手记留在正文里，还被卡片的状态栏正则一起包进了内心栏。
+// 标记里只有很短的署名、后面还跟着正文时，把后面到结尾的文字当作手记，统一成标准写法。
+function normalizeRpBackstageHeader(text) {
+  const src = String(text || "");
+  const head = /(?:\[\s*幕后(?:手记)?\s*[:：]\s*([^\]\n]{0,16}?)\s*\]|【\s*幕后(?:手记)?\s*[:：]\s*([^】\n]{0,16}?)\s*】)[ \t]*\n/g;
+  let m;
+  while ((m = head.exec(src))) {
+    const label = String(m[1] || m[2] || "");
+    if (/[。！？!?]/.test(label)) continue;
+    let rest = src.slice(m.index + m[0].length), tail = "";
+    const stop = rest.search(/<\/?(?:[a-z][\w-]*_status|status|scene)\b[^>]*>/i);
+    if (stop >= 0) { tail = rest.slice(stop); rest = rest.slice(0, stop); }
+    rest = rest.replace(/(?:\[|【)\s*\/\s*幕后(?:手记)?\s*(?:\]|】)\s*$/, "").trim();
+    if (rest.length < 12) continue;
+    return src.slice(0, m.index) + "[幕后:" + rest.replace(/\]/g, "］") + "]" + (tail ? "\n" + tail : "");
+  }
+  return src;
+}
 function hideRpBackstageNotes(text) {
+  text = normalizeRpBackstageHeader(text);
   // 流式输出时标记可能还没写完，从「[幕后:」起整段先藏起来
   return String(text).replace(RP_NOTE_TAG, "").replace(/(?:\[|【)\s*幕后(?:手记)?\s*[:：][^\]】]*$/, "").replace(/\n{3,}/g, "\n\n");
 }
 function rpBackstageNoteRule(backstageName, userName, p) {
   const actor = p?.actorName || "舞台角色";
-  return `【幕后手记｜只给你自己】你是正在演「${actor}」的「${backstageName}」本人。只有这一轮里出现了某个具体的点，真的戳到你本人——让你不爽、吃醋、看不惯，或者特别想吐槽（比如「${userName}」的某句台词、某个动作、她对谁的态度、剧情突然的走向）——才在正文最末另起一行写一条 \`[幕后:第一人称小作文，100～300字]\`。`
+  return `【幕后手记｜只给你自己】你是正在演「${actor}」的「${backstageName}」本人。只有这一轮里出现了某个具体的点，真的戳到你本人——让你不爽、吃醋、看不惯，或者特别想吐槽（比如「${userName}」的某句台词、某个动作、她对谁的态度、剧情突然的走向）——才在正文最末另起一行写一条 \`[幕后:第一人称小作文，100～300字]\`。方括号里直接写手记正文、一口气写完再收 ]，不要写成「[幕后:署名]」再另起段落；也不要放进状态栏或任何标签里。`
     + `第一句就点名是哪个点戳到你：引她的原话，或者说清是哪段剧情，再说你为什么被它戳到。整篇围绕这一个点写，用你本人的口吻，像私下日记，可以骂角色、冲她说话、闹脾气，要真情实感，不要客套总结，不要复述剧情。`
     + `找不出这样一个具体的点就不写；这个点你以前已经吐槽过、这一轮也没有新东西，也不写。宁可少写，不要凑数。每篇都要是新的点、新的话，不许照抄或换几个字重写你以前手记里的句子、比喻和结尾狠话。这条会被收进只有她能翻看的幕后手记，不出现在戏里；正文里不要提到它。`
     + rpBackstagePendingReplyText(userName)
@@ -8132,7 +8152,7 @@ function rpBackstageTooSimilar(a, b) {
 }
 function extractRpBackstageNotes(text, msgId, keep) {
   const found = [];
-  const cleaned = String(text).replace(RP_NOTE_TAG, (m, a, b) => { const t = String(a || b || "").trim(); if (t) found.push(t); return ""; })
+  const cleaned = normalizeRpBackstageHeader(String(text)).replace(RP_NOTE_TAG, (m, a, b) => { const t = String(a || b || "").trim(); if (t) found.push(t); return ""; })
     .replace(/\n{3,}/g, "\n\n").trim();
   if (!found.length || !keep) return found.length ? cleaned : text;
   const conv = currentConv();
