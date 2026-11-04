@@ -733,3 +733,7 @@
 
 ## 2026-11-04 v315 雾蓝长笺卡片英文标记（Hark）
 - 她要求 LETTERS · MIST 她的在左、他的在右：助手卡片的 .mistnote-kicker 设 row-reverse（✦ 移到左边）。主聊天和剧场两处都改了。
+
+## 2026-11-04 v316 新主题「暗夜流光」（Hark）
+- 主聊天 key nightglow（dark:true），剧场 scene-nightglow。黑底，方框头像加名字（用户在右上，row-reverse），正文无卡片，段距 1.15em、行高 2。对白用渐变文字（黄→绿→青→蓝，background-clip:text 加 drop-shadow 发光）。状态卡与场景卡为深灰卡片，左侧有竖线。每条消息底部有一条渐隐分隔线。
+- 接入点：THEMES、RP_THEME_PRESETS、sceneThemeIds、sceneArchive、archiveTheme、mainArchiveHeading、iframe manuscriptCss、rp-group.js、rp-theater.js（4 处）、theme-archives.css、rp-manuscript-themes.css 末尾。未真机验证。

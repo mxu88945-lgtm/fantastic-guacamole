@@ -250,6 +250,7 @@ if (bridge) {
     ["scene-mobile", "白笺通讯", "#fafafc", "#242429", "#797982", "#34343b"],
     ["scene-letter", "雾白来信", "#f3f1ed", "#34383d", "#7a7f84", "#4f6170"],
     ["scene-mistnote", "雾蓝长笺", "#f3f6f7", "#35424b", "#74828b", "#486274"],
+    ["scene-nightglow", "暗夜流光", "#060607", "#e9e9ec", "#a9acb3", "#9fe3c6"],
     ["scene-vinyl", "青橙唱片", "#ffffff", "#315868", "#7b98a4", "#b46b43"],
   ];
   function appearanceSection() {
