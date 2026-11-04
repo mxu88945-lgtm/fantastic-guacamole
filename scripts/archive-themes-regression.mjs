@@ -90,3 +90,4 @@ console.log('archive theme regression: scoped identity headers, escaped avatars 
 
 const htmlMist = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 assert.ok(htmlMist.includes('settings.themeName === "mistnote" && Number.isFinite(Number(opts.ts))') && htmlMist.includes('tm.className = "msg-latency msg-local-time"'), 'Mist Note footer shows local time instead of latency');
+assert.ok(archives.includes('.archive-mistnote:not(.user) .mistnote-kicker { flex-direction: row-reverse; }'), 'Mist Note kicker: his on the right');

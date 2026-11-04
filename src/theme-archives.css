@@ -91,6 +91,8 @@ html:is([data-theme-key="academy"], [data-theme-key="vinyl"]) body:not(.rp-chat-
 .archive-mistnote .archive-heading { position: relative; display: flex; align-items: center; min-height: 108px; padding: 17px 20px; border: 1px solid #cbd7de; border-radius: 24px; background: linear-gradient(135deg,#e8eff3,#f8fafb); box-shadow: 0 12px 28px #3b505c17; overflow: hidden; }
 .archive-mistnote .mistnote-kicker { position: absolute; inset: 11px 15px auto; display: flex; justify-content: space-between; color: #85959f; font: 8px/1.2 Georgia,serif; letter-spacing: .18em; }
 .archive-mistnote .mistnote-kicker i { font-style: normal; }
+/* v315：英文标记各归各边——她的在左，他的在右（✦ 换到另一侧） */
+.archive-mistnote:not(.user) .mistnote-kicker { flex-direction: row-reverse; }
 .archive-mistnote .archive-portrait { flex: 0 0 66px; width: 66px; height: 66px; margin-top: 10px; padding: 4px; border: 1px solid #b8c8d1; border-radius: 50%; background: #fafcfc; box-shadow: 0 6px 16px #374b571f; }
 .archive-mistnote .archive-disc { display: none; }
 .archive-mistnote .archive-cover { border-radius: 50%; color: #607987; background: linear-gradient(145deg,#edf3f5,#d3e0e6); font: 23px/1 Georgia,serif; }
