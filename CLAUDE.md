@@ -764,3 +764,6 @@
 
 ## 2026-11-04 v325
 - 暗夜流光（主聊天和剧场）改为暖白底 #f6f1ee、暖深字 #2b2522，液态光改成蜜桃、玫瑰色。正文字体改为汇文明朝体（zeoseven 256，按字切片加载，family 为 Huiwen-mincho），因为 iOS 自带的 Songti SC 不一定有。theme-archives.css 顶部用 @import 引入，剧场 iframe 的 style 里也加了。需要在主题库或共演设置里重新点一次主题。
+
+## 2026-11-04 v326
+- 剧场里，角色卡或模型自己写的 HTML（自带对白胶囊和 PRIVATE 卡）显示在 iframe 里，吃不到剧场主题。现在只要设了剧场主题，iframe 末尾就会注入 themeTakeover：把只含一句引号对白的元素加上 .chat-quote 和 .rp-theme-quote，交给主题样式，并去掉内联的背景、边框、阴影和颜色；暗夜流光额外把字体统一为汇文明朝体。卡片自带的状态卡样式保留。推测原因来自截图，没拿到原始 HTML。

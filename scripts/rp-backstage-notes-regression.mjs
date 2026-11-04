@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 // v307: 幕后手记 — the actor's private rant tag is hidden from the stage and saved per RP conversation.
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-assert.ok(sw.includes("role-chat-cache-v325"), "sw cache version");
+assert.ok(sw.includes("role-chat-cache-v326"), "sw cache version");
 const a = html.indexOf("const RP_NOTE_TAG"), b = html.indexOf("function rpBackstageNoteRule");
 const { hide, TAG } = new Function(`${html.slice(a, b)}; return { hide: hideRpBackstageNotes, TAG: RP_NOTE_TAG };`)();
 assert.equal(hide("他抬眼。\n[幕后:她又对那个男配笑，我演得很憋屈。]").trim(), "他抬眼。");
@@ -58,7 +58,7 @@ console.log("RP backstage notes v310 reply regression passed");
 }
 assert.ok(html.includes('key: "backstageNotes"'), "main chat memory block");
 console.log("RP backstage notes v311 memory regression passed");
-// v325: 只在具体戳到他的点才写；回她时不重写上一篇；几乎重复的手记丢掉
+// v326: 只在具体戳到他的点才写；回她时不重写上一篇；几乎重复的手记丢掉
 {
   assert.ok(html.includes("第一句就点名是哪个点戳到你") && html.includes("宁可少写，不要凑数"), "trigger rule names the specific point");
   assert.ok(html.includes("第一句就直接回她这句话本身"), "reply must answer her words");
@@ -69,4 +69,4 @@ console.log("RP backstage notes v311 memory regression passed");
   assert.ok(!sim("暴躁？我那是演技好。谁让你写个小艺人进来，我当然得演得像一点，你倒先笑上了。", old), "fresh reply kept");
   assert.ok(html.includes("if (recentTexts.some(t => rpBackstageTooSimilar(found[i], t))) found.splice(i, 1);"), "dedupe wired in");
 }
-console.log("RP backstage notes v325 trigger/dedupe regression passed");
+console.log("RP backstage notes v326 trigger/dedupe regression passed");

@@ -91,7 +91,19 @@ console.log('archive theme regression: scoped identity headers, escaped avatars 
 const htmlMist = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 assert.ok(htmlMist.includes('const mistTime = !hideStats && Number.isFinite(Number(opts.ts));') && htmlMist.includes('tm.className = "msg-latency msg-local-time"'), 'Every main-chat theme footer shows local time instead of latency');
 assert.ok(archives.includes('.archive-mistnote:not(.user) .mistnote-kicker { flex-direction: row-reverse; }'), 'Mist Note kicker: his on the right');
-// v316 暗夜流光（v325 起浅色）
+// v316 暗夜流光（v326 起浅色）
 assert.ok(html.includes('key: "nightglow", name: "暗夜流光", dark: false') && html.includes('"scene-nightglow": "nightglow"') && html.includes('theme === "nightglow"'), 'Nightglow theme wiring missing');
 assert.ok(archives.includes('.archive-nightglow.user .archive-heading { flex-direction: row-reverse !important; }') && archives.includes('color:#a8383c!important') && archives.includes('"Huiwen-mincho"') && archives.includes('#f6f1ee'), 'Nightglow user right + red serif quotes missing');
 assert.ok(rpManuscript.includes('[data-rp-theme="scene-nightglow"]'), 'RP Nightglow css missing');
+// v326: card-authored HTML in the theater still takes the scene theme (quotes marked as .chat-quote, nightglow font)
+{
+  const i = html.indexOf("const themeTakeover"); const line = html.slice(i, html.indexOf("\n", i));
+  const take = new Function("manuscriptTheme", `${line.replace("const themeTakeover", "var themeTakeover")}; return themeTakeover;`);
+  assert.equal(take(""), "", "no takeover without a scene theme");
+  const out = take("scene-nightglow");
+  assert.ok(out.includes('"Huiwen-mincho"') && out.endsWith("</script>") && out.includes("classList.add('chat-quote','rp-theme-quote')"), "nightglow takeover");
+  new Function(out.match(/<script>([\s\S]*)<\/script>$/)[1]);
+  assert.ok(!take("scene-mistnote").includes("Huiwen-mincho"), "font only for nightglow");
+  assert.ok(html.includes("`${themeTakeover}${playerBridge}${reporter}</body>`"), "takeover injected into frame");
+}
+console.log("archive theme v326 card-html takeover regression passed");
