@@ -13,10 +13,10 @@ if (!bridge) {
     "scene-mobile": ["#242429", "#797982", "#34343b"],
     "scene-letter": ["#34383d", "#7a7f84", "#4f6170"],
     "scene-mistnote": ["#35424b", "#74828b", "#486274"],
-    "scene-nightglow": ["#ece2d6", "#b9ab9b", "#9fe3c6"],
+    "scene-nightglow": ["#2a3038", "#6b7480", "#2f8f8a"],
     "scene-vinyl": ["#315868", "#7b98a4", "#b46b43"],
   };
-  const sceneBases = { "liquid-pearl": "#f4f8fb", "liquid-mist": "#edf3f8", "scene-paper": "#f6f8f8", "scene-scrapbook": "#fffaf2", "scene-academy": "#fafaf5", "scene-mobile": "#fafafc", "scene-letter": "#f3f1ed", "scene-mistnote": "#f3f6f7", "scene-nightglow": "#2a231e", "scene-vinyl": "#ffffff" };
+  const sceneBases = { "liquid-pearl": "#f4f8fb", "liquid-mist": "#edf3f8", "scene-paper": "#f6f8f8", "scene-scrapbook": "#fffaf2", "scene-academy": "#fafaf5", "scene-mobile": "#fafafc", "scene-letter": "#f3f1ed", "scene-mistnote": "#f3f6f7", "scene-nightglow": "#eef4fa", "scene-vinyl": "#ffffff" };
   const state = { editingId: "", detailId: "", detailMemberId: "lead", librarySection: "hub", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {}, roleManage: false, roleQuery: "", roleSelected: [], importReturnSection: "" };
   // 角色库折叠的组键（视图偏好，关掉剧场即清掉）
   const collapsedRoleGroups = new Set();
