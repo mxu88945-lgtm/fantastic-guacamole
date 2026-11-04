@@ -17946,7 +17946,8 @@ async function init() {
       showToast("拉取失败：" + (err?.message || err));
     } finally { btn.disabled = false; btn.classList.remove("is-loading"); }
   };
-  $("plus-menu").querySelectorAll("button").forEach(btn => {
+  // v331: 只接管带 data-act 的功能按钮；帮答通道里的 ↻ 有自己的处理，不能被覆盖成“关面板”
+  $("plus-menu").querySelectorAll("button[data-act]").forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
       const act = btn.dataset.act;
