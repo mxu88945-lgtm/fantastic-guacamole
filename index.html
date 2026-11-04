@@ -8423,8 +8423,8 @@ function makeMsgEl(role, content, opts) {
     };
     bar.appendChild(moreBtn);
     const hideStats = isRoleplayConversation();
-    // 雾蓝长笺主聊天：尾部不显示首字/完成耗时，改成这条消息的本地时间（点一下仍可看渠道耗时）
-    const mistTime = !hideStats && settings.themeName === "mistnote" && Number.isFinite(Number(opts.ts));
+    // 主聊天所有主题：尾部不显示首字/完成耗时，改成这条消息的本地时间（点一下仍可看渠道耗时）。v321 起不再只限雾蓝长笺。
+    const mistTime = !hideStats && Number.isFinite(Number(opts.ts));
     if (mistTime) {
       const d = new Date(Number(opts.ts)), now = new Date();
       const hm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
