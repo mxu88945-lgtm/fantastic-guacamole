@@ -7926,6 +7926,30 @@ function roleplayRichDocument(value, token, compact = false) {
   else documentHtml = `<!doctype html><html><head>${guard}${base}${manuscriptCss}${greetingBridge}</head><body>${documentHtml}</body></html>`;
   return /<\/body>/i.test(documentHtml) ? documentHtml.replace(/<\/body>/i, `${themeTakeover}${playerBridge}${reporter}</body>`) : `${documentHtml}${themeTakeover}${playerBridge}${reporter}`;
 }
+// v327: 与惟境一致——没有脚本、也不是整页文档的卡片 HTML 不再进 iframe，
+// 去掉卡片自带的 <style>/<script> 等后直接放进聊天里，由剧场主题统一排版（惟境 SafeInlineHtml 同款）。
+function roleplayCanInlineHtml(value) {
+  if (splitRoleplayHtmlFences(value)) return false;
+  return !/<script\b|<!doctype\s+html|<html\b/i.test(roleplayRichSource(value));
+}
+function sanitizeRoleplayInlineHtml(html) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = String(html || "").replace(/<\/?(?:head|body)\b[^>]*>/gi, "");
+  tpl.content.querySelectorAll("script,style,iframe,object,embed,link,meta,form,input,button,base,title,textarea,select,frame,frameset,noscript").forEach(node => node.remove());
+  tpl.content.querySelectorAll("*").forEach(node => {
+    [...node.attributes].forEach(attr => {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith("on") || name === "srcdoc" || name === "formaction") node.removeAttribute(attr.name);
+      else if (/^(?:href|src|xlink:href|action|poster)$/.test(name) && /^\s*(?:javascript|vbscript|data:text\/html)/i.test(attr.value)) node.removeAttribute(attr.name);
+      else if (name === "style" && /expression\(|url\(\s*['"]?\s*javascript:/i.test(attr.value)) node.removeAttribute(attr.name);
+    });
+    if (node.tagName === "A") { node.setAttribute("target", "_blank"); node.setAttribute("rel", "noopener noreferrer"); }
+  });
+  return tpl.innerHTML;
+}
+function roleplayInlineHtml(value) {
+  return `<div class="rp-story-text rp-inline-html">${sanitizeRoleplayInlineHtml(normalizeRoleplayMixedMarkup(boundedRoleplayRichSource(value)))}</div>`;
+}
 function roleplayRichFrameHtml(value, preview = false) {
   const attribute = source => escapeHtml(String(source || "")).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   const raw = String(value || "");
@@ -8194,7 +8218,7 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState, 
   const semanticRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && !useRoleplayHtml
     ? roleplaySemanticDisplay(answer) : "";
   let textHtml = answer
-    ? (useRoleplayHtml ? roleplayRichFrameHtml(answer) : (semanticRoleplayHtml || (role === "assistant" ? (isRoleplayConversation() ? renderRoleplayStoryText(answer) : renderMarkdown(answer)) : (isRoleplayConversation() ? renderRoleplayStoryText(answer) : (userQuoteCapsules() ? renderMarkdown(answer, true) : escapeHtml(answer).replace(/\n/g, "<br>"))))))
+    ? (useRoleplayHtml ? (roleplayCanInlineHtml(answer) ? roleplayInlineHtml(answer) : roleplayRichFrameHtml(answer)) : (semanticRoleplayHtml || (role === "assistant" ? (isRoleplayConversation() ? renderRoleplayStoryText(answer) : renderMarkdown(answer)) : (isRoleplayConversation() ? renderRoleplayStoryText(answer) : (userQuoteCapsules() ? renderMarkdown(answer, true) : escapeHtml(answer).replace(/\n/g, "<br>"))))))
     : "";
   // turn [贴纸:名字] tokens in the assistant's reply into the actual sticker image
   if (role === "assistant" && !useRoleplayHtml) {

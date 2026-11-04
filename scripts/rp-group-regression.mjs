@@ -106,7 +106,7 @@ assert.doesNotMatch(context.roleplayRegexDisplay(cardReply, { rpSpeakerId: 'lead
 Object.assign(context, {
   extractAssistantReasoning: text => ({ answer: text, reasoning: '' }),
   tracePhasesForRender: () => [], thinkBlockHtml: () => '',
-  looksLikeRoleplayRichHtml: text => text.includes('<div'), roleplayRichFrameHtml: text => text,
+  looksLikeRoleplayRichHtml: text => text.includes('<div'), roleplayRichFrameHtml: text => text, roleplayCanInlineHtml: () => false,
   window: {}, imagePartsHtml: () => '', filePartsHtml: () => '', locationPartsHtml: () => '',
 });
 vm.runInContext(source('function bubbleHtml(', '// Keep streamed paragraphs,'), context);

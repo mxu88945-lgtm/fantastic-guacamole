@@ -767,3 +767,4 @@
 
 ## 2026-11-04 v326
 - 剧场里，角色卡或模型自己写的 HTML（自带对白胶囊和 PRIVATE 卡）显示在 iframe 里，吃不到剧场主题。现在只要设了剧场主题，iframe 末尾就会注入 themeTakeover：把只含一句引号对白的元素加上 .chat-quote 和 .rp-theme-quote，交给主题样式，并去掉内联的背景、边框、阴影和颜色；暗夜流光额外把字体统一为汇文明朝体。卡片自带的状态卡样式保留。推测原因来自截图，没拿到原始 HTML。
+- v327：照惟境 SafeInlineHtml 的做法，没有 <script>、也不是整页文档（无 doctype/html，也不是代码块里的整页）的卡片 HTML，改为直接渲染进聊天（.rp-story-text.rp-inline-html），并去掉 style/script/iframe/表单、on* 属性和 javascript: 链接，于是剧场主题的字体和对白样式能生效。带脚本的卡片和整页卡片仍走 iframe，这时 v326 的主题接管兜底。没有 DOM 环境，净化函数只做了静态断言。
