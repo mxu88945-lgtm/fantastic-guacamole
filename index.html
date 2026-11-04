@@ -9,6 +9,22 @@
 <meta name="apple-mobile-web-app-title" content="Role Chat" />
 <meta name="theme-color" content="#f8f8f6" />
 <script>
+// v322: iOS 在后台被系统回收后重新打开时，Safari 会“恢复表单内容”。没有 name 的文本框是按顺序对号的，
+// 剧情系统预设等设置框里的文字可能被塞进聊天输入框（反过来也可能）。给所有文本框关掉表单恢复。
+(function () {
+  function noRestore(root) {
+    try {
+      if (root.matches && root.matches("textarea,input:not([type]),input[type=text],input[type=search]") && !root.hasAttribute("autocomplete")) root.setAttribute("autocomplete", "off");
+      if (root.querySelectorAll) root.querySelectorAll("textarea:not([autocomplete]),input:not([type]):not([autocomplete]),input[type=text]:not([autocomplete]),input[type=search]:not([autocomplete])").forEach(function (el) { el.setAttribute("autocomplete", "off"); });
+    } catch (_) {}
+  }
+  try {
+    new MutationObserver(function (list) { for (var i = 0; i < list.length; i++) { var added = list[i].addedNodes; for (var j = 0; j < added.length; j++) if (added[j].nodeType === 1) noRestore(added[j]); } })
+      .observe(document.documentElement, { childList: true, subtree: true });
+  } catch (_) {}
+  document.addEventListener("DOMContentLoaded", function () { noRestore(document); });
+})();
+
   // An explicit low-memory entry uses the same origin, DB and records.
   window.__jycSafeBoot = new URLSearchParams(location.search).get("safe") === "1";
   /* Visible error banner (2026-10-11): on the iPhone home-screen app there is no console, so a
@@ -3987,7 +4003,7 @@
       </div>
       <div class="composer">
         <input type="file" id="attach-file" accept="image/*" multiple style="display:none;" />
-        <textarea id="input" rows="1" placeholder="发送消息"></textarea>
+        <textarea id="input" rows="1" placeholder="发送消息" autocomplete="off"></textarea>
         <div class="composer-row">
           <button class="attach-btn" id="plus-btn" title="更多">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
