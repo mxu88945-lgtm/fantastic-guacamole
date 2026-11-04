@@ -761,3 +761,6 @@
 
 ## 2026-11-04 v324
 - 暗夜流光（主聊天和剧场）：对白去掉琥珀到蓝的渐变发光字，改为暗红 #a8383c、字重 500。正文改用宋体（Songti SC / STSong / Noto Serif SC）。剧场 quote 色同步，色块也改了。剧场要在共演设置里重新点一次主题。
+
+## 2026-11-04 v325
+- 暗夜流光（主聊天和剧场）改为暖白底 #f6f1ee、暖深字 #2b2522，液态光改成蜜桃、玫瑰色。正文字体改为汇文明朝体（zeoseven 256，按字切片加载，family 为 Huiwen-mincho），因为 iOS 自带的 Songti SC 不一定有。theme-archives.css 顶部用 @import 引入，剧场 iframe 的 style 里也加了。需要在主题库或共演设置里重新点一次主题。

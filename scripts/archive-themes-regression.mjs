@@ -91,7 +91,7 @@ console.log('archive theme regression: scoped identity headers, escaped avatars 
 const htmlMist = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 assert.ok(htmlMist.includes('const mistTime = !hideStats && Number.isFinite(Number(opts.ts));') && htmlMist.includes('tm.className = "msg-latency msg-local-time"'), 'Every main-chat theme footer shows local time instead of latency');
 assert.ok(archives.includes('.archive-mistnote:not(.user) .mistnote-kicker { flex-direction: row-reverse; }'), 'Mist Note kicker: his on the right');
-// v316 暗夜流光（v324 起浅色）
+// v316 暗夜流光（v325 起浅色）
 assert.ok(html.includes('key: "nightglow", name: "暗夜流光", dark: false') && html.includes('"scene-nightglow": "nightglow"') && html.includes('theme === "nightglow"'), 'Nightglow theme wiring missing');
-assert.ok(archives.includes('.archive-nightglow.user .archive-heading { flex-direction: row-reverse !important; }') && archives.includes('color:#a8383c!important') && archives.includes('"Songti SC"'), 'Nightglow user right + red serif quotes missing');
+assert.ok(archives.includes('.archive-nightglow.user .archive-heading { flex-direction: row-reverse !important; }') && archives.includes('color:#a8383c!important') && archives.includes('"Huiwen-mincho"') && archives.includes('#f6f1ee'), 'Nightglow user right + red serif quotes missing');
 assert.ok(rpManuscript.includes('[data-rp-theme="scene-nightglow"]'), 'RP Nightglow css missing');
