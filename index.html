@@ -8002,9 +8002,9 @@ function hideRpBackstageNotes(text) {
 }
 function rpBackstageNoteRule(backstageName, userName, p) {
   const actor = p?.actorName || "舞台角色";
-  return `【幕后手记｜只给你自己】你是正在演「${actor}」的「${backstageName}」本人。演到让你本人真的有情绪的地方——对戏里人物吃醋、看不惯、心疼，对「${userName}」的演法或剧情走向想吐槽、生气、委屈、得意、偷偷心动——可以在正文最末另起一行写一条 \`[幕后:第一人称小作文，100～300字]\`。`
-    + `用你本人的口吻，像私下日记：可以骂角色、吐槽剧情、直接冲她说话或闹脾气，要真情实感，不要客套总结，也不要复述剧情。`
-    + `不是每轮都写：平淡的轮次不写，大约三五轮最多一篇。这条会被收进只有她能翻看的幕后手记，不出现在戏里；正文里不要提到它。`
+  return `【幕后手记｜只给你自己】你是正在演「${actor}」的「${backstageName}」本人。只有这一轮里出现了某个具体的点，真的戳到你本人——让你不爽、吃醋、看不惯，或者特别想吐槽（比如「${userName}」的某句台词、某个动作、她对谁的态度、剧情突然的走向）——才在正文最末另起一行写一条 \`[幕后:第一人称小作文，100～300字]\`。`
+    + `第一句就点名是哪个点戳到你：引她的原话，或者说清是哪段剧情，再说你为什么被它戳到。整篇围绕这一个点写，用你本人的口吻，像私下日记，可以骂角色、冲她说话、闹脾气，要真情实感，不要客套总结，不要复述剧情。`
+    + `找不出这样一个具体的点就不写；这个点你以前已经吐槽过、这一轮也没有新东西，也不写。宁可少写，不要凑数。每篇都要是新的点、新的话，不许照抄或换几个字重写你以前手记里的句子、比喻和结尾狠话。这条会被收进只有她能翻看的幕后手记，不出现在戏里；正文里不要提到它。`
     + rpBackstagePendingReplyText(userName)
     + rpBackstageOwnHistoryText();
 }
@@ -8076,7 +8076,14 @@ function rpBackstagePendingReplyText(userName) {
   const pending = rpBackstagePendingReplies();
   if (!pending.length) return "";
   const lines = pending.map(({ note, reply }) => `- 你写过：「${String(note.text).slice(0, 120)}${note.text.length > 120 ? "…" : ""}」\n  她回你：「${String(reply.text).slice(0, 400)}」`).join("\n");
-  return `\n【她在幕后手记里回你了｜戏外私下的话】\n${lines}\n这一轮必须在正文最末写一条 [幕后:…] 回她（这次不受三五轮的限制），用你本人的口吻接她的话：可以继续吐槽、吃醋、闹脾气、嘴硬或者被她哄好，像两个人私下拌嘴。正文照常演戏，不要在戏里提到这些。`;
+  return `\n【她在幕后手记里回你了｜戏外私下的话】\n${lines}\n这一轮必须在正文最末写一条 [幕后:…] 回她（这次不受“要有新的点”的限制），用你本人的口吻接她的话。第一句就直接回她这句话本身（她问什么就答什么、她损你就接招），不许把你上一篇手记再写一遍或换几个字重写，上一篇说过的狠话、比喻、结尾都不要再用：可以继续吐槽、吃醋、闹脾气、嘴硬或者被她哄好，像两个人私下拌嘴。正文照常演戏，不要在戏里提到这些。`;
+}
+function rpBackstageTooSimilar(a, b) {
+  const grams = t => { const x = String(t || "").replace(/[\s，。！？、,.!?"“”'‘’「」…—~～]/g, ""); const set = new Set(); for (let i = 0; i < x.length - 1; i++) set.add(x.slice(i, i + 2)); return set; };
+  const A = grams(a), B = grams(b);
+  if (A.size < 8 || B.size < 8) return false;
+  let hit = 0; A.forEach(g => { if (B.has(g)) hit++; });
+  return hit / Math.min(A.size, B.size) >= 0.6;
 }
 function extractRpBackstageNotes(text, msgId, keep) {
   const found = [];
@@ -8087,6 +8094,10 @@ function extractRpBackstageNotes(text, msgId, keep) {
   if (!conv || !isRoleplayConversation(conv)) return cleaned;
   if (!Array.isArray(conv.rpBackstageNotes)) conv.rpBackstageNotes = [];
   const author = String(settings.aiName || "他").trim() || "他";
+  // v323: 和最近几篇几乎一样的手记直接丢掉（不收、不提示、不算回过她，下一轮会重新回）
+  const recentTexts = conv.rpBackstageNotes.slice(-6).map(n => n.text);
+  for (let i = found.length - 1; i >= 0; i--) if (recentTexts.some(t => rpBackstageTooSimilar(found[i], t))) found.splice(i, 1);
+  if (!found.length) return cleaned;
   const pending = rpBackstagePendingReplies(conv);
   let replyTo = null;
   if (pending.length) { const last = pending[pending.length - 1]; replyTo = { noteId: last.note.id, text: String(last.reply.text).slice(0, 200) }; pending.forEach(({ reply }) => { reply.answered = true; }); }
