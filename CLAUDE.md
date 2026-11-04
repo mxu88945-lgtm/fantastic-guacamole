@@ -737,3 +737,6 @@
 ## 2026-11-04 v316 新主题「暗夜流光」（Hark）
 - 主聊天 key nightglow（dark:true），剧场 scene-nightglow。黑底，方框头像加名字（用户在右上，row-reverse），正文无卡片，段距 1.15em、行高 2。对白用渐变文字（黄→绿→青→蓝，background-clip:text 加 drop-shadow 发光）。状态卡与场景卡为深灰卡片，左侧有竖线。每条消息底部有一条渐隐分隔线。
 - 接入点：THEMES、RP_THEME_PRESETS、sceneThemeIds、sceneArchive、archiveTheme、mainArchiveHeading、iframe manuscriptCss、rp-group.js、rp-theater.js（4 处）、theme-archives.css、rp-manuscript-themes.css 末尾。未真机验证。
+
+## 2026-11-04 v317
+- 暗夜流光（主聊天+剧场）纯黑底改为墨灰底 #1f2229，文字柔和成 #dcdee2，发光减弱，看久了眼睛舒服些（她反馈纯黑底看久眼睛难受）。
