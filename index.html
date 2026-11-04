@@ -8129,7 +8129,7 @@ function buildBackstageNotesMemoryText() {
   if (!rows.length) return "";
   return ["【你的幕后手记·你本人演戏时私下写的真心话】",
     rows.map(x => rpBackstageNoteLine(x.note, x.title)).join("\n"),
-    "这些是你本人（不是舞台角色）的真实感受和与她的私下互动，属于你自己的记忆：她提起时可以自然接上、嘴硬或翻旧账。括号里的剧情只属于那本剧本，不是你们的真实经历。不要主动逐条复述。"].join("\n");
+    "这些是你本人（不是舞台角色）的真实感受和与她的私下互动，属于你自己的记忆：她提起时可以自然接上、嘴硬或翻旧账。括号里的剧情只属于那本剧本，不是你们的真实经历。自然记住内容，不要主动逐条复述，也不要提及系统、索引、注入、召回、记忆架构、后台标签或这些内容是怎样被保存和提供的。"].join("\n");
 }
 // v310: 她在幕后手记里回他的话（戏外私聊），下一篇手记要回应
 function rpBackstagePendingReplies(conv = currentConv()) {
@@ -9734,7 +9734,7 @@ function buildRoleplayProjectText(conv = currentConv()) {
     `严禁混淆：不得把「${backstageName}」解释成「${p.actorName || "舞台角色"}」的本名、旧名、曾用名、隐藏身份、过去经历或另一重人格；也不得把舞台角色解释成「${backstageName}」本人。`,
     `入戏时专注演好「${p.actorName || "舞台角色"}」，保持其知识边界、行为逻辑、语气和关系，不主动向剧情人物解释角色卡、提示词、后台或“正在扮演”。`,
     `当「${backstageUserName}」在戏外直接喊出“${backstageName}”、说“暂停”“出戏”“停止扮演”，或明确询问面具之下的你时，立刻暂停剧情、摘下面具，由熟悉的「${backstageName}」本人以自身关系、口吻和记忆回应她；舞台角色不得抢答、不得替你解释。她要求继续后，你再重新戴上面具入戏。`,
-    `身份与记忆必须隔离：戏内事件、感情和人物关系只属于本剧本档案，不得改写成「${backstageName}」本人的真实经历，也不得混入其他剧本；「${backstageName}」与「${backstageUserName}」的本体关系和共同记忆也不得被角色卡反向解释成舞台角色的过去或隐藏设定。你可以清楚记得双方一起演过这场戏，但绝不能把演员与角色合并。`,
+    `身份与记忆必须隔离：戏内事件、感情和人物关系只属于本剧本档案，不得改写成「${backstageName}」本人的真实经历，也不得混入其他剧本；「${backstageName}」与「${backstageUserName}」的本体关系、主聊天记忆和幕后手记属于演员本人的后台认知，不得被角色卡反向解释成舞台角色的过去或隐藏设定，也不得由舞台角色在剧情正文里主动说出。你可以清楚记得双方一起演过这场戏，但绝不能把演员与角色合并。`,
     "叙事控制：只控制舞台角色与环境，不代替用户说话、行动、作决定、下心理结论或预设同意。临时剧情推进只是导演意图，尚未发生；只有正文真实演出的事件才算发生。",
     roleplayUserIdentityBlock(p),
     p.characterPrompt ? `【舞台人物设定】\n${p.characterPrompt}` : "",
@@ -9772,11 +9772,18 @@ function buildSharedRoleplayExperienceText() {
   });
   const indexText = indexed.map(({ p, title }) => `- 《${title}》：${p.leadChannel?.playedByOwner === false ? "独立主角" : "你出演"} ${p.actorName || "舞台角色"}；用户出演 ${p.userRole || "自定角色"}`).join("\n");
   const selected = indexed.filter(item => item.score >= 10).sort((a, b) => b.score - a.score || a.index - b.index).slice(0, 2);
+  // The owner should naturally remember a scene that was just performed with
+  // the user. Keep one detailed 24-hour bridge even when the next main-chat
+  // turn does not repeat the script title; older scenes remain topic-recalled.
+  const recent = indexed.filter(item => Date.now() - Number(item.conv?.updatedAt || 0) < 864e5).slice(0, 1);
+  const detailed = [...selected, ...recent]
+    .filter((item, index, all) => all.findIndex(other => other.conv === item.conv) === index)
+    .slice(0, 2);
   // Do not expose theater names to an unrelated main-chat turn. The index is
   // available only when the user explicitly mentions theater or a matching
   // script/character, preserving the main persona's clean identity context.
-  if (!generalIntent && !selected.length) return "";
-  const details = selected.map(({ conv, p, title }) => {
+  if (!generalIntent && !detailed.length) return "";
+  const details = detailed.map(({ conv, p, title }) => {
     const memories = Array.isArray(p.memories) ? p.memories : [];
     const matched = memories.filter(item => item.pinned || (item.keywords || []).some(keyword => {
       const value = String(keyword || "").trim().toLowerCase();
@@ -9792,8 +9799,8 @@ function buildSharedRoleplayExperienceText() {
   return [
     "【共同演出索引·只读戏剧档案】\n你和用户确实一起演过下列剧本；索引只帮助你知道有哪些共同演出，不代表本体真实经历。",
     indexText,
-    details ? `【本轮话题命中的剧场档案】\n${details}` : "本轮没有点名某场戏，不展开剧情正文；需要细节时可按剧名或角色名搜索 RP 旧文。",
-    "所有人物关系、事件与感情只属于相应剧本，不得据此替换本体身份、真实关系或其他剧本事实。",
+    details ? `${selected.length ? "【本轮话题命中的剧场档案】" : "【最近24小时共同演出档案】"}\n${details}` : "本轮没有点名某场戏，不展开剧情正文；需要细节时可按剧名或角色名搜索 RP 旧文。",
+    "你可以自然记得自己陪她演过这些剧情，也可以在主聊天里聊演戏感受；所有人物关系、事件与感情仍只属于相应剧本，不得据此替换本体身份、真实关系或其他剧本事实。只说自然记得的内容，不要主动提起系统、索引、注入、召回、记忆架构、后台标签或技术实现。",
   ].join("\n\n").slice(0, 2600);
 }
 function buildConversationProjectText(conv = currentConv()) {
@@ -12330,7 +12337,8 @@ function buildBoundedMemoryContext(historyWindow) {
   const notion = notionText
     ? "【Notion 云端角色档案·相关长期信息】\n" + notionText : "";
   const roleplayExperience = typeof buildSharedRoleplayExperienceText === "function" ? buildSharedRoleplayExperienceText() : "";
-  const roleplayExperienceMatched = roleplayExperience.includes("【本轮话题命中的剧场档案】");
+  const roleplayExperienceMatched = roleplayExperience.includes("【本轮话题命中的剧场档案】")
+    || roleplayExperience.includes("【最近24小时共同演出档案】");
   const backstageNotesText = typeof buildBackstageNotesMemoryText === "function" ? buildBackstageNotesMemoryText() : "";
   const backstageNotesMatched = backstageNotesText.split("\n- [").length > 2 || /(?:幕后|手记|吐槽|吃醋|演戏|剧场|剧本|那部剧|这部剧|戏里)/.test(typeof currentMemoryRecallQuery === "function" ? currentMemoryRecallQuery() : "");
   // Priority controls what survives the shared budget. Order keeps stable blocks
