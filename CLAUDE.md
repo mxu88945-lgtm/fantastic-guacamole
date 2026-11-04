@@ -770,3 +770,4 @@
 - v327：照惟境 SafeInlineHtml 的做法，没有 <script>、也不是整页文档（无 doctype/html，也不是代码块里的整页）的卡片 HTML，改为直接渲染进聊天（.rp-story-text.rp-inline-html），并去掉 style/script/iframe/表单、on* 属性和 javascript: 链接，于是剧场主题的字体和对白样式能生效。带脚本的卡片和整页卡片仍走 iframe，这时 v326 的主题接管兜底。没有 DOM 环境，净化函数只做了静态断言。
 - v328：剧场 renderMessages 原本按消息 id 把旧的 .roleplay-html-card（iframe）换回新渲染结果，导致改字号、字重、颜色或改模型文本后要杀掉 App 才生效。现在每条消息带 data-rp-sig（内容哈希 + 外观哈希，外观含主题、颜色、字体、regexRules），签名一致时才复用旧卡片。
 - v329：幕后手记有时被模型写成「[幕后:顾祁砚本人]」作标题，正文另起段落。以前只收到署名几个字，真正的手记留在正文里，还被卡片的状态栏正则包进内心栏。新增 normalizeRpBackstageHeader：方括号里只有 16 字以内、没有句末标点的署名，且后面还有正文时，把后面到结尾（或到下一个 status/scene 标签之前）的文字整段收作手记。提取和显示两处都会走它，所以旧消息里漏出来的手记在显示时也会被藏起来。提示词同时强调方括号里直接写正文。
+- v330：在 AI 帮答通道的模型下拉框旁加 ↻（#reply-helper-pull）。点它会对所选通道（没选就用当前对话的通道）调用 pullProviderModels，写回该通道的 modelList 后重绘下拉框；原来选的模型如果不在新列表里，就改回跟随。

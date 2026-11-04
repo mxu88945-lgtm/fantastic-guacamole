@@ -3998,7 +3998,7 @@
         <button data-act="gift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 1 1 2.1-3.85L12 7Zm0 0h4.5a2.5 2.5 0 1 0-2.1-3.85L12 7Z"/></svg>礼物</button>
         <button data-act="location" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>位置</button>
         <button data-act="draw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2.5 2.5 0 0 0 2.5-2.5c0-.6-.2-1.1-.6-1.5-.4-.4-.6-.9-.6-1.5A2.5 2.5 0 0 1 15.8 14H18a4 4 0 0 0 4-4 8 8 0 0 0-10-8Z"/></svg>生成图片</button>
-        <div class="plus-sheet-route"><span>帮答通道</span><select id="reply-helper-provider" aria-label="AI 帮答接口"></select><select id="reply-helper-model" aria-label="AI 帮答模型"></select></div>
+        <div class="plus-sheet-route"><span>帮答通道</span><select id="reply-helper-provider" aria-label="AI 帮答接口"></select><select id="reply-helper-model" aria-label="AI 帮答模型"></select><button type="button" id="reply-helper-pull" class="reply-helper-pull" aria-label="拉取这个通道的模型" title="拉取这个通道的模型">↻</button></div>
         <p class="plus-sheet-hint">AI 帮答只填入输入框，由你确认后再发送</p>
       </div>
       <div class="composer">
@@ -17929,6 +17929,23 @@ async function init() {
   document.body.appendChild($("plus-menu"));
   $("reply-helper-provider").onchange = (e) => { e.stopPropagation(); settings.replyHelperProviderId = $("reply-helper-provider").value; settings.replyHelperModel = ""; saveSettings(); renderReplyHelperRoute(); };
   $("reply-helper-model").onchange = (e) => { e.stopPropagation(); settings.replyHelperModel = $("reply-helper-model").value; saveSettings(); };
+  // v330: 帮答通道旁的 ↻：向所选通道（或当前对话的通道）拉取模型列表，避免模型和渠道对不上
+  $("reply-helper-pull").onclick = async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const btn = $("reply-helper-pull");
+    if (btn.disabled) return;
+    const profile = providerById(settings.replyHelperProviderId) || conversationProvider();
+    if (!profile) { showToast("先选一个帮答通道"); return; }
+    btn.disabled = true; btn.classList.add("is-loading");
+    try {
+      const list = await pullProviderModels(profile);
+      if (settings.replyHelperModel && !list.some(item => (item?.id || item?.value || item) === settings.replyHelperModel) && !String(profile.modelList || "").split("\n").includes(settings.replyHelperModel)) { settings.replyHelperModel = ""; saveSettings(); }
+      renderReplyHelperRoute();
+      showToast(`✅ ${profile.name || "这个通道"}拉到 ${list.length} 个模型`);
+    } catch (err) {
+      showToast("拉取失败：" + (err?.message || err));
+    } finally { btn.disabled = false; btn.classList.remove("is-loading"); }
+  };
   $("plus-menu").querySelectorAll("button").forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();

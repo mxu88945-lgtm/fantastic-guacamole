@@ -574,3 +574,12 @@ html body.rp-chat-active[data-rp-theme="scene-nightglow"] #messages .archive-nig
 
 /* v324 暗夜流光剧场：宋体正文 + 暗红对白 */
 html body.rp-chat-active[data-rp-theme="scene-nightglow"] #messages .msg :is(.archive-body,.rp-story-text,.roleplay-opening-text), html body.rp-chat-active[data-rp-theme="scene-nightglow"] #messages .msg :is(.archive-body,.rp-story-text,.roleplay-opening-text) * { font-family: "Huiwen-mincho","Songti SC","STSong","Noto Serif SC",serif !important; }
+
+/* v330: AI 帮答 · 拉取模型 */
+html body #plus-menu .plus-sheet-route .reply-helper-pull {
+  flex: 0 0 32px; width: 32px; height: 32px; padding: 0; border: 1px solid rgba(40, 40, 50, .1); border-radius: 10px;
+  background: #f6f6f7; color: #2c2c32; font-size: 16px; line-height: 30px; text-align: center; cursor: pointer;
+}
+html body #plus-menu .plus-sheet-route .reply-helper-pull.is-loading { opacity: .5; animation: reply-helper-spin .9s linear infinite; }
+@keyframes reply-helper-spin { to { transform: rotate(360deg); } }
+html[data-theme="dark"] body #plus-menu .plus-sheet-route .reply-helper-pull { background: #232327; color: #ececf0; border-color: rgba(255, 255, 255, .12); }

@@ -68,7 +68,7 @@ ok(html.includes('e.target.value = "";\n    await setChatBgFile(file);'),
 ok(html.includes('await restoreChatBackground();'), "legacy or IndexedDB background is not restored during startup");
 ok(html.includes('$("bg-clear").onclick = clearChatBackground;'), "background clear does not remove IndexedDB state");
 
-ok(sw.includes('const CACHE = "role-chat-cache-v329";'), "service worker cache was not bumped for reasoning effort controls");
+ok(sw.includes('const CACHE = "role-chat-cache-v330";'), "service worker cache was not bumped for reasoning effort controls");
 
 ok(html.includes('id="mainFontSize"') && html.includes('id="mainFontSizeVal"') && html.includes('id="mainFontSizeSample"') && !html.includes('data-fs="small"'), "main chat font size must be a slider with a number readout and a live preview");
 ok(html.includes('data-web-font="noto-sans-sc"') && html.includes('data-web-font="noto-serif-sc"') && html.includes('data-web-font="lxgw-wenkai"'), "downloadable Chinese font choices are missing");
@@ -78,3 +78,9 @@ const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "settings redesign introduced duplicate DOM ids");
 
 console.log(`settings regression checks passed (${checks})`);
+// v330: AI 帮答 route can pull the selected channel's model list
+{
+  const h = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  if (!h.includes('id="reply-helper-pull"') || !h.includes('await pullProviderModels(profile);') || !h.includes('providerById(settings.replyHelperProviderId) || conversationProvider()')) throw new Error('reply helper pull-models button missing');
+  console.log('reply helper pull-models regression passed');
+}
