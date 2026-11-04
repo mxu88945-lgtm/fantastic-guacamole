@@ -19218,7 +19218,7 @@ if ("serviceWorker" in navigator) {
    fire on a clean touch tap (pointerup) and swallow the late native click. */
 (function () {
   const SEL = "#send-btn, .msg-act, #plus-menu button[data-act=\"location\"], #plus-menu button[data-act=\"assist\"], #global-prompt-add";
-  let start = null, suppressEl = null, suppressUntil = 0, synth = false;
+  let start = null, suppressEl = null, suppressUntil = 0, synth = false, tapX = 0, tapY = 0;
   const hit = (e) => e.target && e.target.closest ? e.target.closest(SEL) : null;
   document.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse") { start = null; return; }
@@ -19232,14 +19232,18 @@ if ("serviceWorker" in navigator) {
     const el = hit(e);
     if (el !== s.el || el.disabled) return;
     if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > 12 || Date.now() - s.t > 700) return;
-    suppressEl = el; suppressUntil = Date.now() + 800;
+    suppressEl = el; suppressUntil = Date.now() + 800; tapX = e.clientX; tapY = e.clientY;
     synth = true;
     try { el.click(); } finally { synth = false; }
   }, true);
   document.addEventListener("click", (e) => {
     if (synth || !suppressEl) return;
     if (Date.now() > suppressUntil) { suppressEl = null; return; }
-    if (hit(e) === suppressEl) {
+    // The late native click lands where the finger was. If the tap closed a
+    // sheet (AI 帮答 / 位置), that spot may now be a message's 复制/朗读 button:
+    // swallow it too, not only when it hits the same button (v314).
+    const near = Number.isFinite(e.clientX) && Math.hypot(e.clientX - tapX, e.clientY - tapY) <= 24;
+    if (hit(e) === suppressEl || (near && !e.target?.closest?.("#plus-menu"))) {
       e.preventDefault(); e.stopImmediatePropagation();
       suppressEl = null;
     }

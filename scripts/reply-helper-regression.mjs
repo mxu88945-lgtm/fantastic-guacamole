@@ -57,3 +57,9 @@ console.log("reply helper regression: passed");
 }
 assert.ok(html.includes('id="reply-helper-provider"') && html.includes('function replyHelperRuntimeConfig()'), "AI 帮答 needs a visible, selectable API route");
 assert.ok(html.includes('REPLY_HELPER_MAX_TOKENS, helperCfg));'), "AI 帮答 must call the route it shows");
+{
+  const { readFileSync: rf } = await import("node:fs");
+  const h = rf(new URL("../index.html", import.meta.url), "utf8");
+  console.assert(h.includes('Math.hypot(e.clientX - tapX, e.clientY - tapY) <= 24'), "ghost click near the tap is swallowed");
+  if (!h.includes('Math.hypot(e.clientX - tapX, e.clientY - tapY) <= 24')) throw new Error("v314 ghost-click guard missing");
+}
