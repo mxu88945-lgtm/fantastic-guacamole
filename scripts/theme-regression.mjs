@@ -3,6 +3,7 @@ import fs from 'node:fs'
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')
 const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8')
 const manuscriptCss = fs.readFileSync(new URL('../src/manuscript-themes.css', import.meta.url), 'utf8')
+const archiveCss = fs.readFileSync(new URL('../src/theme-archives.css', import.meta.url), 'utf8')
 let checks = 0
 
 const ok = (value, message) => {
@@ -41,6 +42,12 @@ ok(manuscriptCss.includes('#messages .msg.user .bubble,')
   && manuscriptCss.includes('width: fit-content;')
   && manuscriptCss.includes('max-width: 100%;'),
   'short user copy no longer hugs the right edge before expanding to the full card width')
+ok(archiveCss.includes('html[data-theme-key] body:not(.rp-chat-active) .composer {')
+  && archiveCss.includes('background: color-mix(in srgb, var(--bg-soft) 78%, transparent);')
+  && archiveCss.includes('-webkit-backdrop-filter: blur(18px) saturate(1.18);'),
+  'main-chat composer no longer has the shared readable milk-glass surface')
+ok(archiveCss.includes('isolation: isolate;') && archiveCss.includes('overflow: hidden;'),
+  'main-chat composer no longer clips its glass paint to the rounded surface')
 
 const claudeStart = html.indexOf('{ key: "claude", name: "Claude 官端"')
 const claudeEnd = html.indexOf('{ key: "white"', claudeStart)
@@ -211,7 +218,7 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v332";'), 'service worker cache was not bumped for the warm liquid theme')
+ok(sw.includes('const CACHE = "role-chat-cache-v333";'), 'service worker cache was not bumped for the warm liquid theme')
 
 console.log(`theme regression: ${checks} checks passed`)
 
