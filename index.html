@@ -11187,7 +11187,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   if (!rpProject && window.JYCGifts?.buildGiftSystemNote) {
     const roleGiftParts = privateRoleConvs().flatMap(conv => (conv.messages || []).flatMap(message =>
       Array.isArray(message.content) ? message.content.filter(part => part?.type === "gift") : []));
-    const giftNote = window.JYCGifts.buildGiftSystemNote(roleGiftParts, settings.aiName || "TA", settings.userName || "用户");
+    const giftNote = window.JYCGifts.buildGiftSystemNote(roleGiftParts, settings.aiName || "TA", settings.userName || "用户", roleCustomGifts());
     if (giftNote) systemText = systemText ? systemText + "\n\n" + giftNote : giftNote;
   }
   if (pendingSearchContext) {
@@ -15598,7 +15598,9 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       const giftResult = !replyProject && window.JYCGifts?.extractAssistantGift
         ? window.JYCGifts.extractAssistantGift(assistantMsg.content, {
             roleName: settings.aiName || "TA", userName: settings.userName || "用户",
+            customGifts: roleCustomGifts(),
           }) : null;
+      if (giftResult?.made) addRoleCustomGift(giftResult.made);
       if (giftResult?.gift) {
         assistantMsg.content = [giftResult.gift];
         if (giftResult.text) assistantMsg.content.push({ type: "text", text: giftResult.text });
@@ -19353,7 +19355,32 @@ window.JYCDashboardBridge = {
   isMobile,
   closeSidebar,
 };
+function roleCustomGifts(role) {
+  role = role || ensureRoleCompanionData(activeRole());
+  if (!role) return [];
+  if (!Array.isArray(role.customGifts)) role.customGifts = [];
+  return role.customGifts;
+}
+function addRoleCustomGift(raw) {
+  const role = ensureRoleCompanionData(activeRole());
+  const item = window.JYCGifts?.normalizeCustomGift?.(raw);
+  if (!role || !item) return null;
+  const list = roleCustomGifts(role).filter(x => x.id !== item.id && x.name !== item.name);
+  list.push(item);
+  role.customGifts = list.slice(-60);
+  saveSettings();
+  window.dispatchEvent(new CustomEvent("jyc:gifts-updated"));
+  return item;
+}
 window.JYCGiftBridge = {
+  customGifts: () => roleCustomGifts().slice(),
+  addCustomGift: addRoleCustomGift,
+  removeCustomGift: (id) => {
+    const role = ensureRoleCompanionData(activeRole());
+    if (!role) return;
+    role.customGifts = roleCustomGifts(role).filter(x => x.id !== id);
+    saveSettings();
+  },
   context: () => {
     const role = ensureRoleCompanionData(activeRole());
     return {
@@ -19374,6 +19401,7 @@ window.JYCGiftBridge = {
       category: String(item?.category || "handmade"), direction: "user-to-role",
       senderName: settings.userName || "你", recipientName: settings.aiName || "TA",
       note: String(note || "").trim().slice(0, 240), ts: Date.now(), custom: Boolean(item?.custom),
+      ...(item?.custom ? { colors: item.colors, maker: item.maker } : {}),
     };
     window.dispatchEvent(new CustomEvent("jyc:chat-opened", { detail: { conversationId: currentId } }));
     await send({ parts: [part] });
@@ -19384,7 +19412,7 @@ window.JYCGiftBridge = {
     const target = latestRoleConversation() || currentConv();
     if (target && target.id !== currentId) switchConversation(target.id);
     window.dispatchEvent(new CustomEvent("jyc:chat-opened", { detail: { conversationId: currentId } }));
-    await send({ parts: [{ type: "text", text: "我想看看你会送我什么。别问我，按你现在的心意从礼物图鉴里挑一份送给我。" }] });
+    await send({ parts: [{ type: "text", text: "我想看看你会送我什么。别问我，按你现在的心意从礼物图鉴里挑一份送给我，或者亲手做一份。" }] });
   },
 };
 init().catch(e => {

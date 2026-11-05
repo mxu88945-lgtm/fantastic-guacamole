@@ -7,6 +7,7 @@ import {
   extractAssistantGift,
   buildGiftSystemNote,
   renderGiftPartsHtml,
+  normalizeCustomGift,
 } from "../src/gifts.js";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -46,6 +47,23 @@ assert.match(html, /src\/gifts\.js/);
 assert.match(html, /src\/gifts\.css/);
 assert.match(dashboard, /action === "gifts"/);
 assert.match(css, /\.chat-gift-card/);
-assert.match(sw, /role-chat-cache-v334/);
+assert.match(sw, /role-chat-cache-v335/);
+
+const made = extractAssistantGift("给你。\n[自制礼物:🐚|会发光的贝壳|海边捡的，留着等你|别弄丢]", { roleName: "顾祁砚", userName: "周惟惟" });
+assert.equal(made.text, "给你。");
+assert.equal(made.gift.name, "会发光的贝壳");
+assert.equal(made.gift.custom, true);
+assert.equal(made.gift.note, "别弄丢");
+assert.equal(made.made.maker, "role");
+assert.match(renderGiftPartsHtml([made.gift]), /HANDMADE/);
+const mine = normalizeCustomGift({ name: "手织小玄凤", icon: "🐦", maker: "user" });
+assert.equal(mine.category, "custom");
+const fromShelf = extractAssistantGift("[送礼:手织小玄凤|回礼]", { roleName: "顾祁砚", userName: "周惟惟", customGifts: [mine] });
+assert.equal(fromShelf.gift.name, "手织小玄凤");
+assert.equal(fromShelf.made, null);
+assert.match(buildGiftSystemNote([], "顾祁砚", "周惟惟", [mine]), /自制礼物架/);
+assert.match(buildGiftSystemNote([], "顾祁砚", "周惟惟"), /\[自制礼物:/);
+assert.match(html, /addCustomGift: addRoleCustomGift/);
+assert.match(html, /if \(giftResult\?\.made\) addRoleCustomGift/);
 
 console.log("gift system regression passed");
