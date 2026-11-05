@@ -784,3 +784,8 @@
 - 礼物图鉴新增「自制」分类 + 「＋ 自制礼物」卡：emoji、名称、描述、7 种配色，实时预览；可「放进礼物架」或「做好就送给 TA」。礼物架存在 role.customGifts（最多 60），卡片右上 × 可移出（已送出的卡不受影响）。
 - 角色可写 `[自制礼物:emoji|名称|描述|附言]` 亲手做礼物，自动进礼物架；也可用 `[送礼:自制礼物名|附言]` 送架上的。系统提示列出礼物架（最多 16）。
 - 聊天礼物卡对自制礼物用自带配色，印章显示 HANDMADE。
+
+## 2026-11-05 v336 主聊天输入框 Grok 式悬浮半透明（Hark）
+- theme-archives.css：在 v333 半磨砂基础上，所有主题（非 RP）输入框改为 56% 底色（深色 50%）+ blur 22px saturate 1.6，全部 !important 覆盖各主题。
+- composer-wrap 用 margin-top: -var(--composer-h) 浮在聊天底部，聊天文字从输入框下方滚过并透出；#messages::after 留出等高空白。wrap 背景只在下 42% 渐隐（有聊天壁纸时完全透明）。
+- --composer-h 由 index.html trackComposerHeight（ResizeObserver）只写在 .composer-wrap 和 #messages 上，不写根节点；高度变化时若原本贴底则保持贴底。

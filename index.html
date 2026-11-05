@@ -19415,6 +19415,26 @@ window.JYCGiftBridge = {
     await send({ parts: [{ type: "text", text: "我想看看你会送我什么。别问我，按你现在的心意从礼物图鉴里挑一份送给我，或者亲手做一份。" }] });
   },
 };
+// v336: the floating glass composer overlaps the chat by its own height; measure it
+// and write the value only on the two elements that use it (never on <html>).
+(function trackComposerHeight() {
+  const wrap = document.querySelector(".main > .composer-wrap");
+  const list = document.getElementById("messages");
+  if (!wrap || !list || typeof ResizeObserver !== "function") return;
+  let last = -1;
+  const apply = () => {
+    const h = Math.round(wrap.offsetHeight || 0);
+    if (h === last) return;
+    const chat = list.closest(".chat");
+    const atBottom = chat && chat.scrollHeight - chat.scrollTop - chat.clientHeight < 40;
+    last = h;
+    wrap.style.setProperty("--composer-h", h + "px");
+    list.style.setProperty("--composer-h", h + "px");
+    if (atBottom) chat.scrollTop = chat.scrollHeight;
+  };
+  new ResizeObserver(() => requestAnimationFrame(apply)).observe(wrap);
+  apply();
+})();
 init().catch(e => {
   console.error("App init failed", e);
   try { showToast("启动失败，请刷新重试"); } catch (_) {}

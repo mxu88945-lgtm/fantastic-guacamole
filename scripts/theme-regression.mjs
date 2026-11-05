@@ -42,10 +42,12 @@ ok(manuscriptCss.includes('#messages .msg.user .bubble,')
   && manuscriptCss.includes('width: fit-content;')
   && manuscriptCss.includes('max-width: 100%;'),
   'short user copy no longer hugs the right edge before expanding to the full card width')
-ok(archiveCss.includes('html[data-theme-key] body:not(.rp-chat-active) .composer {')
-  && archiveCss.includes('background: color-mix(in srgb, var(--bg-soft) 78%, transparent);')
-  && archiveCss.includes('-webkit-backdrop-filter: blur(18px) saturate(1.18);'),
-  'main-chat composer no longer has the shared readable milk-glass surface')
+ok(archiveCss.includes('html[data-theme-key] body:not(.rp-chat-active) .composer,')
+  && archiveCss.includes('background: color-mix(in srgb, var(--bg-soft) 56%, transparent) !important;')
+  && archiveCss.includes('-webkit-backdrop-filter: blur(22px) saturate(1.6) !important;')
+  && archiveCss.includes('margin-top: calc(-1 * var(--composer-h, 0px));')
+  && archiveCss.includes('#messages::after'),
+  'main-chat composer no longer floats as Grok-style translucent glass over the chat')
 ok(archiveCss.includes('isolation: isolate;') && archiveCss.includes('overflow: hidden;'),
   'main-chat composer no longer clips its glass paint to the rounded surface')
 
@@ -218,7 +220,7 @@ ok(html.includes('localStorage.setItem("jyc_themebg", t.vars.bg);')
   && html.includes('localStorage.setItem("jyc_themedark", t.dark ? "1" : "0");'),
   'runtime notch color persistence was changed')
 
-ok(sw.includes('const CACHE = "role-chat-cache-v335";'), 'service worker cache was not bumped for the warm liquid theme')
+ok(sw.includes('const CACHE = "role-chat-cache-v336";'), 'service worker cache was not bumped for the warm liquid theme')
 
 console.log(`theme regression: ${checks} checks passed`)
 

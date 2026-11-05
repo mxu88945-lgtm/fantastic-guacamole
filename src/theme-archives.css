@@ -171,27 +171,44 @@ html body.rp-chat-active[data-rp-theme="scene-nightglow"]:not(.rp-wallpaper-acti
 #messages .archive-nightglow .archive-body, #messages .archive-nightglow .archive-body * { font-family: "Huiwen-mincho","Songti SC","STSong","Noto Serif SC",serif !important; }
 #messages .archive-nightglow .archive-body :is(p,.message-story-paragraph,.rp-mixed-paragraph) { letter-spacing: .02em !important; }
 
-/* Main-chat composer: one restrained milk-glass surface across owner themes.
-   Keep it opaque enough that long replies do not remain legible through the
-   input, while still allowing each theme or wallpaper tint to breathe through.
+/* Main-chat composer: Grok-style floating translucent glass across ALL owner
+   themes (v336). The composer-wrap overlaps the bottom of the chat by
+   --composer-h (measured in JS on #messages / .composer-wrap only, never on the
+   root), and #messages gets an equal spacer so the last bubble still clears it.
+   Messages now scroll underneath and show blurred through the glass.
    RP owns a separate composer and is deliberately excluded here. */
-html[data-theme-key] body:not(.rp-chat-active) .composer {
+html[data-theme-key] body:not(.rp-chat-active):not(.dashboard-open) .main > .composer-wrap {
+  margin-top: calc(-1 * var(--composer-h, 0px));
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 0%, transparent 58%,
+    color-mix(in srgb, var(--grad-bottom, var(--bg)) 72%, transparent) 100%) !important;
+}
+html[data-chat-bg="1"][data-theme-key] body:not(.rp-chat-active) .main > .composer-wrap { background: transparent !important; }
+html[data-theme-key] body:not(.rp-chat-active) .main > .composer-wrap > * { pointer-events: auto; }
+html[data-theme-key] body:not(.rp-chat-active) #messages::after {
+  content: ""; display: block; height: var(--composer-h, 0px); pointer-events: none;
+}
+html[data-theme-key] body:not(.rp-chat-active) .composer,
+html[data-theme-key] body:not(.rp-chat-active) .composer:focus-within {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: color-mix(in srgb, var(--bg-soft) 78%, transparent);
-  border-color: color-mix(in srgb, var(--border) 58%, rgba(255,255,255,.72));
+  background: color-mix(in srgb, var(--bg-soft) 56%, transparent) !important;
+  background-image: none !important;
+  border-color: color-mix(in srgb, var(--border) 40%, rgba(255,255,255,.7)) !important;
   box-shadow:
     0 10px 30px rgba(24,26,32,.10),
-    inset 0 1px 0 rgba(255,255,255,.78),
-    inset 0 -1px 0 color-mix(in srgb, var(--border) 24%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.18);
-  backdrop-filter: blur(18px) saturate(1.18);
+    inset 0 1px 0 rgba(255,255,255,.6) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.6) !important;
+  backdrop-filter: blur(22px) saturate(1.6) !important;
 }
 html[data-theme-key] body:not(.rp-chat-active) .composer:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 38%, rgba(255,255,255,.68));
-  box-shadow:
-    0 12px 32px rgba(24,26,32,.12),
-    inset 0 1px 0 rgba(255,255,255,.84),
-    inset 0 -1px 0 color-mix(in srgb, var(--border) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 34%, rgba(255,255,255,.66)) !important;
+}
+html[data-theme="dark"] body:not(.rp-chat-active) .composer,
+html[data-theme="dark"] body:not(.rp-chat-active) .composer:focus-within {
+  background: color-mix(in srgb, var(--bg-soft) 50%, transparent) !important;
+  border-color: rgba(255,255,255,.12) !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08) !important;
 }
