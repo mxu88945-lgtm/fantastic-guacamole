@@ -490,6 +490,40 @@
   .special-day-copy span { display: block; color: var(--text-dim); font-size: 10.5px; margin-top: 4px; }
   .special-day-copy em { display: block; color: var(--accent); font-size: 11px; font-style: normal; font-weight: 700; margin-top: 5px; }
   .special-day-actions { display: flex; gap: 2px; }
+  .special-days-hero { position: relative; overflow: hidden; }
+  .special-days-hero.is-companion {
+    padding: 24px 20px 20px; text-align: center; border-radius: 24px;
+    background:
+      radial-gradient(circle at 85% 0%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 46%),
+      radial-gradient(circle at 0% 100%, color-mix(in srgb, #f3b6c8 34%, transparent), transparent 50%),
+      linear-gradient(150deg, color-mix(in srgb, var(--accent-soft) 82%, var(--bg-soft)), var(--bg-soft));
+  }
+  .special-days-big { font-size: 15px !important; font-weight: 600; letter-spacing: 1px; margin: 2px 0 4px; }
+  .special-days-big b {
+    font-size: 54px; line-height: 1.05; font-weight: 750; margin: 0 4px; font-family: Georgia, "Songti SC", serif;
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #e8a33d));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .special-days-motto { margin: 8px auto 0; max-width: 30em; font-size: 12.5px; line-height: 1.7; color: var(--text); opacity: .82; font-style: italic; }
+  .special-days-hero.is-companion span { margin-top: 12px; font-size: 12px; }
+  .special-day-entry { position: relative; }
+  .special-day-dual { display: flex !important; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .special-day-pill {
+    font-style: normal; font-weight: 600; font-size: 10.5px; color: var(--text-dim);
+    padding: 2px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+    background: color-mix(in srgb, var(--accent-soft) 60%, transparent);
+  }
+  .special-days-hero.is-milestone, .special-day-entry.is-milestone {
+    border-color: color-mix(in srgb, #e8b04a 62%, var(--border));
+    animation: special-day-glow 2.8s ease-in-out infinite;
+  }
+  @keyframes special-day-glow {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(232,176,74,.18), 0 0 14px rgba(232,176,74,.18); }
+    50% { box-shadow: 0 0 0 1px rgba(240,150,180,.32), 0 0 24px rgba(240,150,180,.34); }
+  }
+  .special-day-badge { position: absolute; top: 8px; right: 10px; font-style: normal; font-size: 16px; line-height: 1; pointer-events: none; }
+  .special-day-entry .special-day-badge { top: 4px; left: 6px; right: auto; font-size: 14px; }
+  @media (prefers-reduced-motion: reduce) { .special-days-hero.is-milestone, .special-day-entry.is-milestone { animation: none; box-shadow: 0 0 16px rgba(232,176,74,.28); } }
   .special-day-actions button {
     width: 31px; height: 31px; border: 0; border-radius: 9px; background: transparent;
     color: var(--text-dim); cursor: pointer; font-size: 14px;
@@ -3223,6 +3257,8 @@
             <input id="special-day-title" maxlength="40" placeholder="例如：惟惟生日" />
             <input id="special-day-date" class="wide" type="date" aria-label="日期" />
             <label class="special-days-repeat wide"><input id="special-day-annual" type="checkbox" checked /> 每年重复计算</label>
+            <label class="special-days-repeat wide"><input id="special-day-anchor" type="checkbox" /> 作为「已相伴 X 天」的起点（选纪念日时用）</label>
+            <input id="special-day-note" class="wide" maxlength="80" placeholder="主看板上的一句话（可不填）" />
             <div class="special-days-form-actions wide">
               <button class="mini-btn" id="special-day-cancel" type="button" hidden>取消编辑</button>
               <button class="mini-btn primary" id="special-day-save" type="button">记住这个日子</button>
@@ -14674,6 +14710,37 @@ function markSpecialDaysPromptDelivered(claim) {
   if (!claim?.key || !claim.value) return;
   try { localStorage.setItem(claim.key, claim.value); } catch (_) {}
 }
+function specialDayCompanionAnchor(role) {
+  const items = (role && Array.isArray(role.specialDays) ? role.specialDays : []).filter(x => parseLocalDay(x && x.date));
+  const pinned = items.find(x => x.anchor);
+  if (pinned) return pinned;
+  return items.filter(x => x.kind === "anniversary")
+    .sort((a, b) => parseLocalDay(a.date) - parseLocalDay(b.date))[0] || null;
+}
+function specialDayElapsed(item, now) {
+  const base = parseLocalDay(item && item.date);
+  if (!base) return null;
+  const raw = now instanceof Date ? now : new Date();
+  const today = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate(), 12, 0, 0, 0);
+  const n = Math.round((today - base) / 86400000) + 1; // 起点当天算第 1 天
+  return n >= 1 ? n : null;
+}
+function specialDayIsMilestone(n) {
+  return !!n && (n % 100 === 0 || n === 520 || n === 1314 || n % 365 === 0);
+}
+function specialDayAnniversaryPill(item, now) {
+  if (!item || item.kind !== "anniversary" || !item.annual) return "";
+  const base = parseLocalDay(item.date), next = nextSpecialDayAt(item, now);
+  const days = specialDayDistance(item, now);
+  if (!base || !next || days == null) return "";
+  const years = next.getFullYear() - base.getFullYear();
+  if (years <= 0) return "";
+  return days === 0 ? `今天是 ${years} 周年 ♡` : `距 ${years} 周年还有 ${days} 天`;
+}
+function specialDayDotDate(value) {
+  const d = parseLocalDay(value);
+  return d ? `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}` : "";
+}
 let editingSpecialDayId = "";
 function resetSpecialDayForm() {
   editingSpecialDayId = "";
@@ -14681,6 +14748,8 @@ function resetSpecialDayForm() {
   $("special-day-title").value = "";
   $("special-day-date").value = "";
   $("special-day-annual").checked = true;
+  $("special-day-anchor").checked = false;
+  $("special-day-note").value = "";
   $("special-day-form-title").textContent = "记住一个日子";
   $("special-day-save").textContent = "记住这个日子";
   $("special-day-cancel").hidden = true;
@@ -14699,7 +14768,15 @@ function renderSpecialDays() {
     return d != null && d >= 0;
   });
   const hero = $("special-days-hero");
-  if (upcoming) {
+  const anchor = specialDayCompanionAnchor(role);
+  const together = anchor ? specialDayElapsed(anchor) : null;
+  hero.classList.toggle("is-companion", !!together);
+  hero.classList.toggle("is-milestone", specialDayIsMilestone(together) || (!!upcoming && specialDayDistance(upcoming) === 0));
+  if (together) {
+    const motto = anchor.note || `从 ${specialDayDotDate(anchor.date)} 开始，每一天都算数`;
+    const nextLine = upcoming ? `${specialDayKindMeta(upcoming.kind).icon} ${upcoming.title || specialDayKindMeta(upcoming.kind).label} · ${specialDayStatus(upcoming)}` : "";
+    hero.innerHTML = `${specialDayIsMilestone(together) ? '<i class="special-day-badge" aria-hidden="true">👑</i>' : ""}<small>和 ${escapeHtml(roleName)} 已相伴</small><strong class="special-days-big">第 <b>${together}</b> 天</strong><p class="special-days-motto">“${escapeHtml(motto)}”</p>${nextLine ? `<span>${escapeHtml(nextLine)}</span>` : ""}`;
+  } else if (upcoming) {
     const meta = specialDayKindMeta(upcoming.kind);
     hero.innerHTML = `<small>下一件值得期待的事</small><strong>${meta.icon} ${escapeHtml(upcoming.title || meta.label)}</strong><span>${escapeHtml(specialDayStatus(upcoming))}</span>`;
   } else {
@@ -14708,12 +14785,20 @@ function renderSpecialDays() {
   const list = $("special-days-list");
   list.innerHTML = items.length ? items.map(item => {
     const meta = specialDayKindMeta(item.kind);
-    return `<article class="special-day-entry">
+    const pill = specialDayAnniversaryPill(item);
+    const elapsed = pill ? specialDayElapsed(item) : null;
+    const isToday = specialDayDistance(item) === 0;
+    const glow = isToday || specialDayIsMilestone(elapsed);
+    const status = elapsed
+      ? `<em class="special-day-dual">已相伴 ${elapsed} 天<i class="special-day-pill">${escapeHtml(pill)}</i></em>`
+      : `<em>${escapeHtml(specialDayStatus(item))}</em>`;
+    return `<article class="special-day-entry${glow ? " is-milestone" : ""}">
+      ${glow ? `<i class="special-day-badge" aria-hidden="true">${isToday ? "🎆" : "👑"}</i>` : ""}
       <div class="special-day-icon">${meta.icon}</div>
       <div class="special-day-copy">
         <strong>${escapeHtml(item.title || meta.label)}</strong>
-        <span>${meta.label} · ${escapeHtml(specialDayDateText(item.date))}${item.annual ? " · 每年" : ""}</span>
-        <em>${escapeHtml(specialDayStatus(item))}</em>
+        <span>${meta.label} · ${escapeHtml(specialDayDateText(item.date))}${item.annual ? " · 每年" : ""}${item.anchor ? " · 相伴起点" : ""}</span>
+        ${status}
       </div>
       <div class="special-day-actions">
         <button type="button" data-day-edit="${item.id}" aria-label="编辑">✎</button>
@@ -14741,8 +14826,11 @@ function saveSpecialDay() {
   const record = {
     id: editingSpecialDayId || uid(), title: title.slice(0, 40), date,
     kind: $("special-day-kind").value, annual: $("special-day-annual").checked,
+    anchor: $("special-day-anchor").checked,
+    note: ($("special-day-note").value || "").trim().slice(0, 80),
     createdAt: Date.now(),
   };
+  if (record.anchor) role.specialDays.forEach(x => { if (x.id !== record.id) x.anchor = false; });
   if (editingSpecialDayId) {
     const i = role.specialDays.findIndex(x => x.id === editingSpecialDayId);
     if (i >= 0) record.createdAt = role.specialDays[i].createdAt || record.createdAt;
@@ -14761,6 +14849,8 @@ function editSpecialDay(id) {
   $("special-day-title").value = item.title || "";
   $("special-day-date").value = item.date || "";
   $("special-day-annual").checked = !!item.annual;
+  $("special-day-anchor").checked = !!item.anchor;
+  $("special-day-note").value = item.note || "";
   $("special-day-form-title").textContent = "修改这个日子";
   $("special-day-save").textContent = "保存修改";
   $("special-day-cancel").hidden = false;
@@ -19221,6 +19311,9 @@ window.JYCDashboardBridge = {
       unreadMail: roleMailbox(role).filter(item => !item.readAt).length,
       diaryCount: activeRolePrivateDiary(role).length,
       nextSpecialDay: next ? { title: next.title || specialDayKindMeta(next.kind).label, status: specialDayStatus(next) } : null,
+      upcomingSpecialDays: days.filter(item => { const d = specialDayDistance(item); return d != null && d >= 0; }).slice(0, 3)
+        .map(item => ({ title: item.title || specialDayKindMeta(item.kind).label, status: specialDayStatus(item), today: specialDayDistance(item) === 0 })),
+      companionDays: (() => { const a = specialDayCompanionAnchor(role); return a ? specialDayElapsed(a) : null; })(),
       workbenchCount: Array.isArray(projects) ? projects.length : 0,
       roleplayCount: roleConvs().filter(isRoleplayConversation).length,
       giftCount: privateRoleConvs().reduce((count, conv) => count + (conv.messages || []).reduce((n, message) =>

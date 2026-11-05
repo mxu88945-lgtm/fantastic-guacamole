@@ -33,6 +33,35 @@ if (!bridge) {
     return ["Good evening", "EVENING"];
   };
 
+  let dayRotateTimer = 0;
+  // 重要日子卡片：主标题固定「已相伴 X 天」，小字轮播最近的生日/周年
+  function renderDayCard(data, roleName) {
+    const card = document.querySelector(".dashboard-day-card");
+    const title = card?.querySelector(".dashboard-card-copy strong");
+    const meta = $("dashboard-day-meta");
+    if (!card || !title || !meta) return;
+    clearInterval(dayRotateTimer);
+    const together = Number(data.companionDays || 0);
+    const upcoming = Array.isArray(data.upcomingSpecialDays) ? data.upcomingSpecialDays : [];
+    const lines = upcoming.map(item => `${item.title} · ${item.status}`);
+    const milestone = together && (together % 100 === 0 || together === 520 || together === 1314 || together % 365 === 0);
+    card.classList.toggle("is-companion", !!together);
+    card.classList.toggle("is-milestone", !!milestone || upcoming.some(item => item.today));
+    title.textContent = together ? `和 ${roleName} 已相伴 ${together} 天` : "重要日子";
+    if (!lines.length) {
+      meta.textContent = together ? "把下一个生日或周年也记下来吧" : "把值得记住的日期放在这里";
+      return;
+    }
+    let i = 0;
+    meta.textContent = lines[0];
+    if (lines.length > 1) dayRotateTimer = setInterval(() => {
+      if (!document.body.contains(meta)) return clearInterval(dayRotateTimer);
+      i = (i + 1) % lines.length;
+      meta.classList.add("is-swapping");
+      setTimeout(() => { meta.textContent = lines[i]; meta.classList.remove("is-swapping"); }, 220);
+    }, 4200);
+  }
+
   async function render() {
     const data = bridge.summary();
     const [greeting, timeLabel] = welcome();
@@ -60,9 +89,7 @@ if (!bridge) {
       ? `${unread} 封信等着 ${roleName} 阅读`
       : data.diaryCount ? `${data.diaryCount} 页私人日记` : "没有未读信";
 
-    $("dashboard-day-meta").textContent = data.nextSpecialDay
-      ? `${data.nextSpecialDay.title} · ${data.nextSpecialDay.status}`
-      : "把值得记住的日期放在这里";
+    renderDayCard(data, roleName);
     $("dashboard-workbench-meta").textContent = data.workbenchCount
       ? `${data.workbenchCount} 个独立项目` : "独立创作空间";
 

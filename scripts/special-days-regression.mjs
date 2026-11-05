@@ -41,7 +41,8 @@ const context = {
 }
 vm.runInNewContext(`${html.slice(start, end)}\nglobalThis.days = {
   parseLocalDay, nextSpecialDayAt, specialDayDistance,
-  buildSpecialDaysPromptClaim, markSpecialDaysPromptDelivered
+  buildSpecialDaysPromptClaim, markSpecialDaysPromptDelivered,
+  specialDayCompanionAnchor, specialDayElapsed, specialDayIsMilestone, specialDayAnniversaryPill
 };`, context)
 
 const birthday = { date: '2020-03-05', annual: true }
@@ -75,6 +76,17 @@ const todayRole = { id: 'role-today', specialDays: [
 ] }
 ok(context.days.buildSpecialDaysPromptClaim(todayRole, new Date(2026, 2, 5, 12)).text.includes('就是今天，第 6 周年'),
   'same-day anniversary does not tell the model the anniversary count')
-ok(sw.includes('const CACHE = "role-chat-cache-v333";'), 'service worker cache was not bumped to v166')
+ok(sw.includes('const CACHE = "role-chat-cache-v334";'), 'service worker cache was not bumped to v166')
+
+const meet = { id: 'meet', title: '相识的纪念日', kind: 'anniversary', date: '2026-07-29', annual: true }
+const now100 = new Date(2026, 10, 5, 12)
+ok(context.days.specialDayElapsed(meet, now100) === 100, 'companion day count should be 100 on 2026-11-05 (start day = day 1)')
+ok(context.days.specialDayIsMilestone(100) && context.days.specialDayIsMilestone(520) && !context.days.specialDayIsMilestone(101),
+  'milestone detection is wrong')
+ok(context.days.specialDayAnniversaryPill(meet, now100) === '距 1 周年还有 266 天', 'anniversary countdown pill text is wrong')
+ok(context.days.specialDayCompanionAnchor({ specialDays: [birthday, meet] }) === meet, 'earliest anniversary is not used as companion anchor')
+const pinned = { title: 'x', kind: 'other', date: '2026-08-01', anchor: true }
+ok(context.days.specialDayCompanionAnchor({ specialDays: [meet, pinned] }) === pinned, 'pinned anchor is ignored')
+ok(html.includes('id="special-day-anchor"') && html.includes('id="special-day-note"'), 'anchor/motto form fields missing')
 
 console.log(`special days regression: ${checks} checks passed`)

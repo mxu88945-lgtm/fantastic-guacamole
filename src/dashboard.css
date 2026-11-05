@@ -269,3 +269,15 @@ html[data-theme="dark"] .dashboard-card { box-shadow: inset 0 1px rgba(255,255,2
 @media (prefers-reduced-motion: reduce) {
   button.dashboard-card { transition: none; }
 }
+
+/* 重要日子：已相伴主标题 + 轮播 + 整百微光 */
+.dashboard-day-card.is-companion .dashboard-card-copy strong { font-family: Georgia, "Songti SC", serif; font-weight: 600; }
+#dashboard-day-meta { transition: opacity .22s ease; }
+#dashboard-day-meta.is-swapping { opacity: 0; }
+.dashboard-day-card.is-milestone { border-color: color-mix(in srgb, #e8b04a 60%, var(--border)); animation: dashboard-day-glow 2.8s ease-in-out infinite; }
+.dashboard-day-card.is-milestone::before { content: "👑"; position: absolute; top: 18px; right: 20px; font-size: 16px; }
+@keyframes dashboard-day-glow {
+  0%, 100% { box-shadow: inset 0 1px rgba(255,255,255,.5), 0 0 16px rgba(232,176,74,.2); }
+  50% { box-shadow: inset 0 1px rgba(255,255,255,.5), 0 0 28px rgba(240,150,180,.36); }
+}
+@media (prefers-reduced-motion: reduce) { .dashboard-day-card.is-milestone { animation: none; } }
