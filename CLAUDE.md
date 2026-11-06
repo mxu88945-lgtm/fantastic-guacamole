@@ -794,3 +794,8 @@
 - 用户消息卡改为整行宽（原通用 scene 规则 88% 偏左），左右与对方卡对齐。
 - 卡内灰底气泡去掉 rp-theater-polish 的 backdrop-filter blur(18px)：iOS 模糊层里的文字会被低分辨率合成，她反馈「糊、像山寨」。
 - 对白引号改成整块圆角胶囊（block），正文色 #242429、字重 400。
+
+## 2026-11-06 v338 剧场全部主题去掉消息区模糊层（Hark）
+- rp-manuscript-themes.css 末尾：body.rp-chat-active #messages 内所有元素 backdrop-filter:none（顶栏/输入框/身份胶囊在外，不受影响）；有壁纸时气泡底色 34%→86%；状态卡用 panel-strong。
+- roleplayRichDocument 的 iframe 基础样式也禁用 backdrop-filter（卡作者写的玻璃效果同样会让字发糊）。
+- 原因：iOS 把模糊层内文字低分辨率合成，她反馈多数主题「糊」。以后剧场消息内不要再加 backdrop-filter。

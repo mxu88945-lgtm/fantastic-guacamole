@@ -634,3 +634,27 @@ html body.rp-chat-active[data-rp-theme="scene-mobile"] #messages .msg.archive-mo
   color: #242429 !important;
   -webkit-font-smoothing: auto !important;
 }
+
+/* v338 所有剧场主题：消息区内一律不用 backdrop-filter。
+   iOS 会把模糊层里的字按低分辨率合成（她说「糊、像山寨」），主聊天早在
+   data-chat-bg 规则里去过一次，剧场一直漏了。模糊去掉后，靠更实的底色保证可读。
+   顶栏、输入框、身份胶囊不在 #messages 内，保留玻璃感。 */
+html body.rp-chat-active #messages,
+html body.rp-chat-active #messages *,
+html body.rp-chat-active #messages *::before,
+html body.rp-chat-active #messages *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html body.rp-chat-active #messages .msg :is(.bubble, .rp-status-card, .message-quote, .chat-quote) {
+  text-shadow: none !important;
+  filter: none !important;
+}
+/* 有剧场壁纸时，原来 34% 的玻璃底去掉模糊后太透，提到 86% 保证字清楚。 */
+html body.rp-chat-active.rp-wallpaper-active #messages .msg.assistant .bubble,
+html body.rp-chat-active.rp-wallpaper-active #messages .msg.user .bubble {
+  background-color: color-mix(in srgb, var(--rp-base-color, #eef4fd) 86%, transparent) !important;
+}
+html body.rp-chat-active #messages .rp-status-card {
+  background: var(--rp-liquid-panel-strong, var(--rp-liquid-panel, rgba(251,247,239,.94))) !important;
+}
