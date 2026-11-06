@@ -789,3 +789,8 @@
 - theme-archives.css：在 v333 半磨砂基础上，所有主题（非 RP）输入框改为 56% 底色（深色 50%）+ blur 22px saturate 1.6，全部 !important 覆盖各主题。
 - composer-wrap 用 margin-top: -var(--composer-h) 浮在聊天底部，聊天文字从输入框下方滚过并透出；#messages::after 留出等高空白。wrap 背景只在下 42% 渐隐（有聊天壁纸时完全透明）。
 - --composer-h 由 index.html trackComposerHeight（ResizeObserver）只写在 .composer-wrap 和 #messages 上，不写根节点；高度变化时若原本贴底则保持贴底。
+
+## 2026-11-06 v337 剧场「MESSAGE」(scene-mobile) 对齐惟镜（Hark）
+- 用户消息卡改为整行宽（原通用 scene 规则 88% 偏左），左右与对方卡对齐。
+- 卡内灰底气泡去掉 rp-theater-polish 的 backdrop-filter blur(18px)：iOS 模糊层里的文字会被低分辨率合成，她反馈「糊、像山寨」。
+- 对白引号改成整块圆角胶囊（block），正文色 #242429、字重 400。
