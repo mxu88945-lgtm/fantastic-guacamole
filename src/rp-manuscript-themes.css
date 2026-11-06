@@ -658,3 +658,7 @@ html body.rp-chat-active.rp-wallpaper-active #messages .msg.user .bubble {
 html body.rp-chat-active #messages .rp-status-card {
   background: var(--rp-liquid-panel-strong, var(--rp-liquid-panel, rgba(251,247,239,.94))) !important;
 }
+
+/* v339：剧场秋日批注同样去掉信封和胶带。 */
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy::after,
+html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-heading::before { content: none !important; display: none !important; }

@@ -799,3 +799,5 @@
 - rp-manuscript-themes.css 末尾：body.rp-chat-active #messages 内所有元素 backdrop-filter:none（顶栏/输入框/身份胶囊在外，不受影响）；有壁纸时气泡底色 34%→86%；状态卡用 panel-strong。
 - roleplayRichDocument 的 iframe 基础样式也禁用 backdrop-filter（卡作者写的玻璃效果同样会让字发糊）。
 - 原因：iOS 把模糊层内文字低分辨率合成，她反馈多数主题「糊」。以后剧场消息内不要再加 backdrop-filter。
+
+- 2026-11-06 v339：秋日批注（主聊天+剧场）去掉右下角信封 archive-envelope 和标题胶带，她嫌复杂。
