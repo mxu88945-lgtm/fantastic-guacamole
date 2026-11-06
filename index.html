@@ -4066,6 +4066,10 @@
         <h2 class="model-config-title" id="model-config-title">配置</h2>
         <div class="model-config-list">
           <div class="model-config-row">
+            <label for="provider-quick">渠道</label>
+            <select id="provider-quick" title="切换当前窗口渠道"></select>
+          </div>
+          <div class="model-config-row">
             <label for="model-quick">模型</label>
             <select id="model-quick" title="切换当前窗口模型"></select>
           </div>
@@ -16525,6 +16529,18 @@ function renderModelQuick() {
   };
   fill($("model-quick"), false);
   fill($("model-select"), true);
+  // 配置面板里的渠道：直接列出设置里的全部渠道，选中即切换当前窗口（同设置页的 switchProvider）。
+  const providerQuick = $("provider-quick");
+  if (providerQuick) {
+    const curProvider = conversationProvider();
+    providerQuick.innerHTML = "";
+    for (const p of settings.providers || []) {
+      const opt = document.createElement("option");
+      opt.value = p.id; opt.textContent = p.name || "未命名渠道";
+      if (curProvider && p.id === curProvider.id) opt.selected = true;
+      providerQuick.appendChild(opt);
+    }
+  }
   const quickLabel = $("model-config-label");
   if (quickLabel) quickLabel.textContent = (cur && modelShownName(cur)) || "选择模型";
   const aliasInput = $("model-alias-input");
@@ -18250,6 +18266,7 @@ async function init() {
     updateStatusLine(); renderModelQuick();
     showToast("这个窗口已使用 " + (getModelDisplayLabel(value) || value));
   };
+  $("provider-quick").addEventListener("change", () => { const id = $("provider-quick").value; if (id && id !== settings.activeProviderId) switchProvider(id); });
   $("model-quick").addEventListener("change", () => pickModel($("model-quick").value));
   $("model-select").addEventListener("change", () => pickModel($("model-select").value));
   $("model-config-btn").onclick = openModelConfig;
