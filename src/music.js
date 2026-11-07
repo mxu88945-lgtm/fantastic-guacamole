@@ -452,9 +452,17 @@
 
   function togglePlay() {
     if (!state.song) return;
-    if (!audio.src) { playSong(state.song); return; }
+    if (!audio.src) { playSong(state.song, state.queue); return; }
     if (audio.src && !audio.paused) audio.pause();
     else audio.play().catch(() => showToast("请先点击歌曲开始播放"));
+  }
+
+  /* v345：本地歌按「本地歌曲」列表顺序循环上下首，不依赖队列（刷新/暂停后队列可能被清空） */
+  function localNeighbor(step) {
+    if (!isLocal(state.song) || !state.local.length) return null;
+    const i = state.local.findIndex((x) => x.songId === state.song.songId);
+    const n = state.local.length;
+    return state.local[((i < 0 ? -1 : i) + step + n * 2) % n] || null;
   }
 
   async function playNext() {
@@ -462,6 +470,8 @@
       await playSong(state.queue.shift(), state.queue);
       return;
     }
+    const localNext = localNeighbor(1);
+    if (localNext) { await playSong(localNext); return; }
     if (state.roam && state.song && state.connected && !isLocal(state.song)) {
       try {
         const data = await api(`/music/roam?id=${encodeURIComponent(state.song.songId)}`);
@@ -473,8 +483,10 @@
 
   function playPrevious() {
     if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+    const localPrev = localNeighbor(-1);
+    if (localPrev) { playSong(localPrev, state.queue); return; }
     const previous = state.history.pop();
-    if (previous) playSong(previous);
+    if (previous) playSong(previous, state.queue);
   }
 
   function addQueue(song) {

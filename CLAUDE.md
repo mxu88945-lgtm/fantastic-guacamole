@@ -817,3 +817,7 @@
 
 ## 2026-11-07 v344（Hark）
 - 错误红条忽略 iOS 的 “ResizeObserver loop completed with undelivered notifications” 无害警告。
+
+## 2026-11-07 v345（Hark）
+- 本地歌按「本地歌曲」列表顺序循环切上/下一首，放完自动下一首；不再依赖队列（刷新后点播放会清空队列，这个也修了）。
+- 上/下一首图标改成 ⏮ ⏭（原 ↶↷ 看着像撤销）。
