@@ -1799,7 +1799,8 @@
   .reply-variant-nav span { min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
   @keyframes tts-pulse { 0%,100%{opacity:.45} 50%{opacity:.2} }
   /* long-press: suppress iOS selection on bubbles (but allow it in code blocks) */
-  .bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  /* v346：按住消息文字可以选中、拖动选区、复制（iOS 原生） */
+  .bubble { -webkit-touch-callout: default; -webkit-user-select: text; user-select: text; }
   .bubble pre, .bubble code { -webkit-user-select: text; user-select: text; }
   .msg.starred .bubble { box-shadow: 0 0 0 2px var(--accent) inset, 0 2px 8px rgba(0,0,0,.06); }
   #msg-menu {
@@ -18139,7 +18140,8 @@ async function init() {
   messagesEl.addEventListener("contextmenu", (e) => {
     const idx = findIdx(e.target);
     if (idx == null) return;
-    if (e.target.closest && e.target.closest("pre, code, .think-body, .trace-reasoning")) return;
+    // v346：消息文字允许原生长按选字，只拦按钮/图片上的系统菜单
+    if (e.target.closest && !e.target.closest("button, img, .msg-actions")) return;
     e.preventDefault();
   });
   $("msg-menu").querySelectorAll("button").forEach(btn => {
