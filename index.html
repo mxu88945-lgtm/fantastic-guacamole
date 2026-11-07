@@ -11242,6 +11242,9 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   let wxNote = "";
   try { wxNote = buildWxPromptNote(); } catch (_) { wxNote = ""; }
   if (wxNote) systemText = systemText ? systemText + "\n\n" + wxNote : wxNote;
+  let musicNote = "";
+  try { musicNote = window.JYCMusic?.promptNote?.() || ""; } catch (_) { musicNote = ""; }
+  if (musicNote) systemText = systemText ? systemText + "\n\n" + musicNote : musicNote;
   }
 
   if (activeSpeaker && !backstageMode) systemText += "\n\n" + roleplaySpeakerPrompt(activeSpeaker, rpProject);

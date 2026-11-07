@@ -856,6 +856,30 @@
     if (state.openedFromDashboard) window.dispatchEvent(new CustomEvent("jyc:dashboard-open"));
   }
 
+  /** v343：一起听歌——每轮注入系统提示，让 TA 知道正在放什么、唱到哪句、歌单里有什么 */
+  function promptNote() {
+    const song = state.song;
+    if (!song || !state.playing) return "";
+    const parts = [`【一起听歌】她正在放《${song.name}》${song.artist && song.artist !== "本地音乐" && song.artist !== "未知歌手" ? `— ${song.artist}` : ""}，放到 ${fmt(state.currentTime)}${state.duration ? ` / ${fmt(state.duration)}` : ""}。你们像是在一起听。`];
+    const lines = state.lyrics || [];
+    if (lines.length && lines[0].time >= 0) {
+      const i = state.lyricIndex;
+      if (i < 0) parts.push("前奏中，还没唱到歌词。");
+      else {
+        const from = Math.max(0, i - 2), to = Math.min(lines.length, i + 3);
+        parts.push("现在唱到（▶ 是这一句）：\n" + lines.slice(from, to).map((l, k) => (from + k === i ? "▶ " : "  ") + l.text).join("\n"));
+      }
+    } else if (lines.length) {
+      let text = lines.map((l) => l.text).join(" / ");
+      if (text.length > 600) text = text.slice(0, 600) + "…";
+      parts.push("这首歌的歌词：" + text);
+    }
+    const list = (isLocal(song) ? state.local : state.queue).map((x) => x.name).filter(Boolean);
+    if (list.length) parts.push(`${isLocal(song) ? "她的本地歌单" : "接下来的队列"}（${list.length} 首）：${list.slice(0, 20).join("、")}${list.length > 20 ? "…" : ""}`);
+    parts.push("可以自然地聊这首歌、顺着歌词说点什么，别每条都提，别编造没给你的歌词，不要提“系统”“注入”“字段”。");
+    return parts.join("\n");
+  }
+
   function summary() {
     return { connected: state.connected, song: state.song, queueCount: state.queue.length, likedCount: state.liked.length, localCount: state.local.length };
   }
@@ -923,7 +947,7 @@
   restoreLibrary();
   restoreLocalList();
   restorePlayerState();
-  window.JYCMusic = { open, close, summary, togglePlay, playNext, getState: () => ({ ...state, lyrics: undefined, lyricTranslations: undefined }) };
+  window.JYCMusic = { open, close, summary, promptNote, togglePlay, playNext, getState: () => ({ ...state, lyrics: undefined, lyricTranslations: undefined }) };
   bind();
   renderMiniPlayer();
 })();
