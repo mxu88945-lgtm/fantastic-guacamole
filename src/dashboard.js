@@ -117,7 +117,7 @@ if (!bridge) {
     const music = window.JYCMusic?.summary?.() || { connected: false, song: null, queueCount: 0 };
     $("dashboard-music-meta").textContent = music.song
       ? `正在听《${music.song.name}》`
-      : music.connected ? "搜索一首歌，和 TA 一起听" : "连接 Eryu 后开始听歌";
+      : music.connected ? "搜索一首歌，和 TA 一起听" : music.localCount ? `${music.localCount} 首本地歌，点开一起听` : "导入手机里的歌，和 TA 一起听";
 
     $("dashboard-gift-meta").textContent = Number(data.giftCount || 0)
       ? `已经交换了 ${data.giftCount} 份心意`

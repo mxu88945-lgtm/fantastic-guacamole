@@ -9,6 +9,7 @@
   const CONFIG_KEY = "jyc_music_config_v1";
   const PLAYER_KEY = "jyc_music_player_v1";
   const LIBRARY_KEY = "jyc_music_library_v1";
+  const LOCAL_KEY = "jyc_music_local_v1";
   const DEFAULT_BASE_URL = "https://eryu-cloud-functions.vercel.app";
   const $ = (id) => document.getElementById(id);
   const audio = new Audio();
@@ -41,7 +42,124 @@
     lyricsOpen: false,
     lyricsLoading: false,
     sharedWithCompanion: false,
+    local: [],
+    lyricHint: "",
   };
+  let localUrl = "";
+
+  // ---- 本地歌曲（v341）：音频/歌词存在独立的 IndexedDB，只在这台设备 ----
+  let localDb = null;
+  function openLocalDb() {
+    if (localDb) return Promise.resolve(localDb);
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open("jyc_music_local", 1);
+      req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains("files")) req.result.createObjectStore("files"); };
+      req.onsuccess = () => { localDb = req.result; resolve(localDb); };
+      req.onerror = () => reject(req.error || new Error("IndexedDB open failed"));
+    });
+  }
+  async function localGet(key) {
+    const db = await openLocalDb();
+    return new Promise((resolve, reject) => { const r = db.transaction("files", "readonly").objectStore("files").get(key); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+  }
+  async function localPut(key, value) {
+    const db = await openLocalDb();
+    return new Promise((resolve, reject) => { const tx = db.transaction("files", "readwrite"); tx.objectStore("files").put(value, key); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error || new Error("写入被中止（空间可能不够）")); });
+  }
+  async function localDel(key) {
+    const db = await openLocalDb();
+    return new Promise((resolve) => { const tx = db.transaction("files", "readwrite"); tx.objectStore("files").delete(key); tx.oncomplete = () => resolve(); tx.onerror = () => resolve(); });
+  }
+  function isLocal(song) { return !!song && String(song.songId).startsWith("local:"); }
+  function saveLocalList() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(state.local)); } catch (_) {} }
+  function restoreLocalList() {
+    try { const raw = JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]"); state.local = Array.isArray(raw) ? raw.map(normalizeSong).filter(Boolean) : []; } catch (_) { state.local = []; }
+  }
+  /** 「阿梨粤-偏偏喜欢你(女声版).mp3」→ { title: "偏偏喜欢你", artist: "阿梨粤" } */
+  function guessSongMeta(name) {
+    let s = String(name || "").replace(/\.[a-z0-9]{2,4}$/i, "").trim();
+    let artist = "";
+    const m = s.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+    if (m) { artist = m[1].trim(); s = m[2]; }
+    const title = s.replace(/[（(【[].*?[）)】\]]/g, "").replace(/[-–—]+$/, "").trim();
+    return { title: title || s.trim(), artist, display: (m ? m[2] : s).trim() };
+  }
+  function pickLyrics(items, title) {
+    const norm = (x) => String(x || "").replace(/\s+/g, "").toLowerCase();
+    const t = norm(title);
+    const ok = (Array.isArray(items) ? items : []).filter((i) => !i.instrumental);
+    const same = ok.filter((i) => norm(i.trackName) === t);
+    return same.find((i) => i.syncedLyrics)?.syncedLyrics || same.find((i) => i.plainLyrics)?.plainLyrics
+      || ok.filter((i) => norm(i.trackName).includes(t)).find((i) => i.syncedLyrics)?.syncedLyrics || "";
+  }
+  async function fetchOnlineLyrics(song) {
+    const title = guessSongMeta(song.name).title;
+    const artist = song.artist && song.artist !== "本地音乐" ? song.artist : "";
+    if (!title) return "";
+    const get = async (q) => { const r = await fetch(`https://lrclib.net/api/search?${q}`); return r.ok ? r.json() : []; };
+    let found = artist ? pickLyrics(await get(`track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}`), title) : "";
+    if (!found) found = pickLyrics(await get(`track_name=${encodeURIComponent(title)}`), title);
+    return found;
+  }
+  /** 纯文本歌词也能显示：没有时间轴的行按顺序排，不跟随进度 */
+  function parseAnyLyrics(text) {
+    const timed = parseLrc(text);
+    if (timed.length) return timed;
+    return String(text || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((t) => ({ time: -1, text: t }));
+  }
+  async function importLocalFiles(files) {
+    const all = Array.from(files || []);
+    if (!all.length) return;
+    const isLyricFile = (f) => /\.(lrc|txt)$/i.test(f.name);
+    const base = (n) => n.replace(/\.[^.]+$/, "");
+    const lyricFiles = all.filter(isLyricFile);
+    const added = [];
+    try {
+      for (const f of all) {
+        if (isLyricFile(f) || /^(image|video)\//.test(f.type)) continue;
+        const id = `local:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+        await localPut(`audio:${id}`, f);
+        const meta = guessSongMeta(f.name);
+        const lrc = lyricFiles.find((l) => base(l.name) === base(f.name));
+        if (lrc) await localPut(`lyric:${id}`, await lrc.text());
+        added.push({ songId: id, name: meta.display || base(f.name), artist: meta.artist || "本地音乐", album: "", cover: "" });
+      }
+      if (!added.length && lyricFiles.length && isLocal(state.song)) {
+        await localPut(`lyric:${state.song.songId}`, await lyricFiles[0].text());
+        await loadLyrics(true);
+        showToast("已给这首歌配上歌词");
+        return;
+      }
+      if (!added.length) { showToast("没有选到音乐文件"); return; }
+      state.local = [...state.local, ...added];
+      saveLocalList();
+      state.activeTab = "local";
+      render();
+      showToast(`已导入 ${added.length} 首`);
+    } catch (error) {
+      showToast(`导入失败：${error.message || error}`);
+    }
+  }
+  function pickLocalFiles() {
+    let input = $("music-local-file");
+    if (!input) {
+      input = document.createElement("input");
+      input.type = "file"; input.multiple = true; input.id = "music-local-file"; input.hidden = true;
+      // 不设 accept：iOS 上混入 .lrc 会把 mp3 全部置灰
+      input.addEventListener("change", () => { importLocalFiles(input.files); input.value = ""; });
+      document.body.appendChild(input);
+    }
+    input.click();
+  }
+  async function removeLocal(index) {
+    const song = state.local[index];
+    if (!song || !confirm(`删除「${song.name}」？`)) return;
+    state.local.splice(index, 1);
+    saveLocalList();
+    localDel(`audio:${song.songId}`); localDel(`lyric:${song.songId}`);
+    state.queue = state.queue.filter((item) => item.songId !== song.songId);
+    renderView(); notifyMusicChanged();
+  }
 
   function loadConfig() {
     try {
@@ -228,7 +346,7 @@
 
   function closeConfig() {
     const card = $("music-connect-card");
-    if (card && state.connected) card.hidden = true;
+    if (card && (state.connected || state.local.length)) card.hidden = true;
   }
 
   async function loadRemoteState() {
@@ -293,13 +411,30 @@
     state.lyricTranslations = new Map();
     state.lyricIndex = -1;
     state.sharedWithCompanion = false;
-    state.recent = [next, ...state.recent.filter((item) => item.songId !== next.songId)].slice(0, 30);
+    if (!isLocal(next)) state.recent = [next, ...state.recent.filter((item) => item.songId !== next.songId)].slice(0, 30);
     saveLibrary();
     savePlayerState();
     notifyMusicChanged();
     renderCurrent();
     renderMiniPlayer();
     loadLyrics();
+    if (isLocal(next)) {
+      try {
+        const blob = await localGet(`audio:${next.songId}`);
+        if (!blob) throw new Error("这首本地歌的文件找不到了，重新导入一下");
+        if (localUrl) URL.revokeObjectURL(localUrl);
+        localUrl = URL.createObjectURL(blob);
+        audio.src = localUrl;
+        state.error = "";
+        await audio.play();
+      } catch (error) {
+        state.playing = false;
+        state.error = error.message || "播放失败";
+        renderCurrent();
+        showToast(state.error);
+      }
+      return;
+    }
     try {
       const data = await api(`/music/url?id=${encodeURIComponent(next.songId)}`);
       if (!data.url) throw new Error(data.error || "这首歌暂时没有可用音源");
@@ -327,7 +462,7 @@
       await playSong(state.queue.shift(), state.queue);
       return;
     }
-    if (state.roam && state.song) {
+    if (state.roam && state.song && state.connected && !isLocal(state.song)) {
       try {
         const data = await api(`/music/roam?id=${encodeURIComponent(state.song.songId)}`);
         if (data.song) await playSong(data.song);
@@ -353,7 +488,7 @@
 
   async function toggleLike(song) {
     const next = normalizeSong(song);
-    if (!next || !state.connected) return;
+    if (!next || !state.connected || isLocal(next)) return;
     const index = state.liked.findIndex((item) => item.songId === next.songId);
     try {
       if (index >= 0) {
@@ -377,8 +512,34 @@
     if (state.roam && !state.song) showToast("先播放一首歌，播完后会自动漫游");
   }
 
-  async function loadLyrics() {
-    if (!state.song || !state.connected) return;
+  async function loadLyrics(force = false) {
+    if (!state.song) return;
+    if (isLocal(state.song)) {
+      const song = state.song;
+      state.lyricHint = "";
+      state.lyricsLoading = true;
+      if (state.lyricsOpen) renderLyrics();
+      try {
+        let text = await localGet(`lyric:${song.songId}`).catch(() => "");
+        if (!text && !force) {
+          state.lyricHint = "正在网上找歌词…";
+          if (state.lyricsOpen) renderLyrics();
+          text = await fetchOnlineLyrics(song).catch(() => "");
+          if (text) await localPut(`lyric:${song.songId}`, text).catch(() => {});
+        }
+        if (state.song?.songId !== song.songId) return;
+        state.lyrics = parseAnyLyrics(text || "");
+        state.lyricTranslations = new Map();
+        state.lyricIndex = -1;
+        state.lyricHint = state.lyrics.length ? "" : "没找到歌词，可以在「本地」里给这首点「+词」";
+      } finally {
+        state.lyricsLoading = false;
+        if (state.lyricsOpen) renderLyrics();
+        renderCurrent();
+      }
+      return;
+    }
+    if (!state.connected) return;
     const songId = state.song.songId;
     state.lyricsLoading = true;
     if (state.lyricsOpen) renderLyrics();
@@ -423,7 +584,7 @@
       input.focus();
     }
     state.sharedWithCompanion = true;
-    if (state.connected) apiPost("/music/listen-together", { ...state.song, roam: state.roam }).catch(() => {});
+    if (state.connected && !isLocal(state.song)) apiPost("/music/listen-together", { ...state.song, roam: state.roam }).catch(() => {});
     close();
     showToast("已把这首歌放进聊天输入框");
   }
@@ -434,7 +595,7 @@
   }
 
   function updateLyricProgress() {
-    if (!state.lyrics.length) return;
+    if (!state.lyrics.length || state.lyrics[0].time < 0) return;
     let index = -1;
     for (let i = state.lyrics.length - 1; i >= 0; i -= 1) {
       if (state.currentTime >= state.lyrics[i].time) { index = i; break; }
@@ -474,10 +635,11 @@
         cover.onerror = () => { cover.removeAttribute("src"); cover.classList.add("music-cover-placeholder"); cover.textContent = "♪"; };
       }
       if (name) name.textContent = song.name;
-      if (artist) artist.textContent = song.artist;
+      if (artist) artist.textContent = isLocal(song) && state.lyricHint ? `${song.artist} · ${state.lyricHint}` : song.artist;
       if (album) album.textContent = song.album ? `专辑 · ${song.album}` : "";
       if (play) play.textContent = state.playing ? "Ⅱ" : "▶";
-      if (like) { like.disabled = false; like.textContent = isLiked(song) ? "♥" : "♡"; like.classList.toggle("liked", isLiked(song)); }
+      if (like && isLocal(song)) { like.disabled = true; like.textContent = "♡"; like.classList.remove("liked"); }
+      else if (like) { like.disabled = false; like.textContent = isLiked(song) ? "♥" : "♡"; like.classList.toggle("liked", isLiked(song)); }
     }
     if (seek) seek.value = String(Math.round(state.progress * 1000));
     if (current) current.textContent = fmt(state.currentTime);
@@ -489,7 +651,7 @@
   function renderMiniPlayer() {
     const mini = $("music-mini-player");
     if (!mini) return;
-    if (!state.song || !state.connected) { mini.hidden = true; return; }
+    if (!state.song || (!state.connected && !isLocal(state.song))) { mini.hidden = true; return; }
     mini.hidden = false;
     mini.style.setProperty("--music-progress", `${state.progress * 100}%`);
     const cover = $("music-mini-cover");
@@ -568,9 +730,47 @@
     if (state.queue.length) bindSongRows($("music-queue-list"), state.queue, { queue: false, remove: true });
   }
 
+  function renderLocal() {
+    const view = $("music-view");
+    if (!view) return;
+    const songs = state.local;
+    view.innerHTML = `<div class="music-queue-head"><div class="music-section-label">本地歌曲 · ${songs.length} 首</div><button type="button" id="music-local-import">＋ 导入</button></div>
+      ${songs.length ? `<div class="music-song-list" id="music-local-list">${songs.map((song, i) => {
+        const current = state.song?.songId === song.songId;
+        return `<div class="music-song-row" data-music-song="${i}"><span class="music-song-cover empty">♪</span><div class="music-song-info"><div class="music-song-name">${esc(song.name)}${current ? `<span class="music-current-badge">正在播放</span>` : ""}</div><div class="music-song-artist">${esc(song.artist)}</div></div><div class="music-song-actions"><button class="music-song-action" data-music-lyricfile="${i}" title="配歌词">词</button><button class="music-song-action danger" data-music-local-del="${i}" title="删除">×</button></div></div>`;
+      }).join("")}</div>` : `<div class="music-empty"><div><strong>还没有本地歌</strong>点「＋ 导入」从「文件」里选 mp3，可以连同同名 .lrc 歌词一起选；没歌词会自动上网找。</div></div>`}`;
+    $("music-local-import")?.addEventListener("click", pickLocalFiles);
+    if (!songs.length) return;
+    bindSongRows($("music-local-list"), songs, { playRest: true });
+    view.querySelectorAll("[data-music-local-del]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); removeLocal(Number(b.dataset.musicLocalDel)); }));
+    view.querySelectorAll("[data-music-lyricfile]").forEach((b) => b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const song = songs[Number(b.dataset.musicLyricfile)];
+      if (!song) return;
+      const input = document.createElement("input");
+      input.type = "file";
+      input.addEventListener("change", async () => {
+        const f = input.files?.[0];
+        if (!f) return;
+        const text = await f.text();
+        if (!parseAnyLyrics(text).length) { showToast("这个歌词文件是空的"); return; }
+        await localPut(`lyric:${song.songId}`, text);
+        if (state.song?.songId === song.songId) await loadLyrics(true);
+        showToast("歌词已保存");
+      });
+      input.click();
+    }));
+  }
+
   function renderView() {
     const view = $("music-view");
-    if (!view || !state.connected) return;
+    if (!view) return;
+    if (!state.connected && state.activeTab !== "local") state.activeTab = "local";
+    document.querySelectorAll("[data-music-tab]").forEach((tab) => { if (tab.dataset.musicTab !== "local") tab.style.display = state.connected ? "" : "none"; });
+    const localCount = $("music-local-count");
+    if (localCount) localCount.textContent = String(state.local.length);
+    if (state.activeTab === "local") { renderLocal(); document.querySelectorAll("[data-music-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.musicTab === "local")); return; }
+    if (!state.connected) return;
     if (state.activeTab === "liked") renderLiked();
     else if (state.activeTab === "queue") renderQueue();
     else renderDiscover();
@@ -592,24 +792,25 @@
     const lines = $("music-lyrics-lines");
     if (!lines) return;
     if (state.lyricsLoading && !state.lyrics.length) { lines.innerHTML = `<div class="music-empty">歌词加载中…</div>`; return; }
-    if (!state.lyrics.length) { lines.innerHTML = `<div class="music-empty">这首歌暂时没有同步歌词</div>`; return; }
+    if (!state.lyrics.length) { lines.innerHTML = `<div class="music-empty">${esc(state.lyricHint || "这首歌暂时没有同步歌词")}</div>`; return; }
     lines.innerHTML = state.lyrics.map((line, index) => {
       const translated = state.lyricTranslations.get(Math.round(line.time * 100));
       return `<div class="music-lyric-line ${index === state.lyricIndex ? "active" : ""}" data-music-lyric="${index}">${esc(line.text)}${translated ? `<div class="music-lyric-trans">${esc(translated)}</div>` : ""}</div>`;
     }).join("");
-    lines.querySelectorAll("[data-music-lyric]").forEach((line) => line.addEventListener("click", () => { const item = state.lyrics[Number(line.dataset.musicLyric)]; if (item) audio.currentTime = item.time; }));
+    lines.querySelectorAll("[data-music-lyric]").forEach((line) => line.addEventListener("click", () => { const item = state.lyrics[Number(line.dataset.musicLyric)]; if (item && item.time >= 0) audio.currentTime = item.time; }));
   }
 
   function render() {
     const panel = $("music-panel");
     if (!panel) return;
     if (!state.connected) {
-      $("music-connect-card").hidden = false;
-      $("music-app").hidden = true;
+      $("music-connect-card").hidden = !!state.local.length && !$("music-connect-card").dataset.editing;
+      $("music-app").hidden = !state.local.length && !isLocal(state.song);
       const base = $("music-base-url");
       const token = $("music-token");
       if (base && document.activeElement !== base) base.value = state.config.baseUrl;
       if (token && document.activeElement !== token) token.value = state.config.token;
+      if (!$("music-app").hidden) renderView();
     } else {
       $("music-app").hidden = false;
       if (!$("music-connect-card").dataset.editing) $("music-connect-card").hidden = true;
@@ -647,7 +848,7 @@
   }
 
   function summary() {
-    return { connected: state.connected, song: state.song, queueCount: state.queue.length, likedCount: state.liked.length };
+    return { connected: state.connected, song: state.song, queueCount: state.queue.length, likedCount: state.liked.length, localCount: state.local.length };
   }
 
   audio.addEventListener("timeupdate", () => {
@@ -668,16 +869,17 @@
     if (state.song && state.sharedWithCompanion) apiPost("/music/listen-complete", { songId: state.song.songId, source: "together" }).catch(() => {});
     playNext();
   });
-  audio.addEventListener("error", () => { state.error = "音频加载失败，这首歌可能需要 VIP 或已失效"; renderCurrent(); });
+  audio.addEventListener("error", () => { if (!audio.src) return; state.error = isLocal(state.song) ? "本地文件读不出来，可能格式不支持" : "音频加载失败，这首歌可能需要 VIP 或已失效"; renderCurrent(); });
 
   function bind() {
     $("music-close")?.addEventListener("click", close);
     $("music-config-btn")?.addEventListener("click", () => {
       const card = $("music-connect-card");
       if (card?.hidden) { card.dataset.editing = "1"; openConfig(); }
-      else if (state.connected) { delete card.dataset.editing; closeConfig(); }
+      else if (state.connected || state.local.length) { delete card.dataset.editing; closeConfig(); }
     });
     $("music-connect-btn")?.addEventListener("click", connectFromForm);
+    $("music-local-import-btn")?.addEventListener("click", pickLocalFiles);
     $("music-cancel-config")?.addEventListener("click", () => { delete $("music-connect-card").dataset.editing; closeConfig(); });
     $("music-logout-btn")?.addEventListener("click", () => {
       state.connected = false; state.config = { baseUrl: "", token: "" }; localStorage.removeItem(CONFIG_KEY); render(); showToast("已断开音乐服务");
@@ -703,6 +905,7 @@
   }
 
   restoreLibrary();
+  restoreLocalList();
   restorePlayerState();
   window.JYCMusic = { open, close, summary, togglePlay, playNext, getState: () => ({ ...state, lyrics: undefined, lyricTranslations: undefined }) };
   bind();

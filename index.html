@@ -3075,6 +3075,7 @@
                 <div class="music-field"><label for="music-base-url">Eryu 服务地址</label><input id="music-base-url" type="url" inputmode="url" placeholder="https://eryu-cloud-functions.vercel.app" autocomplete="off"></div>
                 <div class="music-field"><label for="music-token">访问 token</label><input id="music-token" type="password" placeholder="Vercel 的 ERYU_TOKEN" autocomplete="off"></div>
                 <div class="music-connect-actions"><button type="button" class="music-primary" id="music-connect-btn">连接并保存</button><button type="button" class="music-secondary" id="music-cancel-config" hidden>取消</button><button type="button" class="music-danger" id="music-logout-btn">清除连接</button></div>
+                <button type="button" class="music-secondary" id="music-local-import-btn" style="margin-top:10px;width:100%">♪ 不连也行：导入手机里的歌</button>
                 <div class="music-connect-status" id="music-connect-status"></div>
               </div>
               <p class="music-connect-note">后端的网易云 Cookie 放在 Vercel 环境变量里，前端只保存服务地址和访问 token，不会把 Cookie 塞进网页。</p>
@@ -3104,6 +3105,7 @@
                 <button type="button" class="music-tab active" data-music-tab="search">发现</button>
                 <button type="button" class="music-tab" data-music-tab="liked">喜欢 <span class="music-tab-count" id="music-liked-count">0</span></button>
                 <button type="button" class="music-tab" data-music-tab="queue">队列 <span class="music-tab-count" id="music-queue-count">0</span></button>
+                <button type="button" class="music-tab" data-music-tab="local">本地 <span class="music-tab-count" id="music-local-count">0</span></button>
               </div>
               <div class="music-view" id="music-view"></div>
             </section>

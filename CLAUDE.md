@@ -803,3 +803,8 @@
 - 2026-11-06 v339：秋日批注（主聊天+剧场）去掉右下角信封 archive-envelope 和标题胶带，她嫌复杂。
 
 - 2026-11-06 v340：模型配置面板加「渠道」下拉（provider-quick），列出全部渠道，选中即 switchProvider 切换当前窗口。
+
+## 2026-11-07 v341 一起听歌：本地歌曲 + 自动歌词（Hark）
+- 听歌房新增「本地」页签：导入手机里的 mp3（不设 accept，iOS 上混 .lrc 会把 mp3 置灰），可连同同名 .lrc/.txt 一起选；音频/歌词存独立 IndexedDB `jyc_music_local`（`audio:<id>` / `lyric:<id>`），列表存 localStorage `jyc_music_local_v1`，songId 以 `local:` 开头。
+- 没歌词时按歌名（文件名「歌手-歌名(版本)」解析）去 lrclib.net 搜，优先同名带时间轴，找到存本机；纯文本歌词也能显示（time=-1，不跟进度）。
+- 不连 Eryu 也能用：未连接时只显示「本地」页签，连接卡片上有「导入手机里的歌」；本地歌不进 recent/喜欢/漫游，也不调用 Eryu API。
