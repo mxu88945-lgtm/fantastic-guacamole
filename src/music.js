@@ -651,12 +651,21 @@
   function renderMiniPlayer() {
     const mini = $("music-mini-player");
     if (!mini) return;
-    if (!state.song || (!state.connected && !isLocal(state.song))) { mini.hidden = true; return; }
+    // v342：有歌在放（或放到一半暂停）才自动出现
+    if (!state.song || (!state.connected && !isLocal(state.song)) || (!state.playing && !(state.currentTime > 0))) { mini.hidden = true; return; }
     mini.hidden = false;
+    mini.classList.toggle("playing", !!state.playing);
+    mini.classList.toggle("collapsed", localStorage.getItem("jyc_music_mini") === "collapsed");
     mini.style.setProperty("--music-progress", `${state.progress * 100}%`);
     const cover = $("music-mini-cover");
-    if (cover) { cover.src = resolveUrl(state.song.cover); cover.onerror = () => cover.removeAttribute("src"); }
-    $("music-mini-name").textContent = state.song.name;
+    if (cover) {
+      const src = state.song.cover ? resolveUrl(state.song.cover) : "";
+      if (!src) cover.removeAttribute("src");
+      else if (cover.getAttribute("src") !== src) { cover.src = src; cover.onerror = () => cover.removeAttribute("src"); }
+    }
+    const lineText = currentLyric()?.text || state.song.name;
+    const name = $("music-mini-name");
+    if (name.textContent !== lineText) name.textContent = lineText;
     $("music-mini-artist").textContent = state.song.artist;
     $("music-mini-play").textContent = state.playing ? "Ⅱ" : "▶";
   }
@@ -901,6 +910,13 @@
     $("music-mini-player")?.addEventListener("click", (event) => { if (event.target.closest("button")) return; open(); });
     $("music-mini-play")?.addEventListener("click", (event) => { event.stopPropagation(); togglePlay(); });
     $("music-mini-next")?.addEventListener("click", (event) => { event.stopPropagation(); playNext(); });
+    $("music-mini-prev")?.addEventListener("click", (event) => { event.stopPropagation(); playPrevious(); });
+    $("music-mini-disc")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const collapsed = localStorage.getItem("jyc_music_mini") === "collapsed";
+      try { localStorage.setItem("jyc_music_mini", collapsed ? "open" : "collapsed"); } catch (_) {}
+      renderMiniPlayer();
+    });
     window.addEventListener("jyc:role-changed", () => { if (state.open) render(); });
   }
 

@@ -808,3 +808,6 @@
 - 听歌房新增「本地」页签：导入手机里的 mp3（不设 accept，iOS 上混 .lrc 会把 mp3 置灰），可连同同名 .lrc/.txt 一起选；音频/歌词存独立 IndexedDB `jyc_music_local`（`audio:<id>` / `lyric:<id>`），列表存 localStorage `jyc_music_local_v1`，songId 以 `local:` 开头。
 - 没歌词时按歌名（文件名「歌手-歌名(版本)」解析）去 lrclib.net 搜，优先同名带时间轴，找到存本机；纯文本歌词也能显示（time=-1，不跟进度）。
 - 不连 Eryu 也能用：未连接时只显示「本地」页签，连接卡片上有「导入手机里的歌」；本地歌不进 recent/喜欢/漫游，也不调用 Eryu API。
+
+## 2026-11-07 v342 音乐小浮窗（Hark）
+- `#music-mini-player` 从底部宽条改为右上角小胶囊（top: safe-area+62px）：唱片(封面) + 当前歌词/歌名 + ↶ ▶ ↷；点唱片收起成小圆点（localStorage `jyc_music_mini`）。只在播放中或放到一半暂停时出现，打开听歌房时隐藏。去掉 backdrop-filter。

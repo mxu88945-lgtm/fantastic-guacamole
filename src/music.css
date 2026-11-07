@@ -150,24 +150,32 @@
 .music-lyrics-controls button { width: 42px; height: 42px; border: 0; border-radius: 50%; background: var(--bg-panel); color: var(--text); cursor: pointer; font-size: 16px; }
 .music-lyrics-controls .primary { width: 52px; height: 52px; background: var(--accent); color: var(--accent-contrast, #fff); font-size: 21px; }
 
-/* Persistent mini player */
+/* Persistent mini player — v342：右上角小胶囊（唱片 + 当前句 + 上一首/播放/下一首），点唱片收起成小圆点；不用 backdrop-filter */
 .music-mini-player {
-  position: fixed; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 58; width: min(560px, calc(100% - 24px));
-  display: grid; grid-template-columns: 38px minmax(0,1fr) auto; gap: 9px; align-items: center; min-height: 56px; padding: 7px 9px;
-  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border)); border-radius: 17px; background: color-mix(in srgb, var(--bg-panel) 88%, transparent);
-  box-shadow: 0 12px 32px rgba(23,18,29,.18); backdrop-filter: blur(22px) saturate(1.2); -webkit-backdrop-filter: blur(22px) saturate(1.2);
-  transform: translateX(-50%); cursor: pointer;
+  position: fixed; right: 10px; top: calc(env(safe-area-inset-top) + 62px); z-index: 58; max-width: min(300px, calc(100% - 20px));
+  display: flex; gap: 8px; align-items: center; padding: 4px 8px 4px 4px; overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border)); border-radius: 999px; background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
+  box-shadow: 0 6px 20px rgba(23,18,29,.16); cursor: pointer;
 }
-.music-mini-player[hidden] { display: none !important; }
-.music-mini-player::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--music-progress, 0%); border-radius: inherit; background: color-mix(in srgb, var(--accent) 10%, transparent); pointer-events: none; }
-.music-mini-cover, .music-mini-info, .music-mini-controls { position: relative; z-index: 1; }
-.music-mini-cover { width: 38px; height: 38px; border-radius: 9px; object-fit: cover; background: var(--accent); }
-.music-mini-info { min-width: 0; }
+.music-mini-player[hidden], body.music-open .music-mini-player { display: none !important; }
+.music-mini-player::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--music-progress, 0%); background: color-mix(in srgb, var(--accent) 9%, transparent); pointer-events: none; }
+.music-mini-disc, .music-mini-info, .music-mini-controls { position: relative; z-index: 1; }
+.music-mini-disc { flex: none; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; overflow: hidden; cursor: pointer;
+  background: radial-gradient(circle, #fff 0 2.5px, transparent 2.5px), radial-gradient(circle, #3a3a40 0 9px, var(--accent) 9px 10.5px, #3a3a40 10.5px 15px);
+  animation: music-mini-spin 6s linear infinite; animation-play-state: paused; }
+.music-mini-player.playing .music-mini-disc { animation-play-state: running; }
+@keyframes music-mini-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .music-mini-disc { animation: none; } }
+.music-mini-cover { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.music-mini-cover:not([src]) { display: none; }
+.music-mini-info { min-width: 0; flex: 1; max-width: 150px; }
 .music-mini-name, .music-mini-artist { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.music-mini-name { color: var(--text); font-size: 11px; font-weight: 700; }
-.music-mini-artist { margin-top: 3px; color: var(--text-dim); font-size: 9px; }
-.music-mini-controls { display: flex; gap: 2px; }
-.music-mini-controls button { width: 29px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--accent); cursor: pointer; font-size: 15px; }
+.music-mini-name { color: var(--text); font-size: 11px; font-weight: 600; }
+.music-mini-artist { display: none; }
+.music-mini-controls { display: flex; gap: 0; flex: none; }
+.music-mini-controls button { width: 26px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: var(--accent); cursor: pointer; font-size: 14px; padding: 0; }
+.music-mini-player.collapsed { padding: 4px; gap: 0; }
+.music-mini-player.collapsed .music-mini-info, .music-mini-player.collapsed .music-mini-controls { display: none; }
 
 @media (max-width: 650px) {
   .music-scroll { padding-inline: 12px; }

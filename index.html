@@ -19466,9 +19466,9 @@ if ("serviceWorker" in navigator) {
 }
 </script>
 <div class="music-mini-player" id="music-mini-player" hidden aria-label="迷你播放器">
-  <img class="music-mini-cover" id="music-mini-cover" alt="">
+  <button type="button" class="music-mini-disc" id="music-mini-disc" aria-label="收起或展开"><img class="music-mini-cover" id="music-mini-cover" alt=""></button>
   <div class="music-mini-info"><span class="music-mini-name" id="music-mini-name"></span><span class="music-mini-artist" id="music-mini-artist"></span></div>
-  <div class="music-mini-controls"><button type="button" id="music-mini-play" aria-label="播放或暂停">▶</button><button type="button" id="music-mini-next" aria-label="下一首">↷</button></div>
+  <div class="music-mini-controls"><button type="button" id="music-mini-prev" aria-label="上一首">↶</button><button type="button" id="music-mini-play" aria-label="播放或暂停">▶</button><button type="button" id="music-mini-next" aria-label="下一首">↷</button></div>
 </div>
 <script type="module" src="./src/album.js"></script>
 <script type="module" src="./src/reading-room.js"></script>
