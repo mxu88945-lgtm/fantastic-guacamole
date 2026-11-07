@@ -45,6 +45,8 @@
     }
     window.addEventListener("error", function (e) {
       if (!e || !e.message) return;
+      /* iOS 无害警告：ResizeObserver 一帧内没送完通知，不影响使用，不弹红条 */
+      if (/ResizeObserver loop/i.test(e.message)) { e.preventDefault && e.preventDefault(); return; }
       show(e.message + (e.filename ? "\n@" + String(e.filename).split("/").pop() + ":" + e.lineno + ":" + e.colno : ""));
     });
   })();

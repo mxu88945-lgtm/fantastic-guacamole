@@ -814,3 +814,6 @@
 
 ## 2026-11-07 v343 一起听歌注入（Hark）
 - `JYCMusic.promptNote()`：播放中时每轮在 wxNote 之后追加【一起听歌】：歌名、进度、当前句前后各 2 句（有时间轴）或 600 字纯文本歌词、本地歌单/队列名（最多 20）。暂停或没歌不注入。
+
+## 2026-11-07 v344（Hark）
+- 错误红条忽略 iOS 的 “ResizeObserver loop completed with undelivered notifications” 无害警告。
