@@ -824,3 +824,6 @@
 
 ## 2026-11-07 v346（Hark）
 - 消息气泡允许 iOS 原生长按选字/拖选区/复制：.bubble 改 user-select:text + touch-callout default；contextmenu 只在按钮/图片上拦。
+
+## 2026-11-07 v347
+- 本地歌后台连播：播放时预读下一首 blob，ended 时同步换源；接入 Media Session（锁屏/控制中心 上一首/下一首/播放暂停/拖动）。

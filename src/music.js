@@ -46,6 +46,33 @@
     lyricHint: "",
   };
   let localUrl = "";
+  /* v347：后台连播——提前把下一首本地歌读进内存，放完时同步换源，不等 IndexedDB；并接入锁屏/控制中心 */
+  let prefetched = null; // { songId, blob }
+  async function prefetchNextLocal() {
+    try {
+      const nxt = state.queue[0] || localNeighbor(1);
+      if (!nxt || !isLocal(nxt) || prefetched?.songId === nxt.songId) return;
+      const blob = await localGet(`audio:${nxt.songId}`);
+      if (blob) prefetched = { songId: nxt.songId, blob };
+    } catch (_) {}
+  }
+  function updateMediaSession(song) {
+    const ms = typeof navigator !== "undefined" && navigator.mediaSession;
+    if (!ms || !song) return;
+    try {
+      ms.metadata = new MediaMetadata({ title: song.name, artist: song.artist, album: song.album || "", artwork: song.cover ? [{ src: song.cover, sizes: "512x512" }] : [] });
+    } catch (_) {}
+  }
+  function bindMediaSession() {
+    const ms = typeof navigator !== "undefined" && navigator.mediaSession;
+    if (!ms) return;
+    const set = (action, fn) => { try { ms.setActionHandler(action, fn); } catch (_) {} };
+    set("play", () => { togglePlay(); });
+    set("pause", () => { audio.pause(); });
+    set("previoustrack", () => { playPrevious(); });
+    set("nexttrack", () => { playNext(); });
+    set("seekto", (d) => { if (d && Number.isFinite(d.seekTime)) audio.currentTime = d.seekTime; });
+  }
 
   // ---- 本地歌曲（v341）：音频/歌词存在独立的 IndexedDB，只在这台设备 ----
   let localDb = null;
@@ -420,13 +447,17 @@
     loadLyrics();
     if (isLocal(next)) {
       try {
-        const blob = await localGet(`audio:${next.songId}`);
+        const ready = prefetched?.songId === next.songId ? prefetched.blob : null;
+        prefetched = null;
+        const blob = ready || await localGet(`audio:${next.songId}`);
         if (!blob) throw new Error("这首本地歌的文件找不到了，重新导入一下");
         if (localUrl) URL.revokeObjectURL(localUrl);
         localUrl = URL.createObjectURL(blob);
         audio.src = localUrl;
         state.error = "";
+        updateMediaSession(next);
         await audio.play();
+        prefetchNextLocal();
       } catch (error) {
         state.playing = false;
         state.error = error.message || "播放失败";
@@ -439,6 +470,7 @@
       const data = await api(`/music/url?id=${encodeURIComponent(next.songId)}`);
       if (!data.url) throw new Error(data.error || "这首歌暂时没有可用音源");
       audio.src = resolveUrl(data.url);
+      updateMediaSession(next);
       await audio.play();
       apiPost("/music/recent/add", { song: next }).catch(() => {});
     } catch (error) {
@@ -907,8 +939,9 @@
       if (seek) seek.value = String(Math.round(state.progress * 1000));
     }
   });
-  audio.addEventListener("play", () => { state.playing = true; renderCurrent(); renderMiniPlayer(); });
-  audio.addEventListener("pause", () => { state.playing = false; renderCurrent(); renderMiniPlayer(); });
+  bindMediaSession();
+  audio.addEventListener("play", () => { if (typeof navigator !== "undefined" && navigator.mediaSession) navigator.mediaSession.playbackState = "playing"; state.playing = true; renderCurrent(); renderMiniPlayer(); });
+  audio.addEventListener("pause", () => { if (typeof navigator !== "undefined" && navigator.mediaSession) navigator.mediaSession.playbackState = "paused"; state.playing = false; renderCurrent(); renderMiniPlayer(); });
   audio.addEventListener("ended", () => {
     state.playing = false;
     if (state.song && state.sharedWithCompanion) apiPost("/music/listen-complete", { songId: state.song.songId, source: "together" }).catch(() => {});
