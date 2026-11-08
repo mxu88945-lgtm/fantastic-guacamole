@@ -834,3 +834,6 @@
 ## 2026-11-08｜v349 图片与伯恩一致
 - 聊天图片单独成块（imagePartsHtml → .msg-photo-stack）：单张白边圆角，多张最多叠 3 张歪放 + 「N 张」角标；档案主题里把图片从信笺卡片 archive-body 挪到卡片外。
 - openImageGallery 重写：毛玻璃底，顶栏左关闭/中计数/右存相册(♡)+分享，scroll-snap 左右滑，图片圆角卡片。
+
+## 2026-11-08｜v350 大图双指放大
+- attachPinchZoom(img, track)：双指放大 1–5 倍、放大后单指拖动、双击 2.5 倍/还原；放大时锁 track 横向滚动。与伯恩 src/lib/pinchZoom.ts 同逻辑。

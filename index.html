@@ -1696,7 +1696,7 @@
   .image-gallery-track { flex: 1 1 auto; min-height: 0; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
   .image-gallery-track::-webkit-scrollbar { display: none; }
   .image-gallery-slide { flex: 0 0 100%; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 22px 28px; box-sizing: border-box; scroll-snap-align: center; }
-  .image-gallery-image { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 26px; box-shadow: 0 18px 50px rgba(0,0,0,.28); user-select: none; -webkit-user-drag: none; transform: scale(.96); transition: transform .3s ease; }
+  .image-gallery-image { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 26px; box-shadow: 0 18px 50px rgba(0,0,0,.28); user-select: none; -webkit-user-select: none; -webkit-user-drag: none; touch-action: pan-x; transform: scale(.96); transition: transform .3s ease; }
   .image-gallery-overlay.show .image-gallery-image { transform: scale(1); }
   .image-gallery-hint { flex: 0 0 auto; text-align: center; color: rgba(255,255,255,.88); font: 11px/1.4 system-ui; padding: 4px 0 max(14px, env(safe-area-inset-bottom)); text-shadow: 0 1px 4px rgba(0,0,0,.25); }
   /* 聊天里的图片：单独一块，多张歪着叠 */
@@ -6013,6 +6013,99 @@ async function exportChatImage(msgsOverride) {
 // Tap an in-chat image → fullscreen viewer (in-app overlay; never window.open a data: URL,
 // which iOS standalone PWAs open as a blank Safari page).
 function openImageLightbox(src) { openImageGallery([{ dataUrl: src }], 0); }
+// 大图双指放大 / 单指拖动 / 双击放大还原。放大时锁住左右翻页，缩回 1 倍再恢复。
+function attachPinchZoom(img, track) {
+  let s = 1
+  let x = 0
+  let y = 0
+  let pinch = null
+  let pan = null
+  let lastTap = 0
+
+  const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
+  const clampPan = () => {
+    const w = img.offsetWidth
+    const h = img.offsetHeight
+    const mx = Math.max(0, (w * s - w) / 2)
+    const my = Math.max(0, (h * s - h) / 2)
+    x = Math.max(-mx, Math.min(mx, x))
+    y = Math.max(-my, Math.min(my, y))
+  }
+  const apply = (animate = false) => {
+    img.style.transition = animate ? 'transform .22s ease' : 'none'
+    if (s <= 1.01) {
+      s = 1
+      x = 0
+      y = 0
+      img.style.transform = ''
+      if (track) track.style.overflowX = ''
+    } else {
+      img.style.transform = `translate(${x}px, ${y}px) scale(${s})`
+      if (track) track.style.overflowX = 'hidden'
+    }
+  }
+
+  const onStart = (e) => {
+    if (e.touches.length === 2) {
+      pinch = { d: dist(e.touches) || 1, s, x, y }
+      pan = null
+    } else if (e.touches.length === 1) {
+      const now = Date.now()
+      if (now - lastTap < 280) {
+        // 双击：放大 2.5 倍 / 还原
+        e.preventDefault()
+        s = s > 1.01 ? 1 : 2.5
+        x = 0
+        y = 0
+        apply(true)
+        lastTap = 0
+        return
+      }
+      lastTap = now
+      if (s > 1.01) pan = { px: e.touches[0].clientX, py: e.touches[0].clientY, x, y }
+    }
+  }
+  const onMove = (e) => {
+    if (pinch && e.touches.length === 2) {
+      e.preventDefault()
+      const ns = Math.max(1, Math.min(5, (pinch.s * dist(e.touches)) / pinch.d))
+      const k = ns / pinch.s
+      x = pinch.x * k
+      y = pinch.y * k
+      s = ns
+      clampPan()
+      apply()
+    } else if (pan && e.touches.length === 1 && s > 1.01) {
+      e.preventDefault()
+      x = pan.x + (e.touches[0].clientX - pan.px)
+      y = pan.y + (e.touches[0].clientY - pan.py)
+      clampPan()
+      apply()
+    }
+  }
+  const onEnd = (e) => {
+    if (e.touches.length < 2) pinch = null
+    if (e.touches.length === 0) {
+      pan = null
+      if (s < 1.05) apply(true)
+    }
+  }
+  const stopGesture = (e) => e.preventDefault()
+
+  img.addEventListener('touchstart', onStart, { passive: false })
+  img.addEventListener('touchmove', onMove, { passive: false })
+  img.addEventListener('touchend', onEnd)
+  img.addEventListener('touchcancel', onEnd)
+  img.addEventListener('gesturestart', stopGesture)
+  return () => {
+    img.removeEventListener('touchstart', onStart)
+    img.removeEventListener('touchmove', onMove)
+    img.removeEventListener('touchend', onEnd)
+    img.removeEventListener('touchcancel', onEnd)
+    img.removeEventListener('gesturestart', stopGesture)
+    if (track) track.style.overflowX = ''
+  }
+}
 function openImageGallery(parts, initialIndex = 0) {
   // v349：和伯恩一致——毛玻璃底，顶部独立一栏（左关闭 / 中计数 / 右存相册+分享），图片像卡片悬在中间，左右滑翻页
   const images = (Array.isArray(parts) ? parts : []).filter(p => p && (p.dataUrl || p.src));
@@ -6033,10 +6126,11 @@ function openImageGallery(parts, initialIndex = 0) {
     const slide = document.createElement("div"); slide.className = "image-gallery-slide";
     const img = document.createElement("img"); img.className = "image-gallery-image"; img.alt = "聊天图片"; img.src = srcOf(i);
     img.addEventListener("click", e => e.stopPropagation());
+    img.draggable = false; attachPinchZoom(img, track);
     slide.appendChild(img); track.appendChild(slide);
   });
   const hint = document.createElement("div"); hint.className = "image-gallery-hint";
-  hint.textContent = (images.length > 1 ? "左右滑动 · " : "") + "长按或点右上角保存 · 点空白关闭";
+  hint.textContent = (images.length > 1 ? "左右滑动 · " : "") + "双指放大 · 点右上角保存 · 点空白关闭";
   const update = () => { counter.textContent = images.length > 1 ? `${index + 1} / ${images.length}` : ""; counter.hidden = images.length < 2; };
   track.addEventListener("scroll", () => {
     const i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
