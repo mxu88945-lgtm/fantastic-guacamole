@@ -8,12 +8,12 @@ const requireText = (text, message) => {
 }
 
 requireText(
-  'width: min(180px, 29vw); height: 120px;',
+  'msg-photo-stack',
   'chat image preview is not a compact thumbnail grid',
 )
 requireText('function openImageGallery(parts, initialIndex = 0)', 'swipeable image gallery is missing')
-requireText('image-gallery-nav', 'image gallery navigation controls are missing')
-requireText('Math.abs(dx) > 45', 'image gallery does not support touch swipes')
+requireText('image-gallery-track', 'image gallery swipe track is missing')
+requireText('scroll-snap-type: x mandatory', 'image gallery does not support touch swipes')
 requireText('data-gallery-index="${index}"', 'message images are not grouped into a gallery')
 requireText('const CHAT_IMAGE_MAX_EDGE = 2048;', 'chat images are not capped before entering conversation state')
 requireText('async function prepareChatImage(file)', 'memory-safe image preparation is missing')
@@ -42,7 +42,7 @@ requireText(
   'file action does not use the iOS-safe picker path',
 )
 
-if (!sw.includes('const CACHE = "role-chat-cache-v348";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v349";')) {
   throw new Error('service worker cache was not bumped for the image fixes')
 }
 

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 // v305: each conversation is its own IndexedDB value; saves only rewrite changed ones.
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-assert.ok(sw.includes("role-chat-cache-v348"), "sw cache version");
+assert.ok(sw.includes("role-chat-cache-v349"), "sw cache version");
 const a = html.indexOf("const CONV_KEY_PREFIX"), b = html.indexOf("async function migrateConversationsToDb");
 assert.ok(a > 0 && b > a, "split persistence block present");
 const db = new Map(); let puts = [];

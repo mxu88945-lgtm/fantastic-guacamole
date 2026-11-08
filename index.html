@@ -1682,24 +1682,42 @@
   .msg.user .msg-media { align-items: flex-end; }
   .msg.assistant .msg-media { align-items: flex-start; }
   .image-gallery-overlay {
-    position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,.94);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
-    color: #fff; overscroll-behavior: contain;
+    position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column;
+    background: rgba(20,22,26,.22); -webkit-backdrop-filter: blur(28px) saturate(1.2); backdrop-filter: blur(28px) saturate(1.2);
+    overscroll-behavior: contain; opacity: 0; transition: opacity .18s ease;
   }
-  .image-gallery-stage { width: 100%; height: min(78vh, 760px); display: flex; align-items: center; justify-content: center; gap: 12px; touch-action: pan-y; }
-  .image-gallery-image { max-width: calc(100% - 88px); max-height: 100%; object-fit: contain; border-radius: 8px; user-select: none; -webkit-user-drag: none; }
-  .image-gallery-nav { width: 40px; height: 52px; flex: 0 0 auto; border: 0; border-radius: 999px; background: rgba(255,255,255,.16); color: #fff; font: 400 42px/1 system-ui; cursor: pointer; }
-  .image-gallery-nav[hidden] { display: none; }
-  .image-gallery-counter { min-height: 20px; margin-top: 10px; color: rgba(255,255,255,.8); font: 13px/1.4 system-ui; }
-  .image-gallery-actions { display: flex; gap: 8px; margin-top: 12px; }
-  .image-gallery-action { border: 0; border-radius: 999px; padding: 10px 16px; background: rgba(255,255,255,.18); color: #fff; font: 600 13px system-ui; cursor: pointer; }
-  .image-gallery-action:first-child { background: #fff; color: #222; }
-  @media (max-width: 560px) {
-    .image-gallery-stage { height: min(72vh, 620px); gap: 4px; }
-    .image-gallery-nav { width: 32px; height: 46px; font-size: 34px; }
-    .image-gallery-image { max-width: calc(100% - 68px); }
-  }
+  .image-gallery-overlay.show { opacity: 1; }
+  .image-gallery-bar { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: calc(env(safe-area-inset-top) + 10px) 20px 8px; }
+  .image-gallery-right { display: flex; gap: 10px; }
+  .image-gallery-btn { width: 44px; height: 44px; border: 0; border-radius: 999px; display: grid; place-items: center; background: rgba(255,255,255,.58); color: #1f2328; box-shadow: 0 2px 10px rgba(0,0,0,.08); cursor: pointer; padding: 0; }
+  .image-gallery-btn svg { width: 19px; height: 19px; }
+  .image-gallery-counter { padding: 4px 12px; border-radius: 999px; background: rgba(255,255,255,.48); color: #1f2328; font: 500 12px/1.4 system-ui; }
+  .image-gallery-counter[hidden] { visibility: hidden; display: block; }
+  .image-gallery-track { flex: 1 1 auto; min-height: 0; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .image-gallery-track::-webkit-scrollbar { display: none; }
+  .image-gallery-slide { flex: 0 0 100%; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 22px 28px; box-sizing: border-box; scroll-snap-align: center; }
+  .image-gallery-image { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 26px; box-shadow: 0 18px 50px rgba(0,0,0,.28); user-select: none; -webkit-user-drag: none; transform: scale(.96); transition: transform .3s ease; }
+  .image-gallery-overlay.show .image-gallery-image { transform: scale(1); }
+  .image-gallery-hint { flex: 0 0 auto; text-align: center; color: rgba(255,255,255,.88); font: 11px/1.4 system-ui; padding: 4px 0 max(14px, env(safe-area-inset-bottom)); text-shadow: 0 1px 4px rgba(0,0,0,.25); }
+  /* 聊天里的图片：单独一块，多张歪着叠 */
+  .msg-photo-stack { position: relative; display: block; margin: 8px 0; }
+  .msg.user .msg-photo-stack, .archive-row.user > .msg-photo-stack { margin-left: auto; }
+  .archive-row > .msg-photo-stack { margin-top: 10px; margin-bottom: 12px; }
+  .msg-photo-stack.single { width: fit-content; max-width: 100%; }
+  .msg.archive-row > .msg-photo-stack { align-self: flex-start; flex: 0 0 auto; }
+  .msg.archive-row.user > .msg-photo-stack { align-self: flex-end; }
+  .msg-photo-stack.single .msg-img { width: auto; height: auto; max-width: min(240px, 70vw); max-height: 260px; border-radius: 18px; border: 3px solid rgba(255,255,255,.92); box-shadow: 0 8px 24px rgba(0,0,0,.16); }
+  .msg-photo-stack.multi { width: 190px; height: 200px; }
+  .msg.user .msg-photo-stack.multi, .archive-row.user > .msg-photo-stack.multi { margin-right: 10px; }
+  .msg.assistant .msg-photo-stack.multi, .archive-row.assistant > .msg-photo-stack.multi { margin-left: 10px; }
+  .msg-photo-card { position: absolute; inset: 0; display: block; overflow: hidden; border-radius: 18px; border: 3px solid rgba(255,255,255,.95); background: rgba(255,255,255,.7); box-shadow: 0 10px 26px rgba(0,0,0,.18); }
+  .msg-photo-card .msg-img { width: 100% !important; height: 100% !important; max-width: none; border-radius: 0; box-shadow: none; margin: 0; object-fit: cover; }
+  .msg-photo-stack.multi .msg-photo-card[data-depth="0"] { z-index: 3; transform: rotate(0deg); }
+  .msg-photo-stack.multi .msg-photo-card[data-depth="1"] { z-index: 2; transform: translate(-14px, 4px) rotate(-5deg); }
+  .msg-photo-stack.multi .msg-photo-card[data-depth="2"] { z-index: 1; transform: translate(-28px, 8px) rotate(-9deg); }
+  .msg.assistant .msg-photo-stack.multi .msg-photo-card[data-depth="1"], .archive-row.assistant > .msg-photo-stack.multi .msg-photo-card[data-depth="1"] { transform: translate(14px, 4px) rotate(5deg); }
+  .msg.assistant .msg-photo-stack.multi .msg-photo-card[data-depth="2"], .archive-row.assistant > .msg-photo-stack.multi .msg-photo-card[data-depth="2"] { transform: translate(28px, 8px) rotate(9deg); }
+  .msg-photo-count { position: absolute; right: 8px; bottom: 8px; z-index: 4; padding: 2px 8px; border-radius: 999px; background: rgba(0,0,0,.45); color: #fff; font: 11px/1.5 system-ui; pointer-events: none; }
   /* Claude-style subtle thinking line — no box, just a faint collapsible row */
   .think { border: none; background: none; padding: 0; margin: 2px 0 10px; font-size: 12.5px; }
   .think > summary {
@@ -5996,42 +6014,59 @@ async function exportChatImage(msgsOverride) {
 // which iOS standalone PWAs open as a blank Safari page).
 function openImageLightbox(src) { openImageGallery([{ dataUrl: src }], 0); }
 function openImageGallery(parts, initialIndex = 0) {
+  // v349：和伯恩一致——毛玻璃底，顶部独立一栏（左关闭 / 中计数 / 右存相册+分享），图片像卡片悬在中间，左右滑翻页
   const images = (Array.isArray(parts) ? parts : []).filter(p => p && (p.dataUrl || p.src));
   if (!images.length) return;
   let index = Math.max(0, Math.min(images.length - 1, Number(initialIndex) || 0));
+  const srcOf = i => images[i].dataUrl || images[i].src;
   const ov = document.createElement("div"); ov.className = "image-gallery-overlay";
-  const stage = document.createElement("div"); stage.className = "image-gallery-stage";
-  const img = document.createElement("img"); img.className = "image-gallery-image"; img.alt = "聊天图片";
+  const bar = document.createElement("div"); bar.className = "image-gallery-bar";
+  const icon = (d, label) => { const b = document.createElement("button"); b.type = "button"; b.className = "image-gallery-btn"; b.setAttribute("aria-label", label); b.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`; return b; };
+  const closeBtn = icon('<path d="M6 6l12 12M18 6L6 18"/>', "关闭图片");
+  const albumBtn = icon('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>', "存进相册");
+  const shareBtn = icon('<path d="M12 15V3M7.5 7.5L12 3l4.5 4.5"/><path d="M5 12v6.5A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V12"/>', "保存或分享");
   const counter = document.createElement("div"); counter.className = "image-gallery-counter";
-  const actions = document.createElement("div"); actions.className = "image-gallery-actions";
-  const albumBtn = document.createElement("button"); albumBtn.className = "image-gallery-action"; albumBtn.textContent = "♡ 存进相册";
-  const closeBtn = document.createElement("button"); closeBtn.className = "image-gallery-action"; closeBtn.textContent = "✕"; closeBtn.setAttribute("aria-label", "关闭图片");
-  const prevBtn = document.createElement("button"); prevBtn.className = "image-gallery-nav prev"; prevBtn.textContent = "‹"; prevBtn.setAttribute("aria-label", "上一张");
-  const nextBtn = document.createElement("button"); nextBtn.className = "image-gallery-nav next"; nextBtn.textContent = "›"; nextBtn.setAttribute("aria-label", "下一张");
-  function currentSrc() { return images[index].dataUrl || images[index].src; }
-  function update() {
-    img.src = currentSrc(); counter.textContent = images.length > 1 ? `${index + 1} / ${images.length}` : "";
-    prevBtn.hidden = images.length < 2; nextBtn.hidden = images.length < 2;
-  }
-  const move = delta => { if (images.length < 2) return; index = (index + delta + images.length) % images.length; update(); };
-  const close = () => ov.remove();
-  prevBtn.onclick = e => { e.stopPropagation(); move(-1); };
-  nextBtn.onclick = e => { e.stopPropagation(); move(1); };
+  const right = document.createElement("div"); right.className = "image-gallery-right"; right.append(albumBtn, shareBtn);
+  bar.append(closeBtn, counter, right);
+  const track = document.createElement("div"); track.className = "image-gallery-track";
+  images.forEach((_, i) => {
+    const slide = document.createElement("div"); slide.className = "image-gallery-slide";
+    const img = document.createElement("img"); img.className = "image-gallery-image"; img.alt = "聊天图片"; img.src = srcOf(i);
+    img.addEventListener("click", e => e.stopPropagation());
+    slide.appendChild(img); track.appendChild(slide);
+  });
+  const hint = document.createElement("div"); hint.className = "image-gallery-hint";
+  hint.textContent = (images.length > 1 ? "左右滑动 · " : "") + "长按或点右上角保存 · 点空白关闭";
+  const update = () => { counter.textContent = images.length > 1 ? `${index + 1} / ${images.length}` : ""; counter.hidden = images.length < 2; };
+  track.addEventListener("scroll", () => {
+    const i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+    if (i !== index) { index = Math.max(0, Math.min(images.length - 1, i)); update(); }
+  }, { passive: true });
+  const close = () => { ov.classList.remove("show"); setTimeout(() => ov.remove(), 180); };
   closeBtn.onclick = e => { e.stopPropagation(); close(); };
   albumBtn.onclick = e => {
-    e.stopPropagation(); const src = currentSrc(); close();
-    if (window.JYCAlbum) window.JYCAlbum.addFromDataUrl(src, "聊天图片");
+    e.stopPropagation();
+    if (window.JYCAlbum) { window.JYCAlbum.addFromDataUrl(srcOf(index), "聊天图片"); }
     else showToast("相册还在加载，请稍后再试");
   };
-  let startX = 0, startY = 0;
-  stage.addEventListener("touchstart", e => { const t = e.changedTouches[0]; startX = t.clientX; startY = t.clientY; }, { passive: true });
-  stage.addEventListener("touchend", e => {
-    const t = e.changedTouches[0], dx = t.clientX - startX, dy = t.clientY - startY;
-    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) move(dx < 0 ? 1 : -1);
-  }, { passive: true });
-  stage.append(prevBtn, img, nextBtn); actions.append(albumBtn, closeBtn); ov.append(stage, counter, actions);
-  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  shareBtn.onclick = async e => {
+    e.stopPropagation();
+    const src = srcOf(index);
+    try {
+      const blob = await (await fetch(src)).blob();
+      const ext = ((blob.type || "image/jpeg").split("/")[1] || "jpg").replace("jpeg", "jpg");
+      const file = new File([blob], `image-${Date.now()}.${ext}`, { type: blob.type || "image/jpeg" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    } catch (err) { if (err && err.name !== "AbortError") showToast("可以长按图片保存"); }
+  };
+  bar.addEventListener("click", e => { if (e.target === bar) close(); });
+  track.addEventListener("click", e => { if (e.target === track || e.target.classList.contains("image-gallery-slide")) close(); });
+  ov.addEventListener("click", e => { if (e.target === ov || e.target === hint) close(); });
+  ov.append(bar, track, hint);
   document.body.appendChild(ov); update();
+  requestAnimationFrame(() => { track.scrollLeft = index * track.clientWidth; ov.classList.add("show"); });
 }
 function showImagePreview(blob) {
   const url = URL.createObjectURL(blob);
@@ -7554,7 +7589,12 @@ function stickerHtml(p) {
 function imagePartsHtml(content) {
   if (!Array.isArray(content)) return "";
   const images = content.filter(p => p.type === "image" && p.dataUrl);
-  return images.map((p, index) => `<img class="msg-img" data-gallery-index="${index}" src="${escapeHtml(p.previewDataUrl || p.dataUrl)}" alt="聊天图片">`).join("");
+  if (!images.length) return "";
+  // v349：图片单独一块，多张像照片歪着叠在一起（最多叠 3 张），点开再左右翻
+  const imgTag = (p, index) => `<img class="msg-img" data-gallery-index="${index}" src="${escapeHtml(p.previewDataUrl || p.dataUrl)}" alt="聊天图片">`;
+  if (images.length === 1) return `<div class="msg-photo-stack single">${imgTag(images[0], 0)}</div>`;
+  const top = images.slice(0, 3).map((p, index) => ({ p, index })).reverse();
+  return `<div class="msg-photo-stack multi" data-n="${top.length}">${top.map(({ p, index }) => `<span class="msg-photo-card" data-depth="${index}">${imgTag(p, index)}</span>`).join("")}<span class="msg-photo-count">${images.length} 张</span></div>`;
 }
 function filePartsHtml(content) {
   if (!Array.isArray(content)) return "";
@@ -8431,6 +8471,15 @@ function makeMsgEl(role, content, opts) {
     el.classList.add("archive-row", `archive-${archiveTheme}`);
     el.innerHTML = mainArchiveHeading(archiveTheme, displaySpeakerName, castAvatar || avatarFor(role), role === "user")
       + `<div class="archive-body">${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState, opts)}</div>`;
+    // v349：图片不塞进信笺卡片里，单独放在卡片外
+    const stack = typeof el.querySelector === "function" ? el.querySelector(".archive-body .msg-photo-stack") : null;
+    const body = stack ? el.querySelector(".archive-body") : null;
+    if (stack && body) {
+      body.before(stack);
+      const media = body.querySelector(".msg-media");
+      if (media && !media.children.length) media.remove();
+      if (!body.textContent.trim() && !body.querySelector("img, .file-card, .gift-card, [class*=location], .bubble *")) body.remove();
+    }
   } else if (flat) {
     el.innerHTML = `<div class="msg-head">${speakerAvatar}<span class="name">${nameHtml}</span></div>
       ${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState, opts)}`;

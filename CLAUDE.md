@@ -830,3 +830,7 @@
 
 ## 2026-11-08｜v348 消息底部留白收窄
 - `#messages::after` 占位从整个输入框高度改为减 30px（扣掉 composer-wrap 上方 14px 透明留白和 .chat 底部 24px 的重叠），最后一条消息不再离输入框一大段。
+
+## 2026-11-08｜v349 图片与伯恩一致
+- 聊天图片单独成块（imagePartsHtml → .msg-photo-stack）：单张白边圆角，多张最多叠 3 张歪放 + 「N 张」角标；档案主题里把图片从信笺卡片 archive-body 挪到卡片外。
+- openImageGallery 重写：毛玻璃底，顶栏左关闭/中计数/右存相册(♡)+分享，scroll-snap 左右滑，图片圆角卡片。
