@@ -830,6 +830,11 @@
     background: transparent; color: var(--text); font: inherit; font-size: 16px; outline: none;
   }
   .model-config-row label { flex: 0 0 auto; font-weight: 600; }
+  .model-config-refresh {
+    flex: 0 0 auto; margin-left: -8px; padding: 4px 8px; border: 0; border-radius: 999px;
+    background: transparent; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer;
+  }
+  .model-config-refresh:disabled { opacity: .45; }
   .model-config-row select {
     flex: 1; min-width: 0; border: 0; padding: 10px 24px 10px 8px; text-align: right;
     background: transparent; color: var(--text); font: inherit; outline: none;
@@ -4094,6 +4099,7 @@
           </div>
           <div class="model-config-row">
             <label for="model-quick">模型</label>
+            <button class="model-config-refresh" id="model-config-refresh" type="button" title="重新拉取这个渠道的最新模型列表">↻ 刷新</button>
             <select id="model-quick" title="切换当前窗口模型"></select>
           </div>
           <div class="model-config-row">
@@ -16649,6 +16655,28 @@ function getModelList() {
   if (cur && !seen.has(cur)) list.unshift(cur);
   return list;
 }
+// 配置面板「↻ 刷新」：重新拉当前窗口渠道的模型列表；当前模型不在新列表里就标出来（多半下架了）。
+let modelQuickMissing = "";
+async function refreshModelQuick() {
+  const btn = $("model-config-refresh");
+  const profile = conversationProvider();
+  if (!profile?.apiKey) { showToast("这个渠道还没填 API Key"); return; }
+  if (btn) { btn.disabled = true; btn.textContent = "刷新中"; }
+  try {
+    const list = await pullProviderModels(profile);
+    const cur = conversationModel();
+    modelQuickMissing = cur && !list.includes(cur) ? cur : "";
+    if ($("modelList") && profile.id === settings.activeProviderId) $("modelList").value = settings.modelList;
+    renderModelQuick();
+    showToast(modelQuickMissing
+      ? "当前模型「" + cur + "」已不在列表里，可能下架了，换一个吧"
+      : "✅ 已刷新，共 " + list.length + " 个模型");
+  } catch (e) {
+    showToast("刷新失败：" + (e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "↻ 刷新"; }
+  }
+}
 function renderModelQuick() {
   const list = getModelList();
   const cur = conversationModel();
@@ -16660,6 +16688,7 @@ function renderModelQuick() {
       const label = (settings.modelAliases || {})[id] || parseModelLine(raw).label;
       const opt = document.createElement("option");
       opt.value = id; opt.textContent = label;
+      if (!withCustom && id === cur && modelQuickMissing === cur) opt.textContent = label + "（列表里没有了）";
       if (id === cur) opt.selected = true;
       sel.appendChild(opt);
     }
@@ -18420,6 +18449,7 @@ async function init() {
   };
   $("provider-quick").addEventListener("change", () => { const id = $("provider-quick").value; if (id && id !== settings.activeProviderId) switchProvider(id); });
   $("model-quick").addEventListener("change", () => pickModel($("model-quick").value));
+  $("model-config-refresh")?.addEventListener("click", refreshModelQuick);
   $("model-select").addEventListener("change", () => pickModel($("model-select").value));
   $("model-config-btn").onclick = openModelConfig;
   window.addEventListener("resize", syncModelConfigViewport, { passive: true });
