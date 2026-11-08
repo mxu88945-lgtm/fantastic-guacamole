@@ -853,3 +853,15 @@
 - 原话带日期：`recallQuoteLabel()` 统一为「M月D日 她说：」/「他说：」（其他角色、剧场仍写名字说），旧文证据、`[旧文:]` 读取、recallNeighborhood 都用它；证据尾注让模型说「你那天说…」，不许编日期。
 - 越用越记得：`recordMemoryUsage()` 在记忆块组装后，对真正进入上下文的长期记忆和人物事件 `hitCount+1`、记 `lastUsedAt`（同一轮工具重试只算一次，1.5 秒后合并保存）。`memoryUsageBonus()` = min(0.6, 0.18·log2(1+hit)) ÷ (1+闲置天数/60)，只在已相关的条目上加分；旧记忆只降权不删除。
 - 回归：新增 `scripts/people-profiles-regression.mjs`（标签解析/隐藏/去重/身份隔离/3 人上限/800 字/日期原话/计数）。注意：HEAD 的 index.html 早已带着构建注入的天气卡函数，本次未动。
+
+## 2026-11-08｜v355 语义召回（向量）（Hark）
+- 设置 → 记忆库 → 「🧭 语义召回」折叠卡（在「👥 人物档案」下）：开关（默认关）、向量渠道（从 settings.providers 选，直接复用该渠道 baseUrl + apiKey，不另存 key；没选过时下拉框预选名字/地址含「硅基/siliconflow」的渠道，打开开关才保存）、向量模型（默认 `BAAI/bge-m3`）、「测试」（嵌入一句话显示维度/报错）、「重建索引」（清空本机向量后台重建）、进度行「已建索引 N / 总 M 段」。设置键 `semanticRecallEnabled/semanticRecallProviderId/semanticRecallModel` 进 SYNCED_KEYS。
+- 代码在 index.html「// ---------- 语义召回 (semantic recall, v355) ----------」段（紧跟人物档案段）。接口：OpenAI 兼容 `POST {base}/embeddings {model,input:[…]}`。
+- 切片：每个非剧场窗口（historyRecallConversations 范围，含 `_compactedBy` 已归档原文，跳过 _event/_summary）按相邻消息 2–4 条一段、约 300–600 字、不跨天，文本首行带日期，记录会话 id、firstId/lastId、锚点（段内她的第一条）。最后一段还在长且 6 小时内有新消息的先不建。长期记忆（active 且 autoInject≠false）每条一段，人物档案事件每条一段。
+- 存储：单独的 IndexedDB `jyc_semantic_recall` / store `vectors`（不动主库 jyc_role_chat 的版本），记录 `{k:"模型|内容哈希", q:Int8Array, s:scale, d, at}`，单位化后 int8 量化（每段约 1 KB）；key 相同就不重复嵌入。换模型 = 新 key（旧向量留着，重建索引会清掉）。
+- 后台增量：启动 60 秒后、每次回复完成 5 秒后排队；每批最多 32 段，批间 1.5 秒；正在等回复时让路；失败退避 30 分钟（进度行显示原因）。不在启动时同步做任何事。
+- 召回：只在主聊天（非剧场/非独立角色）且开关开 + 渠道有 key 时，streamChat 在 buildBoundedMemoryContext 前 `await prepareSemanticRecall(historyWindow)`：她最近 1–2 条消息（最新一条 <60 字时带上一条）→ 一次嵌入请求，超时 4 秒；超时/出错就只用关键词召回，超时后 2 分钟内不再等。“好呀/嗯嗯”这类无关键词短句不发请求。余弦 ≥ `SEMANTIC_RECALL_THRESHOLD = 0.55` 的取 top 8，已在本轮上下文窗口里的段不算。
+- 合并：retrieveCrossChat / retrieveOmittedCurrentChat 里 `mergeSemanticRecallHits`：同段已有关键词命中 → 给分最高那条加语义分（3 + 6·(sim−0.55)/0.45）；否则新增该段锚点消息为候选。之后照旧冷却、去重、packHistoryRecall（「M月D日 她说：…」+ 前后各 1 条、原预算）。命中的长期记忆/人物事件进新记忆层 `key:"semantic"`（priority 6, cap 700，与事实层逐行去重）。
+- 本轮记忆检查多一行「语义召回 · N 段 · 最高相似度 0.xx（· 原话入选 k）」，跳过时写「语义召回 · 跳过（超时/出错/索引还没建）」。开关关或没选渠道：不加这一层、不发任何请求，行为与 v354 相同。
+- 人物档案专门的语义找片段（可选项）这次没做；人物事件已作为语义片段参与召回。
+- 回归：新增 `scripts/semantic-recall-regression.mjs`（mock fetch + mock IndexedDB：切片、哈希去重、32 条一批、429 退避、阈值、合并去重、超时回退、关闭/剧场/“好呀”不调用）。

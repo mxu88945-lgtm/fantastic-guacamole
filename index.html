@@ -3968,6 +3968,32 @@
         </div>
 
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;" onclick="foldCard('semantic-body', this.querySelector('.card-fold'))">
+            <span style="font-weight:600;">🧭 语义召回</span>
+            <span style="display:flex;gap:10px;align-items:center;">
+              <span class="hint" id="semantic-status" style="font-weight:400;">关</span>
+              <button class="card-fold" onclick="event.stopPropagation();foldCard('semantic-body', this)">▸</button>
+            </span>
+          </label>
+          <div id="semantic-body" style="display:none;">
+            <span class="hint" style="display:block;margin-top:8px;">按意思找旧聊天、长期记忆和人物事件，不只靠字面关键词。直接用所选渠道的 Key；向量只存在这台设备上。关掉就和原来完全一样。</span>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:10px;">
+              <input type="checkbox" id="semantic-enabled" style="width:auto;" onchange="onSemanticSettingChange()" /><span onclick="const c=document.getElementById('semantic-enabled');c.checked=!c.checked;onSemanticSettingChange();" style="cursor:pointer;">开启语义召回</span>
+            </div>
+            <div class="memory-api-grid">
+              <div class="field"><label>向量渠道</label><select id="semantic-provider" onchange="onSemanticSettingChange()"></select></div>
+              <div class="field"><label>向量模型</label><input id="semantic-model" placeholder="BAAI/bge-m3" onchange="onSemanticSettingChange()" /></div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center;">
+              <button class="icon-btn" type="button" id="semantic-test" onclick="testSemanticEmbedding()">测试</button>
+              <button class="icon-btn" type="button" id="semantic-rebuild" onclick="rebuildSemanticIndex()">重建索引</button>
+              <span class="hint" id="semantic-test-result"></span>
+            </div>
+            <div class="hint" id="semantic-progress" style="margin-top:8px;">未开启：召回和原来一样，只用关键词。</div>
+          </div>
+        </div>
+
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;" onclick="foldCard('mem-body', this.querySelector('.card-fold'))">
             <span style="font-weight:600;">📒 记忆条目</span>
             <span style="display:flex;gap:10px;align-items:center;">
@@ -4777,6 +4803,9 @@ let settings = {
   webSearchKey: "",       // Jina 搜索 API Key（选填，不上云）
   memSummary: "",         // 记忆摘要：一段"关于 ta 的人物速写"，每次对话都注入
   peopleProfiles: [],     // v354 人物档案：[{id,name,aliases,background,events:[{id,date,text,hitCount,lastUsedAt}]}]，全局、随云同步
+  semanticRecallEnabled: false,   // v355 语义召回（向量）：默认关；关着时召回和 v354 完全一样
+  semanticRecallProviderId: "",   // 向量渠道：复用该渠道的 baseUrl + apiKey，不另存 key
+  semanticRecallModel: "BAAI/bge-m3",
   peopleProfilesSeededV1: false, // 预置 顾屿/裴屿/伯恩/顾祁砚 只做一次，删掉后不会再冒出来
   memoryProviderId: "",   // 全局记忆专用接口（空 = 当前聊天接口）
   memoryModel: "",        // 全局记忆专用模型（空 = 所选接口当前模型）
@@ -4854,7 +4883,7 @@ let voiceInputState = "idle"; // idle | listening | stopping | transcribing
 let voiceInputBaseText = "";
 let voicePointerStopHandled = false;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
-  "systemPrompt","systemInstruction","globalPromptPresets","emojiStyle","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","peopleProfiles","peopleProfilesSeededV1","memoryProviderId","memoryModel","replyHelperProviderId","replyHelperModel","roleMemoryV2","crossChat","crossSearch","historyRecallScope","historyRecallScopeV2","historyRecallAliases","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
+  "systemPrompt","systemInstruction","globalPromptPresets","emojiStyle","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","peopleProfiles","peopleProfilesSeededV1","semanticRecallEnabled","semanticRecallProviderId","semanticRecallModel","memoryProviderId","memoryModel","replyHelperProviderId","replyHelperModel","roleMemoryV2","crossChat","crossSearch","historyRecallScope","historyRecallScopeV2","historyRecallAliases","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleStyle","bubbleOpacity","favorites","showTime","timeAware","locationAware","fontSize","fontWeight","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "sttEnabled","sttEngine","sttBaseUrl","sttModel","sttLanguage",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
@@ -10735,6 +10764,16 @@ function retrieveOmittedCurrentChat(windowInfo) {
     && (x.lexical >= 1 || (explicit && (x.temporal + x.affinity + x.semantic >= 1)))
     && !seen.has(x.txt.toLowerCase()))
     .sort((a, b) => b.s - a.s || (b.m.ts || 0) - (a.m.ts || 0));
+  if (typeof mergeSemanticRecallHits === "function" && semanticRecallState?.hits?.length) {
+    mergeSemanticRecallHits(hits, "current", { allowed: new Set(candidates), makeHit: (m, c, points, sim) => {
+      const txt = messageText(m).replace(/\s+/g, " ").trim();
+      if (txt.length < 4 || seen.has(txt.toLowerCase())) return null;
+      const speaker = recallSpeakerAuthority(queryText, m);
+      return { key: "current:" + (m.id || normalizedPromptFact(txt).slice(0, 80)), m, c: currentConv(), txt,
+        s: points + speaker, lexical: 0, temporal: 0, affinity: 0, semantic: points, speaker };
+    } });
+    hits.sort((a, b) => b.s - a.s || (b.m.ts || 0) - (a.m.ts || 0));
+  }
   if (!hits.length) return emptyRecallResult("current");
   const cooldown = filterRecallCooldown(hits, queryText);
   const selected = cooldown.allowed.slice(0, 4);
@@ -11374,6 +11413,9 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   specialDayClaim = buildSpecialDaysPromptClaim(activeRole());
   if (specialDayClaim.text)
     systemText = systemText ? systemText + "\n\n" + specialDayClaim.text : specialDayClaim.text;
+  // v355 语义召回：只在开启且是主聊天时等查询向量（最多 4 秒，失败/超时只用关键词）。
+  if (typeof semanticRecallActive === "function" && semanticRecallActive()) await prepareSemanticRecall(historyWindow);
+  else if (typeof semanticRecallState !== "undefined") semanticRecallState = null;
   boundedMemory = buildBoundedMemoryContext(historyWindow);
   if (boundedMemory.text)
     systemText = systemText ? systemText + "\n\n" + boundedMemory.text : boundedMemory.text;
@@ -12443,6 +12485,17 @@ function retrieveCrossChat() {
         title: c.title || "对话", txt, m, c,
       });
   }
+  if (typeof mergeSemanticRecallHits === "function") mergeSemanticRecallHits(hits, "cross", {
+    makeHit: (m, c, points, sim) => {
+      const txt = messageText(m);
+      if (!txt || txt.length < 4) return null;
+      const speaker = recallSpeakerAuthority(queryText, m);
+      return { key: "cross:" + c.id + ":" + (m.id || normalizedPromptFact(txt).slice(0, 80)),
+        s: points + speaker + recallTimeScore(queryText, m.ts), speaker, ts: m.ts || c.updatedAt || 0,
+        who: m.role === "user" ? (settings.userName || "我") : (settings.aiName || "当前角色"),
+        title: c.title || "对话", txt, m, c };
+    },
+  });
   if (!hits.length) return emptyRecallResult("cross");
   hits.sort((a, b) => b.s - a.s || b.ts - a.ts);
   const recentSeen = new Set(messages.slice(-8).map(m => normalizedPromptFact(messageText(m))));
@@ -12642,6 +12695,13 @@ function buildBoundedMemoryContext(historyWindow) {
       memoryReasons: typeof lastMemoryLaneReceipts !== "undefined" ? lastMemoryLaneReceipts.derived : [] },
     { key: "diary", label: "私人日记", priority: 11, order: 40, cap: 850, text: diary },
   ];
+  // v355 语义召回：开启且本轮查过才出现这一层（关着时 blocks 与 v354 完全相同）。
+  const semanticBlock = typeof semanticRecallBlock === "function" ? semanticRecallBlock() : null;
+  if (semanticBlock) {
+    const picked = [currentRecall, crossRecall].reduce((n, recall) => n + (recall?.hits || []).filter(hit => hit.semanticSim).length, 0);
+    if (picked) semanticBlock.label += " · 原话入选 " + picked;
+    blocks.push(semanticBlock);
+  }
   const seenFacts = [], selected = [], auditBlocks = [];
   let used = 0, duplicateLines = 0;
   for (const block of blocks.sort((a, b) => a.priority - b.priority)) {
@@ -13321,6 +13381,540 @@ function deletePersonProfile(id) {
   saveSettings(); renderPeopleProfiles();
 }
 // ---------- /人物档案 ----------
+// ---------- 语义召回 (semantic recall, v355) ----------
+// 按意思找旧聊天、长期记忆和人物事件（OpenAI 兼容 /embeddings，默认 BAAI/bge-m3）。
+// 开关关闭或没选渠道时整段不工作，召回行为与 v354 完全一样。
+// 向量只存在本机单独的 IndexedDB（jyc_semantic_recall / vectors），int8 压缩，
+// key = 模型|内容哈希，内容没变就不重复嵌入。主聊天才用；剧场片段不建索引也不召回。
+const SEMANTIC_RECALL_THRESHOLD = 0.55;      // 余弦相似度低于此值一律不用，避免硬塞不相关内容
+const SEMANTIC_RECALL_TOP_K = 8;             // 每轮最多取 8 段语义候选
+const SEMANTIC_RECALL_WEIGHT_BASE = 3;       // 过阈值的语义分起点（关键词每命中一个词约 1–2 分）
+const SEMANTIC_RECALL_WEIGHT_SPAN = 6;       // 相似度从阈值到 1.0 线性再加 0–6 分
+const SEMANTIC_QUERY_TIMEOUT_MS = 4000;      // 查询向量单次请求超时；超时就只用关键词召回
+const SEMANTIC_QUERY_PAUSE_MS = 2 * 60 * 1000; // 查询超时后 2 分钟内不再等它，免得每轮都卡 4 秒
+const SEMANTIC_BATCH_SIZE = 32;              // 建索引每批最多 32 段
+const SEMANTIC_BATCH_GAP_MS = 1500;          // 批之间等一等，避免限流
+const SEMANTIC_BACKOFF_MS = 30 * 60 * 1000;  // 建索引失败后退避 30 分钟
+const SEMANTIC_STARTUP_DELAY_MS = 60 * 1000; // 启动约 60 秒后才开始后台建索引
+const SEMANTIC_AFTER_REPLY_DELAY_MS = 5000;
+const SEMANTIC_CHUNK_MIN_CHARS = 300;
+const SEMANTIC_CHUNK_MAX_CHARS = 600;
+const SEMANTIC_CHUNK_MAX_MSGS = 4;
+const SEMANTIC_MESSAGE_CLIP = 600;
+const SEMANTIC_OPEN_TAIL_MS = 6 * 60 * 60 * 1000; // 还在长的最后一段：6 小时没新消息才建
+const SEMANTIC_DEFAULT_MODEL = "BAAI/bge-m3";
+const SEMANTIC_DB_NAME = "jyc_semantic_recall";
+const SEMANTIC_DB_STORE = "vectors";
+
+let semanticDb = null;
+let semanticVectorCache = null;     // Map key → { q: Int8Array, s: scale }
+let semanticCacheLoading = null;
+let semanticBuildTimer = 0;
+let semanticBuilding = false;
+let semanticBackoffUntil = 0;
+let semanticQueryPausedUntil = 0;
+let semanticLastError = "";
+let semanticStats = { indexed: 0, total: 0 };
+let semanticRecallState = null;     // 本轮结果：prepareSemanticRecall 写，记忆组装读
+const semanticQueryCache = new Map();
+const semanticChunkCache = new WeakMap();
+
+function semanticSettings() {
+  const providerId = String(settings.semanticRecallProviderId || "");
+  const provider = providerId ? (settings.providers || []).find(p => p && p.id === providerId) || null : null;
+  return { enabled: settings.semanticRecallEnabled === true, provider,
+    model: String(settings.semanticRecallModel || "").trim() || SEMANTIC_DEFAULT_MODEL };
+}
+function semanticBaseUrl(profile) {
+  const fallback = typeof DEFAULTS !== "undefined" && profile?.provider ? DEFAULTS[profile.provider]?.baseUrl : "";
+  return String(profile?.baseUrl || fallback || "").trim().replace(/\/+$/, "");
+}
+function semanticRecallReady() {
+  const config = semanticSettings();
+  return config.enabled && !!config.provider && !!config.provider.apiKey && !!semanticBaseUrl(config.provider);
+}
+function semanticRecallActive() {
+  if (!semanticRecallReady()) return false;
+  const conv = typeof currentConv === "function" ? currentConv() : null;
+  if (!conv || conv.space === "roleplay") return false;
+  return !(typeof isRoleplayConversation === "function" && isRoleplayConversation());
+}
+function semanticHash(text) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  const value = String(text || "");
+  for (let i = 0; i < value.length; i++) {
+    const ch = value.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, "0") + (h1 >>> 0).toString(16).padStart(8, "0");
+}
+function semanticDay(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (!Number.isFinite(d.getTime())) return "";
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+// 一个窗口切成片段：相邻 2–4 条一段，约 300–600 字，不跨天。含已归档（_compactedBy）原文。
+function semanticConversationChunks(conv) {
+  const msgs = Array.isArray(conv?.messages) ? conv.messages : [];
+  const last = msgs[msgs.length - 1];
+  const lastLen = typeof last?.content === "string" ? last.content.length : Array.isArray(last?.content) ? last.content.length : 0;
+  const sig = msgs.length + "|" + (last?.id || "") + "|" + lastLen;
+  const cached = semanticChunkCache.get(conv);
+  if (cached && cached.sig === sig && cached.msgs === msgs) return cached.chunks;
+  const chunks = [];
+  let cur = null;
+  const close = () => {
+    if (cur && cur.rows.length) {
+      const text = cur.day + "\n" + cur.rows.join("\n");
+      chunks.push({ kind: "chat", conv, convId: conv.id || "", msgs: cur.msgs,
+        anchor: cur.msgs.find(m => m.role === "user") || cur.msgs[0],
+        firstId: cur.msgs[0].id || "", lastId: cur.msgs[cur.msgs.length - 1].id || "",
+        day: cur.day, text, hash: semanticHash(text), complete: cur.complete === true });
+    }
+    cur = null;
+  };
+  for (const m of msgs) {
+    if (!isChatContentMessage(m) || m._summary || m._event) continue;
+    const body = messageText(m).replace(/\s+/g, " ").trim();
+    if (!body) continue;
+    const row = (m.role === "user" ? "她" : "他") + "：" + clipUnicodeChars(body, SEMANTIC_MESSAGE_CLIP);
+    const day = semanticDay(m.ts);
+    if (cur && (cur.day !== day || (cur.rows.length >= 2 && cur.chars + row.length > SEMANTIC_CHUNK_MAX_CHARS))) {
+      cur.complete = true; close();
+    }
+    if (!cur) cur = { day, rows: [], msgs: [], chars: 0 };
+    cur.rows.push(row); cur.msgs.push(m); cur.chars += row.length;
+    if (cur.rows.length >= SEMANTIC_CHUNK_MAX_MSGS || cur.chars >= SEMANTIC_CHUNK_MAX_CHARS
+      || (cur.rows.length >= 2 && cur.chars >= SEMANTIC_CHUNK_MIN_CHARS)) { cur.complete = true; close(); }
+  }
+  if (cur) {
+    // 最后一段还在长：最近 6 小时有新消息就先不建，免得每来一句都重新嵌入。
+    const lastTs = Number(cur.msgs[cur.msgs.length - 1].ts) || 0;
+    if (lastTs && Date.now() - lastTs >= SEMANTIC_OPEN_TAIL_MS) close(); else cur = null;
+  }
+  semanticChunkCache.set(conv, { sig, msgs, chunks });
+  return chunks;
+}
+function semanticChatConversations() {
+  return (typeof historyRecallConversations === "function" ? historyRecallConversations() : [])
+    .filter(conv => conv && conv.space !== "roleplay");
+}
+function semanticMemoryChunks() {
+  const out = [];
+  const entries = typeof activeMemoryEntries === "function" ? activeMemoryEntries() : [];
+  for (const entry of entries) {
+    const body = String(entry?.text || "").trim();
+    if (!body || entry.autoInject === false) continue;
+    const text = "长期记忆：" + body;
+    out.push({ kind: "memory", id: entry.id || "", body, text, hash: semanticHash(text) });
+  }
+  const people = typeof peopleList === "function" ? peopleList() : [];
+  for (const person of people) {
+    for (const event of person?.events || []) {
+      const body = String(event?.text || "").trim();
+      if (!body) continue;
+      const text = "人物·" + person.name + "：" + (event.date || "") + " " + body;
+      out.push({ kind: "person", personId: person.id, eventId: event.id, name: person.name,
+        date: event.date || "", body, text, hash: semanticHash(text) });
+    }
+  }
+  return out;
+}
+function allSemanticChunks() {
+  const chunks = [];
+  semanticChatConversations().forEach(conv => { semanticConversationChunks(conv).forEach(chunk => chunks.push(chunk)); });
+  return chunks.concat(semanticMemoryChunks());
+}
+function semanticCountStats(chunks, cache, model) {
+  const keys = new Set(chunks.map(chunk => model + "|" + chunk.hash));
+  let indexed = 0;
+  keys.forEach(key => { if (cache && cache.has(key)) indexed++; });
+  semanticStats = { indexed, total: keys.size };
+  return semanticStats;
+}
+
+// ---- 向量存取（单独的 IndexedDB，不碰主库版本）----
+function semanticOpenDb() {
+  if (semanticDb) return Promise.resolve(semanticDb);
+  if (typeof indexedDB === "undefined" || !indexedDB) return Promise.reject(new Error("IndexedDB unavailable"));
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(SEMANTIC_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(SEMANTIC_DB_STORE)) db.createObjectStore(SEMANTIC_DB_STORE);
+    };
+    req.onsuccess = () => { semanticDb = req.result; resolve(semanticDb); };
+    req.onerror = () => reject(req.error || new Error("semantic IndexedDB open failed"));
+  });
+}
+function semanticLoadCache() {
+  if (semanticVectorCache) return Promise.resolve(semanticVectorCache);
+  if (!semanticCacheLoading) {
+    semanticCacheLoading = (async () => {
+      const db = await semanticOpenDb();
+      const rows = await new Promise((resolve, reject) => {
+        const req = db.transaction(SEMANTIC_DB_STORE, "readonly").objectStore(SEMANTIC_DB_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error || new Error("semantic IndexedDB read failed"));
+      });
+      const map = new Map();
+      rows.forEach(row => {
+        if (!row || !row.k || !row.q) return;
+        map.set(row.k, { q: row.q instanceof Int8Array ? row.q : new Int8Array(row.q), s: Number(row.s) || 0 });
+      });
+      semanticVectorCache = map;
+      return map;
+    })().finally(() => { semanticCacheLoading = null; });
+  }
+  return semanticCacheLoading;
+}
+async function semanticPutRecords(records) {
+  const db = await semanticOpenDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(SEMANTIC_DB_STORE, "readwrite");
+    const store = tx.objectStore(SEMANTIC_DB_STORE);
+    records.forEach(record => store.put(record, record.k));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error("semantic IndexedDB write failed"));
+    tx.onabort = () => reject(tx.error || new Error("semantic IndexedDB write aborted"));
+  });
+}
+async function semanticClearStore() {
+  const db = await semanticOpenDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(SEMANTIC_DB_STORE, "readwrite");
+    tx.objectStore(SEMANTIC_DB_STORE).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error("semantic IndexedDB clear failed"));
+    tx.onabort = () => reject(tx.error || new Error("semantic IndexedDB clear aborted"));
+  });
+  semanticVectorCache = new Map();
+}
+
+// ---- 向量数学：单位化 + int8 量化（每段约 1 KB）----
+function semanticNormalize(vector) {
+  const out = new Float32Array(vector.length);
+  let norm = 0;
+  for (let i = 0; i < vector.length; i++) norm += vector[i] * vector[i];
+  norm = Math.sqrt(norm) || 1;
+  for (let i = 0; i < vector.length; i++) out[i] = vector[i] / norm;
+  return out;
+}
+function semanticQuantize(vector) {
+  const unit = semanticNormalize(vector);
+  let max = 0;
+  for (let i = 0; i < unit.length; i++) max = Math.max(max, Math.abs(unit[i]));
+  const scale = max / 127 || 1;
+  const q = new Int8Array(unit.length);
+  for (let i = 0; i < unit.length; i++) q[i] = Math.max(-127, Math.min(127, Math.round(unit[i] / scale)));
+  return { q, s: scale };
+}
+function semanticCosine(queryUnit, record) {
+  if (!record || !record.q || record.q.length !== queryUnit.length) return -1;
+  let dot = 0;
+  const q = record.q;
+  for (let i = 0; i < q.length; i++) dot += queryUnit[i] * q[i];
+  return dot * record.s;
+}
+
+// ---- 接口 ----
+function semanticTimeout(promise, ms) {
+  let timer = 0;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => { const error = new Error("超时"); error.semanticTimeout = true; reject(error); }, ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+async function semanticEmbed(texts, { profile, model, timeoutMs = 30000 } = {}) {
+  if (!profile) throw new Error("还没选向量渠道");
+  if (!profile.apiKey) throw new Error("这个渠道没有填 API Key");
+  const base = semanticBaseUrl(profile);
+  if (!base) throw new Error("这个渠道没有填地址");
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const request = (async () => {
+    const resp = await fetch(base + "/embeddings", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer " + profile.apiKey },
+      body: JSON.stringify({ model: model || SEMANTIC_DEFAULT_MODEL, input: texts }),
+      signal: controller ? controller.signal : undefined,
+    });
+    if (!resp.ok) {
+      let detail = "";
+      try { detail = String(await resp.text()).replace(/\s+/g, " ").slice(0, 160); } catch (_) {}
+      throw new Error("HTTP " + resp.status + (detail ? " · " + detail : ""));
+    }
+    const data = await resp.json();
+    const rows = Array.isArray(data?.data) ? data.data.slice().sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0)) : [];
+    if (rows.length !== texts.length) throw new Error("返回的向量条数不对（" + rows.length + "/" + texts.length + "）");
+    return rows.map(row => {
+      const vector = row?.embedding;
+      if (!vector || typeof vector.length !== "number" || !vector.length) throw new Error("返回里没有向量");
+      return vector;
+    });
+  })();
+  try { return await semanticTimeout(request, timeoutMs); }
+  catch (error) { try { controller?.abort(); } catch (_) {} throw error; }
+}
+function semanticSleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+// ---- 后台增量建索引 ----
+function scheduleSemanticIndex(delay = 0) {
+  if (!semanticRecallReady()) return false;
+  if (semanticBuildTimer) clearTimeout(semanticBuildTimer);
+  semanticBuildTimer = setTimeout(() => { semanticBuildTimer = 0; void runSemanticIndexBuild(); }, Math.max(0, delay));
+  return true;
+}
+async function runSemanticIndexBuild() {
+  if (semanticBuilding || !semanticRecallReady()) return false;
+  if (Date.now() < semanticBackoffUntil) return false;
+  semanticBuilding = true;
+  renderSemanticProgress();
+  try {
+    const cache = await semanticLoadCache();
+    while (semanticRecallReady()) {
+      const { provider, model } = semanticSettings();
+      const chunks = allSemanticChunks();
+      semanticCountStats(chunks, cache, model);
+      const missing = [], picked = new Set();
+      for (const chunk of chunks) {
+        const key = model + "|" + chunk.hash;
+        if (cache.has(key) || picked.has(key)) continue;
+        picked.add(key); missing.push({ key, text: chunk.text });
+        if (missing.length >= SEMANTIC_BATCH_SIZE) break;
+      }
+      if (!missing.length) break;
+      // 正在等回复时先让路，不和聊天抢网络。
+      if (typeof abortController !== "undefined" && abortController) { await semanticSleep(3000); continue; }
+      const vectors = await semanticEmbed(missing.map(item => item.text), { profile: provider, model });
+      const now = Date.now();
+      const records = missing.map((item, i) => {
+        const packed = semanticQuantize(vectors[i]);
+        return { k: item.key, q: packed.q, s: packed.s, d: packed.q.length, at: now };
+      });
+      await semanticPutRecords(records);
+      records.forEach(record => cache.set(record.k, { q: record.q, s: record.s }));
+      semanticCountStats(chunks, cache, model);
+      semanticLastError = "";
+      renderSemanticProgress();
+      await semanticSleep(SEMANTIC_BATCH_GAP_MS);
+    }
+    return true;
+  } catch (error) {
+    semanticLastError = String(error?.message || error || "未知错误").slice(0, 160);
+    semanticBackoffUntil = Date.now() + SEMANTIC_BACKOFF_MS;
+    console.warn("semantic index build failed", error);
+    return false;
+  } finally {
+    semanticBuilding = false;
+    renderSemanticProgress();
+  }
+}
+
+// ---- 每轮召回 ----
+function semanticQueryText() {
+  const list = typeof messages !== "undefined" && Array.isArray(messages) ? messages : [];
+  const users = list.filter(m => m && m.role === "user" && !m._event && !m._summary && messageText(m).trim());
+  const latest = users[users.length - 1];
+  if (!latest) return "";
+  const latestText = messageText(latest).replace(/\s+/g, " ").trim();
+  // “好呀/嗯嗯/晚安” 这类没有关键词的短句不查，省一次请求也不硬塞旧文。
+  if (!historyRecallTokens(latestText).size) return "";
+  const previous = users[users.length - 2];
+  const parts = previous && Array.from(latestText).length < 60
+    ? [messageText(previous).replace(/\s+/g, " ").trim(), latestText] : [latestText];
+  return clipUnicodeChars(parts.filter(Boolean).join("\n"), 500);
+}
+function semanticRank(queryUnit, cache, model, historyWindow) {
+  const cur = typeof currentConv === "function" ? currentConv() : null;
+  const liveIds = new Set((historyWindow?.messages || []).map(m => m && m.id).filter(Boolean));
+  const scored = [], seen = new Set();
+  for (const chunk of allSemanticChunks()) {
+    const key = model + "|" + chunk.hash;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    // 本窗口里模型本来就看得到的那几条，不必再召回。
+    if (chunk.kind === "chat" && chunk.conv === cur
+      && chunk.msgs.every(m => !m._compactedBy && m.id && liveIds.has(m.id))) continue;
+    const record = cache.get(key);
+    if (!record) continue;
+    const sim = semanticCosine(queryUnit, record);
+    if (sim >= SEMANTIC_RECALL_THRESHOLD) scored.push({ chunk, sim });
+  }
+  scored.sort((a, b) => b.sim - a.sim);
+  return scored.slice(0, SEMANTIC_RECALL_TOP_K);
+}
+async function prepareSemanticRecall(historyWindow) {
+  semanticRecallState = null;
+  if (!semanticRecallActive()) return null;
+  const query = semanticQueryText();
+  if (!query) return null;
+  const state = { query, hits: [], top: 0, status: "ok", error: "" };
+  if (Date.now() < semanticQueryPausedUntil) {
+    state.status = "paused"; semanticRecallState = state; return state;
+  }
+  const { provider, model } = semanticSettings();
+  try {
+    const result = await semanticTimeout((async () => {
+      const cache = await semanticLoadCache();
+      if (!cache.size) return { cache, vector: null };
+      const cacheKey = model + "|" + query;
+      let vector = semanticQueryCache.get(cacheKey);
+      if (!vector) {
+        const [raw] = await semanticEmbed([query], { profile: provider, model, timeoutMs: SEMANTIC_QUERY_TIMEOUT_MS });
+        vector = semanticNormalize(raw);
+        semanticQueryCache.set(cacheKey, vector);
+        while (semanticQueryCache.size > 8) semanticQueryCache.delete(semanticQueryCache.keys().next().value);
+      }
+      return { cache, vector };
+    })(), SEMANTIC_QUERY_TIMEOUT_MS);
+    if (!result.vector) state.status = "empty";
+    else {
+      state.hits = semanticRank(result.vector, result.cache, model, historyWindow);
+      state.top = state.hits.length ? state.hits[0].sim : 0;
+    }
+  } catch (error) {
+    state.status = error?.semanticTimeout ? "timeout" : "error";
+    state.error = String(error?.message || error || "").slice(0, 120);
+    if (error?.semanticTimeout) semanticQueryPausedUntil = Date.now() + SEMANTIC_QUERY_PAUSE_MS;
+    state.hits = [];
+  }
+  semanticRecallState = state;
+  return state;
+}
+function semanticRecallPoints(sim) {
+  const span = Math.max(0, (sim - SEMANTIC_RECALL_THRESHOLD) / (1 - SEMANTIC_RECALL_THRESHOLD));
+  return Math.round((SEMANTIC_RECALL_WEIGHT_BASE + SEMANTIC_RECALL_WEIGHT_SPAN * Math.min(1, span)) * 100) / 100;
+}
+// 把语义命中并进关键词结果：同一段里关键词已命中某条 → 只给那条加语义分；否则新增该段的锚点消息。
+function mergeSemanticRecallHits(hits, scope, options = {}) {
+  const state = semanticRecallState;
+  if (!state || !state.hits || !state.hits.length) return hits;
+  const cur = typeof currentConv === "function" ? currentConv() : null;
+  const byMessage = new Map();
+  hits.forEach(hit => { if (hit && hit.m) byMessage.set(hit.m, hit); });
+  for (const { chunk, sim } of state.hits) {
+    if (chunk.kind !== "chat") continue;
+    const isCurrent = chunk.conv === cur;
+    if (scope === "cross" ? isCurrent : !isCurrent) continue;
+    const points = semanticRecallPoints(sim);
+    const existing = chunk.msgs.map(m => byMessage.get(m)).filter(Boolean);
+    if (existing.length) {
+      const best = existing.sort((a, b) => b.s - a.s)[0];
+      if (!best.semanticSim) { best.s += points; best.semanticSim = sim; }
+      continue;
+    }
+    const anchor = chunk.anchor;
+    if (!anchor || (options.allowed && !options.allowed.has(anchor))) continue;
+    const hit = options.makeHit ? options.makeHit(anchor, chunk.conv, points, sim) : null;
+    if (!hit) continue;
+    hit.semanticSim = sim;
+    hits.push(hit); byMessage.set(anchor, hit);
+  }
+  return hits;
+}
+function semanticRecallBlock() {
+  const state = semanticRecallState;
+  if (!state) return null;
+  const count = state.hits.length;
+  const label = state.status === "ok"
+    ? "语义召回 · " + count + " 段" + (count ? " · 最高相似度 " + state.top.toFixed(2) : "")
+    : "语义召回 · 跳过（" + ({ timeout: "超时", error: "出错", empty: "索引还没建", paused: "刚超时，稍后再试" }[state.status] || state.status) + "）";
+  const lines = state.hits.filter(hit => hit.chunk.kind !== "chat").map(hit => hit.chunk.kind === "memory"
+    ? "- " + hit.chunk.body
+    : "- " + hit.chunk.name + "：" + (hit.chunk.date ? recallQuoteDate(new Date(hit.chunk.date + "T12:00:00").getTime()) + " " : "") + hit.chunk.body);
+  const text = lines.length
+    ? "【语义相关的记忆·按意思找到，不一定字面相同】\n" + lines.join("\n") + "\n只作补充线索；与她最新原话冲突时以原话为准。"
+    : "";
+  return { key: "semantic", label, priority: 6, order: 92, cap: 700, text };
+}
+// ---- 设置 → 记忆库「🧭 语义召回」 ----
+function semanticDefaultProviderId() {
+  if (settings.semanticRecallProviderId) return settings.semanticRecallProviderId;
+  const guess = (settings.providers || []).find(p => /siliconflow|硅基/i.test(String(p.baseUrl || "") + String(p.name || "")));
+  return guess ? guess.id : "";
+}
+function renderSemanticRecallCard() {
+  if (typeof document === "undefined" || typeof $ !== "function") return;
+  const enabled = $("semantic-enabled"), select = $("semantic-provider"), model = $("semantic-model");
+  if (!enabled || !select || !model) return;
+  enabled.checked = settings.semanticRecallEnabled === true;
+  select.innerHTML = "";
+  const empty = document.createElement("option");
+  empty.value = ""; empty.textContent = "（选择渠道）";
+  select.appendChild(empty);
+  (settings.providers || []).forEach(p => {
+    const option = document.createElement("option");
+    option.value = p.id; option.textContent = p.name || "接口";
+    select.appendChild(option);
+  });
+  select.value = semanticDefaultProviderId();
+  model.value = settings.semanticRecallModel || SEMANTIC_DEFAULT_MODEL;
+  renderSemanticProgress();
+  if (semanticRecallReady()) setTimeout(() => { void refreshSemanticProgress(); }, 300);
+}
+function renderSemanticProgress() {
+  if (typeof document === "undefined" || typeof $ !== "function") return;
+  const line = $("semantic-progress"), badge = $("semantic-status");
+  const ready = semanticRecallReady();
+  if (badge) badge.textContent = !settings.semanticRecallEnabled ? "关"
+    : !ready ? "未选渠道" : semanticStats.total ? "开 · " + semanticStats.indexed + "/" + semanticStats.total : "开";
+  if (!line) return;
+  if (!ready) { line.textContent = settings.semanticRecallEnabled ? "选一个填好 Key 的渠道后才会建索引。" : "未开启：召回和原来一样，只用关键词。"; return; }
+  let text = "已建索引 " + semanticStats.indexed + " / 总 " + semanticStats.total + " 段";
+  if (semanticBuilding) text += " · 正在后台建…";
+  if (semanticLastError) {
+    const waitMin = Math.max(0, Math.ceil((semanticBackoffUntil - Date.now()) / 60000));
+    text += " · 上次失败：" + semanticLastError + (waitMin ? "（" + waitMin + " 分钟后重试）" : "");
+  }
+  line.textContent = text;
+}
+async function refreshSemanticProgress() {
+  if (!semanticRecallReady()) { renderSemanticProgress(); return semanticStats; }
+  try {
+    const cache = await semanticLoadCache();
+    semanticCountStats(allSemanticChunks(), cache, semanticSettings().model);
+  } catch (error) { semanticLastError = String(error?.message || error).slice(0, 160); }
+  renderSemanticProgress();
+  return semanticStats;
+}
+function onSemanticSettingChange() {
+  const enabled = $("semantic-enabled"), select = $("semantic-provider"), model = $("semantic-model");
+  if (!enabled || !select || !model) return;
+  settings.semanticRecallEnabled = enabled.checked;
+  settings.semanticRecallProviderId = select.value || "";
+  settings.semanticRecallModel = model.value.trim() || SEMANTIC_DEFAULT_MODEL;
+  semanticBackoffUntil = 0; semanticLastError = ""; semanticQueryPausedUntil = 0;
+  saveSettings();
+  renderSemanticRecallCard();
+  if (semanticRecallReady()) scheduleSemanticIndex(3000);
+}
+async function testSemanticEmbedding() {
+  const out = $("semantic-test-result"), select = $("semantic-provider"), model = $("semantic-model");
+  const profile = (settings.providers || []).find(p => p.id === (select?.value || ""));
+  if (out) out.textContent = "测试中…";
+  const started = Date.now();
+  try {
+    const [vector] = await semanticEmbed(["今天想和你说说话。"], { profile, model: model?.value.trim() || SEMANTIC_DEFAULT_MODEL, timeoutMs: 15000 });
+    if (out) out.textContent = "✓ " + vector.length + " 维 · " + (Date.now() - started) + " ms";
+  } catch (error) {
+    if (out) out.textContent = "✗ " + String(error?.message || error).slice(0, 160);
+  }
+}
+async function rebuildSemanticIndex() {
+  if (!semanticRecallReady()) { showToast("先打开语义召回，并选一个填好 Key 的渠道"); return; }
+  if (!confirm("清空这台设备上的语义索引并重新建？\n会在后台按每 32 段一次请求重新嵌入，不影响聊天。")) return;
+  try { await semanticClearStore(); } catch (error) { showToast("清空失败：" + (error?.message || error)); return; }
+  semanticBackoffUntil = 0; semanticLastError = "";
+  semanticStats = { indexed: 0, total: semanticStats.total };
+  renderSemanticProgress();
+  scheduleSemanticIndex(0);
+  showToast("开始重建语义索引");
+}
+// ---------- /语义召回 ----------
 // Pull [存档:…] tokens out of a reply and write each as a new bullet into the Notion page
 // (the AI's "亲笔档案" 琛琛印记). Lets the model actively journal to Notion on its own.
 async function extractNotionSaves(text) {
@@ -16371,6 +16965,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     await maybeAutoCompactConversation();
     if (!roleplayGroupRun) void maybeAutoExtractRoleplayMemories(replyConv);
   }
+  if (replied && typeof scheduleSemanticIndex === "function") scheduleSemanticIndex(SEMANTIC_AFTER_REPLY_DELAY_MS);
   return replied;
 }
 
@@ -17354,6 +17949,7 @@ function syncSettingsToUI() {
   $("memSummary").value = settings.memSummary || "";
   renderMemList();
   renderPeopleProfiles();
+  if (typeof renderSemanticRecallCard === "function") renderSemanticRecallCard();
   $("crossChat").checked = settings.crossChat !== false;
   $("crossSearch").checked = settings.crossSearch !== false;
   $("historyRecallScope").value = settings.historyRecallScope === "role" ? "role" : "all";
@@ -18497,6 +19093,7 @@ async function init() {
   window.__jycMark?.("启动：读取记录");
   await loadState();
   scheduleMainChatRecallIndexWarmup();
+  scheduleSemanticIndex(SEMANTIC_STARTUP_DELAY_MS); // v355：开着才排队，约 60 秒后后台建，不卡启动
   window.__jycMark?.("启动：界面");
   if (!window.__jycSafeBoot) await restoreChatBackground();
   await initWorkbench();
