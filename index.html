@@ -832,7 +832,7 @@
   .model-config-row label { flex: 0 0 auto; font-weight: 600; }
   .model-config-refresh {
     flex: 0 0 auto; margin-left: -8px; padding: 4px 8px; border: 0; border-radius: 999px;
-    background: transparent; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer;
+    background: transparent; color: var(--accent); font: inherit; font-size: 15px; line-height: 1; cursor: pointer;
   }
   .model-config-refresh:disabled { opacity: .45; }
   .model-config-row select {
@@ -4099,7 +4099,7 @@
           </div>
           <div class="model-config-row">
             <label for="model-quick">模型</label>
-            <button class="model-config-refresh" id="model-config-refresh" type="button" title="重新拉取这个渠道的最新模型列表">↻ 刷新</button>
+            <button class="model-config-refresh" id="model-config-refresh" type="button" title="重新拉取这个渠道的最新模型列表" aria-label="刷新模型列表">↻</button>
             <select id="model-quick" title="切换当前窗口模型"></select>
           </div>
           <div class="model-config-row">
@@ -16661,7 +16661,7 @@ async function refreshModelQuick() {
   const btn = $("model-config-refresh");
   const profile = conversationProvider();
   if (!profile?.apiKey) { showToast("这个渠道还没填 API Key"); return; }
-  if (btn) { btn.disabled = true; btn.textContent = "刷新中"; }
+  if (btn) { btn.disabled = true; btn.textContent = "…"; }
   try {
     const list = await pullProviderModels(profile);
     const cur = conversationModel();
@@ -16674,7 +16674,7 @@ async function refreshModelQuick() {
   } catch (e) {
     showToast("刷新失败：" + (e.message || e));
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "↻ 刷新"; }
+    if (btn) { btn.disabled = false; btn.textContent = "↻"; }
   }
 }
 function renderModelQuick() {
