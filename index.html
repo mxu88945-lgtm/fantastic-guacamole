@@ -13875,6 +13875,7 @@ function renderSemanticProgress() {
   if (!ready) { line.textContent = settings.semanticRecallEnabled ? "选一个填好 Key 的渠道后才会建索引。" : "未开启：召回和原来一样，只用关键词。"; return; }
   let text = "已建索引 " + semanticStats.indexed + " / 总 " + semanticStats.total + " 段";
   if (semanticBuilding) text += " · 正在后台建…";
+  else if (!semanticLastError && semanticStats.total > semanticStats.indexed) text += " · 马上自动接着建";
   if (semanticLastError) {
     const waitMin = Math.max(0, Math.ceil((semanticBackoffUntil - Date.now()) / 60000));
     text += " · 上次失败：" + semanticLastError + (waitMin ? "（" + waitMin + " 分钟后重试）" : "");
@@ -13887,6 +13888,9 @@ async function refreshSemanticProgress() {
     const cache = await semanticLoadCache();
     semanticCountStats(allSemanticChunks(), cache, semanticSettings().model);
   } catch (error) { semanticLastError = String(error?.message || error).slice(0, 160); }
+  // v356：打开这页时还没建完、也没在歇，就马上接着建，不用等启动后那 60 秒
+  if (!semanticBuilding && semanticStats.total > semanticStats.indexed && Date.now() >= semanticBackoffUntil
+      && typeof scheduleSemanticIndex === "function") scheduleSemanticIndex(1000);
   renderSemanticProgress();
   return semanticStats;
 }

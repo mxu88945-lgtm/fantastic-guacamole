@@ -14,7 +14,7 @@ let checks = 0
 const ok = (value, message) => { assert.ok(value, message); checks++ }
 
 // ---- source wiring ----
-ok(sw.includes('const CACHE = "role-chat-cache-v356";'), 'service worker cache was not bumped to v354')
+ok(sw.includes('const CACHE = "role-chat-cache-v357";'), 'service worker cache was not bumped to v354')
 ok(html.includes('id="people-list"') && html.includes('id="people-add"'), 'settings → 记忆 has no 人物档案 editor')
 ok(/"peopleProfiles","peopleProfilesSeededV1"/.test(html), 'people profiles are not cloud-synced settings')
 ok(html.includes('key: "people", label:'), 'people block is not part of the bounded memory budget / 本轮记忆检查')
