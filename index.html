@@ -13395,6 +13395,12 @@ const SEMANTIC_QUERY_PAUSE_MS = 2 * 60 * 1000; // 查询超时后 2 分钟内不
 const SEMANTIC_BATCH_SIZE = 32;              // 建索引每批最多 32 段
 const SEMANTIC_BATCH_GAP_MS = 1500;          // 批之间等一等，避免限流
 const SEMANTIC_BACKOFF_MS = 30 * 60 * 1000;  // 建索引失败后退避 30 分钟
+const SEMANTIC_SHORT_BACKOFF_MS = 60 * 1000; // v356：超时、限速、断网只歇 1 分钟
+function semanticIsTransientError(error) {
+  if (error?.semanticTimeout) return true;
+  const msg = String(error?.message || error || "");
+  return /超时|429|rate.?limit|TPM|RPM|TPD|RPD|Failed to fetch|Load failed|NetworkError|network|abort|50[234]/i.test(msg);
+}
 const SEMANTIC_STARTUP_DELAY_MS = 60 * 1000; // 启动约 60 秒后才开始后台建索引
 const SEMANTIC_AFTER_REPLY_DELAY_MS = 5000;
 const SEMANTIC_CHUNK_MIN_CHARS = 300;
@@ -13705,7 +13711,10 @@ async function runSemanticIndexBuild() {
     return true;
   } catch (error) {
     semanticLastError = String(error?.message || error || "未知错误").slice(0, 160);
-    semanticBackoffUntil = Date.now() + SEMANTIC_BACKOFF_MS;
+    // v356：超时 / 限速 / 断网只歇 1 分钟并自动续建；余额、key 之类才歇 30 分钟
+    const shortWait = semanticIsTransientError(error);
+    semanticBackoffUntil = Date.now() + (shortWait ? SEMANTIC_SHORT_BACKOFF_MS : SEMANTIC_BACKOFF_MS);
+    if (shortWait) setTimeout(() => { void runSemanticIndexBuild(); }, SEMANTIC_SHORT_BACKOFF_MS + 1000);
     console.warn("semantic index build failed", error);
     return false;
   } finally {

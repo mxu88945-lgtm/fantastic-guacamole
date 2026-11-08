@@ -14,7 +14,7 @@ let checks = 0
 const ok = (value, message) => { assert.ok(value, message); checks++ }
 
 // ---- source wiring ----
-ok(sw.includes('const CACHE = "role-chat-cache-v355";'), 'service worker cache was not bumped to v355')
+ok(sw.includes('const CACHE = "role-chat-cache-v356";'), 'service worker cache was not bumped to v355')
 ok(html.includes('🧭 语义召回') && html.includes('id="semantic-enabled"') && html.includes('id="semantic-provider"')
   && html.includes('id="semantic-model"') && html.includes('id="semantic-test"') && html.includes('id="semantic-rebuild"')
   && html.includes('id="semantic-progress"'), 'settings → 记忆库 has no 🧭 语义召回 card')
@@ -224,10 +224,10 @@ await S.runSemanticIndexBuild()
 const bulkCalls = calls.slice(beforeBulk)
 ok(bulkCalls.length === 2 && bulkCalls[0].body.input.length === 32 && bulkCalls[1].body.input.length === 8, 'batches must be at most 32 inputs')
 
-// ---- failure → 30 minute backoff ----
+// ---- 429 failure → 1 minute backoff (v356) ----
 bulk.messages.push({ id: 'bx', role: 'user', content: long('新的一段需要嵌入', 320), ts: oldTs })
 fetchMode = 'fail'
-ok(await S.runSemanticIndexBuild() === false && S.backoff - Date.now() > 29 * 60000 && /429/.test(S.lastError), 'failed build does not back off 30 minutes')
+ok(await S.runSemanticIndexBuild() === false && S.backoff - Date.now() > 50000 && S.backoff - Date.now() < 70000 && /429/.test(S.lastError), 'rate-limited build should back off about 1 minute (v356)')
 const afterFail = calls.length
 ok(await S.runSemanticIndexBuild() === false && calls.length === afterFail, 'build retried during backoff')
 fetchMode = 'ok'; S.backoff = 0; S.lastError = ''
