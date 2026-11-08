@@ -844,3 +844,12 @@
 ## 2026-11-08 v352
 - 模型配置面板「模型」旁加「↻ 刷新」：refreshModelQuick 重新拉当前窗口渠道模型列表（pullProviderModels），当前模型不在新列表里标「（列表里没有了）」并 toast 提示可能下架。
 - v353：刷新按钮只留 ↻ 图标。
+
+## 2026-11-08｜v354 记忆第一批：人物档案 + 原话带日期 + 越用越记得（Hark）
+- 人物档案（`settings.peopleProfiles`，全局、进 SYNCED_KEYS）：`{id,name,aliases,background,events:[{id,date:"YYYY-MM-DD",text,hitCount,lastUsedAt,source,sourceMessageId}],hitCount,lastUsedAt}`。首次读取预置 顾屿/裴屿/伯恩/顾祁砚（背景空，`peopleProfilesSeededV1` 只做一次，删了不会回来）。代码在 index.html「// ---------- 人物档案 (people profiles, v354) ----------」段。
+- 设置 → 记忆库 → 「👥 人物档案」折叠卡（在「记忆摘要」下）：加人、改名字/别名/背景、加事件（自动标今天）、点事件改、✕ 删事件、删除这个人。人物速写 memSummary 保留为辅助层，未改。
+- 自动收集：模型在主聊天本体对话末尾写 `[人物:名字|一句话]`（也认【】和全角｜）。新名字→建档并把内容当背景；已有→追加今天的事件，`memoryFactNearDuplicate` 去重；`背景：…` 只填空背景。只有她最近 2 条消息里出现该名字/别名才写入（助手自述、没被她提到的名字一律不学）；剧场、独立角色、后台暂停只剥标记不写。每条回复最多 3 条。系统提示 `peopleWritePrompt()` 只在非剧场注入。
+- 召回：她最近 1–2 条消息命中名字/别名（≥2 字）→ 记忆预算块 `key:"people"`（priority 4，cap 2600，最多 3 人，每人约 800 字）：背景、最近 5 件事（最新 3 + 相关/常用 2）、跨窗口她提到这个名字的原话最多 3 段（只取她的话，带日期和前后各 1 条，不扫剧场，排除当前窗口最近 8 条）、相关长期记忆最多 3 条。「本轮记忆检查」显示为「人物档案 · 名字」。
+- 原话带日期：`recallQuoteLabel()` 统一为「M月D日 她说：」/「他说：」（其他角色、剧场仍写名字说），旧文证据、`[旧文:]` 读取、recallNeighborhood 都用它；证据尾注让模型说「你那天说…」，不许编日期。
+- 越用越记得：`recordMemoryUsage()` 在记忆块组装后，对真正进入上下文的长期记忆和人物事件 `hitCount+1`、记 `lastUsedAt`（同一轮工具重试只算一次，1.5 秒后合并保存）。`memoryUsageBonus()` = min(0.6, 0.18·log2(1+hit)) ÷ (1+闲置天数/60)，只在已相关的条目上加分；旧记忆只降权不删除。
+- 回归：新增 `scripts/people-profiles-regression.mjs`（标签解析/隐藏/去重/身份隔离/3 人上限/800 字/日期原话/计数）。注意：HEAD 的 index.html 早已带着构建注入的天气卡函数，本次未动。
