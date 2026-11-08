@@ -187,7 +187,9 @@ html[data-theme-key] body:not(.rp-chat-active):not(.dashboard-open) .main > .com
 html[data-chat-bg="1"][data-theme-key] body:not(.rp-chat-active) .main > .composer-wrap { background: transparent !important; }
 html[data-theme-key] body:not(.rp-chat-active) .main > .composer-wrap > * { pointer-events: auto; }
 html[data-theme-key] body:not(.rp-chat-active) #messages::after {
-  content: ""; display: block; height: var(--composer-h, 0px); pointer-events: none;
+  content: ""; display: block; pointer-events: none;
+  /* v348：输入框外层上方 14px 是透明留白，.chat 底部还有 24px，扣掉一部分，最后一条别离输入框太远 */
+  height: max(0px, calc(var(--composer-h, 0px) - 30px));
 }
 html[data-theme-key] body:not(.rp-chat-active) .composer,
 html[data-theme-key] body:not(.rp-chat-active) .composer:focus-within {
