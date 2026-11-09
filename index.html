@@ -7042,7 +7042,8 @@ function renderMarkdown(text, storyQuotes = false) {
   text = text.replace(/"([^"\n]+(?:\n(?!\s*\n)[^"\n]+)*)"/g,
     match => match.split("\n").map(line => '<span class="chat-quote">' + line + '</span>').join("\n"));
   text = text.replace(/“([^”\n]+)”/g, '<span class="chat-quote">“$1”</span>');
-  text = text.replace(/「([^」\n]+)」/g, '<span class="chat-quote">「$1」</span>');
+  // 「」 gets its own hook (data-q="corner") so a theme can style it apart from “”; themes without a rule look unchanged.
+  text = text.replace(/「([^」\n]+)」/g, '<span class="chat-quote" data-q="corner">「$1」</span>');
   text = text.replace(/『([^』\n]+)』/g, '<span class="chat-quote">『$1』</span>');
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   // In roleplay, *…* marks an action/narration beat, not emphasis: render it as
@@ -17175,6 +17176,11 @@ THEMES.push(
     bg:"#f6f1ee", "bg-soft":"#faf7f4", "bg-panel":"#ffffff", border:"#e8dfd8", text:"#2b2522", "text-dim":"#7a6e68", accent:"#9a4a4a", "accent-soft":"#f3e6e4", "assistant-bubble":"#faf7f4", "user-bubble":"#efe7e1", "code-bg":"#f2ece8", "err-bg":"#fbe4e6", "err-text":"#b4232f", "item-active":"#ede5df" } },
   { key: "vinyl", name: "青橙唱片", dark: false, textColor: "#315868", textDim: "#7b98a4", vars: {
     bg:"#ffffff", "bg-soft":"#f8fbfc", "bg-panel":"#f8fbfc", border:"#c8d9df", text:"#315868", "text-dim":"#7b98a4", accent:"#416978", "accent-soft":"#edf4f6", "assistant-bubble":"#ffffff", "user-bubble":"#ffffff", "code-bg":"#eaf1f5", "err-bg":"#fbe8e6", "err-text":"#a34850", "item-active":"#dfeaf0" } },
+  // 暖茶笺 — 奶油纸底、焦糖点缀、普通左右气泡（v358）。样式在 src/theme-archives.css 末尾。
+  { key: "warmtea", name: "暖茶笺", dark: false, textColor: "#4a3426", textDim: "#8c6f5a",
+    gradient: "linear-gradient(180deg,#fbf4ea 0%,#f5e8d6 100%)",
+    vars: {
+    bg:"#fbf4ea", "bg-soft":"#fffaf3", "bg-panel":"#fffbf5", border:"#e8d5bf", text:"#4a3426", "text-dim":"#8c6f5a", accent:"#c27a45", "accent-soft":"#f6e2cc", "assistant-bubble":"#fffbf5", "user-bubble":"#f6e2cc", "code-bg":"#f3e6d6", "err-bg":"#fbe6df", "err-text":"#b5573b", "item-active":"#f1e2cf" } },
 );
 // Retire these main themes from both the picker and quick cycling. Keep old
 // wallpaper records recoverable rather than deleting any personal assets.

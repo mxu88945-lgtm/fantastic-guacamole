@@ -14,7 +14,7 @@ let checks = 0
 const ok = (value, message) => { assert.ok(value, message); checks++ }
 
 // ---- source wiring ----
-ok(sw.includes('const CACHE = "role-chat-cache-v357";'), 'service worker cache was not bumped to v355')
+ok(sw.includes('const CACHE = "role-chat-cache-v358";'), 'service worker cache was not bumped to v355')
 ok(html.includes('🧭 语义召回') && html.includes('id="semantic-enabled"') && html.includes('id="semantic-provider"')
   && html.includes('id="semantic-model"') && html.includes('id="semantic-test"') && html.includes('id="semantic-rebuild"')
   && html.includes('id="semantic-progress"'), 'settings → 记忆库 has no 🧭 语义召回 card')
@@ -245,7 +245,7 @@ ok(state.hits.some(h => h.chunk.kind === 'memory' && h.chunk.body.includes('玄�
 const lastQuery = calls[calls.length - 1]
 ok(lastQuery.body.input.length === 1 && lastQuery.body.input[0].includes('那几只鸟'), 'query vector must be one request built from her latest messages')
 
-const birdChunk = state.hits.find(h => h.chunk.kind === 'chat' && h.chunk.conv === pastWindow).chunk
+const birdChunk = state.hits.find(h => h.chunk.kind === 'chat' && h.chunk.conv === pastWindow && h.chunk.text.includes('掉毛')).chunk
 const keywordHit = { key: 'cross:past:' + birdChunk.msgs[1].id, m: birdChunk.msgs[1], c: pastWindow, s: 2 }
 const crossHits = S.mergeSemanticRecallHits([keywordHit], 'cross', {
   makeHit: (m, c, points, sim) => ({ key: 'cross:' + c.id + ':' + m.id, m, c, s: points }),

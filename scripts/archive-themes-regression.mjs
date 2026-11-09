@@ -126,3 +126,14 @@ console.log("archive theme v331 inline card html regression passed");
   assert.equal(ctx.roleplayRenderSignature(a, { content: "甲" }), ctx.roleplayRenderSignature(a, { content: "甲" }));
 }
 console.log("archive theme v331 stale-card regression passed");
+// v358: 暖茶笺 is a selectable main theme; 「」 gets its own quote hook that only warmtea styles.
+{
+  const ctx = vm.createContext({ settings: { themeName: 'warmtea' } });
+  vm.runInContext(html.slice(html.indexOf('const THEMES = ['), html.indexOf('function applyTheme()')), ctx);
+  assert.equal(ctx.currentTheme().key, 'warmtea', 'warmtea must be selectable');
+  assert.equal(vm.runInContext('THEMES[0].key', ctx), 'claude', 'default theme must stay Claude');
+  assert.ok(html.includes(`'<span class="chat-quote" data-q="corner">「$1」</span>'`), '「」 quote hook missing');
+  assert.ok(archives.includes('html[data-theme-key="warmtea"]') && archives.includes('span.chat-quote[data-q="corner"]'), 'warmtea css missing');
+  assert.ok(!/(?<!warmtea"\][^{]*)\[data-q="corner"\]/.test(archives.split('\n').filter(l => !l.includes('warmtea')).join('\n')), 'corner quote hook must only be styled by warmtea');
+}
+console.log("archive theme v358 warmtea regression passed");

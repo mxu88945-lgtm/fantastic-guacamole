@@ -217,3 +217,80 @@ html[data-theme="dark"] body:not(.rp-chat-active) .composer:focus-within {
 
 /* v339：秋日批注去掉右下角信封和标题上的胶带，看着更清爽（她 2026-11-06 要求）。 */
 .archive-academy::after, .archive-academy .archive-heading::before { content: none !important; display: none !important; }
+
+/* v358 暖茶笺（warmtea）：奶油纸底 + 焦糖点缀，普通左右气泡，不加装饰物。
+   只作用于主聊天（剧场 .rp-chat-active 各自有主题）。消息上不用 backdrop-filter。 */
+html[data-theme-key="warmtea"] { --wall-top: #fbf4ea; }
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) #messages .msg.assistant .bubble {
+  width: fit-content; max-width: 100%;
+  padding: 11px 15px;
+  background: #fffbf5;
+  border: 1px solid #ebd9c4;
+  border-radius: 18px;
+  box-shadow: 0 2px 8px rgba(150,100,60,.08);
+  color: #4a3426;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) #messages .msg.user .bubble {
+  padding: 11px 15px;
+  background: linear-gradient(135deg, #f6e2cc 0%, #efcfb0 100%);
+  border: 1px solid #ebd2b6;
+  border-radius: 18px;
+  border-top-right-radius: 6px;
+  box-shadow: 0 2px 8px rgba(150,100,60,.08);
+  color: #4a3426;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) #messages :is(.name, .msg-time) { color: #8c6f5a; }
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) #messages .msg .bubble :is(em, .chat-narration) { color: #8c6f5a; }
+/* 头像：圆形，外圈焦糖色 2px 环，环内 2px 奶油空隙，柔和暖光。 */
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) #messages .msg .avatar {
+  border-radius: 50%;
+  border: 0;
+  box-shadow: 0 0 0 2px #fffaf3, 0 0 0 4px #e2b98a, 0 3px 10px rgba(194,122,69,.28);
+}
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) #messages .msg .avatar img { border-radius: 50%; }
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) #messages .msg.assistant .avatar { background: #f6e2cc; color: #c27a45; }
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) #messages .msg.user .avatar { background: #f6e2cc; color: #b5573b; }
+/* “双引号”对白：赭红加粗 + 荧光笔下划底。 */
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) #messages .msg .bubble span.chat-quote {
+  display: inline;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 3px;
+  box-shadow: none;
+  background: linear-gradient(transparent 60%, rgba(232,177,120,.35) 60%);
+  color: #9a4f2e;
+  -webkit-text-fill-color: #9a4f2e;
+  font-weight: 600;
+  line-height: inherit;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+/* 「直角引号」对白：左侧焦糖细线 + 淡焦糖底。 */
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) #messages .msg .bubble span.chat-quote[data-q="corner"] {
+  padding: 0 2px 0 6px;
+  border: 0;
+  border-left: 2px solid #c27a45;
+  border-radius: 0 4px 4px 0;
+  background: rgba(194,122,69,.08);
+  color: #7a5a44;
+  -webkit-text-fill-color: #7a5a44;
+  font-weight: inherit;
+}
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) #messages .msg .bubble blockquote.chat-quote { border-left-color: #c27a45; color: #7a5a44; }
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) #messages .msg .bubble :is(code, pre) { background: #f3e6d6; }
+/* 输入框：奶油底、暖线框、焦糖发送键（保留全局悬浮玻璃结构）。 */
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) .composer,
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) .composer:focus-within {
+  background: color-mix(in srgb, #fffaf3 92%, transparent) !important;
+  border: 1px solid #e8d5bf !important;
+  box-shadow: 0 8px 24px rgba(150,100,60,.10), inset 0 1px 0 rgba(255,255,255,.7) !important;
+}
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) .composer:focus-within { border-color: #dcbf9f !important; }
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) .composer textarea { color: #4a3426; }
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) .composer textarea::placeholder { color: #a88c76; }
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) :is(.attach-btn, .voice-input-btn) { color: #8c6f5a; }
+html[data-theme-key="warmtea"] body:not(.rp-chat-active) .model-quick { background: #f6e9da; border-color: transparent; color: #7a5a44; }
+html[data-theme-key="warmtea"] .send-btn:not(.stop) { background: #c27a45; color: #fffaf3; }
+html[data-theme-key="warmtea"] .send-btn.stop { background: #b5573b; color: #fffaf3; }
