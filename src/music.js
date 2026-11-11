@@ -5,6 +5,8 @@
  * HTTP API exposed by eryu (MIT), while keeping the endpoint and token local
  * to this browser origin.
  */
+import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
+
 (() => {
   const CONFIG_KEY = "jyc_music_config_v1";
   const PLAYER_KEY = "jyc_music_player_v1";
@@ -136,7 +138,7 @@
   }
   async function importLocalFiles(files) {
     const all = Array.from(files || []);
-    if (!all.length) return;
+    if (!all.length) return [];
     const isLyricFile = (f) => /\.(lrc|txt)$/i.test(f.name);
     const base = (n) => n.replace(/\.[^.]+$/, "");
     const lyricFiles = all.filter(isLyricFile);
@@ -155,25 +157,34 @@
         await localPut(`lyric:${state.song.songId}`, await lyricFiles[0].text());
         await loadLyrics(true);
         showToast("已给这首歌配上歌词");
-        return;
+        return [];
       }
-      if (!added.length) { showToast("没有选到音乐文件"); return; }
+      if (!added.length) { showToast("没有选到音乐文件"); return []; }
       state.local = [...state.local, ...added];
       saveLocalList();
       state.activeTab = "local";
       render();
       showToast(`已导入 ${added.length} 首`);
+      notifyMusicChanged();
+      return added;
     } catch (error) {
       showToast(`导入失败：${error.message || error}`);
+      return [];
     }
   }
-  function pickLocalFiles() {
+  let afterLocalImport = null;
+  function pickLocalFiles(onDone) {
+    afterLocalImport = typeof onDone === "function" ? onDone : null;
     let input = $("music-local-file");
     if (!input) {
       input = document.createElement("input");
       input.type = "file"; input.multiple = true; input.id = "music-local-file"; input.hidden = true;
       // 不设 accept：iOS 上混入 .lrc 会把 mp3 全部置灰
-      input.addEventListener("change", () => { importLocalFiles(input.files); input.value = ""; });
+      input.addEventListener("change", async () => {
+        const done = afterLocalImport; afterLocalImport = null;
+        const added = await importLocalFiles(input.files); input.value = "";
+        if (done) { try { await done(added || []); } catch (_) {} }
+      });
       document.body.appendChild(input);
     }
     input.click();
@@ -425,9 +436,10 @@
     }
   }
 
-  async function playSong(song, rest = []) {
+  async function playSong(song, rest = [], opts = {}) {
     const next = normalizeSong(song);
-    if (!next) return;
+    if (!next) return false;
+    state.blocked = false;
     if (state.song && state.song.songId !== next.songId) state.history.push(state.song);
     state.song = next;
     state.queue = rest.map(normalizeSong).filter(Boolean);
@@ -458,13 +470,10 @@
         updateMediaSession(next);
         await audio.play();
         prefetchNextLocal();
+        return true;
       } catch (error) {
-        state.playing = false;
-        state.error = error.message || "播放失败";
-        renderCurrent();
-        showToast(state.error);
+        return playFailed(error, opts, false);
       }
-      return;
     }
     try {
       const data = await api(`/music/url?id=${encodeURIComponent(next.songId)}`);
@@ -473,13 +482,62 @@
       updateMediaSession(next);
       await audio.play();
       apiPost("/music/recent/add", { song: next }).catch(() => {});
+      return true;
     } catch (error) {
-      state.playing = false;
-      state.error = error.message || "播放失败";
-      setStatus(state.error, true);
-      renderCurrent();
-      showToast(state.error);
+      return playFailed(error, opts, true);
     }
+  }
+  /* v359：iOS 没有手势时 play() 会被拒（NotAllowedError）——安静失败，留给点歌卡片「点一下播放」 */
+  function playFailed(error, opts, remote) {
+    state.playing = false;
+    if (error && error.name === "NotAllowedError") {
+      state.blocked = true; state.error = "";
+      renderCurrent(); renderMiniPlayer();
+      if (!opts.quiet) showToast("点一下播放键开始");
+      return false;
+    }
+    state.error = (error && error.message) || "播放失败";
+    if (remote) setStatus(state.error, true);
+    renderCurrent();
+    if (!opts.quiet) showToast(state.error);
+    return false;
+  }
+
+  // ---- v359 他自己点歌：歌单 = 本地 + 喜欢 + 队列 ----
+  function pickPool() {
+    const seen = new Set();
+    return [...state.local, ...state.liked, ...state.queue].filter((s) => s && !seen.has(s.songId) && seen.add(s.songId));
+  }
+  function songPickNote() {
+    return buildSongPickNote(pickPool().map((s) => s.name));
+  }
+  function findPickSong(title, pool = pickPool()) {
+    const tracks = pool.map((s) => ({ id: s.songId, name: s.name, artist: s.artist === "本地音乐" || s.artist === "未知歌手" ? "" : s.artist }));
+    const hit = findTrackByTitle(tracks, title);
+    return hit ? pool.find((s) => s.songId === hit.id) || null : null;
+  }
+  function isSongPlaying(song) {
+    return !!song && !!state.song && state.song.songId === song.songId && !!audio.src && !audio.paused;
+  }
+  /** 返回 "playing" | "already" | "missing" | "blocked" | "error" */
+  async function playPicked(title, opts = {}) {
+    const song = findPickSong(title);
+    if (!song) return "missing";
+    if (isSongPlaying(song)) return "already";
+    const ok = await playSong(song, state.queue.filter((s) => s.songId !== song.songId), { quiet: !!opts.auto });
+    return ok ? "playing" : (state.blocked ? "blocked" : "error");
+  }
+  /** 点歌卡片：歌单里没有这首 → 打开导入；导入后歌名对得上就直接放 */
+  function importForPick(title, onDone) {
+    pickLocalFiles(async (added) => {
+      let status = "missing";
+      const song = (added.length && findPickSong(title, added)) || (added.length ? findPickSong(title) : null);
+      if (song) {
+        const ok = await playSong(song, [], { quiet: true });
+        status = ok ? "playing" : (state.blocked ? "blocked" : "error");
+      }
+      if (typeof onDone === "function") onDone(status);
+    });
   }
 
   function togglePlay() {
@@ -792,7 +850,7 @@
         const current = state.song?.songId === song.songId;
         return `<div class="music-song-row" data-music-song="${i}"><span class="music-song-cover empty">♪</span><div class="music-song-info"><div class="music-song-name">${esc(song.name)}${current ? `<span class="music-current-badge">正在播放</span>` : ""}</div><div class="music-song-artist">${esc(song.artist)}</div></div><div class="music-song-actions"><button class="music-song-action" data-music-lyricfile="${i}" title="配歌词">词</button><button class="music-song-action danger" data-music-local-del="${i}" title="删除">×</button></div></div>`;
       }).join("")}</div>` : `<div class="music-empty"><div><strong>还没有本地歌</strong>点「＋ 导入」从「文件」里选 mp3，可以连同同名 .lrc 歌词一起选；没歌词会自动上网找。</div></div>`}`;
-    $("music-local-import")?.addEventListener("click", pickLocalFiles);
+    $("music-local-import")?.addEventListener("click", () => pickLocalFiles());
     if (!songs.length) return;
     bindSongRows($("music-local-list"), songs, { playRest: true });
     view.querySelectorAll("[data-music-local-del]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); removeLocal(Number(b.dataset.musicLocalDel)); }));
@@ -957,7 +1015,7 @@
       else if (state.connected || state.local.length) { delete card.dataset.editing; closeConfig(); }
     });
     $("music-connect-btn")?.addEventListener("click", connectFromForm);
-    $("music-local-import-btn")?.addEventListener("click", pickLocalFiles);
+    $("music-local-import-btn")?.addEventListener("click", () => pickLocalFiles());
     $("music-cancel-config")?.addEventListener("click", () => { delete $("music-connect-card").dataset.editing; closeConfig(); });
     $("music-logout-btn")?.addEventListener("click", () => {
       state.connected = false; state.config = { baseUrl: "", token: "" }; localStorage.removeItem(CONFIG_KEY); render(); showToast("已断开音乐服务");
@@ -992,7 +1050,7 @@
   restoreLibrary();
   restoreLocalList();
   restorePlayerState();
-  window.JYCMusic = { open, close, summary, promptNote, togglePlay, playNext, getState: () => ({ ...state, lyrics: undefined, lyricTranslations: undefined }) };
+  window.JYCMusic = { open, close, summary, promptNote, togglePlay, playNext, songPickNote, findPickSong, playPicked, importForPick, isSongPlaying, getState: () => ({ ...state, lyrics: undefined, lyricTranslations: undefined }) };
   bind();
   renderMiniPlayer();
 })();

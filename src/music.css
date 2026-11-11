@@ -203,3 +203,17 @@
   .music-lyrics, .music-lyric-line { transition: none; }
   .music-lyrics-lines { scroll-behavior: auto; }
 }
+
+/* ── v359 他自己点歌：消息下的小卡片，跟随主题色，保持简单 ── */
+.song-pick-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  margin: 6px 0 0; padding: 4px 10px; min-height: 26px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border)); border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent); color: var(--text-dim);
+  font: 500 12px/1.3 inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.song-pick-chip:active { transform: scale(.98); }
+.song-pick-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.song-pick-hint { flex-shrink: 0; color: var(--accent); font-weight: 600; }
+.song-pick-hint::before { content: "·"; margin-right: 6px; color: var(--text-dim); font-weight: 400; }
+.msg .body > .song-pick-chip, .msg.flat > .song-pick-chip, .msg.archive-row > .song-pick-chip { align-self: flex-start; }
