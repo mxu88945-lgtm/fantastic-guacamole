@@ -6,6 +6,7 @@
  * to this browser origin.
  */
 import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
+import { guessLyricMeta, rankLyrics, mergeCandidates, nextCandidateIndex, shiftLyricLines } from "./music-lyrics.js";
 
 (() => {
   const CONFIG_KEY = "jyc_music_config_v1";
@@ -39,6 +40,7 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
     duration: 0,
     roam: false,
     lyrics: [],
+    lyricsBase: [],
     lyricTranslations: new Map(),
     lyricIndex: -1,
     lyricsOpen: false,
@@ -46,6 +48,8 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
     sharedWithCompanion: false,
     local: [],
     lyricHint: "",
+    localManage: false,
+    localSelected: new Set(),
   };
   let localUrl = "";
   /* v347：后台连播——提前把下一首本地歌读进内存，放完时同步换源，不等 IndexedDB；并接入锁屏/控制中心 */
@@ -113,22 +117,90 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
     const title = s.replace(/[（(【[].*?[）)】\]]/g, "").replace(/[-–—]+$/, "").trim();
     return { title: title || s.trim(), artist, display: (m ? m[2] : s).trim() };
   }
-  function pickLyrics(items, title) {
-    const norm = (x) => String(x || "").replace(/\s+/g, "").toLowerCase();
-    const t = norm(title);
-    const ok = (Array.isArray(items) ? items : []).filter((i) => !i.instrumental);
-    const same = ok.filter((i) => norm(i.trackName) === t);
-    return same.find((i) => i.syncedLyrics)?.syncedLyrics || same.find((i) => i.plainLyrics)?.plainLyrics
-      || ok.filter((i) => norm(i.trackName).includes(t)).find((i) => i.syncedLyrics)?.syncedLyrics || "";
+  /* v361：lrclib 候选按「时长最接近这首歌」排好，本次打开期间留着，「换一版歌词」在里面轮换（同惟境） */
+  const lyricCands = new Map(); // songId -> { list: string[], idx: number }
+  async function waitDuration(song, ms = 3000) {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms) {
+      if (state.song?.songId !== song.songId) return 0;
+      if (Number.isFinite(audio.duration) && audio.duration > 0) return audio.duration;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
+  }
+  async function fetchLyricCandidates(song) {
+    const meta = guessLyricMeta(song.name);
+    const artist = song.artist && song.artist !== "本地音乐" && song.artist !== "未知歌手" ? song.artist : meta.artist;
+    if (!meta.title) return [];
+    const dur = await waitDuration(song);
+    const get = async (q) => { const r = await fetch(`https://lrclib.net/api/search?${q}`); return r.ok ? r.json() : []; };
+    const enc = encodeURIComponent;
+    const byArtist = artist ? rankLyrics(await get(`track_name=${enc(meta.title)}&artist_name=${enc(artist)}`), meta.title, dur) : [];
+    const all = rankLyrics(await get(`track_name=${enc(meta.title)}`), meta.title, dur);
+    return mergeCandidates(byArtist, all);
   }
   async function fetchOnlineLyrics(song) {
-    const title = guessSongMeta(song.name).title;
-    const artist = song.artist && song.artist !== "本地音乐" ? song.artist : "";
-    if (!title) return "";
-    const get = async (q) => { const r = await fetch(`https://lrclib.net/api/search?${q}`); return r.ok ? r.json() : []; };
-    let found = artist ? pickLyrics(await get(`track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}`), title) : "";
-    if (!found) found = pickLyrics(await get(`track_name=${encodeURIComponent(title)}`), title);
-    return found;
+    const list = await fetchLyricCandidates(song);
+    lyricCands.set(song.songId, { list, idx: 0 });
+    return list[0] || "";
+  }
+  // 歌词时间轴微调（秒，正数 = 歌词晚一点出现），每首歌单独记
+  const offsetKey = (id) => `jyc_music_lyric_offset:${id}`;
+  function getOffset(id) { const v = Number(localStorage.getItem(offsetKey(id))); return Number.isFinite(v) ? v : 0; }
+  function setOffset(id, v) { try { if (v) localStorage.setItem(offsetKey(id), String(v)); else localStorage.removeItem(offsetKey(id)); } catch (_) {} }
+  function applyLyrics(base, songId) {
+    state.lyricsBase = (base || []).map((l) => ({ ...l, t0: l.t0 ?? l.time }));
+    state.lyrics = shiftLyricLines(state.lyricsBase, getOffset(songId));
+    state.lyricIndex = -1;
+  }
+  function isTimedLyrics() { return state.lyrics.length > 0 && state.lyrics[0].time >= 0; }
+  function nudgeLyrics(delta) {
+    const song = state.song;
+    if (!song || !isTimedLyrics()) return;
+    const next = Math.round((getOffset(song.songId) + delta) * 10) / 10;
+    setOffset(song.songId, next);
+    state.lyrics = shiftLyricLines(state.lyricsBase, next);
+    state.lyricIndex = -2;
+    updateLyricProgress();
+    renderLyricTools();
+  }
+  let versionBusy = false;
+  async function nextLyricVersion() {
+    const song = state.song;
+    if (!song || versionBusy) return;
+    versionBusy = true;
+    renderLyricTools();
+    try {
+      let c = lyricCands.get(song.songId);
+      if (!c) {
+        showToast("正在找别的版本…");
+        const list = await fetchLyricCandidates(song);
+        const saved = await localGet(`lyric:${song.songId}`).catch(() => "");
+        c = { list, idx: saved ? list.indexOf(saved) : -1 };
+        if (list.length) lyricCands.set(song.songId, c);
+      }
+      if (!c.list.length) { showToast("网上没找到这首的歌词"); return; }
+      c.idx = nextCandidateIndex(c);
+      await localPut(`lyric:${song.songId}`, c.list[c.idx]);
+      setOffset(song.songId, 0);
+      if (state.song?.songId === song.songId) await loadLyrics(true);
+      showToast(`第 ${c.idx + 1}/${c.list.length} 版歌词`);
+    } catch (_) {
+      showToast("网络不通，没找到别的版本");
+    } finally {
+      versionBusy = false;
+      renderLyricTools();
+    }
+  }
+  function renderLyricTools() {
+    const has = !!state.song;
+    ["music-version-btn", "music-lyrics-version"].forEach((id) => { const b = $(id); if (b) { b.disabled = !has || versionBusy; b.textContent = versionBusy ? "找歌词中…" : "换一版歌词"; } });
+    const tools = $("music-lyric-tools");
+    if (tools) tools.hidden = !has;
+    const timed = has && isTimedLyrics();
+    ["music-offset-minus", "music-offset-plus"].forEach((id) => { const b = $(id); if (b) b.hidden = !timed; });
+    const val = $("music-offset-value");
+    if (val) { const o = has ? getOffset(state.song.songId) : 0; val.hidden = !timed; val.textContent = `${o > 0 ? "+" : ""}${o.toFixed(1)}s`; }
   }
   /** 纯文本歌词也能显示：没有时间轴的行按顺序排，不跟随进度 */
   function parseAnyLyrics(text) {
@@ -195,8 +267,29 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
     state.local.splice(index, 1);
     saveLocalList();
     localDel(`audio:${song.songId}`); localDel(`lyric:${song.songId}`);
+    forgetLocalExtras(song.songId);
     state.queue = state.queue.filter((item) => item.songId !== song.songId);
     renderView(); notifyMusicChanged();
+  }
+  function forgetLocalExtras(id) {
+    lyricCands.delete(id);
+    setOffset(id, 0);
+    state.localSelected.delete(id);
+    if (prefetched?.songId === id) prefetched = null;
+  }
+  /* v361：本地歌「管理」多选删除——每首的音频和歌词都从 IndexedDB 删掉，和单首 × 一样 */
+  async function removeLocalSelected() {
+    const ids = state.local.filter((s) => state.localSelected.has(s.songId)).map((s) => s.songId);
+    if (!ids.length || !confirm(`删除选中的 ${ids.length} 首？音频和歌词都会从这台设备删掉。`)) return;
+    const gone = new Set(ids);
+    state.local = state.local.filter((s) => !gone.has(s.songId));
+    saveLocalList();
+    for (const id of ids) { localDel(`audio:${id}`); localDel(`lyric:${id}`); forgetLocalExtras(id); }
+    state.queue = state.queue.filter((item) => !gone.has(item.songId));
+    state.localSelected.clear();
+    if (!state.local.length) state.localManage = false;
+    renderView(); notifyMusicChanged();
+    showToast(`已删除 ${ids.length} 首`);
   }
 
   function loadConfig() {
@@ -447,6 +540,7 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
     state.duration = 0;
     state.progress = 0;
     state.lyrics = [];
+    state.lyricsBase = [];
     state.lyricTranslations = new Map();
     state.lyricIndex = -1;
     state.sharedWithCompanion = false;
@@ -630,14 +724,14 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
           if (text) await localPut(`lyric:${song.songId}`, text).catch(() => {});
         }
         if (state.song?.songId !== song.songId) return;
-        state.lyrics = parseAnyLyrics(text || "");
+        applyLyrics(parseAnyLyrics(text || ""), song.songId);
         state.lyricTranslations = new Map();
-        state.lyricIndex = -1;
-        state.lyricHint = state.lyrics.length ? "" : "没找到歌词，可以在「本地」里给这首点「+词」";
+        state.lyricHint = state.lyrics.length ? "" : "没找到歌词，可以在「本地」里给这首点「词」，或点「换一版歌词」再找";
       } finally {
         state.lyricsLoading = false;
         if (state.lyricsOpen) renderLyrics();
         renderCurrent();
+        renderLyricTools();
       }
       return;
     }
@@ -645,17 +739,35 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
     const songId = state.song.songId;
     state.lyricsLoading = true;
     if (state.lyricsOpen) renderLyrics();
+    const song = state.song;
     try {
-      const data = await api(`/music/lyric?id=${encodeURIComponent(songId)}`);
-      if (state.song?.songId !== songId) return;
-      state.lyrics = parseLrc(data.lrc || "");
-      state.lyricTranslations = new Map(parseLrc(data.tlyric || "").map((line) => [Math.round(line.time * 100), line.text]));
+      // v361：在线歌也能「换一版歌词」——换过的版本存在 lyric:<id>，优先用它
+      const saved = await localGet(`lyric:${songId}`).catch(() => "");
+      if (saved) {
+        if (state.song?.songId !== songId) return;
+        applyLyrics(parseAnyLyrics(saved), songId);
+        state.lyricTranslations = new Map();
+      } else {
+        const data = await api(`/music/lyric?id=${encodeURIComponent(songId)}`).catch(() => ({}));
+        if (state.song?.songId !== songId) return;
+        let lines = parseLrc(data.lrc || "");
+        state.lyricTranslations = new Map(parseLrc(data.tlyric || "").map((line) => [Math.round(line.time * 100), line.text]));
+        // 音源没给歌词 → 和本地歌一样去 lrclib 找一次（不存，下次仍先问音源）
+        if (!lines.length && !force) {
+          const text = await fetchOnlineLyrics(song).catch(() => "");
+          if (state.song?.songId !== songId) return;
+          lines = parseAnyLyrics(text);
+          state.lyricTranslations = new Map();
+        }
+        applyLyrics(lines, songId);
+      }
     } catch (_) {
-      state.lyrics = [];
+      applyLyrics([], songId);
       state.lyricTranslations = new Map();
     } finally {
       state.lyricsLoading = false;
       if (state.lyricsOpen) renderLyrics();
+      renderLyricTools();
     }
   }
 
@@ -746,6 +858,8 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
     if (seek) seek.value = String(Math.round(state.progress * 1000));
     if (current) current.textContent = fmt(state.currentTime);
     if (total) total.textContent = fmt(state.duration);
+    const versionBtn = $("music-version-btn");
+    if (versionBtn) versionBtn.disabled = !song || versionBusy;
     const error = $("music-inline-error");
     if (error) { error.textContent = state.error || ""; error.hidden = !state.error; }
   }
@@ -845,13 +959,40 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
     const view = $("music-view");
     if (!view) return;
     const songs = state.local;
-    view.innerHTML = `<div class="music-queue-head"><div class="music-section-label">本地歌曲 · ${songs.length} 首</div><button type="button" id="music-local-import">＋ 导入</button></div>
-      ${songs.length ? `<div class="music-song-list" id="music-local-list">${songs.map((song, i) => {
+    if (!songs.length) state.localManage = false;
+    const manage = state.localManage;
+    const picked = songs.filter((s) => state.localSelected.has(s.songId)).length;
+    const allOn = songs.length > 0 && picked === songs.length;
+    const head = manage
+      ? `<div class="music-queue-head"><div class="music-section-label">管理 · 已选 ${picked} / ${songs.length} 首</div><div class="music-head-actions"><button type="button" id="music-local-selall">${allOn ? "取消全选" : "全选"}</button><button type="button" class="danger" id="music-local-delsel"${picked ? "" : " disabled"}>删除选中（${picked}）</button><button type="button" class="strong" id="music-local-done">完成</button></div></div>`
+      : `<div class="music-queue-head"><div class="music-section-label">本地歌曲 · ${songs.length} 首</div><div class="music-head-actions">${songs.length ? `<button type="button" id="music-local-manage">管理</button>` : ""}<button type="button" id="music-local-import">＋ 导入</button></div></div>`;
+    view.innerHTML = `${head}
+      ${songs.length ? `<div class="music-song-list${manage ? " managing" : ""}" id="music-local-list">${songs.map((song, i) => {
         const current = state.song?.songId === song.songId;
-        return `<div class="music-song-row" data-music-song="${i}"><span class="music-song-cover empty">♪</span><div class="music-song-info"><div class="music-song-name">${esc(song.name)}${current ? `<span class="music-current-badge">正在播放</span>` : ""}</div><div class="music-song-artist">${esc(song.artist)}</div></div><div class="music-song-actions"><button class="music-song-action" data-music-lyricfile="${i}" title="配歌词">词</button><button class="music-song-action danger" data-music-local-del="${i}" title="删除">×</button></div></div>`;
+        const sel = state.localSelected.has(song.songId);
+        const actions = manage
+          ? `<span class="music-check${sel ? " on" : ""}" role="checkbox" aria-checked="${sel}" aria-label="选中">${sel ? "✓" : ""}</span>`
+          : `<button class="music-song-action" data-music-lyricfile="${i}" title="配歌词">词</button><button class="music-song-action danger" data-music-local-del="${i}" title="删除">×</button>`;
+        return `<div class="music-song-row${manage && sel ? " selected" : ""}" ${manage ? `data-music-pick="${i}"` : `data-music-song="${i}"`}><span class="music-song-cover empty">♪</span><div class="music-song-info"><div class="music-song-name">${esc(song.name)}${current ? `<span class="music-current-badge">正在播放</span>` : ""}</div><div class="music-song-artist">${esc(song.artist)}</div></div><div class="music-song-actions">${actions}</div></div>`;
       }).join("")}</div>` : `<div class="music-empty"><div><strong>还没有本地歌</strong>点「＋ 导入」从「文件」里选 mp3，可以连同同名 .lrc 歌词一起选；没歌词会自动上网找。</div></div>`}`;
     $("music-local-import")?.addEventListener("click", () => pickLocalFiles());
+    $("music-local-manage")?.addEventListener("click", () => { state.localManage = true; state.localSelected.clear(); renderLocal(); });
+    $("music-local-done")?.addEventListener("click", () => { state.localManage = false; state.localSelected.clear(); renderLocal(); });
+    $("music-local-selall")?.addEventListener("click", () => {
+      if (allOn) state.localSelected.clear(); else songs.forEach((s) => state.localSelected.add(s.songId));
+      renderLocal();
+    });
+    $("music-local-delsel")?.addEventListener("click", removeLocalSelected);
     if (!songs.length) return;
+    if (manage) {
+      view.querySelectorAll("[data-music-pick]").forEach((row) => row.addEventListener("click", () => {
+        const song = songs[Number(row.dataset.musicPick)];
+        if (!song) return;
+        if (state.localSelected.has(song.songId)) state.localSelected.delete(song.songId); else state.localSelected.add(song.songId);
+        renderLocal();
+      }));
+      return;
+    }
     bindSongRows($("music-local-list"), songs, { playRest: true });
     view.querySelectorAll("[data-music-local-del]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); removeLocal(Number(b.dataset.musicLocalDel)); }));
     view.querySelectorAll("[data-music-lyricfile]").forEach((b) => b.addEventListener("click", async (e) => {
@@ -866,6 +1007,8 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
         const text = await f.text();
         if (!parseAnyLyrics(text).length) { showToast("这个歌词文件是空的"); return; }
         await localPut(`lyric:${song.songId}`, text);
+        lyricCands.delete(song.songId);
+        setOffset(song.songId, 0);
         if (state.song?.songId === song.songId) await loadLyrics(true);
         showToast("歌词已保存");
       });
@@ -900,12 +1043,13 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
     $("music-lyrics-artist").textContent = state.song.artist;
     const cover = $("music-lyrics-cover");
     if (cover) { cover.src = resolveUrl(state.song.cover); cover.onerror = () => cover.removeAttribute("src"); }
+    renderLyricTools();
     const lines = $("music-lyrics-lines");
     if (!lines) return;
     if (state.lyricsLoading && !state.lyrics.length) { lines.innerHTML = `<div class="music-empty">歌词加载中…</div>`; return; }
     if (!state.lyrics.length) { lines.innerHTML = `<div class="music-empty">${esc(state.lyricHint || "这首歌暂时没有同步歌词")}</div>`; return; }
     lines.innerHTML = state.lyrics.map((line, index) => {
-      const translated = state.lyricTranslations.get(Math.round(line.time * 100));
+      const translated = state.lyricTranslations.get(Math.round((line.t0 ?? line.time) * 100));
       return `<div class="music-lyric-line ${index === state.lyricIndex ? "active" : ""}" data-music-lyric="${index}">${esc(line.text)}${translated ? `<div class="music-lyric-trans">${esc(translated)}</div>` : ""}</div>`;
     }).join("");
     lines.querySelectorAll("[data-music-lyric]").forEach((line) => line.addEventListener("click", () => { const item = state.lyrics[Number(line.dataset.musicLyric)]; if (item && item.time >= 0) audio.currentTime = item.time; }));
@@ -1026,6 +1170,10 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
     $("music-next-btn")?.addEventListener("click", playNext);
     $("music-like-btn")?.addEventListener("click", () => toggleLike(state.song));
     $("music-lyrics-btn")?.addEventListener("click", openLyrics);
+    $("music-version-btn")?.addEventListener("click", nextLyricVersion);
+    $("music-lyrics-version")?.addEventListener("click", nextLyricVersion);
+    $("music-offset-minus")?.addEventListener("click", () => nudgeLyrics(-0.5));
+    $("music-offset-plus")?.addEventListener("click", () => nudgeLyrics(0.5));
     $("music-share-btn")?.addEventListener("click", shareWithCompanion);
     $("music-seek")?.addEventListener("input", (event) => { if (state.duration) audio.currentTime = Number(event.currentTarget.value) / 1000 * state.duration; });
     $("music-lyrics-back")?.addEventListener("click", closeLyrics);
@@ -1033,7 +1181,7 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
     $("music-lyrics-prev")?.addEventListener("click", playPrevious);
     $("music-lyrics-next")?.addEventListener("click", playNext);
     $("music-lyrics-seek")?.addEventListener("input", (event) => { if (state.duration) audio.currentTime = Number(event.currentTarget.value) / 1000 * state.duration; });
-    document.querySelectorAll("[data-music-tab]").forEach((tab) => tab.addEventListener("click", () => { state.activeTab = tab.dataset.musicTab; renderView(); }));
+    document.querySelectorAll("[data-music-tab]").forEach((tab) => tab.addEventListener("click", () => { state.activeTab = tab.dataset.musicTab; state.localManage = false; state.localSelected.clear(); renderView(); }));
     $("music-mini-player")?.addEventListener("click", (event) => { if (event.target.closest("button")) return; open(); });
     $("music-mini-play")?.addEventListener("click", (event) => { event.stopPropagation(); togglePlay(); });
     $("music-mini-next")?.addEventListener("click", (event) => { event.stopPropagation(); playNext(); });
@@ -1050,7 +1198,7 @@ import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
   restoreLibrary();
   restoreLocalList();
   restorePlayerState();
-  window.JYCMusic = { open, close, summary, promptNote, togglePlay, playNext, songPickNote, findPickSong, playPicked, importForPick, isSongPlaying, getState: () => ({ ...state, lyrics: undefined, lyricTranslations: undefined }) };
+  window.JYCMusic = { open, close, summary, promptNote, togglePlay, playNext, songPickNote, findPickSong, playPicked, importForPick, isSongPlaying, nextLyricVersion, getState: () => ({ ...state, lyrics: undefined, lyricTranslations: undefined }) };
   bind();
   renderMiniPlayer();
 })();

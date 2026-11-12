@@ -79,7 +79,7 @@
 .music-progress { display: grid; grid-template-columns: 38px minmax(0,1fr) 38px; gap: 8px; align-items: center; margin-top: 19px; color: var(--text-dim); font: 10px/1 "SF Mono", Consolas, monospace; }
 .music-progress input { width: 100%; accent-color: var(--accent); cursor: pointer; }
 .music-time-end { text-align: right; }
-.music-controls { display: flex; align-items: center; gap: 7px; margin-top: 11px; }
+.music-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
 .music-control-btn {
   width: 34px; height: 34px; border: 0; border-radius: 50%; display: grid; place-items: center;
   background: color-mix(in srgb, var(--bg-panel) 82%, transparent); color: var(--text); cursor: pointer; font-size: 15px;
@@ -124,6 +124,22 @@
 .music-error { margin: 10px 0; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger, #c84c5b) 28%, var(--border)); border-radius: 11px; color: var(--danger, #c84c5b); background: color-mix(in srgb, var(--danger, #c84c5b) 7%, transparent); font-size: 11px; line-height: 1.5; }
 .music-queue-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .music-queue-head button { border: 0; background: transparent; color: var(--text-dim); cursor: pointer; font-size: 11px; }
+/* v361 本地歌「管理」多选 + 歌词工具条 */
+.music-head-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.music-queue-head .music-head-actions button { padding: 4px 0; }
+.music-queue-head button.danger { color: var(--danger, #c84c5b); }
+.music-queue-head button.strong { color: var(--accent); font-weight: 700; }
+.music-queue-head button:disabled { opacity: .4; cursor: default; }
+.music-song-list.managing .music-song-row { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.music-song-row.selected { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); background: color-mix(in srgb, var(--accent) 10%, var(--bg-panel)); }
+.music-check { display: grid; place-items: center; width: 22px; height: 22px; margin: 0 4px; border: 1.5px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 50%; color: var(--accent-contrast, #fff); font-size: 12px; font-weight: 800; line-height: 1; }
+.music-check.on { border-color: var(--accent); background: var(--accent); }
+.music-lyric-tools { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; color: var(--text-dim); font-size: 11px; }
+.music-lyric-tools[hidden], .music-lyric-tools [hidden] { display: none !important; }
+.music-lyric-tools button { min-height: 28px; padding: 0 11px; border: 1px solid var(--border); border-radius: 999px; background: color-mix(in srgb, var(--bg-panel) 70%, transparent); color: var(--text-dim); cursor: pointer; font: 600 11px/1 inherit; }
+.music-lyric-tools button.push { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.music-lyric-tools button:disabled { opacity: .45; cursor: default; }
+.music-lyric-tools span { min-width: 38px; text-align: center; font: 10px/1 "SF Mono", Consolas, monospace; }
 .music-current-badge { margin-left: 6px; color: var(--accent); font-size: 9px; font-weight: 750; }
 
 /* Full lyric sheet */

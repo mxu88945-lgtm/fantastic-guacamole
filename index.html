@@ -3135,6 +3135,7 @@
                     <button type="button" class="music-control-btn" id="music-next-btn" aria-label="下一首">⏭︎</button>
                     <button type="button" class="music-control-btn text" id="music-like-btn" disabled>♡</button>
                     <button type="button" class="music-control-btn text" id="music-lyrics-btn">歌词</button>
+                    <button type="button" class="music-control-btn text" id="music-version-btn" disabled>换一版歌词</button>
                     <button type="button" class="music-control-btn text" id="music-share-btn">发给 TA</button>
                   </div>
                 </div>
@@ -3153,7 +3154,7 @@
         <section class="music-lyrics" id="music-lyrics" hidden aria-label="同步歌词">
           <div class="music-lyrics-header"><button type="button" id="music-lyrics-back" aria-label="返回听歌房">←</button><div class="music-lyrics-heading"><strong id="music-lyrics-name">正在播放</strong><small id="music-lyrics-artist">—</small></div><span style="width:36px"></span></div>
           <div class="music-lyrics-main"><img class="music-lyrics-cover" id="music-lyrics-cover" alt=""><div class="music-lyrics-lines" id="music-lyrics-lines"></div></div>
-          <div class="music-lyrics-foot"><input class="music-lyrics-seek" id="music-lyrics-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="歌词播放进度"><div class="music-lyrics-controls"><button type="button" id="music-lyrics-prev" aria-label="上一首">⏮︎</button><button type="button" class="primary" id="music-lyrics-play" aria-label="播放或暂停">▶</button><button type="button" id="music-lyrics-next" aria-label="下一首">⏭︎</button></div></div>
+          <div class="music-lyrics-foot"><div class="music-lyric-tools" id="music-lyric-tools" hidden><button type="button" id="music-offset-minus">提前 0.5s</button><span id="music-offset-value">0.0s</span><button type="button" id="music-offset-plus">延后 0.5s</button><button type="button" class="push" id="music-lyrics-version">换一版歌词</button></div><input class="music-lyrics-seek" id="music-lyrics-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="歌词播放进度"><div class="music-lyrics-controls"><button type="button" id="music-lyrics-prev" aria-label="上一首">⏮︎</button><button type="button" class="primary" id="music-lyrics-play" aria-label="播放或暂停">▶</button><button type="button" id="music-lyrics-next" aria-label="下一首">⏭︎</button></div></div>
         </section>
       </div>
     </div>

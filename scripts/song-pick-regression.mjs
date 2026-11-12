@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { rankLyrics, mergeCandidates, nextCandidateIndex, shiftLyricLines, guessLyricMeta } from "../src/music-lyrics.js";
 import { findTrackByTitle, songTitleKeys, buildSongPickNote, songPickTitleList, toSimplified } from "../src/song-pick.js";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -79,6 +80,34 @@ assert.ok(music.includes('import { findTrackByTitle, buildSongPickNote } from ".
 assert.ok(music.includes('error.name === "NotAllowedError"'), "autoplay block fails quietly");
 assert.ok(!/accept\s*=\s*["']/.test(music) && !/\.accept\s*=/.test(music.slice(music.indexOf("function pickLocalFiles"), music.indexOf("function pickLocalFiles") + 900)), "import picker has no accept attribute");
 assert.ok(css.includes(".song-pick-chip"));
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v360";'), "service worker cache bumped");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v361";'), "service worker cache bumped");
+
+// ---- v361 换一版歌词 + 本地管理多选 ----
+const cands = rankLyrics([
+  { trackName: "晴天", duration: 300, syncedLyrics: "[00:01]far" },
+  { trackName: "晴天", duration: 269, syncedLyrics: "[00:01]close" },
+  { trackName: "晴天", duration: 269, plainLyrics: "plain" },
+  { trackName: "晴天 (Live)", duration: 269, syncedLyrics: "[00:01]live" },
+  { trackName: "晴天", duration: 269, syncedLyrics: "[00:01]close" },
+  { trackName: "晴天", instrumental: true, syncedLyrics: "[00:01]inst" },
+  { trackName: "别的歌", syncedLyrics: "[00:01]other" },
+], "晴天", 270);
+assert.deepEqual(cands, ["[00:01]close", "[00:01]far", "plain", "[00:01]live"], "closest duration first, synced over plain, deduped");
+assert.deepEqual(mergeCandidates(["a", "b"], ["b", "c"]), ["a", "b", "c"]);
+assert.equal(nextCandidateIndex({ list: ["a", "b", "c"], idx: 0 }), 1);
+assert.equal(nextCandidateIndex({ list: ["a", "b", "c"], idx: 2 }), 0, "cycles back");
+assert.equal(nextCandidateIndex({ list: ["a"], idx: -1 }), 0);
+assert.equal(nextCandidateIndex({ list: [], idx: 0 }), -1);
+assert.deepEqual(shiftLyricLines([{ time: 1, text: "x" }, { time: -1, text: "p" }], 0.5).map((l) => l.time), [1.5, -1]);
+assert.equal(shiftLyricLines([{ time: 0.2, text: "x" }], -1)[0].time, 0, "never negative");
+assert.deepEqual(guessLyricMeta("阿梨粤-偏偏喜欢你(女声版).mp3"), { title: "偏偏喜欢你", artist: "阿梨粤" });
+assert.ok(html.includes('id="music-version-btn"') && html.indexOf('id="music-version-btn"') - html.indexOf('id="music-lyrics-btn"') < 200, "换一版歌词 sits next to 歌词");
+assert.ok(music.includes("第 ${c.idx + 1}/${c.list.length} 版歌词"), "toast shows 第 x/y 版歌词");
+assert.ok(/const saved = await localGet\(`lyric:\$\{songId\}`\)/.test(music), "online songs read the switched lyric version");
+assert.ok(/id="music-local-manage">管理<\/button>[^<]{0,12}<button type="button" id="music-local-import">＋ 导入/.test(music), "管理 next to ＋ 导入");
+assert.ok(music.includes("全选") && music.includes("取消全选") && music.includes("删除选中（${picked}）") && music.includes(">完成<"));
+const delSel = music.slice(music.indexOf("async function removeLocalSelected"), music.indexOf("async function removeLocalSelected") + 900);
+assert.ok(delSel.includes("confirm(") && delSel.includes("localDel(`audio:${id}`)") && delSel.includes("localDel(`lyric:${id}`)") && delSel.includes("saveLocalList()"), "batch delete mirrors removeLocal");
+assert.ok(css.includes(".music-check") && css.includes(".music-lyric-tools"));
 
 console.log("song pick regression passed");
