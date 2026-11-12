@@ -74,8 +74,14 @@ assert.ok(archives.includes('.archive-mistnote:not(.user) .archive-body :is(.mes
 assert.ok(rpManuscript.includes('[data-rp-theme="scene-mistnote"]') && rpManuscript.includes('margin: 0 0 1.18em !important'), 'RP Mist Note prose spacing is missing');
 assert.ok(manuscript.includes('[data-theme-key="letter"]') && manuscript.includes('.msg.archive-letter.user'), 'main Mist Letter user-right layout is missing');
 assert.ok(rpManuscript.includes('[data-rp-theme="scene-letter"]') && rpManuscript.includes('.msg.archive-letter.user'), 'RP Mist Letter user-right layout is missing');
-assert.ok(keys.includes('pudding') && archives.includes('.msg.archive-row.archive-pudding') && archives.includes('.archive-pudding.user .archive-heading'), 'main Pudding Letter must use named avatars and right-docked user cards');
-assert.ok(rpManuscript.includes('[data-rp-theme="scene-pudding"]') && rpManuscript.includes('.archive-pudding.user .archive-heading'), 'RP Pudding Letter user-right layout is missing');
+assert.ok(keys.includes('pudding') && archives.includes('.msg.archive-row.archive-pudding') && archives.includes('.pudding-capsule') && archives.includes('.pudding-letter-top'), 'Pudding Letter must split each message into a name capsule and a letter card');
+assert.ok(archives.includes("url('./pudding-dog.svg')") && archives.includes("url('./pudding-bone.svg')") && archives.includes("'POMPOMPURIN · SWEET LITTLE MESSAGE ♡'") && archives.includes('border-top: 1.5px dashed #e3cfa3'), 'Pudding Letter needs both dog images and the dashed footer');
+assert.ok(archives.includes('html body.rp-chat-active[data-rp-theme="scene-pudding"]') && rpManuscript.includes('[data-rp-theme="scene-pudding"]'), 'RP scene-pudding must share the main Pudding Letter layout');
+{ const pc = vm.createContext({ isImageRef: v => /^(https?:\/\/|data:image\/)/.test(v || ''), escapeHtml: v => String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') });
+  vm.runInContext(html.slice(html.indexOf('function mainArchiveHeading('), html.indexOf('function makeMsgEl(')), pc);
+  const me = pc.mainArchiveHeading('pudding', '周惟惟', 'https://example.test/a.jpg', true), him = pc.mainArchiveHeading('pudding', 'Bourne', '', false);
+  assert.ok(me.includes('周惟惟') && me.includes('<img') && me.includes('pudding-dog') && me.includes('pudding-bone') && me.includes('POMPOM LETTER · FROM ME') && me.indexOf('pudding-capsule') < me.indexOf('pudding-letter-top'), 'Pudding user capsule + letter top');
+  assert.ok(him.includes('Bourne') && him.includes('FOR YOU') && !/USER|CHAR|ᓚ|૮/.test(me + him), 'Pudding char uses the real name and no kaomoji'); }
 assert.ok(manuscript.includes('.archive-letter.user .archive-portrait') && manuscript.includes('width: fit-content; max-width: 100%; margin-left: auto;'), 'main Mist Letter user identity and short dialogue must dock right');
 assert.ok(rpManuscript.includes('.archive-letter.user .archive-heading-copy') && rpManuscript.includes('width: fit-content !important; max-width: 100% !important; margin-left: auto !important;'), 'RP Mist Letter user identity and short dialogue must dock right');
 assert.ok(manuscript.includes(':is(.message-quote,.chat-quote)') && rpManuscript.includes(':is(.message-quote,.chat-quote)'), 'Mist Letter quote capsules are missing');

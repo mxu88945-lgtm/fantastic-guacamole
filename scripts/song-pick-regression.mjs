@@ -80,7 +80,7 @@ assert.ok(music.includes('import { findTrackByTitle, buildSongPickNote } from ".
 assert.ok(music.includes('error.name === "NotAllowedError"'), "autoplay block fails quietly");
 assert.ok(!/accept\s*=\s*["']/.test(music) && !/\.accept\s*=/.test(music.slice(music.indexOf("function pickLocalFiles"), music.indexOf("function pickLocalFiles") + 900)), "import picker has no accept attribute");
 assert.ok(css.includes(".song-pick-chip"));
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v361";'), "service worker cache bumped");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v362";'), "service worker cache bumped");
 
 // ---- v361 换一版歌词 + 本地管理多选 ----
 const cands = rankLyrics([
