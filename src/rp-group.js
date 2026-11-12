@@ -252,6 +252,7 @@ if (bridge) {
     ["scene-mistnote", "雾蓝长笺", "#f3f6f7", "#35424b", "#74828b", "#486274"],
     ["scene-nightglow", "暗夜流光", "#f6f1ee", "#2b2522", "#7a6e68", "#a8383c"],
     ["scene-vinyl", "青橙唱片", "#ffffff", "#315868", "#7b98a4", "#b46b43"],
+    ["scene-pudding", "布丁来信", "#fff9e9", "#5b4330", "#9d8165", "#7c5842"],
   ];
   function appearanceSection() {
     const theme = draft.rpTheme || "liquid-pearl", wallpaper = draft.rpWallpaper || "";

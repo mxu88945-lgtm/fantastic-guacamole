@@ -6891,6 +6891,7 @@ const RP_THEME_PRESETS = [
   { id: "scene-mistnote", name: "雾蓝长笺", base: "#f3f6f7", text: "#35424b", narration: "#74828b", quote: "#486274", accent: "#647d8d" },
   { id: "scene-nightglow", name: "暗夜流光", base: "#f6f1ee", text: "#2b2522", narration: "#7a6e68", quote: "#a8383c", accent: "#a8383c" },
   { id: "scene-vinyl", name: "青橙唱片", base: "#ffffff", text: "#315868", narration: "#7b98a4", quote: "#b46b43", accent: "#416978" },
+  { id: "scene-pudding", name: "布丁来信", base: "#fff9e9", text: "#5b4330", narration: "#9d8165", quote: "#7c5842", accent: "#ad8048" },
 ];
 function roleplayThemePreset(project) { return RP_THEME_PRESETS.find(item => item.id === project?.rpTheme) || RP_THEME_PRESETS[0]; }
 function roleplayColorWithAlpha(hex, alpha) {
@@ -8186,7 +8187,8 @@ function roleplayRichDocument(value, token, compact = false) {
     "scene-mobile": `<style>html,body{background:transparent!important;color:var(--rp-story-text,#242429)!important;text-align:left!important}.chat-quote{display:table!important;width:fit-content;max-width:100%;margin:10px 0;padding:8px 13px;border:1px solid #dddde3;border-radius:17px;background:linear-gradient(120deg,#f2f2f5,#e5e5ea);color:var(--rp-story-quote,#34343b);line-height:1.7;text-align:left}section,[class*=status-card],[class*=scene-card]{background:#fafafc!important;color:#45454d!important;border-color:#e8e8ed!important;border-radius:18px!important;box-shadow:none!important}</style>`,
     "scene-letter": `<style>html,body{background:transparent!important;color:var(--rp-story-text,#34383d)!important;text-align:left!important}.chat-quote{display:inline!important;padding:.2em .68em;border:1px solid #cdd5da;border-radius:14px;background:#e7ecef;color:var(--rp-story-quote,#4f6170);line-height:1.72;box-decoration-break:clone;-webkit-box-decoration-break:clone}section,[class*=status-card],[class*=scene-card]{background:#f8f7f3!important;color:#454b50!important;border-color:#d9dde0!important;border-radius:18px!important;box-shadow:none!important}</style>`,
     "scene-nightglow": `<style>@import url("https://fontsapi.zeoseven.com/256/main/result.css");html,body{background:transparent!important;color:var(--rp-story-text,#2b2522)!important;font-family:"Huiwen-mincho","Songti SC","STSong","Noto Serif SC",serif!important;text-align:left!important;line-height:2!important}.rp-mixed-paragraph,p{margin:0 0 1.15em!important;line-height:2!important}.rp-mixed-paragraph:last-child,p:last-child{margin-bottom:0!important}.chat-quote{display:inline!important;margin:0!important;padding:0 1px!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:none!important;color:#a8383c!important;-webkit-text-fill-color:#a8383c!important;font-weight:500!important;filter:none!important;line-height:inherit!important;box-decoration-break:clone;-webkit-box-decoration-break:clone}section,[class*=status-card],[class*=scene-card],[class*=private]{margin:18px 0!important;padding:16px 18px!important;background:#fffcfa!important;color:#4a3f3a!important;border:1px solid #e8dfd8!important;border-left:3px solid #c9a69c!important;border-radius:14px!important;box-shadow:none!important}</style>`,
-    "scene-mistnote": `<style>html,body{background:transparent!important;color:var(--rp-story-text,#35424b)!important;text-align:left!important;line-height:2!important}.rp-mixed-paragraph,p{margin:0 0 1.18em!important;line-height:2!important}.rp-mixed-paragraph:last-child,p:last-child{margin-bottom:0!important}.chat-quote{display:table!important;width:fit-content!important;max-width:100%!important;margin:12px 0!important;padding:9px 14px!important;border:1px solid #ced9df!important;border-radius:17px!important;background:linear-gradient(135deg,#f1f5f7,#e3ebef)!important;color:var(--rp-story-quote,#486274)!important;line-height:1.75!important;text-align:left!important;box-shadow:inset 0 1px 0 #ffffffd1,0 4px 12px #465b6812!important;box-decoration-break:clone;-webkit-box-decoration-break:clone}section,[class*=status-card],[class*=scene-card],[class*=private]{margin:18px 0!important;padding:16px!important;background:#e8eff3e6!important;color:#45545e!important;border-color:#cbd7de!important;border-radius:20px!important;box-shadow:none!important}</style>`
+    "scene-mistnote": `<style>html,body{background:transparent!important;color:var(--rp-story-text,#35424b)!important;text-align:left!important;line-height:2!important}.rp-mixed-paragraph,p{margin:0 0 1.18em!important;line-height:2!important}.rp-mixed-paragraph:last-child,p:last-child{margin-bottom:0!important}.chat-quote{display:table!important;width:fit-content!important;max-width:100%!important;margin:12px 0!important;padding:9px 14px!important;border:1px solid #ced9df!important;border-radius:17px!important;background:linear-gradient(135deg,#f1f5f7,#e3ebef)!important;color:var(--rp-story-quote,#486274)!important;line-height:1.75!important;text-align:left!important;box-shadow:inset 0 1px 0 #ffffffd1,0 4px 12px #465b6812!important;box-decoration-break:clone;-webkit-box-decoration-break:clone}section,[class*=status-card],[class*=scene-card],[class*=private]{margin:18px 0!important;padding:16px!important;background:#e8eff3e6!important;color:#45545e!important;border-color:#cbd7de!important;border-radius:20px!important;box-shadow:none!important}</style>`,
+    "scene-pudding": `<style>html,body{background:transparent!important;color:var(--rp-story-text,#5b4330)!important;text-align:left!important;line-height:2!important}.rp-mixed-paragraph,p{margin:0 0 1.15em!important;line-height:2!important}.rp-mixed-paragraph:last-child,p:last-child{margin-bottom:0!important}.chat-quote{display:inline!important;margin:0 .08em!important;padding:.14em .58em!important;border:1px solid #ead7bf!important;border-radius:12px!important;background:#f4e7da!important;color:var(--rp-story-quote,#7c5842)!important;line-height:1.8!important;box-decoration-break:clone;-webkit-box-decoration-break:clone}section,[class*=status-card],[class*=scene-card],[class*=private]{margin:18px 0!important;padding:16px!important;background:#fffdf7e8!important;color:#5b4330!important;border:1px solid #ead8b7!important;border-radius:20px!important;box-shadow:none!important}</style>`
   })[manuscriptTheme] || "";
   // v326: 角色卡/模型自己写的 HTML 常带自己的对白胶囊和字体，剧场主题“吃不到”。
   // 有剧场主题时：把整段只有一句引号对白的元素标成 .chat-quote，交给主题样式；暗夜流光再统一正文字体。
@@ -8609,6 +8611,7 @@ function formatLatency(ms) {
 }
 function mainArchiveHeading(theme, name, avatar, user) {
   const portrait = isImageRef(avatar) ? `<img src="${escapeHtml(avatar).replace(/"/g, "&quot;")}" alt="">` : `<span>${escapeHtml(String(name || "角").slice(-1))}</span>`;
+  if (theme === "pudding") return `<div class="archive-heading"><div class="pudding-kicker" aria-hidden="true"><span>♡ POMPOM LETTER · ${user ? "FROM ME" : "FOR YOU"}</span><i>૮ ・ﻌ・ა</i></div><div class="archive-portrait"><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy"><strong class="archive-name">${escapeHtml(name)}</strong><small>${user ? "把迟到的回信，悄悄放进你的甜里。" : "把今天的心情，烤成一块软乎乎的布丁。"}</small></div><div class="pudding-caption" aria-hidden="true">POMPOMPURIN · SWEET LITTLE MESSAGE ♡</div></div>`;
   if (theme === "mobile") return `<div class="archive-heading"><div class="mobile-status" aria-hidden="true"><span>MESSAGE</span><span>⌁ ▰</span></div><div class="archive-portrait"><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy"><strong class="archive-name">${escapeHtml(name)}</strong><small>${user ? "我的消息" : "他的来信"}</small></div></div>`;
   if (theme === "letter") return `<div class="archive-heading"><div class="letter-cover" aria-hidden="true"><span>LETTERS · AFTERGLOW</span><i>✦</i></div><div class="archive-portrait"><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy"><strong class="archive-name">${escapeHtml(name)}</strong><small>${user ? "@answer_before_dawn" : "@letters_at_midnight"}</small><p>${user ? "循着纸页的微光而来，把回信交给你。" : "把未寄出的黄昏折进信里，等你醒来。"}</p><div class="letter-stats" aria-hidden="true"><span><b>1314</b> Following</span><span><b>5.20k</b> Letters</span></div></div></div>`;
   if (theme === "nightglow") return `<div class="archive-heading"><div class="archive-portrait"><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy"><strong class="archive-name">${escapeHtml(name)}</strong></div></div>`;
@@ -8620,8 +8623,8 @@ function makeMsgEl(role, content, opts) {
   opts = opts || {};
   // A scene always uses its own prose layout. Main-chat bubble/flat switches
   // must never rebuild RP messages with a different DOM structure.
-  const sceneArchive = { "scene-academy": "academy", "scene-vinyl": "vinyl", "scene-mobile": "mobile", "scene-letter": "letter", "scene-mistnote": "mistnote", "scene-nightglow": "nightglow" }[currentConv()?.rpProject?.rpTheme];
-  const archiveTheme = !isRoleplayConversation() && ["academy", "vinyl", "mobile", "letter", "mistnote", "nightglow"].includes(settings.themeName) ? settings.themeName : (isRoleplayConversation() ? sceneArchive || "" : "");
+  const sceneArchive = { "scene-academy": "academy", "scene-vinyl": "vinyl", "scene-mobile": "mobile", "scene-letter": "letter", "scene-mistnote": "mistnote", "scene-nightglow": "nightglow", "scene-pudding": "pudding" }[currentConv()?.rpProject?.rpTheme];
+  const archiveTheme = !isRoleplayConversation() && ["academy", "vinyl", "mobile", "letter", "mistnote", "nightglow", "pudding"].includes(settings.themeName) ? settings.themeName : (isRoleplayConversation() ? sceneArchive || "" : "");
   const flat = isRoleplayConversation() || settings.chatLayout === "flat" || !!archiveTheme;
   const el = document.createElement("div");
   const stickerOnly = Array.isArray(content) && content.length > 0 && content.every(p => p.type === "sticker");
@@ -9512,7 +9515,7 @@ function normalizedRoleplayProject(value, conv) {
     : (raw.chatFontSize != null && String(raw.chatFontSize).trim() !== "" && !isNaN(Number(raw.chatFontSize))
       ? String(Math.min(24, Math.max(10, Number(raw.chatFontSize)))) : "");
   const legacyThemeMap = { paper: "liquid-pearl", rose: "liquid-pearl", amber: "liquid-pearl", mist: "liquid-mist", lavender: "liquid-mist", sage: "liquid-mist", night: "liquid-mist", ink: "liquid-mist" };
-  const sceneThemeIds = ["liquid-pearl", "liquid-mist", "scene-paper", "scene-scrapbook", "scene-academy", "scene-vinyl", "scene-mobile", "scene-letter", "scene-mistnote", "scene-nightglow"];
+  const sceneThemeIds = ["liquid-pearl", "liquid-mist", "scene-paper", "scene-scrapbook", "scene-academy", "scene-vinyl", "scene-mobile", "scene-letter", "scene-mistnote", "scene-nightglow", "scene-pudding"];
   const rpTheme = sceneThemeIds.includes(raw.rpTheme) ? raw.rpTheme : (legacyThemeMap[raw.rpTheme] || "liquid-pearl");
   const legacyTheme = Boolean(raw.rpTheme && !sceneThemeIds.includes(raw.rpTheme));
   const rpBaseColor = color("rpBaseColor");
@@ -17275,6 +17278,8 @@ THEMES.push(
     gradient: "linear-gradient(180deg,#fbf4ea 0%,#f5e8d6 100%)",
     vars: {
     bg:"#fbf4ea", "bg-soft":"#fffaf3", "bg-panel":"#fffbf5", border:"#e8d5bf", text:"#4a3426", "text-dim":"#8c6f5a", accent:"#c27a45", "accent-soft":"#f6e2cc", "assistant-bubble":"#fffbf5", "user-bubble":"#f6e2cc", "code-bg":"#f3e6d6", "err-bg":"#fbe6df", "err-text":"#b5573b", "item-active":"#f1e2cf" } },
+  { key: "pudding", name: "布丁来信", dark: false, textColor: "#5b4330", textDim: "#9d8165", vars: {
+    bg:"#fff9e9", "bg-soft":"#fffaf0", "bg-panel":"#fff4d9", border:"#ead8b7", text:"#5b4330", "text-dim":"#9d8165", accent:"#ad8048", "accent-soft":"#f7e7bf", "assistant-bubble":"#fffdf7", "user-bubble":"#f3dfc5", "code-bg":"#f5ead8", "err-bg":"#fbe8e6", "err-text":"#a34850", "item-active":"#f5e8ca" } },
 );
 // Retire these main themes from both the picker and quick cycling. Keep old
 // wallpaper records recoverable rather than deleting any personal assets.
@@ -17332,7 +17337,7 @@ function applyTheme() {
   applyBubbleStyle();
   applyFont();
   updateSilentUI();
-  if (priorThemeKey !== t.key && [priorThemeKey, t.key].some(key => ["academy", "vinyl", "mobile", "letter", "mistnote", "nightglow"].includes(key))
+  if (priorThemeKey !== t.key && [priorThemeKey, t.key].some(key => ["academy", "vinyl", "mobile", "letter", "mistnote", "nightglow", "pudding"].includes(key))
       && !isRoleplayConversation() && document.querySelector("#messages .msg")) renderMessages();
   if (typeof webFontCss === "function" && webFontCss(settings.fontFamily)) {
     ensureWebFont(settings.fontFamily).then(applyFont).catch(() => {});

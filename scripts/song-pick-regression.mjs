@@ -79,6 +79,6 @@ assert.ok(music.includes('import { findTrackByTitle, buildSongPickNote } from ".
 assert.ok(music.includes('error.name === "NotAllowedError"'), "autoplay block fails quietly");
 assert.ok(!/accept\s*=\s*["']/.test(music) && !/\.accept\s*=/.test(music.slice(music.indexOf("function pickLocalFiles"), music.indexOf("function pickLocalFiles") + 900)), "import picker has no accept attribute");
 assert.ok(css.includes(".song-pick-chip"));
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v359";'), "service worker cache bumped");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v360";'), "service worker cache bumped");
 
 console.log("song pick regression passed");

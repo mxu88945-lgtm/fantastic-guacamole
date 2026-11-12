@@ -74,6 +74,8 @@ assert.ok(archives.includes('.archive-mistnote:not(.user) .archive-body :is(.mes
 assert.ok(rpManuscript.includes('[data-rp-theme="scene-mistnote"]') && rpManuscript.includes('margin: 0 0 1.18em !important'), 'RP Mist Note prose spacing is missing');
 assert.ok(manuscript.includes('[data-theme-key="letter"]') && manuscript.includes('.msg.archive-letter.user'), 'main Mist Letter user-right layout is missing');
 assert.ok(rpManuscript.includes('[data-rp-theme="scene-letter"]') && rpManuscript.includes('.msg.archive-letter.user'), 'RP Mist Letter user-right layout is missing');
+assert.ok(keys.includes('pudding') && archives.includes('.msg.archive-row.archive-pudding') && archives.includes('.archive-pudding.user .archive-heading'), 'main Pudding Letter must use named avatars and right-docked user cards');
+assert.ok(rpManuscript.includes('[data-rp-theme="scene-pudding"]') && rpManuscript.includes('.archive-pudding.user .archive-heading'), 'RP Pudding Letter user-right layout is missing');
 assert.ok(manuscript.includes('.archive-letter.user .archive-portrait') && manuscript.includes('width: fit-content; max-width: 100%; margin-left: auto;'), 'main Mist Letter user identity and short dialogue must dock right');
 assert.ok(rpManuscript.includes('.archive-letter.user .archive-heading-copy') && rpManuscript.includes('width: fit-content !important; max-width: 100% !important; margin-left: auto !important;'), 'RP Mist Letter user identity and short dialogue must dock right');
 assert.ok(manuscript.includes(':is(.message-quote,.chat-quote)') && rpManuscript.includes(':is(.message-quote,.chat-quote)'), 'Mist Letter quote capsules are missing');
