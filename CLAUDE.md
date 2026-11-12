@@ -2,6 +2,15 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-11-12｜主聊天「他自己写的卡」（sw v366）
+
+- 移植惟境人格窗口 v211/v213 的自我卡（src/personaSelfCard.ts、PersonaSelfCardPanel.tsx）到顾祁砚主聊天。8 栏 性格/喜好/优点/弱点/性癖/缺陷/小毛病/习惯/其他（key 与别名同惟境），每栏 ≤2000 字、合计 ≤16000，历史最多 20 版。
+- 数据：存在当前角色上 `settings.roles[i].selfCard` / `selfCardHistory`（和 specialDays 一样跟角色走，随 roles 云同步、整包备份）；开关「让他自己补全」`settings.selfCardEnabled`（默认开，已进 SYNCED_KEYS）。原卡 `systemPrompt` 永远不改。
+- 提示词：streamChat 里 `systemText = settings.systemPrompt` 之后、全局预设之前插 `buildSelfCardPrompt(...)`（只在主聊天 `!rpProject`），名字用 `settings.aiName`，「不会显示给」用 `settings.userName`（空或「你」时写「她」；本仓库没有 {{user}} 宏）。开关关掉时卡照样注入，只是不再教他写标记。
+- 标记 `[自我卡:栏目|整栏新全文]`（[] 【】 ［］、: ：、| ｜ 都认）。纯函数在 index.html `/* self-card:start */…/* self-card:end */`（回归只 eval 这一段）。剥离点同点歌：bubbleHtml（流式时连「[」「【自我」半截也藏）、messageText（记忆/摘要/原话召回）、sendContent、exportPlainBody、cleanPartialReply、reasoning；非流式也会剥掉被截断的「[自我卡:…」尾巴。回复完成时取最后一个有效标记，只在主聊天（非剧场/独立角色/幕后）且开关开着才 `applySelfCardReplyEdit`：整栏替换、旧版进历史、`message.selfCardEdit = key`（多气泡时挂最后一段）、toast「✎ 他改了自己的「X」」。剧场/群聊只剥标记。
+- 界面：消息下胶囊 `.self-card-chip`「✎ 他改了自己的「X」」→ 打开全屏页 `#self-card-panel`（z-index 67，展开改动的那一栏）。入口也在 设置 → 系统提示词 → 全局预设下面「✎ 他自己写的卡」（`#self-card-open`，显示字数）。页面里：开关、每栏 textarea（失焦保存 + 关闭时补存，字数，展开/收起 = 56vh）、合计字数、历史（恢复前 confirm，当前版也进历史）。按钮都进了 iOS pointerup 一次点击 SEL；没有 backdrop-filter；body 用 `.settings-inner` 复用键盘弹出时的 scrollIntoView。
+- 回归：`scripts/self-card-regression.mjs`。另用 jsdom 跑过整页：改卡/胶囊/打开页/失焦保存/关闭保存/展开/恢复/开关/流式剥离都正常。
+
 ## 2026-11-12｜听歌房：换一版歌词 + 本地歌管理多选（sw v361）
 
 - 新增 `src/music-lyrics.js`（移植惟境 lyrics.ts 的 rankLyrics）：lrclib 候选按 同名 → 带时间轴 → 时长最接近这首歌 排序并去重；自动找词也改用它（原来不看时长）。
@@ -887,3 +896,4 @@
 - 2026-11-12 v363：布丁来信两处跟进（Hark，主聊天 + 剧场/群聊共用）。①信笺抬头去掉骨头布丁狗（她说闭眼的小狗像老夫子；在手机上还压住了 `♡ POMPOM LETTER · FROM ME` 字），`.pudding-letter-top` 只剩字样：用户右对齐、角色左对齐、可换行不截断；输入框图标换成站立布丁狗 `pudding-dog.svg`（36px，垂直居中）；`src/pudding-bone.svg` 已删除，全站不再用骨头狗（回归断言 `!archives.includes('pudding-bone')`）。名字胶囊里的站立狗保留。②胶囊签名不再省略号：`display:-webkit-box` + `-webkit-line-clamp:2` + `white-space:normal`、14px/1.45、`min-width:0`、max-height 兜底两行，金色短进度线保留；top 上移到 56px（≤420px 为 50px）给两行留位置。
 - 2026-11-12 v364：布丁来信调淡（她嫌太黄）。底色近白 #fefdf8 + 两团淡鹅黄晕（仿她给的 IMG_0966），胶囊、信笺、输入框和主题变量里的浅黄统一降饱和、提亮、色相往鹅黄靠。
 - 2026-11-12 v365：布丁来信我方短消息靠右（正文 fit-content + margin-left:auto，长了自然铺满）；输入框布丁狗挪到第一行（top 8px），不再压住 ＋ 号。
+- 2026-11-12 v366：主聊天「他自己写的卡」（Hark，移植惟境 v211/v213）。详见顶部同日条目；回归 `scripts/self-card-regression.mjs`。

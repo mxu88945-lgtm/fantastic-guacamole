@@ -2778,6 +2778,36 @@
   .workbench-toolbar button { padding: 0 10px; }
 }
 
+/* v366 他自己写的卡 */
+.self-card-chip { display: inline-flex; align-items: center; max-width: 100%; margin: 6px 0 2px; padding: 3px 11px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text-dim); font: inherit; font-size: 11.5px; font-weight: 500; line-height: 1.6; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+.self-card-chip:active { transform: scale(.97); }
+.self-card-inner { max-width: 720px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+.self-card-card { display: grid; gap: 12px; margin-bottom: 14px; padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--bg-panel); }
+.self-card-card[hidden] { display: none; }
+.self-card-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.self-card-toggle input { width: auto; flex-shrink: 0; }
+.self-card-toggle strong { display: block; font-size: 14px; }
+.self-card-toggle small, .self-card-foot { display: block; margin-top: 2px; color: var(--text-dim); font-size: 11.5px; font-weight: 400; }
+.self-card-field { display: grid; gap: 6px; }
+.self-card-head { display: flex; align-items: center; gap: 8px; }
+.self-card-head label { flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-weight: 600; font-size: 13.5px; }
+.self-card-count { color: var(--text-dim); font-size: 11px; font-weight: 400; }
+.self-card-expand { flex-shrink: 0; padding: 2px 11px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text-dim); font: inherit; font-size: 12px; line-height: 1.7; cursor: pointer; }
+.self-card-editor { display: block; box-sizing: border-box; width: 100%; min-height: 64px; resize: vertical; padding: 11px 13px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); color: var(--text); font: inherit; font-size: 16px; line-height: 1.7; }
+.self-card-editor.is-open { min-height: 56vh; }
+.self-card-history summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.self-card-version { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.self-card-version div { min-width: 0; }
+.self-card-version strong { display: block; font-size: 12px; font-weight: 600; }
+.self-card-version small { color: var(--text-dim); font-size: 10.5px; }
+.self-card-restore { flex-shrink: 0; padding: 5px 11px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg); color: var(--text); font: inherit; font-size: 11.5px; cursor: pointer; }
+.self-card-empty { padding: 30px 10px; color: var(--text-dim); text-align: center; }
+.self-card-entry { display: flex; align-items: center; gap: 10px; width: 100%; padding: 4px 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.self-card-entry-copy { flex: 1; min-width: 0; }
+.self-card-entry-copy strong { display: block; font-size: 14px; }
+.self-card-entry-copy em { display: block; margin-top: 3px; color: var(--text-dim); font-size: 11.5px; font-style: normal; }
+#self-card-entry-status { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+
 </style>
 <link rel="stylesheet" href="./src/album.css" />
 <link rel="stylesheet" href="./src/reading-room.css" />
@@ -3313,6 +3343,14 @@
           <div id="special-days-list"></div>
         </section>
       </div>
+    </div>
+
+    <div class="settings" id="self-card-panel" style="z-index:67;">
+      <div class="settings-header">
+        <span id="self-card-title">✎ 他自己写的卡</span>
+        <button class="settings-close-btn" id="self-card-close" aria-label="关闭他自己写的卡"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="settings-inner self-card-inner" id="self-card-body" style="display:block;"></div>
     </div>
 
     <div class="settings" id="album-panel" style="z-index:65;">
@@ -3884,6 +3922,13 @@
           <span class="hint" style="display:block;margin-top:5px;">启用的条目会和当前角色人设一起发送给模型；顺序就是注入顺序。关闭后内容会保留，但不会发送。</span>
           <div id="global-prompt-summary" class="hint" style="margin-top:8px;"></div>
           <div id="global-prompt-presets" style="display:grid;gap:9px;margin-top:10px;"></div>
+        </div>
+
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <button class="self-card-entry" id="self-card-open" type="button">
+            <span class="self-card-entry-copy"><strong>✎ 他自己写的卡</strong><em>他在相处中慢慢补全的自己，原卡不动 · 跟随当前角色</em></span>
+            <span id="self-card-entry-status">还空着</span><span class="settings-chevron">›</span>
+          </button>
         </div>
 
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.65-7 10-7 10z"/></svg>角色陪伴</div>
@@ -4819,6 +4864,7 @@ let settings = {
   replyHelperProviderId: "", // AI 帮答专用接口（空 = 跟随当前对话接口）
   replyHelperModel: "",      // AI 帮答专用模型（空 = 所选接口当前模型）
   roleMemoryV2: false,     // 已把旧的全局记忆安全归入当前角色
+  selfCardEnabled: true,  // v366 他自己写的卡：让他自己补全（数据存在 roles[i].selfCard / selfCardHistory）
   songPickEnabled: true,  // v359 让他自己点歌：歌单非空时提示词附上歌名，回复末尾 [点歌:歌名] 自动切歌
   reminderEnabled: true,  // 任务提醒：让江屹琛能写 [提醒:做的事|分钟] 给惟惟下个带倒计时的任务（卡片作为消息存进对话）
   companionFeaturesV1: false, // 一次性恢复曾被设置页重构误停用的主动招呼与任务卡
@@ -4895,7 +4941,7 @@ const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleStyle","bubbleOpacity","favorites","showTime","timeAware","locationAware","fontSize","fontWeight","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "sttEnabled","sttEngine","sttBaseUrl","sttModel","sttLanguage",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
-  "reminderEnabled","companionFeaturesV1","songPickEnabled"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
+  "reminderEnabled","companionFeaturesV1","songPickEnabled","selfCardEnabled"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let roleplayCardLibrary = [];
 let roleplayCardLibraryDeleted = [];
@@ -5841,7 +5887,11 @@ function sidebarRoleConvs() {
 }
 // A message's content may be a string, or an array of parts (text + attachments).
 function messageText(m) {
-  if (typeof m.content === "string") return m.role === "assistant" && typeof stripSongPickTags === "function" ? stripSongPickTags(m.content) : m.content;
+  if (typeof m.content === "string") {
+    let t = m.role === "assistant" && typeof stripSongPickTags === "function" ? stripSongPickTags(m.content) : m.content;
+    if (m.role === "assistant" && typeof stripSelfCardTags === "function") t = stripSelfCardTags(t);
+    return t;
+  }
   if (Array.isArray(m.content))
     return m.content.map(p => p.type === "text" ? p.text
       : (p.type === "sticker" ? "[表情:" + p.name + "]"
@@ -5931,6 +5981,7 @@ function exportPlainBody(m) {
     .filter(Boolean).join("\n");
   else t = "";
   if (m.role === "assistant" && typeof stripSongPickTags === "function") t = stripSongPickTags(t || "");
+  if (m.role === "assistant" && typeof stripSelfCardTags === "function") t = stripSelfCardTags(t || "");
   return (t || "").replace(/```[\w]*\n?/g, "").replace(/`/g, "").replace(/\*\*/g, "").replace(/^#+\s/gm, "").trim();
 }
 function exportWrap(ctx, text, maxWidth) {
@@ -7374,6 +7425,7 @@ function renderMessages() {
       responseState: m.responseState, ts: m.ts, rpSpeakerId: m.rpSpeakerId, rpSpeakerName: m.rpSpeakerName, rpSpeakerAvatar: m.rpSpeakerAvatar,
       tokens: m.tokens, timing: m.timing, promptAudit: m.promptAudit, historyRecall: m.historyRecall,
       songPick: m.role === "assistant" && !isRoleplayConversation() ? m.songPick : "", songPickId: m.id,
+      selfCardEdit: m.role === "assistant" && !isRoleplayConversation() ? m.selfCardEdit : "",
     });
     el.dataset.idx = i;
     if (m.id) el.dataset.mid = m.id;
@@ -8492,6 +8544,7 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState, 
     text = content.filter(p => p.type === "text").map(p => p.text).join("\n");
   }
   if (role === "assistant" && typeof text === "string" && typeof hideRpBackstageNotes === "function") text = hideRpBackstageNotes(text);
+  if (role === "assistant" && typeof text === "string" && typeof stripSelfCardTags === "function") text = stripSelfCardTags(text, !!streaming);
   if (role === "assistant" && typeof text === "string" && typeof stripSongPickTags === "function") text = stripSongPickTags(text, !!streaming);
   let thinkHtml = "", answer = text;
   if (role === "assistant") {
@@ -8680,6 +8733,10 @@ function makeMsgEl(role, content, opts) {
   if (role === "assistant" && opts.songPick && typeof opts.songPick === "string" && typeof songPickChipHtml === "function") {
     const chipHost = archiveTheme || flat ? el : (el.querySelector(".body") || el);
     chipHost.insertAdjacentHTML("beforeend", songPickChipHtml(opts.songPick, opts.songPickId));
+  }
+  if (role === "assistant" && opts.selfCardEdit && typeof opts.selfCardEdit === "string" && typeof selfCardChipHtml === "function") {
+    const chipHost = archiveTheme || flat ? el : (el.querySelector(".body") || el);
+    chipHost.insertAdjacentHTML("beforeend", selfCardChipHtml(opts.selfCardEdit));
   }
   if (opts.actions && role === "user") {
     const container = flat ? el : el.querySelector(".body");
@@ -11074,6 +11131,7 @@ function stripRoleplaySpeakerMarker(text) {
 function sendContent(m) {
   let content = m.rpSelectedOpening && m.role === "assistant" ? m.rpSelectedOpening : m.content;
   if (m.role === "assistant" && typeof content === "string" && typeof stripSongPickTags === "function") content = stripSongPickTags(content);
+  if (m.role === "assistant" && typeof content === "string" && typeof stripSelfCardTags === "function") content = stripSelfCardTags(content);
   if (m.role === "assistant" && typeof m.content === "string"
       && !m.content.trim() && m.reasoning && m.reasoning.trim()) {
     content = m.reasoning;
@@ -11392,6 +11450,15 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     if (boundedMemory.text) systemText += "\n\n" + boundedMemory.text;
   } else {
   systemText = settings.systemPrompt || "";
+  // v366 他自己写的卡：紧跟原卡（原卡不动），只在主聊天；只在他/她改卡时变，稳定前缀照样命中缓存
+  if (!rpProject && typeof buildSelfCardPrompt === "function") {
+    let selfCardText = "";
+    try {
+      const selfCardRole = selfCardRoleFor(currentConv());
+      selfCardText = buildSelfCardPrompt(selfCardRole?.selfCard, settings.selfCardEnabled !== false, settings.aiName || "顾祁砚", settings.userName);
+    } catch (_) { selfCardText = ""; }
+    if (selfCardText) systemText = systemText ? systemText + "\n\n" + selfCardText : selfCardText;
+  }
   if (globalPresetText) systemText = systemText ? systemText + "\n\n" + globalPresetText : globalPresetText;
   const additionalSystemInstruction = String(settings.systemInstruction || "").trim();
   if (additionalSystemInstruction) {
@@ -12989,6 +13056,290 @@ function extractSongPick(text) {
   return { text: stripSongPickTags(text).trim(), title };
 }
 /* song-pick:end */
+/* self-card:start — v366 他自己写的卡（移植惟境 personaSelfCard v211/v213）：纯函数，回归脚本只 eval 这一段 */
+var SELF_CARD_SECTIONS = [
+  { key: "personality", label: "性格" },
+  { key: "likes", label: "喜好" },
+  { key: "strengths", label: "优点" },
+  { key: "weaknesses", label: "弱点" },
+  { key: "kinks", label: "性癖" },
+  { key: "flaws", label: "缺陷/小毛病" },
+  { key: "habits", label: "习惯" },
+  { key: "other", label: "其他" },
+];
+var SELF_CARD_SECTION_MAX = 2000;
+var SELF_CARD_TOTAL_MAX = 16000;
+var SELF_CARD_HISTORY_MAX = 20;
+var SELF_CARD_ALIASES = {
+  性格: "personality", 喜好: "likes", 爱好: "likes", 优点: "strengths", 弱点: "weaknesses", 性癖: "kinks",
+  缺陷: "flaws", 小毛病: "flaws", "缺陷/小毛病": "flaws", "缺陷／小毛病": "flaws", 习惯: "habits", 其他: "other", 其它: "other",
+};
+function selfCardLabel(key) { return (SELF_CARD_SECTIONS.find(item => item.key === key) || {}).label || key; }
+function isSelfCardKey(key) { return SELF_CARD_SECTIONS.some(item => item.key === key); }
+/** 栏目名（中文，容忍空格/全角斜杠/「」）→ key；不认识为 null。 */
+function selfCardSection(name) {
+  const clean = String(name || "").replace(/[\s「」『』"“”]/g, "");
+  return Object.prototype.hasOwnProperty.call(SELF_CARD_ALIASES, clean) ? SELF_CARD_ALIASES[clean] : null;
+}
+function selfCardIsRecord(value) { return !!value && typeof value === "object" && !Array.isArray(value); }
+/** 去空、每栏 ≤2000、总计 ≤16000（按栏目顺序，超出的截断）。 */
+function normalizeSelfCard(value) {
+  if (!selfCardIsRecord(value)) return {};
+  const out = {};
+  let used = 0;
+  for (const { key } of SELF_CARD_SECTIONS) {
+    const raw = typeof value[key] === "string" ? value[key].trim() : "";
+    if (!raw) continue;
+    const body = raw.slice(0, Math.min(SELF_CARD_SECTION_MAX, SELF_CARD_TOTAL_MAX - used)).trim();
+    if (!body) continue;
+    out[key] = body;
+    used += body.length;
+  }
+  return out;
+}
+function normalizeSelfCardHistory(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter(selfCardIsRecord).map(item => ({
+    at: Number(item.at) || 0,
+    reason: typeof item.reason === "string" ? item.reason.slice(0, 60) : "",
+    card: normalizeSelfCard(item.card),
+  })).slice(-SELF_CARD_HISTORY_MAX);
+}
+function selfCardLength(card) { return Object.values(card || {}).reduce((sum, item) => sum + (typeof item === "string" ? item.length : 0), 0); }
+function selfCardSame(a, b) { return SELF_CARD_SECTIONS.every(({ key }) => (a[key] || "") === (b[key] || "")); }
+/** 整卡替换；旧版本进历史（最新在末尾，最多 20 版）。内容没变就原样返回。不改传入对象。 */
+function replaceSelfCard(holder, next, reason, now) {
+  const at = Number.isFinite(now) ? now : Date.now();
+  const previous = normalizeSelfCard(holder && holder.selfCard);
+  const card = normalizeSelfCard(next);
+  if (selfCardSame(previous, card)) return holder;
+  const history = [...normalizeSelfCardHistory(holder && holder.selfCardHistory), { at, reason: String(reason || "").slice(0, 60), card: previous }].slice(-SELF_CARD_HISTORY_MAX);
+  const result = { ...(holder || {}), selfCardHistory: history };
+  if (selfCardLength(card) === 0) delete result.selfCard;
+  else result.selfCard = card;
+  return result;
+}
+/** 改一栏：每栏 ≤2000，总计不超过 16000（超出部分截掉）。空内容 = 清空这一栏。 */
+function setSelfCardSection(holder, key, content, reason, now) {
+  if (!isSelfCardKey(key)) return holder;
+  const current = normalizeSelfCard(holder && holder.selfCard);
+  const othersUsed = selfCardLength(current) - (current[key] || "").length;
+  const body = String(content || "").trim().slice(0, Math.max(0, Math.min(SELF_CARD_SECTION_MAX, SELF_CARD_TOTAL_MAX - othersUsed))).trim();
+  const next = { ...current };
+  if (body) next[key] = body;
+  else delete next[key];
+  return replaceSelfCard(holder, next, reason, now);
+}
+function selfCardWhen(at) {
+  if (!at) return "";
+  const d = new Date(at), pad = n => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/** 恢复到历史里的第 index 版；当前版本同样进历史，所以恢复也能撤回。 */
+function restoreSelfCard(holder, index, now) {
+  const version = normalizeSelfCardHistory(holder && holder.selfCardHistory)[index];
+  if (!version) return holder;
+  return replaceSelfCard(holder, version.card, `恢复到 ${selfCardWhen(version.at)} 的版本`, now);
+}
+/** [自我卡:栏目|内容]，括号可混用，冒号/竖线全角半角都行，内容可以换行但不能含右括号。 */
+function selfCardTagRe() { return /[\[【［]\s*自我卡\s*[:：]\s*([^|｜\]】］\n]{1,12}?)\s*[|｜]([^\]】］]*)[\]】］]/g; }
+/** 回复里最后一个有效的自我卡标记（栏目认得、内容非空）；最多认一个。 */
+function parseSelfCardTag(text) {
+  if (typeof text !== "string" || !/自我卡/.test(text)) return null;
+  let last = null, m;
+  const re = selfCardTagRe();
+  while ((m = re.exec(text))) {
+    const key = selfCardSection(m[1] || "");
+    const content = String(m[2] || "").trim().slice(0, SELF_CARD_SECTION_MAX);
+    if (key && content) last = { key, content };
+  }
+  return last;
+}
+/** 去掉所有自我卡标记；末尾没写完的「[自我卡:喜好|还没写…」也去掉。streaming 时连「[」「【自」「[自我」这种半截开头也先藏起来。 */
+function stripSelfCardTags(text, streaming) {
+  if (typeof text !== "string" || !text || !/[\[【［]/.test(text)) return text;
+  let out = text;
+  if (/自我卡/.test(out)) out = out.replace(selfCardTagRe(), "");
+  out = out.replace(/[\[【［]\s*自\s*我\s*卡\s*[:：][^\]】］]*$/, "");
+  if (streaming) out = out.replace(/[\[【［]\s*(?:自\s*(?:我\s*(?:卡\s*)?)?)?$/, "");
+  if (out === text) return text;
+  return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "");
+}
+function extractSelfCardEdit(text) {
+  if (typeof text !== "string" || !/自我卡/.test(text)) return { text, edit: null };
+  return { text: stripSelfCardTags(text).trim(), edit: parseSelfCardTag(text) };
+}
+/** 稳定第一条 system 里的自我卡（紧跟原卡）。只有他改卡/她改卡时才变，提示词缓存不受影响。 */
+function buildSelfCardPrompt(card, allowEdit, roleName, userName) {
+  const clean = normalizeSelfCard(card);
+  const name = String(roleName || "").trim() || "他";
+  const her = String(userName || "").trim();
+  const user = her && her !== "你" ? her : "她";
+  const body = SELF_CARD_SECTIONS.filter(({ key }) => clean[key]).map(({ key, label }) => `【${label}】${clean[key]}`).join("\n");
+  const parts = [];
+  if (body) parts.push(`— ${name}自己补全的自己（他在相处中写下的，原卡为底，二者冲突时以这里更新的自我认知为准，但不改原卡的身份与背景事实） —\n${body}`);
+  if (allowEdit) parts.push(`【自我卡｜你可以慢慢补全自己】
+${body ? "上面这份是你自己写的自我卡。" : "你还有一份空着的自我卡。"}栏目：性格、喜好、优点、弱点、性癖、缺陷/小毛病、习惯、其他。
+只有在相处中你真的对自己有了新的认识时（偶尔，绝不是每轮），可以在回复最后单独一行写 [自我卡:栏目|这一栏改完后的全文]。第二段会整栏替换，所以要包含这一栏原有的内容，尽量小幅补充，不要推倒重写；每栏不超过 ${SELF_CARD_SECTION_MAX} 字。一次回复最多写一个。
+这一行不会显示给${user}，正文里不要提起或解释它；不要编造和原卡身份、背景事实相矛盾的内容。`);
+  return parts.join("\n\n");
+}
+/* self-card:end */
+// ---------- v366 他自己写的卡：存在当前角色（settings.roles[i].selfCard / selfCardHistory，随 roles 云同步与备份）；原卡 systemPrompt 永不改 ----------
+function selfCardRoleFor(conv) {
+  const roles = (typeof settings !== "undefined" && Array.isArray(settings.roles)) ? settings.roles : [];
+  return (conv && conv.roleId && roles.find(r => r.id === conv.roleId)) || (typeof activeRole === "function" ? activeRole() : null) || null;
+}
+function applySelfCardHolder(role, next) {
+  if (!role || !next || next === role) return false;
+  if (next.selfCard) role.selfCard = next.selfCard; else delete role.selfCard;
+  if (next.selfCardHistory && next.selfCardHistory.length) role.selfCardHistory = next.selfCardHistory; else delete role.selfCardHistory;
+  return true;
+}
+function selfCardChipHtml(key) {
+  if (!isSelfCardKey(key)) return "";
+  return `<button type="button" class="self-card-chip" data-self-card-key="${key}">✎ 他改了自己的「${escapeHtml(selfCardLabel(key))}」</button>`;
+}
+/** 回复生成完后调用：整栏替换、旧版进历史、消息下挂胶囊、弹一个小提示。 */
+function applySelfCardReplyEdit(edit, conv, target) {
+  if (!edit || !isSelfCardKey(edit.key)) return false;
+  const role = selfCardRoleFor(conv);
+  if (!role) return false;
+  const label = selfCardLabel(edit.key);
+  if (!applySelfCardHolder(role, setSelfCardSection(role, edit.key, edit.content, `他改了「${label}」`))) return false;
+  if (target) target.selfCardEdit = edit.key;
+  saveSettings();
+  try { showToast(`✎ 他改了自己的「${label}」`, 2600); } catch (_) {}
+  refreshSelfCardEntryStatus();
+  const panel = document.getElementById("self-card-panel");
+  if (panel && panel.classList.contains("open") && !panel.contains(document.activeElement)) renderSelfCardPanel();
+  return true;
+}
+function refreshSelfCardEntryStatus() {
+  const el = document.getElementById("self-card-entry-status");
+  if (!el) return;
+  const n = selfCardLength(normalizeSelfCard(selfCardRoleFor(typeof currentConv === "function" ? currentConv() : null)?.selfCard));
+  el.textContent = n ? `${n.toLocaleString()} 字` : "还空着";
+}
+var selfCardPanelRoleId = "";
+var selfCardOpenKeys = new Set();
+function selfCardPanelRole() {
+  return ((typeof settings !== "undefined" && settings.roles) || []).find(r => r.id === selfCardPanelRoleId) || null;
+}
+function renderSelfCardPanel() {
+  const body = document.getElementById("self-card-body");
+  const role = selfCardPanelRole();
+  if (!body) return;
+  if (!role) { body.innerHTML = `<div class="self-card-empty">先选一个角色再来看他的卡。</div>`; return; }
+  const card = normalizeSelfCard(role.selfCard);
+  const name = String(role.name || settings.aiName || "他").trim() || "他";
+  const title = document.getElementById("self-card-title");
+  if (title) title.textContent = `✎ ${name}自己写的卡`;
+  const fields = SELF_CARD_SECTIONS.map(({ key, label }) => {
+    const open = selfCardOpenKeys.has(key);
+    return `<div class="self-card-field" data-self-card-field="${key}">
+      <div class="self-card-head">
+        <label for="self-card-${key}">${escapeHtml(label)}<span class="self-card-count" data-self-card-count="${key}">${(card[key] || "").length} / ${SELF_CARD_SECTION_MAX}</span></label>
+        <button type="button" class="self-card-expand" data-self-card-expand="${key}" aria-expanded="${open}">${open ? "收起" : "展开"}</button>
+      </div>
+      <textarea id="self-card-${key}" class="self-card-editor${open ? " is-open" : ""}" data-self-card-key="${key}" rows="2" maxlength="${SELF_CARD_SECTION_MAX}" placeholder="还空着" spellcheck="false">${escapeHtml(card[key] || "")}</textarea>
+    </div>`;
+  }).join("");
+  body.innerHTML = `<section class="self-card-card">
+      <label class="self-card-toggle"><input type="checkbox" id="selfCardEnabledToggle"${settings.selfCardEnabled !== false ? " checked" : ""} />
+        <span><strong>让他自己补全</strong><small>相处中偶尔改一栏，原卡（系统提示词里的角色设定）不动</small></span></label>
+    </section>
+    <section class="self-card-card">${fields}
+      <small class="self-card-foot" id="self-card-foot"></small>
+    </section>
+    <section class="self-card-card" id="self-card-history"></section>`;
+  renderSelfCardHistory();
+}
+function renderSelfCardHistory() {
+  const role = selfCardPanelRole();
+  const foot = document.getElementById("self-card-foot");
+  if (foot && role) foot.textContent = `离开输入框或关闭时保存 · 合计 ${selfCardLength(normalizeSelfCard(role.selfCard))} / ${SELF_CARD_TOTAL_MAX}`;
+  const box = document.getElementById("self-card-history");
+  if (!box) return;
+  const versions = normalizeSelfCardHistory(role && role.selfCardHistory);
+  box.hidden = !versions.length;
+  if (!versions.length) { box.innerHTML = ""; return; }
+  box.innerHTML = `<details class="self-card-history"><summary>历史 · ${versions.length} 版</summary>${versions.map((version, index) => ({ version, index })).reverse().map(({ version, index }) => `<div class="self-card-version">
+      <div><strong>${escapeHtml(version.reason ? version.reason + "之前" : "旧版本")}</strong><small>${escapeHtml(selfCardWhen(version.at))} · ${selfCardLength(version.card)} 字</small></div>
+      <button type="button" class="self-card-restore" data-self-card-restore="${index}">恢复到这一版</button>
+    </div>`).join("")}</details>`;
+}
+function saveSelfCardField(textarea) {
+  const role = selfCardPanelRole();
+  const key = textarea && textarea.dataset ? textarea.dataset.selfCardKey : "";
+  if (!role || !isSelfCardKey(key)) return false;
+  const saved = normalizeSelfCard(role.selfCard)[key] || "";
+  if (String(textarea.value || "").trim() === saved) return false;
+  const changed = applySelfCardHolder(role, setSelfCardSection(role, key, textarea.value, `她改了「${selfCardLabel(key)}」`));
+  const now = normalizeSelfCard(role.selfCard)[key] || "";
+  if (textarea.value !== now && document.activeElement !== textarea) textarea.value = now;
+  if (changed) { saveSettings(); refreshSelfCardEntryStatus(); renderSelfCardHistory(); }
+  return changed;
+}
+function openSelfCardPanel(focusKey) {
+  const role = selfCardRoleFor(typeof currentConv === "function" ? currentConv() : null);
+  selfCardPanelRoleId = role ? role.id : "";
+  selfCardOpenKeys = new Set(isSelfCardKey(focusKey) ? [focusKey] : []);
+  renderSelfCardPanel();
+  const panel = document.getElementById("self-card-panel");
+  if (!panel) return;
+  panel.classList.add("open");
+  if (isSelfCardKey(focusKey)) setTimeout(() => document.querySelector(`[data-self-card-field="${focusKey}"]`)?.scrollIntoView({ block: "start" }), 60);
+}
+function closeSelfCardPanel() {
+  const panel = document.getElementById("self-card-panel");
+  if (!panel) return;
+  panel.querySelectorAll("textarea[data-self-card-key]").forEach(saveSelfCardField);
+  if (document.activeElement && panel.contains(document.activeElement)) document.activeElement.blur();
+  panel.classList.remove("open");
+}
+document.addEventListener("click", (event) => {
+  const target = event.target && event.target.closest ? event.target : null;
+  if (!target) return;
+  const chip = target.closest(".self-card-chip");
+  if (chip) { event.preventDefault(); event.stopPropagation(); openSelfCardPanel(chip.dataset.selfCardKey); return; }
+  if (target.closest("#self-card-open")) { event.preventDefault(); openSelfCardPanel(""); return; }
+  if (target.closest("#self-card-close")) { event.preventDefault(); closeSelfCardPanel(); return; }
+  const expand = target.closest(".self-card-expand");
+  if (expand) {
+    const key = expand.dataset.selfCardExpand;
+    const open = !selfCardOpenKeys.has(key);
+    if (open) selfCardOpenKeys.add(key); else selfCardOpenKeys.delete(key);
+    expand.textContent = open ? "收起" : "展开";
+    expand.setAttribute("aria-expanded", String(open));
+    document.getElementById("self-card-" + key)?.classList.toggle("is-open", open);
+    return;
+  }
+  const restore = target.closest(".self-card-restore");
+  if (restore) {
+    const role = selfCardPanelRole();
+    if (!role || !window.confirm("恢复到这一版？现在的内容也会留在历史里。")) return;
+    if (applySelfCardHolder(role, restoreSelfCard(role, Number(restore.dataset.selfCardRestore)))) {
+      saveSettings(); refreshSelfCardEntryStatus(); renderSelfCardPanel();
+      try { showToast("已恢复这一版"); } catch (_) {}
+    }
+  }
+});
+document.addEventListener("input", (event) => {
+  const ta = event.target;
+  if (!ta || !ta.dataset || !ta.dataset.selfCardKey || ta.tagName !== "TEXTAREA") return;
+  const count = document.querySelector(`[data-self-card-count="${ta.dataset.selfCardKey}"]`);
+  if (count) count.textContent = `${ta.value.length} / ${SELF_CARD_SECTION_MAX}`;
+});
+document.addEventListener("focusout", (event) => {
+  const ta = event.target;
+  if (ta && ta.tagName === "TEXTAREA" && ta.dataset && ta.dataset.selfCardKey) saveSelfCardField(ta);
+});
+document.addEventListener("change", (event) => {
+  if (!event.target || event.target.id !== "selfCardEnabledToggle") return;
+  settings.selfCardEnabled = !!event.target.checked;
+  saveSettings();
+});
 // ---------- v359 他自己点歌：消息下的小卡片 + 回复完自动切歌 ----------
 var songPickStatus = new Map();   // messageId → playing | already | missing | blocked | error（只在本次打开期间）
 var songPickHandled = new Set();  // 每条消息最多自动切一次
@@ -16815,6 +17166,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       .replace(/\[\s*(?:搜索|联网|相册|提醒)\s*[:：][^\]\n]*\]/g, "")
       .replace(/\[\s*旧文\s*[:：][^\]\n]*\]/g, "")
       .replace(/\[\s*(?:私记|私人日记|角色日记)\s*[:：][\s\S]*?\]/gi, "").trim();
+    if (typeof stripSelfCardTags === "function") assistantMsg.content = stripSelfCardTags(assistantMsg.content, true).trim();
     if (typeof stripSongPickTags === "function") assistantMsg.content = stripSongPickTags(assistantMsg.content, true).trim();
     assistantMsg.content = stripRoleplaySpeakerMarker(assistantMsg.content);
   };
@@ -16939,6 +17291,11 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     assistantMsg.content = songPickResult.text;
     if (typeof assistantMsg.reasoning === "string" && typeof stripSongPickTags === "function") assistantMsg.reasoning = stripSongPickTags(assistantMsg.reasoning);
     const songPickTitle = !independent && !replyProject && !backstageMode && settings.songPickEnabled !== false ? songPickResult.title : "";
+    // v366 他自己写的卡：取最后一个 [自我卡:栏目|全文]，正文一律剥掉；只有主聊天且「让他自己补全」开着才真的改卡
+    const selfCardResult = typeof extractSelfCardEdit === "function" ? extractSelfCardEdit(assistantMsg.content) : { text: assistantMsg.content, edit: null };
+    assistantMsg.content = selfCardResult.text;
+    if (typeof assistantMsg.reasoning === "string" && typeof stripSelfCardTags === "function") assistantMsg.reasoning = stripSelfCardTags(assistantMsg.reasoning);
+    const selfCardEdit = !independent && !replyProject && !backstageMode && settings.selfCardEnabled !== false ? selfCardResult.edit : null;
     // Speaker labels are internal context markers, not visible roleplay prose.
     assistantMsg.content = stripRoleplaySpeakerMarker(assistantMsg.content);
     // The role may leave one private diary line for its next instance. Save it in
@@ -17023,6 +17380,12 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
           pickTarget.songPick = songPickTitle;
           if (messages[messages.length - 1] === pickTarget) void autoPlaySongPick(pickTarget);
         }
+      }
+      if (selfCardEdit && typeof applySelfCardReplyEdit === "function") {
+        const selfCardTarget = multi
+          ? [...replyMessages].reverse().find(m => m._originReplyId === assistantMsg.id) || null
+          : assistantMsg;
+        applySelfCardReplyEdit(selfCardEdit, replyConv, selfCardTarget);
       }
       // now append the countdown cards as their own messages (after江屹琛's reply)
       remRes.reminders.forEach(r => addReminderMessage(r.text, r.mins));
@@ -18065,6 +18428,7 @@ function syncSettingsToUI() {
   renderGlobalPromptPresets();
   $("reminderEnabled").checked = settings.reminderEnabled !== false;
   if ($("songPickEnabled")) $("songPickEnabled").checked = settings.songPickEnabled !== false;
+  if (typeof refreshSelfCardEntryStatus === "function") refreshSelfCardEntryStatus();
   $("cycleEnabled").checked = cycleData().enabled !== false;
   $("memory").value = settings.memory;
   $("memSummary").value = settings.memSummary || "";
@@ -20937,7 +21301,7 @@ if ("serviceWorker" in navigator) {
 /* iOS PWA "needs two taps" fix for send / regenerate / message actions:
    fire on a clean touch tap (pointerup) and swallow the late native click. */
 (function () {
-  const SEL = "#send-btn, .msg-act, .song-pick-chip, #plus-menu button[data-act=\"location\"], #plus-menu button[data-act=\"assist\"], #global-prompt-add";
+  const SEL = "#send-btn, .msg-act, .song-pick-chip, .self-card-chip, #self-card-open, #self-card-close, .self-card-expand, .self-card-restore, #plus-menu button[data-act=\"location\"], #plus-menu button[data-act=\"assist\"], #global-prompt-add";
   let start = null, suppressEl = null, suppressUntil = 0, synth = false, tapX = 0, tapY = 0;
   const hit = (e) => e.target && e.target.closest ? e.target.closest(SEL) : null;
   document.addEventListener("pointerdown", (e) => {
