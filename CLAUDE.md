@@ -886,3 +886,4 @@
 
 - 2026-11-12 v363：布丁来信两处跟进（Hark，主聊天 + 剧场/群聊共用）。①信笺抬头去掉骨头布丁狗（她说闭眼的小狗像老夫子；在手机上还压住了 `♡ POMPOM LETTER · FROM ME` 字），`.pudding-letter-top` 只剩字样：用户右对齐、角色左对齐、可换行不截断；输入框图标换成站立布丁狗 `pudding-dog.svg`（36px，垂直居中）；`src/pudding-bone.svg` 已删除，全站不再用骨头狗（回归断言 `!archives.includes('pudding-bone')`）。名字胶囊里的站立狗保留。②胶囊签名不再省略号：`display:-webkit-box` + `-webkit-line-clamp:2` + `white-space:normal`、14px/1.45、`min-width:0`、max-height 兜底两行，金色短进度线保留；top 上移到 56px（≤420px 为 50px）给两行留位置。
 - 2026-11-12 v364：布丁来信调淡（她嫌太黄）。底色近白 #fefdf8 + 两团淡鹅黄晕（仿她给的 IMG_0966），胶囊、信笺、输入框和主题变量里的浅黄统一降饱和、提亮、色相往鹅黄靠。
+- 2026-11-12 v365：布丁来信我方短消息靠右（正文 fit-content + margin-left:auto，长了自然铺满）；输入框布丁狗挪到第一行（top 8px），不再压住 ＋ 号。
