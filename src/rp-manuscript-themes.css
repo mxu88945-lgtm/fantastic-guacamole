@@ -8,7 +8,7 @@ body.rp-chat-active[data-rp-theme^="scene-"] {
 }
 
 /* 布丁来信（scene-pudding）的胶囊+信笺版式在 src/theme-archives.css「布丁来信 v362」段，主聊天与剧场共用。 */
-html body.rp-chat-active[data-rp-theme="scene-pudding"] { --rp-liquid-panel: #fffdf7; --rp-liquid-panel-strong: #fffdf7; --rp-liquid-line: #e9c98f; --rp-liquid-chip: #f4e7da; --rp-liquid-shadow: #97683118; }
+html body.rp-chat-active[data-rp-theme="scene-pudding"] { --rp-liquid-panel: #fffefb; --rp-liquid-panel-strong: #fffefb; --rp-liquid-line: #e9c98f; --rp-liquid-chip: #f7f3ea; --rp-liquid-shadow: #97683118; }
 html body.rp-chat-active:is([data-rp-theme="scene-paper"], [data-rp-theme="scene-scrapbook"]) #messages .msg {
   position: relative !important;
   flex-direction: column !important;

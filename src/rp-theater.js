@@ -17,7 +17,7 @@ if (!bridge) {
     "scene-vinyl": ["#315868", "#7b98a4", "#b46b43"],
     "scene-pudding": ["#5b4330", "#9d8165", "#7c5842"],
   };
-  const sceneBases = { "liquid-pearl": "#f4f8fb", "liquid-mist": "#edf3f8", "scene-paper": "#f6f8f8", "scene-scrapbook": "#fffaf2", "scene-academy": "#fafaf5", "scene-mobile": "#fafafc", "scene-letter": "#f3f1ed", "scene-mistnote": "#f3f6f7", "scene-nightglow": "#f6f1ee", "scene-vinyl": "#ffffff", "scene-pudding": "#fff9e9" };
+  const sceneBases = { "liquid-pearl": "#f4f8fb", "liquid-mist": "#edf3f8", "scene-paper": "#f6f8f8", "scene-scrapbook": "#fefdf8", "scene-academy": "#fcfcf9", "scene-mobile": "#fafafc", "scene-letter": "#f7f7f5", "scene-mistnote": "#f3f6f7", "scene-nightglow": "#f9f8f5", "scene-vinyl": "#ffffff", "scene-pudding": "#fefcf3" };
   const state = { editingId: "", detailId: "", detailMemberId: "lead", librarySection: "hub", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {}, roleManage: false, roleQuery: "", roleSelected: [], importReturnSection: "" };
   // 角色库折叠的组键（视图偏好，关掉剧场即清掉）
   const collapsedRoleGroups = new Set();
