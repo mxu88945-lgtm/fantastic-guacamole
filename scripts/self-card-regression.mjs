@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v369";'), "service worker cache bumped for the self-card release");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v370";'), "service worker cache bumped for the self-card release");
 
 // ---- pure helpers from index.html ----
 const start = html.indexOf("/* self-card:start");

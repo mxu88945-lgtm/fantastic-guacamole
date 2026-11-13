@@ -7,7 +7,7 @@
 ## 通用规矩
 - 先 `git pull --ff-only`（她自己也会推）。
 - 惟境：`npm run lint && npm test && npm run build` 全过才推 main。每次发版同时改三处：public/sw.js 的 CACHE_NAME、src/main.tsx 的 SERVICE_WORKER_RELEASE、App.tsx「应用更新」卡里的「当前版本：vNN」。不要提交 dist/。
-- 顾祁砚：改 sw.js 版本号时，scripts/*-regression.mjs 里同一字符串要一起改；`npm test`（32 个文件）。`npm run build` 的 prebuild 会把锁屏/天气代码就地注入 index.html，不要把注入结果提交。index.html 里不要写 `function wxEnsureWidget` 这个名字（注入脚本靠它判断是否已注入；之前用 `wx-widget` 当标记，被主题 CSS 误触发，导致天气卡消失）。
+- 顾祁砚：改 sw.js 版本号时，scripts/*-regression.mjs 里同一字符串要一起改；`npm test`（57 个文件）。`npm run build` 的 prebuild 会把天气卡代码（scripts/weather-time.js）用 `/* WX-INJECT-BEGIN … */ … /* WX-INJECT-END … */` 标记块就地注入 index.html，不要把注入结果提交（提交前可 `python3 scripts/inject-weather-time.py --strip index.html`；weather-inject-regression 会拦）。有标记就替换为最新，无标记的旧式残留会让构建报错。角色锁屏自 v370 起直接在 index.html 源码里维护，inject-char-lock.py 只做检查。源码里不要写天气卡入口函数名的字面量。
 - 她用 iPhone 主屏 PWA 测试：全屏弹层要处理键盘高度；按钮用 pointerup 防止要点两次；不要给每条消息加 backdrop-filter（会卡）。用 Python 改文件时，先读完再用 `with open(p,'w')` 写回，否则会把文件清空。
 - 她说"没生效"时，先让她去 设置 → 应用更新 → 强制刷新到最新版，确认版本号。
 

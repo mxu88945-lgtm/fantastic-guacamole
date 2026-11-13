@@ -2,14 +2,14 @@
 const WX_CACHE_KEY = 'jyc_weather';
 const WX_TTL = 30 * 60 * 1000;
 const WX_MAX_AGE = 3 * 60 * 60 * 1000;
-const WX_CSS = '.wx-widget{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-radius:22px;background:linear-gradient(135deg,#f4f1ff 0%,#e8e2ff 100%);margin:2px 0 12px;position:relative;z-index:5;box-shadow:0 2px 12px rgba(120,100,200,.08)}'
-+ '.wx-time strong{display:block;font-size:30px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;color:#2b2b3a;letter-spacing:1px}'
-+ '.wx-time small{color:#8a87a0;font-size:13px}'
-+ '.wx-weather{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.75);border:none;border-radius:16px;padding:8px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent}'
+const WX_CSS = '.wx-widget{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-radius:22px;background:linear-gradient(135deg,color-mix(in srgb,var(--bg-panel) 92%,var(--accent) 8%),color-mix(in srgb,var(--bg-soft) 88%,var(--accent) 12%));border:1px solid color-mix(in srgb,var(--border) 72%,var(--accent) 28%);margin:2px 0 12px;position:relative;z-index:5;box-shadow:0 2px 12px color-mix(in srgb,var(--accent) 10%,transparent)}'
++ '.wx-time strong{display:block;font-size:30px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--text);letter-spacing:1px}'
++ '.wx-time small{color:var(--text-dim);font-size:13px}'
++ '.wx-weather{display:flex;align-items:center;gap:10px;background:color-mix(in srgb,var(--bg-panel) 82%,var(--accent) 18%);border:1px solid color-mix(in srgb,var(--border) 70%,var(--accent) 30%);border-radius:16px;padding:8px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent}'
 + '.wx-weather:active{transform:scale(.97)}'
 + '.wx-icon{font-size:30px;line-height:1}'
-+ '.wx-temp{font-size:20px;font-weight:700;color:#2b2b3a;font-variant-numeric:tabular-nums}'
-+ '.wx-desc{display:block;font-size:12px;color:#8a87a0;font-weight:400}';
++ '.wx-temp{font-size:20px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}'
++ '.wx-desc{display:block;font-size:12px;color:var(--text-dim);font-weight:400}';
 
 function wxLabel(code) {
   if (code === 0) return ['晴', '☀️'];

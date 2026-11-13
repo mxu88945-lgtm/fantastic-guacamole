@@ -2,6 +2,12 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-11-13｜天气时间卡注入修复 + 新注入规则（sw v370）
+- 原因：多次「restore bundle」提交把一份构建注入后的 index.html 提交进了仓库（天气卡整段 JS、提示词钩子、启动接线各一处）。旧 `inject-weather-time.py` 看到函数名就跳过，于是 `scripts/weather-time.js` 怎么改都不生效；而且它的 ANCHOR_HOOK 早被上游改掉（时间提示块里加了 rpProject 那行），干净的 index.html 其实已经注入不了。之前说的「钩子 2 处」= 调用 1 处 + 函数定义 1 处，没有重复注入。
+- 做法：① 先把 index.html 里那份已提交注入的主题适配 CSS（10-23 scene-local themes 时直接在 index.html 里改成 var(--bg-panel)/var(--accent) 的 color-mix）同步回 `weather-time.js`，再从 index.html 精确删掉三块，所以真机效果不变。② 注入器改为成对标记 `/* WX-INJECT-BEGIN js|hook|wiring */ … /* WX-INJECT-END … */`：有标记块就整块替换成最新，没有就按锚点插入；发现无标记的旧式残留（函数定义/钩子/接线）直接报错退出非零；`--strip` 精确还原。钩子锚点改为 `  let musicNote = "";` 之前，接线紧跟 `  lockApp();`。③ 角色锁屏 `inject-char-lock.py` 同类问题，但锁屏代码早已在 index.html 里被改过（锚点/内容都对不上），所以不再注入：锁屏正式并入 index.html 源码，脚本改为只检查 9 个部分都在，缺就报错非零。原注入内容见 git 9532caf。
+- 新规则：提交的 index.html 必须是未注入版本；天气卡只改 `scripts/weather-time.js`；锁屏直接改 index.html。本地 `npm run build` 之后 index.html 会带 WX-INJECT 标记块，提交前跑 `python3 scripts/inject-weather-time.py --strip index.html`。源码和文档里不要写天气卡入口函数名的字面量（注入器里用拼接）。
+- 回归：新增 `scripts/weather-inject-regression.mjs`（已提交的 index.html 无注入块/函数名/钩子/接线/标记；注入后含最新 weather-time.js 且三块各一次；二次注入不叠加；标记内旧内容被替换；无标记残留报错；--strip 精确还原；锁屏检查通过且不改文件，缺部分时报错）。
+
 ## 2026-11-12｜主聊天「他自己写的卡」（sw v366）
 
 - 移植惟境人格窗口 v211/v213 的自我卡（src/personaSelfCard.ts、PersonaSelfCardPanel.tsx）到顾祁砚主聊天。8 栏 性格/喜好/优点/弱点/性癖/缺陷/小毛病/习惯/其他（key 与别名同惟境），每栏 ≤2000 字、合计 ≤16000，历史最多 20 版。
@@ -900,3 +906,4 @@
 - 2026-11-13 v367：布丁来信胶囊头像和名字对齐惟境人格窗口（她嫌头像太大、名字太大）。头像 92px→84px 外径（3px #5b4330 圈 + 3px 白圈 + 72px 照片，阴影 .18），距边 6→10px，top 0→6px（≤420px 为 4px），中心仍在胶囊上沿下约 18px；名字 26px/40px（≤420px 24px/36px）→ 两档统一 800 23.4px/26px（= 惟境 26px × 她的界面字号 0.9；本仓库没有界面字号变量，所以写死），left/right 110→104，max-width calc(100% - 190px)，白字+描边+阴影不变；签名左/右起点 116→112（≤420px 104→112）跟着头像收。只改 src/theme-archives.css 布丁段（主聊天 + scene-pudding 共用）。回归 archive-themes-regression 断言 84px/23.4px。
 - 2026-11-13 v368：发图后「断片」修复。旧图片在 apiMessagesFor 里已降成【此前发送过一张图片】文字标记，但 buildApiHistoryWindow 预算仍按每张 1200 token 计，两张图白占约 2400/8200，把更早的正文挤出窗口。现在 messagePromptTokens 第三参 sendsPixels，只有最新那条带图的用户消息按像素计，其余按标记文字计；新 helper newestVisualUserMessage。回归 image-attachment-regression 断言。
 - 2026-11-13 v369：渠道按中转地址自动分组。新 providerGroupKey/groupedProviders/appendGroupedProviderOptions：同一 baseUrl 主机名的渠道排在一起，两条以上包进 <optgroup label=主机名>；没地址的不分组。用于配置面板 provider-quick、设置 active-provider、记忆接口、回复助手、语义召回渠道选择，以及渠道管理列表顺序。只改显示顺序，不动存储。回归 scripts/provider-group-regression.mjs。
+- 2026-11-13 v370：天气时间卡注入修复（Hark）。index.html 不再含已提交的注入结果；注入器用 WX-INJECT 标记块替换、旧式残留报错；锁屏并入源码、脚本只做检查。详见顶部同日条目；回归 scripts/weather-inject-regression.mjs。
