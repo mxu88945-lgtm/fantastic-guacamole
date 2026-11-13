@@ -5502,13 +5502,40 @@ function fillMemoryModelSelect(select, profile, value, followText) {
   }
   select.value = value || "";
 }
+// 同一个中转地址（baseUrl 的主机名）的渠道排在一起；两条以上的包进 <optgroup>。
+// 只改显示顺序，不改 settings.providers 的存储顺序和 id。
+function providerGroupKey(p) {
+  try { const host = new URL(String(p?.baseUrl || "").trim()).hostname.toLowerCase(); if (host) return host; } catch (_) {}
+  return "\u0000" + String(p?.id || p?.name || "");
+}
+function groupedProviders(list) {
+  const groups = new Map();
+  for (const p of list || []) {
+    const key = providerGroupKey(p);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(p);
+  }
+  return [...groups.entries()].map(([key, items]) => ({ label: key.startsWith("\u0000") ? "" : key, items }));
+}
+function appendGroupedProviderOptions(select, list, selectedId, nameOf) {
+  for (const group of groupedProviders(list)) {
+    const parent = group.items.length > 1 && group.label ? document.createElement("optgroup") : select;
+    if (parent !== select) { parent.label = group.label; select.appendChild(parent); }
+    for (const p of group.items) {
+      const o = document.createElement("option");
+      o.value = p.id; o.textContent = nameOf ? nameOf(p) : (p.name || "未命名渠道");
+      if (selectedId && p.id === selectedId) o.selected = true;
+      parent.appendChild(o);
+    }
+  }
+}
 function renderMemoryApiControls() {
   const gp = $("memory-provider"), gm = $("memory-model"), rp = $("memory-role-provider"), rm = $("memory-role-model");
   if (!gp || !gm || !rp || !rm) return;
   const fillProviders = (select, firstText) => {
     select.innerHTML = "";
     const first = document.createElement("option"); first.value = ""; first.textContent = firstText; select.appendChild(first);
-    (settings.providers || []).forEach(p => { const o = document.createElement("option"); o.value = p.id; o.textContent = p.name; select.appendChild(o); });
+    appendGroupedProviderOptions(select, settings.providers, "", p => p.name);
   };
   fillProviders(gp, "跟随当前聊天接口");
   gp.value = settings.memoryProviderId || "";
@@ -12074,7 +12101,7 @@ function renderReplyHelperRoute() {
   const follow = document.createElement("option"); follow.value = "";
   follow.textContent = "跟随当前对话" + (current?.name ? `（${current.name}）` : "");
   ps.appendChild(follow);
-  (settings.providers || []).forEach(p => { const o = document.createElement("option"); o.value = p.id; o.textContent = p.name; ps.appendChild(o); });
+  appendGroupedProviderOptions(ps, settings.providers, "", p => p.name);
   if (settings.replyHelperProviderId && !providerById(settings.replyHelperProviderId)) settings.replyHelperProviderId = "";
   ps.value = settings.replyHelperProviderId || "";
   const chosen = providerById(ps.value);
@@ -14304,11 +14331,7 @@ function renderSemanticRecallCard() {
   const empty = document.createElement("option");
   empty.value = ""; empty.textContent = "（选择渠道）";
   select.appendChild(empty);
-  (settings.providers || []).forEach(p => {
-    const option = document.createElement("option");
-    option.value = p.id; option.textContent = p.name || "接口";
-    select.appendChild(option);
-  });
+  appendGroupedProviderOptions(select, settings.providers, "", p => p.name || "接口");
   select.value = semanticDefaultProviderId();
   model.value = settings.semanticRecallModel || SEMANTIC_DEFAULT_MODEL;
   renderSemanticProgress();
@@ -18342,12 +18365,7 @@ function renderModelQuick() {
   if (providerQuick) {
     const curProvider = conversationProvider();
     providerQuick.innerHTML = "";
-    for (const p of settings.providers || []) {
-      const opt = document.createElement("option");
-      opt.value = p.id; opt.textContent = p.name || "未命名渠道";
-      if (curProvider && p.id === curProvider.id) opt.selected = true;
-      providerQuick.appendChild(opt);
-    }
+    appendGroupedProviderOptions(providerQuick, settings.providers, curProvider && curProvider.id);
   }
   const quickLabel = $("model-config-label");
   if (quickLabel) quickLabel.textContent = (cur && modelShownName(cur)) || "选择模型";
@@ -18534,12 +18552,7 @@ function syncSettingsToUI() {
 function renderProviderSelect() {
   const sel = $("active-provider");
   sel.innerHTML = "";
-  for (const p of settings.providers) {
-    const opt = document.createElement("option");
-    opt.value = p.id; opt.textContent = p.name;
-    if (p.id === settings.activeProviderId) opt.selected = true;
-    sel.appendChild(opt);
-  }
+  appendGroupedProviderOptions(sel, settings.providers, settings.activeProviderId, p => p.name);
 }
 function switchProvider(id) {
   const profile = providerById(id);
@@ -18622,7 +18635,7 @@ function duplicateProvider() {
 function renderProviderManageList() {
   const list = $("provider-manage-list"); if (!list) return;
   list.innerHTML = "";
-  for (const p of settings.providers) {
+  for (const p of groupedProviders(settings.providers).flatMap(group => group.items)) {
     const row = document.createElement("label");
     row.style.cssText = "display:flex;align-items:center;gap:8px;cursor:pointer;";
     const cb = document.createElement("input");
