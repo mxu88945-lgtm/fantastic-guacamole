@@ -10349,8 +10349,20 @@ function estimateContentTokens(content, fileCharBudget = REFERENCE_FILE_PROMPT_C
     return n + 10;
   }, 0);
 }
-function messagePromptTokens(m, fileCharBudget = REFERENCE_FILE_PROMPT_CHAR_BUDGET) {
-  return estimateContentTokens(sendContent(m), fileCharBudget) + 4;
+function messagePromptTokens(m, fileCharBudget = REFERENCE_FILE_PROMPT_CHAR_BUDGET, sendsPixels = true) {
+  let content = sendContent(m);
+  // Older pictures leave the wire as a short text marker (see apiMessagesFor),
+  // so they must not keep reserving 1200 tokens each in the history budget.
+  if (!sendsPixels && Array.isArray(content)) content = content.map(part => part?.type === "image" && part.dataUrl
+    ? { type: "text", text: part.desc ? `【图片内容】${part.desc}` : "【此前发送过一张图片】" }
+    : part);
+  return estimateContentTokens(content, fileCharBudget) + 4;
+}
+function newestVisualUserMessage(list) {
+  const newestUser = [...(list || [])].reverse().find(message => message?.role === "user");
+  const content = newestUser && sendContent(newestUser);
+  return Array.isArray(content) && content.some(part => part?.type === "image" && part.dataUrl && !part.desc)
+    ? newestUser : null;
 }
 function roleRunCount(list) {
   let runs = 0, prior = "";
@@ -10374,12 +10386,13 @@ function buildApiHistoryWindow() {
   const newest = usable[usable.length - 1];
   const fullReferenceMessage = newest && newest.role === "user" && hasReferenceAttachment(newest)
     ? newest : null;
+  const visualMessage = newestVisualUserMessage(usable);
   let totalTokens = 0;
   const chosen = [];
   for (let i = usable.length - 1; i >= 0; i--) {
     const fileBudget = usable[i] === fullReferenceMessage
       ? REFERENCE_FILE_PROMPT_CHAR_BUDGET : REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET;
-    const size = messagePromptTokens(usable[i], fileBudget);
+    const size = messagePromptTokens(usable[i], fileBudget, usable[i] === visualMessage);
     const enoughRecent = roleRunCount(chosen) >= CHAT_HISTORY_MIN_ROLE_RUNS;
     if (enoughRecent && (chosen.length >= CHAT_HISTORY_MESSAGE_CAP
         || totalTokens + size > historyBudget)) break;

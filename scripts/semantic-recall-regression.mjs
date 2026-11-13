@@ -14,7 +14,7 @@ let checks = 0
 const ok = (value, message) => { assert.ok(value, message); checks++ }
 
 // ---- source wiring ----
-ok(sw.includes('const CACHE = "role-chat-cache-v367";'), 'service worker cache was not bumped to v355')
+ok(sw.includes('const CACHE = "role-chat-cache-v368";'), 'service worker cache was not bumped to v355')
 ok(html.includes('🧭 语义召回') && html.includes('id="semantic-enabled"') && html.includes('id="semantic-provider"')
   && html.includes('id="semantic-model"') && html.includes('id="semantic-test"') && html.includes('id="semantic-rebuild"')
   && html.includes('id="semantic-progress"'), 'settings → 记忆库 has no 🧭 语义召回 card')
