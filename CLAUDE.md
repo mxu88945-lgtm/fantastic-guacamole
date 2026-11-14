@@ -2,6 +2,16 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-11-14｜立绘 8 表情 + 拖动 / 隐身 / 有情绪才出现（sw v374）
+- 她又给了 4 张 Q 版，要求「他站在一个小角落，也不用很大，可以悬浮，可以隐身，需要才出现」。
+- 新素材 `sprites/guqiyan_{love,smug,sad,surprised}.webp`（549×910 透明，脚底对齐，<75KB）。`smirk` 文件名保留，含义改为「开心/打招呼」（图是笑着挥手）。8 个：cold 发呆(默认) · shy 脸红 · angry 皱眉 · smirk 开心 · love 比心 · smug 坏笑 · sad 委屈 · surprised 惊讶。copy-static 同步 8 张。
+- classifySpriteMood(text, previous)：关键词带权重，同一位置**最长词优先**（冷笑/坏笑/轻笑→smug 不算「笑」；心疼→sad 不算「疼」；乖乖→smug；抱歉/小心/放心/怎么 被吞掉不计分）；`*…*`、`（…）`、`(…)` 动作描写 ×2；越靠后的句子权重越高（1→1.5）；最高分 <1 → cold（单个「啊」「什么」不够）；平分 → 沿用上一个表情，否则 cold。bare「心」没收，只收 比心/心动/爱心/❤。
+- 拖动：只有 `.sprite-hit`（身体中间区域）吃事件，stage/img 都是 pointer-events:none；按住 250ms 或直接拖动 >6px 开始拖，松手 spriteSnapPos 吸到最近的左/右边，y 夹在输入框上方、header 下方；`jyc_sprite_pos` = {side, y}（y = 高出输入框的 px，写到 `--sprite-y`）。松手用 FLIP 平滑贴边（reduced-motion 下不动画）。pointerdown/up/click 全部 stopPropagation，点他不会触发聊天里别的东西。
+- 隐身：点他 → `.away` 淡出，同侧留一个 8×18 半透明小竖条 `#sprite-tab`（点击热区 26×34）；点小竖条 → 回来。常驻模式下隐身记在 `jyc_sprite_hidden`。
+- 设置「出现方式」`settings.spriteAppear`：`mood` 有情绪时出现（默认）/ `always` 常驻。mood：平时隐身只留小竖条，回复结束且表情不是 cold → 小跳出现，8s（SPRITE_STAY_MS）后淡出；手动点小竖条叫出来的、或被拖过的 → 一直在，直到点他。syncSpriteStage({reply}) 只在回复 finally 里带 reply（错误回复不弹）。
+- 键盘/仪表盘/RP 聊天/RP 剧场：小人照旧隐藏，hit 区不吃事件，小竖条 display:none。无 backdrop-filter。
+- WebKit 检查脚本：/workspace/work/perf-wk/gq-chibi-v374.mjs（拖到左边刷新后仍在左边、点他隐身出小竖条、mood 模式 love 回复后出现 8s 后消失、键盘隐藏）。
+
 ## 2026-11-14｜立绘模式改为角落 Q 版小人（sw v373）
 - 她试了 v372：表情切换正常，但做背景只有透明/毛玻璃主题看得到、还会挡字。她要「小小的小立绘，站在角落，随着表情变」。
 - `#sprite-stage` 现在是右下角的小人：`position:absolute; right:4px; bottom: calc(var(--composer-h) - 4px)`，高 `clamp(100px, 31vw, 140px)`（390 宽约 121px），`aspect-ratio 547/910`，`pointer-events:none`，图片只有很淡的 `filter: drop-shadow`，没有底板/边框。

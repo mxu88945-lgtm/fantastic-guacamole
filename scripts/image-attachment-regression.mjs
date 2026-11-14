@@ -43,7 +43,7 @@ requireText(
   'file action does not use the iOS-safe picker path',
 )
 
-if (!sw.includes('const CACHE = "role-chat-cache-v373";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v374";')) {
   throw new Error('service worker cache was not bumped for the image fixes')
 }
 
