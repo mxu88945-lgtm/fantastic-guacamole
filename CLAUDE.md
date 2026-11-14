@@ -2,6 +2,18 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-11-14｜立绘模式改为角落 Q 版小人（sw v373）
+- 她试了 v372：表情切换正常，但做背景只有透明/毛玻璃主题看得到、还会挡字。她要「小小的小立绘，站在角落，随着表情变」。
+- `#sprite-stage` 现在是右下角的小人：`position:absolute; right:4px; bottom: calc(var(--composer-h) - 4px)`，高 `clamp(100px, 31vw, 140px)`（390 宽约 121px），`aspect-ratio 547/910`，`pointer-events:none`，图片只有很淡的 `filter: drop-shadow`，没有底板/边框。
+- 层级：z-index 1，DOM 放在 `.chat` 之后、`#reminder-pin`/`.scroll-nav`/`.composer-wrap` 之前 → 盖在消息上（所有主题都看得见），但输入框及其菜单、滚动按钮(z5)、设置(z60)、各种 sheet/弹窗/toast 都在它上面（设置等全屏层天然盖住它）。
+- `--composer-h`：trackComposerHeight 也写到 `#sprite-stage` 上（h>0 时），syncSpriteStage 显示时再量一次（首页时输入框高度为 0，回聊天后不一定触发 resize）。
+- 删除了 v372 的「主题聊天背景改透明」覆盖和底部 mask 渐隐。
+- 换表情时 `.hop` 小跳（translateY -6px，0.3s，首次显示不跳）；`prefers-reduced-motion` 下不跳、不做淡入淡出。
+- 素材换成 Q 版：`sprites/guqiyan_{shy,cold,angry,smirk}.webp`（547×910 透明，脚底对齐，约 62KB/张），同名覆盖，旧的大立绘已删。
+- 隐藏规则不变：`html[data-kb]`、dashboard、RP 聊天、RP 剧场。
+- 已知：右侧最底下的她的气泡在滚到最底时可能被小人挡住一角（小人约 73×121px）；回到底部按钮与小人位置重叠时按钮在上层。
+- 回归：`scripts/sprite-mode-regression.mjs`（位置/尺寸/层级顺序/无透明覆盖/无 mask/hop/reduced-motion/素材 <150KB 且画布 <700×1000）。WebKit 390×844：小人在输入框上方右下角、默认主题可见、不压输入框，键盘与首页时隐藏。
+
 ## 2026-11-14｜立绘模式试做（sw v372）
 - 设置 → 外观与聊天「立绘模式」开关（`settings.spriteMode`，默认关，已进 SYNCED_KEYS）。开着时主聊天在壁纸之上、消息之下显示顾祁砚立绘：`.main` 里 `#sprite-stage`（z-index 0，紧跟 `#chat-bg`），底部对齐、水平居中、高 62%，pointer-events:none，底部 mask 渐隐融进输入区；不降透明度，无 backdrop-filter。开着时 `html[data-sprite]` 让 `.main > .chat` 透明（claude/潮汐主题会给 .chat 刷底色，和壁纸同理）。
 - 隐藏：`html[data-kb]`（键盘弹出时淡出，避免跳动）、`body.dashboard-open`、`body.rp-chat-active`、`body.rp-theater-open`。关掉开关时 stage `hidden`、不加载图片。

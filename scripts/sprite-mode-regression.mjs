@@ -4,7 +4,7 @@ import { readFileSync, statSync } from "node:fs";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 const copyStatic = readFileSync(new URL("./copy-static.mjs", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v372";'), "service worker cache bumped for 立绘模式");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v373";'), "service worker cache bumped for 立绘模式 chibi");
 
 // ---- pure classifier from index.html ----
 const start = html.indexOf("/* sprite-mode:start");
@@ -47,7 +47,17 @@ assert.ok(/spriteMode:\s*false/.test(html), "立绘模式 defaults to off");
 assert.ok(html.includes('"locationAware","spriteMode"'), "spriteMode is a synced setting");
 assert.ok(html.includes('<div id="sprite-stage" aria-hidden="true" hidden>'), "sprite stage starts hidden");
 assert.ok(/#sprite-stage \{[^}]*pointer-events: none/.test(html), "sprite never takes taps");
-assert.ok(/#sprite-stage \{[^}]*z-index: 0/.test(html), "sprite sits below the messages");
+const stageCss = (html.match(/  #sprite-stage \{[^}]*\}/) || [""])[0];
+assert.ok(/position: absolute; right: \d+px; bottom: calc\(var\(--composer-h/.test(stageCss), "chibi stands in the bottom-right corner, above the composer");
+assert.ok(/height: clamp\(100px, [^,]+, 140px\)/.test(stageCss), "chibi is small (100–140px tall)");
+assert.ok(/z-index: 1;/.test(stageCss), "chibi shares the chat/composer layer");
+const iStage = html.indexOf('<div id="sprite-stage"'), iChat = html.indexOf('<div class="chat" id="chat">'), iComposer = html.indexOf('<div class="composer-wrap">');
+assert.ok(iChat < iStage && iStage < iComposer, "chibi paints above the messages but below the composer and its menus");
+assert.ok(html.includes('sprite.style.setProperty("--composer-h", h + "px")'), "composer height is fed to the chibi");
+assert.ok(!html.includes("html[data-sprite] body:not(.rp-chat-active) .main > .chat { background: transparent; }"), "v372 theme-transparent override removed");
+assert.ok(!/#sprite-stage[^{]*\{[^}]*mask-image/.test(html), "v372 bottom mask fade removed");
+assert.ok(/#sprite-stage\.hop \{ animation: sprite-hop/.test(html) && /@keyframes sprite-hop \{[^\n]*translateY\(-6px\)/.test(html), "tiny hop on expression change");
+assert.ok(/prefers-reduced-motion: reduce\)[^@]*#sprite-stage\.hop \{ animation: none; \}/.test(html), "hop respects reduced motion");
 assert.ok(!/#sprite-stage[^{]*\{[^}]*backdrop-filter/.test(html), "no backdrop-filter on the sprite");
 for (const cls of ["html[data-kb] #sprite-stage", "body.dashboard-open #sprite-stage", "body.rp-chat-active #sprite-stage", "body.rp-theater-open #sprite-stage"])
   assert.ok(html.includes(cls), `sprite hidden for ${cls}`);
@@ -64,7 +74,9 @@ for (const m of ["cold", "shy", "angry", "smirk"]) {
   const buf = readFileSync(url);
   assert.equal(buf.slice(0, 4).toString(), "RIFF", `${m} is RIFF`);
   assert.equal(buf.slice(8, 12).toString(), "WEBP", `${m} is WebP`);
-  assert.ok(statSync(url).size < 300 * 1024, `${m} sprite under 300KB`);
+  assert.ok(statSync(url).size < 150 * 1024, `${m} chibi under 150KB`);
+  const w = buf.readUIntLE(buf.indexOf("VP8X") + 12, 3) + 1, h = buf.readUIntLE(buf.indexOf("VP8X") + 15, 3) + 1;
+  assert.ok(buf.indexOf("VP8X") > 0 && w < 700 && h < 1000, `${m} is the small chibi canvas, not the old big sprite (${w}x${h})`);
   assert.ok(html.includes(`sprites/guqiyan_${m}.webp`), `${m} sprite referenced`);
 }
 assert.ok(copyStatic.includes("sprites/guqiyan_${mood}.webp"), "copy-static ships the sprites to dist");

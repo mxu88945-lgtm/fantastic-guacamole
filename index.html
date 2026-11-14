@@ -610,23 +610,30 @@
     background-size: cover; background-position: center; transform: scale(1.12);
   }
   .main > .chat, .main > .composer-wrap { position: relative; z-index: 1; }
-  /* 立绘模式 (v372): his sprite sits above the wallpaper, below the messages. */
+  /* 立绘模式 (v373): a small chibi of him stands in the bottom-right corner, just above the
+     composer (--composer-h is measured by trackComposerHeight). It paints over the messages so it
+     shows on every theme, but sits in the DOM before .composer-wrap (same z-index), so the composer,
+     its menus, the scroll buttons, sheets, settings and toasts all stay on top. Never takes taps. */
   #sprite-stage {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 62%; z-index: 0;
-    overflow: hidden; pointer-events: none; transition: opacity .2s ease;
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 74%, transparent 100%);
-    mask-image: linear-gradient(to bottom, #000 0%, #000 74%, transparent 100%);
+    position: absolute; right: 4px; bottom: calc(var(--composer-h, 84px) - 4px); z-index: 1;
+    height: clamp(100px, 31vw, 140px); aspect-ratio: 547 / 910;
+    pointer-events: none; transition: opacity .2s ease;
   }
   #sprite-stage[hidden] { display: none; }
   #sprite-stage .sprite-img {
-    position: absolute; bottom: 0; left: 50%; height: 100%; width: auto; max-width: none;
-    transform: translateX(-50%); opacity: 0; transition: opacity .25s ease;
+    position: absolute; left: 0; bottom: 0; width: 100%; height: 100%; max-width: none;
+    object-fit: contain; object-position: bottom center;
+    opacity: 0; transition: opacity .25s ease;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,.14));
     -webkit-user-select: none; user-select: none; -webkit-user-drag: none;
   }
   #sprite-stage .sprite-img.on { opacity: 1; }
-  /* Some themes paint .chat itself (claude #f8f8f6, tidal gradients); like a wallpaper,
-     the sprite needs the scroller see-through. The page/body background stays. */
-  html[data-sprite] body:not(.rp-chat-active) .main > .chat { background: transparent; }
+  #sprite-stage.hop { animation: sprite-hop .3s ease-out; }
+  @keyframes sprite-hop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
+  @media (prefers-reduced-motion: reduce) {
+    #sprite-stage.hop { animation: none; }
+    #sprite-stage, #sprite-stage .sprite-img { transition: none; }
+  }
   html[data-kb] #sprite-stage,
   body.dashboard-open #sprite-stage, body.rp-chat-active #sprite-stage, body.rp-theater-open #sprite-stage { opacity: 0; }
   body.dashboard-open #sprite-stage, body.rp-chat-active #sprite-stage, body.rp-theater-open #sprite-stage { visibility: hidden; }
@@ -2965,7 +2972,6 @@
   <!-- Main -->
   <div class="main">
     <div id="chat-bg"></div>
-    <div id="sprite-stage" aria-hidden="true" hidden><img class="sprite-img" alt="" draggable="false"><img class="sprite-img" alt="" draggable="false"></div>
     <div id="desk-pet" hidden>
       <div class="desk-pet-bubble" id="desk-pet-bubble" hidden></div>
       <button class="desk-pet-button" id="desk-pet-button" type="button" aria-label="桌宠，按住可拖动"></button>
@@ -3627,7 +3633,7 @@
             <input type="checkbox" id="locationAware" style="width:auto;" /> 📍 让 AI 感知我所在的城市和天气（约 30 分钟更新）
           </label>
           <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-top:8px; cursor:pointer;">
-            <input type="checkbox" id="spriteMode" style="width:auto;" /> 立绘模式（试用：聊天背景显示他的立绘，按回复换表情）
+            <input type="checkbox" id="spriteMode" style="width:auto;" /> 立绘模式（试用：右下角站一个Q版小他，按回复换表情）
           </label>
           <div style="margin-top:12px;">
             <div class="hint">字体大小</div>
@@ -4172,6 +4178,7 @@
     <div class="chat" id="chat">
       <div class="messages" id="messages"></div>
     </div>
+    <div id="sprite-stage" aria-hidden="true" hidden><img class="sprite-img" alt="" draggable="false"><img class="sprite-img" alt="" draggable="false"></div>
     <div id="reminder-pin"></div>
 
     <div class="scroll-nav" id="scroll-nav" aria-label="聊天滚动导航">
@@ -4846,7 +4853,7 @@ let settings = {
   showTime: true,         // show message timestamps
   timeAware: true,        // tell the model the current local time
   locationAware: true,    // after she grants permission: city/district + weather as a hidden prompt note
-  spriteMode: false,      // 立绘模式 (trial): sprite behind the main chat, expression picked locally from his reply
+  spriteMode: false,      // 立绘模式 (trial): small chibi in the chat's bottom-right corner, expression picked locally from his reply
   fontSize: "medium",     // small | medium | large
   fontWeight: 400,         // 300–800, main chat message weight
   fontFamily: "default",  // default | kai | song | web:noto-sans-sc | web:noto-serif-sc | web:lxgw-wenkai
@@ -6985,6 +6992,7 @@ function setSpriteMood(mood) {
   const stage = $("sprite-stage"); if (!stage) return;
   mood = SPRITE_SRC[mood] ? mood : "cold";
   if (mood === spriteMood) return;
+  const hop = !!spriteMood;  // tiny hop when his expression changes (not on first show)
   spriteMood = mood;
   const imgs = stage.querySelectorAll(".sprite-img");
   const cur = imgs[spriteFront], next = imgs[1 - spriteFront];
@@ -6993,6 +7001,7 @@ function setSpriteMood(mood) {
     if (token !== spriteToken) return;
     next.classList.add("on"); cur.classList.remove("on");
     spriteFront = 1 - spriteFront;
+    if (hop) { stage.classList.remove("hop"); void stage.offsetWidth; stage.classList.add("hop"); }
   };
   next.onload = null;
   if (next.getAttribute("src") === SPRITE_SRC[mood] && next.complete) { show(); return; }
@@ -7002,6 +7011,9 @@ function setSpriteMood(mood) {
 function syncSpriteStage() {
   try {
     const stage = $("sprite-stage"); if (!stage) return;
+    const wrap = document.querySelector(".main > .composer-wrap");  // stand just above the composer even before its first resize
+    if (wrap && wrap.offsetHeight > 0) stage.style.setProperty("--composer-h", Math.round(wrap.offsetHeight) + "px");
+    if (!stage.dataset.hopWired) { stage.dataset.hopWired = "1"; stage.addEventListener("animationend", () => stage.classList.remove("hop")); }
     const on = !!settings.spriteMode && !window.__jycSafeBoot;
     stage.hidden = !on;
     document.documentElement.toggleAttribute("data-sprite", on);
@@ -21144,6 +21156,8 @@ window.JYCGiftBridge = {
     last = h;
     wrap.style.setProperty("--composer-h", h + "px");
     list.style.setProperty("--composer-h", h + "px");
+    const sprite = document.getElementById("sprite-stage");  // 立绘模式 stands just above the composer
+    if (sprite && h > 0) sprite.style.setProperty("--composer-h", h + "px");
     if (atBottom) chat.scrollTop = chat.scrollHeight;
   };
   new ResizeObserver(() => requestAnimationFrame(apply)).observe(wrap);
