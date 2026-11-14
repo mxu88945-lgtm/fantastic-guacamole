@@ -47,7 +47,7 @@ assert.match(html, /src\/gifts\.js/);
 assert.match(html, /src\/gifts\.css/);
 assert.match(dashboard, /action === "gifts"/);
 assert.match(css, /\.chat-gift-card/);
-assert.match(sw, /role-chat-cache-v374/);
+assert.match(sw, /role-chat-cache-v375/);
 
 const made = extractAssistantGift("给你。\n[自制礼物:🐚|会发光的贝壳|海边捡的，留着等你|别弄丢]", { roleName: "顾祁砚", userName: "周惟惟" });
 assert.equal(made.text, "给你。");

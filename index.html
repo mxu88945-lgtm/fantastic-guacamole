@@ -610,7 +610,7 @@
     background-size: cover; background-position: center; transform: scale(1.12);
   }
   .main > .chat, .main > .composer-wrap { position: relative; z-index: 1; }
-  /* 立绘模式 (v373; v374 悬浮/隐身/有情绪才出现): a small chibi of him stands on the left or right
+  /* 立绘模式 (v373; v374 悬浮/隐身/有情绪才出现; v375 点他冒爱心，双击隐身): a small chibi of him stands on the left or right
      edge just above the composer (--composer-h is measured by trackComposerHeight, --sprite-y is how
      far she dragged him up). It paints over the messages so it shows on every theme, but sits in the
      DOM before .composer-wrap (same z-index), so the composer, its menus, the scroll buttons, sheets,
@@ -631,6 +631,20 @@
     -webkit-user-select: none; user-select: none; -webkit-user-drag: none; pointer-events: none;
   }
   #sprite-stage .sprite-img.on { opacity: 1; }
+  /* v375 点他冒爱心: tiny ♥ glyphs float up from around his head and fade. Never takes taps, no blur. */
+  #sprite-stage .sprite-hearts { position: absolute; left: 0; right: 0; top: 0; height: 0; overflow: visible; pointer-events: none; z-index: 1; }
+  #sprite-stage .sprite-heart {
+    position: absolute; top: var(--hy, 16px); left: var(--hx, 50%); font-size: 15px; line-height: 1; color: #ff7fb0;
+    text-shadow: 0 1px 1px rgba(160, 40, 90, .18); pointer-events: none; opacity: 0;
+    transform: translate(-50%, 0) scale(var(--hs, 1));
+    animation: sprite-heart-up var(--hdur, 900ms) ease-out var(--hd, 0ms) both;
+  }
+  @keyframes sprite-heart-up {
+    0% { opacity: 0; transform: translate(-50%, 4px) scale(calc(var(--hs, 1) * .55)); }
+    18% { opacity: 1; transform: translate(-50%, -6px) scale(var(--hs, 1)); }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--hdx, 0px)), calc(-1 * var(--hrise, 46px))) scale(calc(var(--hs, 1) * 1.08)); }
+  }
+  @keyframes sprite-heart-fade { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
   #sprite-stage .sprite-hit {
     position: absolute; left: 20%; right: 20%; top: 8%; bottom: 0;
     pointer-events: auto; touch-action: none; cursor: grab;
@@ -659,6 +673,7 @@
   @keyframes sprite-hop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
   @media (prefers-reduced-motion: reduce) {
     #sprite-stage.hop { animation: none; }
+    #sprite-stage .sprite-heart { animation-name: sprite-heart-fade; transform: translate(-50%, -6px) scale(var(--hs, 1)); }
     #sprite-stage, #sprite-stage .sprite-img, #sprite-stage.snapping { transition: none; }
   }
   html[data-kb] #sprite-stage,
@@ -3663,7 +3678,7 @@
             <input type="checkbox" id="locationAware" style="width:auto;" /> 📍 让 AI 感知我所在的城市和天气（约 30 分钟更新）
           </label>
           <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-top:8px; cursor:pointer;">
-            <input type="checkbox" id="spriteMode" style="width:auto;" /> 立绘模式（Q版小他按回复换表情；可拖动，点他隐身）
+            <input type="checkbox" id="spriteMode" style="width:auto;" /> 立绘模式（Q版小他按回复换表情；可拖动，点他冒爱心，双击隐身）
           </label>
           <div style="display:flex; align-items:center; gap:8px; font-size:13px; margin-top:6px; padding-left:24px;">
             <span>出现方式</span>
@@ -4212,7 +4227,7 @@
     <div class="chat" id="chat">
       <div class="messages" id="messages"></div>
     </div>
-    <div id="sprite-stage" aria-hidden="true" hidden><img class="sprite-img" alt="" draggable="false"><img class="sprite-img" alt="" draggable="false"><div class="sprite-hit" title="拖动 · 点一下隐身"></div></div>
+    <div id="sprite-stage" aria-hidden="true" hidden><img class="sprite-img" alt="" draggable="false"><img class="sprite-img" alt="" draggable="false"><div class="sprite-hearts" aria-hidden="true"></div><div class="sprite-hit" title="拖动 · 点他冒爱心，双击隐身"></div></div>
     <div id="sprite-tab" role="button" aria-label="叫他出来" title="叫他出来" hidden></div>
     <div id="reminder-pin"></div>
 
@@ -4889,7 +4904,7 @@ let settings = {
   timeAware: true,        // tell the model the current local time
   locationAware: true,    // after she grants permission: city/district + weather as a hidden prompt note
   spriteMode: false,      // 立绘模式 (trial): small chibi in the chat's bottom-right corner, expression picked locally from his reply
-  spriteAppear: "mood",  // 立绘出现方式 (v374): "mood" = pops in ~8s after an emotional reply, "always" = stays (tap to hide)
+  spriteAppear: "mood",  // 立绘出现方式 (v374): "mood" = pops in ~8s after an emotional reply, "always" = stays (double-tap to hide; single tap = hearts)
   fontSize: "medium",     // small | medium | large
   fontWeight: 400,         // 300–800, main chat message weight
   fontFamily: "default",  // default | kai | song | web:noto-sans-sc | web:noto-serif-sc | web:lxgw-wenkai
@@ -7070,11 +7085,36 @@ function spriteSnapPos(pos, box) {
   const y = Math.round(Math.min(maxY, Math.max(0, Number(pos.y) || 0)));
   return { side, y };
 }
+// v375 点他冒爱心，双击隐身. Single tap fires hearts at once; a second tap within the window hides him.
+const SPRITE_DOUBLE_TAP_MS = 300, SPRITE_HEART_CAP = 12, SPRITE_LOVE_MS = 2000;
+function spriteTapKind(now, lastTapAt, windowMs = SPRITE_DOUBLE_TAP_MS) {
+  const gap = Number(now) - Number(lastTapAt);
+  return Number(lastTapAt) > 0 && gap >= 0 && gap <= windowMs ? "double" : "single";
+}
+function spriteHeartSpecs(alive, rand = Math.random, cap = SPRITE_HEART_CAP) {
+  // 3–5 hearts per tap, never more than `cap` alive at once.
+  const want = 3 + Math.min(2, Math.floor(rand() * 3));
+  const n = Math.max(0, Math.min(want, cap - Math.max(0, Number(alive) || 0)));
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    out.push({
+      x: Math.round(32 + 36 * ((i + rand()) / n)),        // % across his head, spread out
+      y: Math.round(10 + rand() * 14),                     // px below the stage top (around his hair)
+      dx: Math.round((rand() * 2 - 1) * 16),               // sideways drift, px
+      rise: Math.round(38 + rand() * 22),                  // px upward
+      scale: Math.round((0.72 + rand() * 0.45) * 100) / 100,
+      delay: Math.round(i * 45 + rand() * 60),             // ms
+      dur: Math.round(820 + rand() * 160),                 // ~900ms
+    });
+  }
+  return out;
+}
 /* sprite-mode:end */
 const SPRITE_SRC = Object.fromEntries(SPRITE_MOODS.map(m => [m, `sprites/guqiyan_${m}.webp`]));
 const SPRITE_STAY_MS = 8000;  // 有情绪时出现: how long he stays after a reply
 let spriteMood = "", spriteFront = 0, spriteToken = 0, spritePreloaded = false;
 let spriteShown = false, spritePinned = false, spriteAwayTimer = 0;
+let spriteLoveTimer = 0, spriteLoveBack = "", spriteLastTapAt = 0;
 function setSpriteMood(mood, hopAnyway = false) {
   const stage = $("sprite-stage"); if (!stage) return;
   mood = SPRITE_SRC[mood] ? mood : "cold";
@@ -7117,9 +7157,45 @@ function spriteSetShown(on, { hop = false } = {}) {
   const tab = $("sprite-tab"); if (tab) tab.classList.toggle("show", !on);
   if (on && hop) spriteHop(stage);
 }
+function spriteArmAway(ms) {
+  clearTimeout(spriteAwayTimer);
+  spriteAwayTimer = setTimeout(() => { if (!spritePinned) spriteSetShown(false); }, ms);
+}
 function spriteShowFor(ms) {
   spriteSetShown(true, { hop: true });
-  spriteAwayTimer = setTimeout(() => { if (!spritePinned) spriteSetShown(false); }, ms);
+  spriteArmAway(ms);
+}
+function spriteSpawnHearts(stage) {
+  const layer = stage.querySelector(".sprite-hearts"); if (!layer) return;
+  for (const h of spriteHeartSpecs(layer.childElementCount)) {
+    const el = document.createElement("span");
+    el.className = "sprite-heart"; el.textContent = "♥";
+    el.style.cssText = `--hx:${h.x}%;--hy:${h.y}px;--hdx:${h.dx}px;--hrise:${h.rise}px;--hs:${h.scale};--hd:${h.delay}ms;--hdur:${h.dur}ms`;
+    const gone = () => { el.remove(); };
+    el.addEventListener("animationend", (e) => { e.stopPropagation(); gone(); });
+    setTimeout(gone, h.delay + h.dur + 300);  // fallback if the animation never runs (hidden stage)
+    layer.appendChild(el);
+  }
+}
+function spriteLoveTap() {
+  // Switch to 比心 for ~2s (hop each tap), then back to whatever he showed before.
+  if (!spriteLoveTimer) spriteLoveBack = spriteMood || "cold";
+  clearTimeout(spriteLoveTimer);
+  setSpriteMood("love", true);
+  spriteLoveTimer = setTimeout(() => { spriteLoveTimer = 0; setSpriteMood(spriteLoveBack || "cold"); }, SPRITE_LOVE_MS);
+}
+function spriteTapped(stage) {
+  const now = Date.now();
+  if (spriteTapKind(now, spriteLastTapAt) === "double") {  // double tap → 隐身 (常驻 remembers it)
+    spriteLastTapAt = 0;
+    spriteSetShown(false);
+    if (spriteAppearMode() === "always") { try { localStorage.setItem("jyc_sprite_hidden", "1"); } catch (_) {} }
+    return;
+  }
+  spriteLastTapAt = now;  // single tap → 冒爱心 + 比心
+  spriteSpawnHearts(stage);
+  spriteLoveTap();
+  if (spriteAppearMode() === "mood" && spriteShown && !spritePinned) spriteArmAway(SPRITE_STAY_MS);  // tapping him keeps him 8s more
 }
 function spriteBox(stage) {
   const main = stage.parentElement.getBoundingClientRect();
@@ -7131,7 +7207,7 @@ function spriteBox(stage) {
 function wireSpriteStage(stage) {
   if (stage.dataset.wired) return;
   stage.dataset.wired = "1";
-  stage.addEventListener("animationend", () => stage.classList.remove("hop"));
+  stage.addEventListener("animationend", (e) => { if (e.target === stage) stage.classList.remove("hop"); });
   const hit = stage.querySelector(".sprite-hit");
   const tab = $("sprite-tab");
   let drag = null;
@@ -7160,10 +7236,7 @@ function wireSpriteStage(stage) {
     const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
     if (!d.moving) {
       stage.style.transform = "";
-      if (e.type === "pointerup" && Date.now() - d.t0 < 600) {  // tap → 隐身 (常驻 remembers it)
-        spriteSetShown(false);
-        if (spriteAppearMode() === "always") { try { localStorage.setItem("jyc_sprite_hidden", "1"); } catch (_) {} }
-      }
+      if (e.type === "pointerup" && Date.now() - d.t0 < 600) spriteTapped(stage);  // tap → 爱心, double tap → 隐身
       return;
     }
     const box = spriteBox(stage);
@@ -7192,7 +7265,7 @@ function wireSpriteStage(stage) {
     tab.addEventListener("pointerup", (e) => {
       e.preventDefault(); e.stopPropagation();
       spriteSetShown(true, { hop: true });
-      spritePinned = true;  // summoned by hand: stays until tapped
+      spritePinned = true;  // summoned by hand: stays until double-tapped
       if (spriteAppearMode() === "always") { try { localStorage.removeItem("jyc_sprite_hidden"); } catch (_) {} }
     });
     tab.addEventListener("click", stop);
@@ -7228,6 +7301,10 @@ function syncSpriteStage(opts = {}) {
     if (opts.modeChanged) {
       if (spriteAppearMode() === "always") spriteSetShown(localStorage.getItem("jyc_sprite_hidden") !== "1");
       else spriteSetShown(false);
+    }
+    if (spriteLoveTimer) {  // mid 比心 from a tap: a new reply wins, other refreshes only update where he returns to
+      if (opts.reply) { clearTimeout(spriteLoveTimer); spriteLoveTimer = 0; }
+      else { spriteLoveBack = mood; return; }
     }
     if (opts.reply && spriteAppearMode() === "mood" && !spritePinned) {
       // 有情绪时出现: pop in with a hop for a non-neutral reply, then fade back.

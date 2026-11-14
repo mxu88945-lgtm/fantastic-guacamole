@@ -4,14 +4,14 @@ import { readFileSync, statSync } from "node:fs";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 const copyStatic = readFileSync(new URL("./copy-static.mjs", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v374";'), "service worker cache bumped for 立绘模式 8 表情 + 悬浮/隐身");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v375";'), "service worker cache bumped for 立绘 点他冒爱心，双击隐身");
 
 // ---- pure classifier from index.html ----
 const start = html.indexOf("/* sprite-mode:start");
 const end = html.indexOf("/* sprite-mode:end */");
 assert.ok(start > 0 && end > start, "sprite-mode helper block is missing from index.html");
 const lib = new Function(html.slice(start, end) + `
-return { classifySpriteMood, spriteMoodText, spriteReplyTail, spriteMoodScores, spriteSnapPos, SPRITE_MOODS };`)();
+return { classifySpriteMood, spriteMoodText, spriteReplyTail, spriteMoodScores, spriteSnapPos, SPRITE_MOODS, spriteTapKind, spriteHeartSpecs, SPRITE_DOUBLE_TAP_MS, SPRITE_HEART_CAP, SPRITE_LOVE_MS };`)();
 const { classifySpriteMood: mood } = lib;
 
 assert.deepEqual(lib.SPRITE_MOODS, ["cold", "shy", "angry", "smirk", "love", "smug", "sad", "surprised"], "8 moods");
@@ -87,6 +87,51 @@ assert.equal(lib.spriteReplyTail(list, read), "啧。\n不许生气。");
 assert.equal(mood(lib.spriteReplyTail(list, read)), "angry");
 assert.equal(lib.spriteReplyTail([{ role: "user", content: "hi" }], read), "");
 
+// ---- v375 点他冒爱心，双击隐身 ----
+assert.equal(lib.SPRITE_DOUBLE_TAP_MS, 300, "double-tap window ~300ms");
+assert.equal(lib.SPRITE_HEART_CAP, 12, "at most ~12 hearts alive");
+assert.equal(lib.SPRITE_LOVE_MS, 2000, "比心 face for ~2s");
+assert.equal(lib.spriteTapKind(1000, 0), "single", "first tap is single");
+assert.equal(lib.spriteTapKind(1250, 1000), "double", "second tap within 300ms is double");
+assert.equal(lib.spriteTapKind(1300, 1000), "double", "300ms edge still double");
+assert.equal(lib.spriteTapKind(1400, 1000), "single", "slow second tap is another single");
+assert.equal(lib.spriteTapKind(900, 1000), "single", "clock going backwards never hides");
+const seq = (vals) => { let i = 0; return () => vals[i++ % vals.length]; };
+for (const r of [0, 0.34, 0.5, 0.67, 0.999]) {
+  const hs = lib.spriteHeartSpecs(0, seq([r, 0.5]));
+  assert.ok(hs.length >= 3 && hs.length <= 5, `3–5 hearts per tap (rand ${r} → ${hs.length})`);
+}
+assert.equal(lib.spriteHeartSpecs(0, () => 0).length, 3);
+assert.equal(lib.spriteHeartSpecs(0, () => 0.999).length, 5);
+assert.equal(lib.spriteHeartSpecs(10, () => 0.999).length, 2, "cap: only 2 more when 10 alive");
+assert.equal(lib.spriteHeartSpecs(12, () => 0.5).length, 0, "cap reached: none");
+assert.equal(lib.spriteHeartSpecs(20, () => 0.5).length, 0, "over cap: none");
+for (const h of lib.spriteHeartSpecs(0, Math.random)) {
+  assert.ok(h.x >= 30 && h.x <= 70, "around his head");
+  assert.ok(Math.abs(h.dx) <= 16, "slight drift");
+  assert.ok(h.scale >= 0.7 && h.scale <= 1.2, "slight scale");
+  assert.ok(h.dur >= 800 && h.dur <= 1000, "~900ms");
+  assert.ok(h.rise > 30 && h.rise < 70, "floats up");
+}
+assert.ok(html.includes('<div class="sprite-hearts" aria-hidden="true"></div><div class="sprite-hit"'), "hearts layer inside the stage, under the hit area in DOM");
+assert.ok(/#sprite-stage \.sprite-hearts \{[^}]*pointer-events: none/.test(html), "hearts layer never takes taps");
+assert.ok(/#sprite-stage \.sprite-heart \{[^}]*pointer-events: none/.test(html), "hearts never take taps");
+assert.ok(!/sprite-heart[^{]*\{[^}]*backdrop-filter/.test(html), "no blur on hearts");
+assert.ok(/el\.textContent = "♥"/.test(html), "hearts are ♥ glyphs (no images)");
+assert.ok(/@keyframes sprite-heart-up \{[\s\S]{0,400}var\(--hdx[\s\S]{0,60}var\(--hrise/.test(html), "hearts float up with drift");
+assert.ok(/prefers-reduced-motion: reduce\)[^@]*#sprite-stage \.sprite-heart \{ animation-name: sprite-heart-fade;/.test(html), "reduced motion: hearts only fade");
+assert.ok(/@keyframes sprite-heart-fade \{[^\n]*opacity/.test(html) && !/@keyframes sprite-heart-fade \{[^\n]*transform/.test(html), "fade keyframes do not move");
+assert.ok(html.includes('if (e.type === "pointerup" && Date.now() - d.t0 < 600) spriteTapped(stage);'), "a tap (not a drag) goes to spriteTapped");
+assert.ok(/if \(!d\.moving\) \{[\s\S]{0,200}spriteTapped\(stage\)/.test(html), "drags never produce hearts");
+assert.ok(/spriteTapKind\(now, spriteLastTapAt\) === "double"\) \{[\s\S]{0,120}spriteSetShown\(false\)/.test(html), "double tap hides");
+assert.ok(/spriteSpawnHearts\(stage\);\s*spriteLoveTap\(\);/.test(html), "single tap: hearts + 比心");
+assert.ok(html.includes('setSpriteMood("love", true);'), "love face with hop on every tap");
+assert.ok(html.includes("spriteLoveTimer = setTimeout(() => { spriteLoveTimer = 0; setSpriteMood(spriteLoveBack || \"cold\"); }, SPRITE_LOVE_MS);"), "returns to the previous mood");
+assert.ok(html.includes('if (spriteAppearMode() === "mood" && spriteShown && !spritePinned) spriteArmAway(SPRITE_STAY_MS);'), "有情绪时出现: a tap resets the 8s timer");
+assert.ok(html.includes('stage.addEventListener("animationend", (e) => { if (e.target === stage) stage.classList.remove("hop"); });'), "heart animations never cut the hop short");
+assert.ok(html.includes("立绘模式（Q版小他按回复换表情；可拖动，点他冒爱心，双击隐身）"), "setting hint updated");
+assert.ok(!html.includes("点他隐身") && !html.includes("点一下隐身"), "no stale tap-to-hide hint");
+
 // ---- wiring ----
 assert.ok(/<input type="checkbox" id="spriteMode"[^>]*>\s*立绘模式/.test(html), "立绘模式 toggle exists in settings");
 assert.ok(/spriteMode:\s*false/.test(html), "立绘模式 defaults to off");
@@ -116,7 +161,7 @@ assert.ok(/spriteAppear: "mood",/.test(html), "default 有情绪时出现");
 assert.ok(html.includes('"spriteMode","spriteAppear"'), "spriteAppear is a synced setting");
 assert.ok(html.includes("const SPRITE_STAY_MS = 8000;"), "stays ~8s");
 assert.ok(html.includes('if (mood !== "cold") { setSpriteMood(mood); spriteShowFor(SPRITE_STAY_MS); return; }'), "pops in only for non-neutral replies");
-assert.ok(html.includes("spritePinned = true;  // summoned by hand: stays until tapped"), "manual summon stays");
+assert.ok(html.includes("spritePinned = true;  // summoned by hand: stays until double-tapped"), "manual summon stays");
 for (const cls of ["html[data-kb] #sprite-tab", "body.dashboard-open #sprite-tab", "body.rp-chat-active #sprite-tab", "body.rp-theater-open #sprite-tab", "html[data-kb] #sprite-stage .sprite-hit"])
   assert.ok(html.includes(cls), `tab/hit hidden for ${cls}`);
 assert.ok(/prefers-reduced-motion: reduce\)[^@]*#sprite-stage, #sprite-stage \.sprite-img, #sprite-stage\.snapping \{ transition: none; \}/.test(html), "snap glide respects reduced motion");

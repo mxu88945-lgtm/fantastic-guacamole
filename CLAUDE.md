@@ -2,6 +2,16 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-11-14｜立绘：点他冒爱心，双击隐身（sw v375）
+- 单击小人：头顶附近冒 3–5 颗粉色 ♥（纯文字 span，`.sprite-hearts` 层在 stage 里、`pointer-events:none`、无 backdrop-filter），约 900ms 上浮淡出，带随机左右漂移/缩放/延迟（纯函数 `spriteHeartSpecs(alive)`，同时存活上限 12）；表情切到 `love` 并小跳约 2s（`SPRITE_LOVE_MS`），再回到之前的表情。连点每次都冒心、都跳，2s 从最后一次点击算。
+- 双击（两次点击间隔 ≤300ms，`spriteTapKind`）：隐身留小竖条（旧的单击行为）；第一次点击的爱心照常冒，随小人一起淡出。常驻模式仍记 `jyc_sprite_hidden`。
+- 有情绪时出现：点他会把 8s 消失计时重置（`spriteArmAway(SPRITE_STAY_MS)`）；被手动叫出（pinned）的不受影响。
+- 拖动（按住 250ms / 移动 >6px）不冒心。stage 的 animationend 只认 stage 自己，避免爱心动画结束时把 hop 打断。
+- 比心期间如果来了新回复，回复的表情优先；其他刷新（切会话等）只更新「回到哪个表情」。
+- `prefers-reduced-motion`：爱心只原地淡入淡出（sprite-heart-fade），不上浮。
+- 设置提示改为「点他冒爱心，双击隐身」；hit 区 title 同步。
+- 回归：`scripts/sprite-mode-regression.mjs` 新增点击类型/爱心数量与上限/样式/接线断言。WebKit 脚本：/workspace/work/perf-wk/gq-hearts.mjs（单击→爱心+love、连点、2s 后回 cold、拖动不冒心、双击→小竖条、mood 模式计时重置、reduced-motion）。
+
 ## 2026-11-14｜立绘 8 表情 + 拖动 / 隐身 / 有情绪才出现（sw v374）
 - 她又给了 4 张 Q 版，要求「他站在一个小角落，也不用很大，可以悬浮，可以隐身，需要才出现」。
 - 新素材 `sprites/guqiyan_{love,smug,sad,surprised}.webp`（549×910 透明，脚底对齐，<75KB）。`smirk` 文件名保留，含义改为「开心/打招呼」（图是笑着挥手）。8 个：cold 发呆(默认) · shy 脸红 · angry 皱眉 · smirk 开心 · love 比心 · smug 坏笑 · sad 委屈 · surprised 惊讶。copy-static 同步 8 张。
