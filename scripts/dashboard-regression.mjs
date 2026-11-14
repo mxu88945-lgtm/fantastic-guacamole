@@ -87,7 +87,7 @@ ok(js.includes('window.JYCGameRoom?.open?.()'), "dashboard does not open the gam
 ok(js.includes('window.JYCAlbum?.summary?.(data.roleId)'), "dashboard album summary is not role-isolated");
 ok(album.includes("function summary(targetRoleId)"), "album summary API is missing");
 ok(sw.includes("const cacheRequest = new Request(url.origin + url.pathname"), "cache-busting launch URLs still create duplicate iOS cache entries");
-ok(sw.includes('const CACHE = "role-chat-cache-v370";'), "service worker cache was not bumped for the RP theater release");
+ok(sw.includes('const CACHE = "role-chat-cache-v371";'), "service worker cache was not bumped for the RP theater release");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 ok(new Set(ids).size === ids.length, "dashboard change introduced duplicate DOM ids");

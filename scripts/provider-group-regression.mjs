@@ -22,5 +22,5 @@ if (groups[0].label !== 'passion.example.com' || groups[0].items.length !== 2) t
 if (groups[2].label !== '') throw new Error('channel without url should stay ungrouped')
 for (const call of ['appendGroupedProviderOptions(providerQuick', 'appendGroupedProviderOptions(sel, settings.providers', 'groupedProviders(settings.providers).flatMap'])
   if (!html.includes(call)) throw new Error('picker not grouped: ' + call)
-if (!sw.includes('const CACHE = "role-chat-cache-v370";')) throw new Error('sw cache not bumped')
+if (!sw.includes('const CACHE = "role-chat-cache-v371";')) throw new Error('sw cache not bumped')
 console.log('provider group regression: passed')

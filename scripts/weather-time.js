@@ -83,20 +83,45 @@ function wxEnsureWidget() {
   setInterval(wxTickClock, 1000);
   document.getElementById('wx-weather-btn').addEventListener('click', function () { wxRefresh(true); });
 }
+// Every network/geo step is time-capped so the card can never hang on 「获取中」.
+function wxWithTimeout(promise, ms, tag) {
+  let timer = 0;
+  const t = new Promise(function (_, reject) { timer = setTimeout(function () { reject(new Error(tag)); }, ms); });
+  return Promise.race([promise, t]).finally(function () { clearTimeout(timer); });
+}
+async function wxFetchJson(url, ms) {
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const resp = await wxWithTimeout(fetch(url, controller ? { signal: controller.signal } : undefined), ms, 'wx-timeout')
+    .catch(function (e) { try { controller && controller.abort(); } catch (_) {} throw e; });
+  if (!resp.ok) throw new Error('wx ' + resp.status);
+  return wxWithTimeout(resp.json(), ms, 'wx-timeout');
+}
 async function wxFetch() {
-  const pos = await new Promise(function (resolve, reject) {
-    if (!navigator.geolocation) { reject(new Error('no-geo')); return; }
-    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 15000, maximumAge: WX_TTL });
-  });
+  // 定位失败或超时时，用上次缓存的大致位置（约 1 km）查天气，不让整张卡失败。
+  let pos = null;
+  try {
+    pos = await wxWithTimeout(new Promise(function (resolve, reject) {
+      if (!navigator.geolocation) { reject(new Error('no-geo')); return; }
+      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 12000, maximumAge: WX_TTL });
+    }), 14000, 'geo-timeout');
+  } catch (e) {
+    const prev = wxReadCache();
+    const spot = prev && typeof prev.spot === 'string' ? prev.spot.split(',').map(Number) : null;
+    if (!spot || spot.length !== 2 || !spot.every(Number.isFinite) || (e && e.code === 1)) throw e;
+    pos = { coords: { latitude: spot[0], longitude: spot[1] }, fromCache: true };
+  }
   const latitude = pos.coords.latitude, longitude = pos.coords.longitude;
   const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + latitude.toFixed(3)
     + '&longitude=' + longitude.toFixed(3)
     + '&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto&forecast_days=2';
   // Place name (BigDataCloud, 8s cap) runs alongside the weather and can never fail it.
   const placeP = (typeof jycReverseGeocode === 'function') ? jycReverseGeocode(latitude, longitude).catch(function () { return null; }) : Promise.resolve(null);
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error('wx ' + resp.status);
-  const data = await resp.json();
+  let data;
+  try {
+    data = await wxFetchJson(url, 10000);
+  } catch (_) {
+    data = await wxFetchJson(url, 12000); // 天气服务偶尔慢，重试一次
+  }
   const geo = await placeP;
   const next = {
     temp: Math.round(data.current.temperature_2m),
@@ -107,7 +132,7 @@ async function wxFetch() {
   };
   // Keep the cache tiny: ~1 km rounded spot only to reuse the last place name when
   // reverse-geocoding fails at the same spot; never sent to the model.
-  next.spot = latitude.toFixed(2) + ',' + longitude.toFixed(2);
+  next.spot = Number(latitude).toFixed(2) + ',' + Number(longitude).toFixed(2);
   if (geo && geo.place) {
     next.place = geo.place;
     if (geo.street) next.street = geo.street;
@@ -157,7 +182,7 @@ async function wxRefresh(force) {
   if (desc) desc.textContent = '获取中';
   wxRefreshing = true;
   try {
-    const w = await wxFetch();
+    const w = await wxWithTimeout(wxFetch(), 45000, 'wx-timeout');
     wxPaint(w);
   } catch (e) {
     const code = e && e.code;
@@ -165,6 +190,10 @@ async function wxRefresh(force) {
       wxToast('定位被拒绝了：去 iPhone 设置 → 隐私与安全性 → 定位服务 → Safari（或你用的浏览器）打开定位');
     } else if (e && e.message === 'no-geo') {
       wxToast('这台设备/浏览器不支持定位，换 Safari 试试');
+    } else if (e && e.message === 'geo-timeout' || code === 3 || code === 2) {
+      wxToast('没拿到位置（定位超时），稍后点天气卡再试');
+    } else if (e && e.message === 'wx-timeout') {
+      wxToast('天气服务太慢没响应，稍后点天气卡再试');
     } else {
       wxToast('天气获取失败，点一下卡片右侧重试');
     }
