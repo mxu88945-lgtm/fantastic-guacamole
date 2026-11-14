@@ -2,6 +2,14 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+## 2026-11-14｜立绘模式试做（sw v372）
+- 设置 → 外观与聊天「立绘模式」开关（`settings.spriteMode`，默认关，已进 SYNCED_KEYS）。开着时主聊天在壁纸之上、消息之下显示顾祁砚立绘：`.main` 里 `#sprite-stage`（z-index 0，紧跟 `#chat-bg`），底部对齐、水平居中、高 62%，pointer-events:none，底部 mask 渐隐融进输入区；不降透明度，无 backdrop-filter。开着时 `html[data-sprite]` 让 `.main > .chat` 透明（claude/潮汐主题会给 .chat 刷底色，和壁纸同理）。
+- 隐藏：`html[data-kb]`（键盘弹出时淡出，避免跳动）、`body.dashboard-open`、`body.rp-chat-active`、`body.rp-theater-open`。关掉开关时 stage `hidden`、不加载图片。
+- 素材：`sprites/guqiyan_{cold,shy,angry,smirk}.webp`（1035×1200，约 90KB/张，原图脸已对齐），`scripts/copy-static.mjs` 拷到 `dist/sprites/`；运行时用相对路径设置 src，Vite 不打包。sw 是网络优先、取到即缓存，没有预缓存列表。
+- 换表情零 token：index.html `/* sprite-mode:start */…/* sprite-mode:end */` 纯函数 `classifySpriteMood`（关键词计数，平局 angry > shy > smirk，无命中 = cold；先去掉 HTML、代码块、[xx:…]/【xx：…】标记和「抱歉」）+ `spriteReplyTail`（他最后一轮的连续 assistant 气泡，跳过提醒卡）。`syncSpriteStage()` 在 send() 的 finally（renderMessages 之后）、`updateConversationSpaceUI`、`jyc:chat-opened`、`jyc:app-ready` 调用；两张 img 叠放 250ms 交叉淡入。不碰提示词/记忆/导出。
+- 只有一套顾祁砚立绘：切到别的角色时开着也还是他（试用版，未按角色区分）。
+- 回归：`scripts/sprite-mode-regression.mjs`。另用 Playwright WebKit（390×844）看过：首页隐藏、进聊天显示、坏笑/皱眉回复后换图、data-kb 时淡出。
+
 ## 2026-11-13｜天气时间卡注入修复 + 新注入规则（sw v370）
 - 原因：多次「restore bundle」提交把一份构建注入后的 index.html 提交进了仓库（天气卡整段 JS、提示词钩子、启动接线各一处）。旧 `inject-weather-time.py` 看到函数名就跳过，于是 `scripts/weather-time.js` 怎么改都不生效；而且它的 ANCHOR_HOOK 早被上游改掉（时间提示块里加了 rpProject 那行），干净的 index.html 其实已经注入不了。之前说的「钩子 2 处」= 调用 1 处 + 函数定义 1 处，没有重复注入。
 - 做法：① 先把 index.html 里那份已提交注入的主题适配 CSS（10-23 scene-local themes 时直接在 index.html 里改成 var(--bg-panel)/var(--accent) 的 color-mix）同步回 `weather-time.js`，再从 index.html 精确删掉三块，所以真机效果不变。② 注入器改为成对标记 `/* WX-INJECT-BEGIN js|hook|wiring */ … /* WX-INJECT-END … */`：有标记块就整块替换成最新，没有就按锚点插入；发现无标记的旧式残留（函数定义/钩子/接线）直接报错退出非零；`--strip` 精确还原。钩子锚点改为 `  let musicNote = "";` 之前，接线紧跟 `  lockApp();`。③ 角色锁屏 `inject-char-lock.py` 同类问题，但锁屏代码早已在 index.html 里被改过（锚点/内容都对不上），所以不再注入：锁屏正式并入 index.html 源码，脚本改为只检查 9 个部分都在，缺就报错非零。原注入内容见 git 9532caf。

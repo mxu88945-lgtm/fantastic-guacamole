@@ -610,6 +610,26 @@
     background-size: cover; background-position: center; transform: scale(1.12);
   }
   .main > .chat, .main > .composer-wrap { position: relative; z-index: 1; }
+  /* 立绘模式 (v372): his sprite sits above the wallpaper, below the messages. */
+  #sprite-stage {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 62%; z-index: 0;
+    overflow: hidden; pointer-events: none; transition: opacity .2s ease;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 74%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 74%, transparent 100%);
+  }
+  #sprite-stage[hidden] { display: none; }
+  #sprite-stage .sprite-img {
+    position: absolute; bottom: 0; left: 50%; height: 100%; width: auto; max-width: none;
+    transform: translateX(-50%); opacity: 0; transition: opacity .25s ease;
+    -webkit-user-select: none; user-select: none; -webkit-user-drag: none;
+  }
+  #sprite-stage .sprite-img.on { opacity: 1; }
+  /* Some themes paint .chat itself (claude #f8f8f6, tidal gradients); like a wallpaper,
+     the sprite needs the scroller see-through. The page/body background stays. */
+  html[data-sprite] body:not(.rp-chat-active) .main > .chat { background: transparent; }
+  html[data-kb] #sprite-stage,
+  body.dashboard-open #sprite-stage, body.rp-chat-active #sprite-stage, body.rp-theater-open #sprite-stage { opacity: 0; }
+  body.dashboard-open #sprite-stage, body.rp-chat-active #sprite-stage, body.rp-theater-open #sprite-stage { visibility: hidden; }
   .main > .chat { background: transparent; }
   /* Claude-style floating controls: no full-width banner over the conversation. */
   .main > header {
@@ -2945,6 +2965,7 @@
   <!-- Main -->
   <div class="main">
     <div id="chat-bg"></div>
+    <div id="sprite-stage" aria-hidden="true" hidden><img class="sprite-img" alt="" draggable="false"><img class="sprite-img" alt="" draggable="false"></div>
     <div id="desk-pet" hidden>
       <div class="desk-pet-bubble" id="desk-pet-bubble" hidden></div>
       <button class="desk-pet-button" id="desk-pet-button" type="button" aria-label="桌宠，按住可拖动"></button>
@@ -3604,6 +3625,9 @@
           </label>
           <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-top:8px; cursor:pointer;">
             <input type="checkbox" id="locationAware" style="width:auto;" /> 📍 让 AI 感知我所在的城市和天气（约 30 分钟更新）
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-top:8px; cursor:pointer;">
+            <input type="checkbox" id="spriteMode" style="width:auto;" /> 立绘模式（试用：聊天背景显示他的立绘，按回复换表情）
           </label>
           <div style="margin-top:12px;">
             <div class="hint">字体大小</div>
@@ -4822,6 +4846,7 @@ let settings = {
   showTime: true,         // show message timestamps
   timeAware: true,        // tell the model the current local time
   locationAware: true,    // after she grants permission: city/district + weather as a hidden prompt note
+  spriteMode: false,      // 立绘模式 (trial): sprite behind the main chat, expression picked locally from his reply
   fontSize: "medium",     // small | medium | large
   fontWeight: 400,         // 300–800, main chat message weight
   fontFamily: "default",  // default | kai | song | web:noto-sans-sc | web:noto-serif-sc | web:lxgw-wenkai
@@ -4938,7 +4963,7 @@ let voiceInputBaseText = "";
 let voicePointerStopHandled = false;
 const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "systemPrompt","systemInstruction","globalPromptPresets","emojiStyle","visionModel","visionBaseUrl","visionRelay","imageModel","imageBaseUrl","memory","memEntries","memSummary","peopleProfiles","peopleProfilesSeededV1","semanticRecallEnabled","semanticRecallProviderId","semanticRecallModel","memoryProviderId","memoryModel","replyHelperProviderId","replyHelperModel","roleMemoryV2","crossChat","crossSearch","historyRecallScope","historyRecallScopeV2","historyRecallAliases","webSearch","webSearchUrl","roles","activeRoleId","themeName","accent","petEnabled","petVariant","petX","petY",
-  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleStyle","bubbleOpacity","favorites","showTime","timeAware","locationAware","fontSize","fontWeight","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
+  "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleStyle","bubbleOpacity","favorites","showTime","timeAware","locationAware","spriteMode","fontSize","fontWeight","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "sttEnabled","sttEngine","sttBaseUrl","sttModel","sttLanguage",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
   "reminderEnabled","companionFeaturesV1","songPickEnabled","selfCardEnabled"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
@@ -6909,6 +6934,87 @@ function renameConversation(id, ev) {
 function updateConvTitle() {
   const ct = $("conv-title"); if (ct) ct.textContent = (currentConv() && currentConv().title) || "新对话";
 }
+/* sprite-mode:start — 立绘模式 (v372). Pure, local keyword scoring: no prompt, memory,
+   export or token change. Only reads the finished reply text. */
+function spriteMoodKeywords() {
+  return {
+    angry: ["生气", "皱眉", "冷声", "咬牙", "不许", "敢", "烦", "啧", "沉下脸", "怒"],
+    smirk: ["笑", "勾唇", "挑眉", "逗", "坏", "轻笑", "哼笑", "得意", "乖"],
+    shy: ["脸红", "耳根", "心软", "抱", "轻声", "哄", "亲", "温柔", "软下来", "宝宝"],
+  };
+}
+function spriteMoodText(text) {
+  return String(text || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/<(style|script)\b[\s\S]*?<\/\1\s*>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    // status / tool markers like [自我卡:喜好|…] 【状态：…】 — not his expression
+    .replace(/[\[【［][^\]】］\n]{0,24}[:：][^\]】］]*[\]】］]/g, " ")
+    .replace(/抱歉/g, " ");
+}
+function classifySpriteMood(text) {
+  const t = spriteMoodText(text);
+  if (!t.trim()) return "cold";
+  const words = spriteMoodKeywords();
+  let best = "cold", bestScore = 0;
+  // Ties keep the earlier, stronger mood: angry > shy > smirk.
+  for (const mood of ["angry", "shy", "smirk"]) {
+    let score = 0;
+    for (const w of words[mood]) {
+      for (let i = t.indexOf(w); i >= 0; i = t.indexOf(w, i + w.length)) score++;
+    }
+    if (score > bestScore) { best = mood; bestScore = score; }
+  }
+  return best;
+}
+function spriteReplyTail(list, readText) {
+  // His latest turn = trailing assistant messages (multi-bubble), skipping reminder cards.
+  const parts = [];
+  for (let i = (list || []).length - 1; i >= 0 && parts.length < 6; i--) {
+    const m = list[i];
+    if (!m || m.role === "reminder") continue;
+    if (m.role !== "assistant") break;
+    parts.unshift(String(readText(m) || ""));
+  }
+  return parts.join("\n").slice(-2000);
+}
+/* sprite-mode:end */
+const SPRITE_SRC = { cold: "sprites/guqiyan_cold.webp", shy: "sprites/guqiyan_shy.webp", angry: "sprites/guqiyan_angry.webp", smirk: "sprites/guqiyan_smirk.webp" };
+let spriteMood = "", spriteFront = 0, spriteToken = 0, spritePreloaded = false;
+function setSpriteMood(mood) {
+  const stage = $("sprite-stage"); if (!stage) return;
+  mood = SPRITE_SRC[mood] ? mood : "cold";
+  if (mood === spriteMood) return;
+  spriteMood = mood;
+  const imgs = stage.querySelectorAll(".sprite-img");
+  const cur = imgs[spriteFront], next = imgs[1 - spriteFront];
+  const token = ++spriteToken;
+  const show = () => {
+    if (token !== spriteToken) return;
+    next.classList.add("on"); cur.classList.remove("on");
+    spriteFront = 1 - spriteFront;
+  };
+  next.onload = null;
+  if (next.getAttribute("src") === SPRITE_SRC[mood] && next.complete) { show(); return; }
+  next.onload = () => { next.onload = null; show(); };
+  next.src = SPRITE_SRC[mood];
+}
+function syncSpriteStage() {
+  try {
+    const stage = $("sprite-stage"); if (!stage) return;
+    const on = !!settings.spriteMode && !window.__jycSafeBoot;
+    stage.hidden = !on;
+    document.documentElement.toggleAttribute("data-sprite", on);
+    if (!on) return;
+    if (!spritePreloaded) {
+      spritePreloaded = true;
+      Object.values(SPRITE_SRC).forEach(src => { const im = new Image(); im.decoding = "async"; im.src = src; });
+    }
+    const conv = typeof currentConv === "function" ? currentConv() : null;
+    const list = conv?.messages || (typeof messages !== "undefined" ? messages : []);
+    setSpriteMood(classifySpriteMood(spriteReplyTail(list, messageText)));
+  } catch (_) {}
+}
 function isRoleplaySurfaceActive(conv = currentConv()) {
   return isRoleplayConversation(conv) && !document.body.classList.contains("dashboard-open");
 }
@@ -6929,6 +7035,7 @@ function updateConversationSpaceUI() {
     ? (conv.rpProject?.leadChannel?.playedByOwner !== false ? `由 ${String(settings.aiName || "当前角色")} 出演 · 点此编辑剧本` : "独立角色 · 点此编辑剧本")
     : "";
   updateBrand();
+  if (typeof syncSpriteStage === "function") syncSpriteStage();
   const home = $("sidebar-home");
   if (home) {
     home.title = "返回本体主页";
@@ -17456,6 +17563,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     abortController = null;
     saveConversations();
     renderMessages();   // re-render so per-message actions (copy / regenerate) show
+    if (typeof syncSpriteStage === "function") syncSpriteStage();  // 立绘模式: pick his expression from the finished reply (local, no tokens)
     const followReplyToBottom = replyStartedAtBottom && chatUserScrollRevision === replyScrollRevision;
     if (followReplyToBottom) { stickBottom = true; scrollToBottom(); }   // keep the completed reply at the actual list bottom
     // 整片重建后 iOS 可能留白：两帧后再确认一次底部位置并强制重绘
@@ -18510,6 +18618,7 @@ function syncSettingsToUI() {
   $("showTime").checked = settings.showTime;
   $("timeAware").checked = settings.timeAware;
   $("locationAware").checked = settings.locationAware !== false;
+  if ($("spriteMode")) $("spriteMode").checked = !!settings.spriteMode;
   $("sttEnabled").checked = settings.sttEnabled !== false;
   $("sttEngine").value = settings.sttEngine || "auto";
   $("sttBaseUrl").value = settings.sttBaseUrl || "";
@@ -19814,6 +19923,9 @@ async function init() {
   });
   $("showTime").addEventListener("change", () => { settings.showTime = $("showTime").checked; saveSettings(); renderMessages(); });
   $("timeAware").addEventListener("change", () => { settings.timeAware = $("timeAware").checked; saveSettings(); });
+  $("spriteMode").addEventListener("change", () => { settings.spriteMode = $("spriteMode").checked; saveSettings(); syncSpriteStage(); });
+  window.addEventListener("jyc:chat-opened", () => syncSpriteStage());
+  window.addEventListener("jyc:app-ready", () => syncSpriteStage());
   $("locationAware").addEventListener("change", () => {
     settings.locationAware = $("locationAware").checked;
     saveSettings();
