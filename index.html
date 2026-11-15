@@ -4958,6 +4958,8 @@ let imageStageQueue = Promise.resolve(); // decode large photos one at a time on
 const CHAT_IMAGE_MAX_EDGE = 2048;
 const CHAT_IMAGE_PREVIEW_EDGE = 420;
 const CHAT_IMAGE_MAX_BYTES = 30 * 1024 * 1024;
+const CHAT_IMAGE_STAGE_TIMEOUT_MS = 20000;  // v376: one stuck decode must not freeze the serial queue / send button
+const IMAGE_SEND_SAVE_WAIT_MS = 3000;        // v376: wait this long at most for the pre-request IDB flush
 const TEXT_FILE_MAX_BYTES = 1024 * 1024; // 1MB; larger prompt payloads are unreliable across providers
 const REFERENCE_FILE_PROMPT_CHAR_BUDGET = 8000; // stored file stays whole; model receives a safe representative excerpt
 // A text file deserves one fuller first read, but must not evict the living scene
@@ -5075,6 +5077,21 @@ let dbWriteQueue = Promise.resolve();
 let chatBgWriteQueue = Promise.resolve();
 let chatBgObjectUrl = "";
 let chatBgLoadRevision = 0;
+// v376：iOS 从相册选图回来时 PWA 会被短暂挂起，旧的 IndexedDB 连接可能已失效，
+// 事务既不 complete 也不 error，dbWriteQueue 永远挂起，发图就卡在「图已显示、他不回」。
+// 所以：连接关闭/出错就丢掉重开；单次写入最多等 IDB_TX_TIMEOUT_MS，超时当失败处理（对话仍标脏，下次再存）。
+const IDB_TX_TIMEOUT_MS = 15000;
+function withTimeout(promise, ms, label = "timeout") {
+  let timer = 0;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(label)), ms); }),
+  ]).finally(() => clearTimeout(timer));
+}
+function dropAppDb() {
+  try { appDb?.close?.(); } catch (_) {}
+  appDb = null;
+}
 function openAppDb() {
   if (appDb) return Promise.resolve(appDb);
   if (!("indexedDB" in window)) return Promise.reject(new Error("IndexedDB unavailable"));
@@ -5084,7 +5101,12 @@ function openAppDb() {
       const db = req.result;
       if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
     };
-    req.onsuccess = () => { appDb = req.result; resolve(appDb); };
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onclose = () => { if (appDb === db) appDb = null; };
+      db.onversionchange = () => { if (appDb === db) dropAppDb(); };
+      appDb = db; resolve(db);
+    };
     req.onerror = () => reject(req.error || new Error("IndexedDB open failed"));
   });
 }
@@ -5098,13 +5120,16 @@ async function dbGet(key) {
 }
 async function dbPut(key, value) {
   const db = await openAppDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_STORE, "readwrite");
-    tx.objectStore(DB_STORE).put(value, key);
+  const write = new Promise((resolve, reject) => {
+    let tx;
+    try { tx = db.transaction(DB_STORE, "readwrite"); tx.objectStore(DB_STORE).put(value, key); }
+    catch (error) { dropAppDb(); reject(error); return; }
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error || new Error("IndexedDB write failed"));
-    tx.onabort = () => reject(tx.error || new Error("IndexedDB write aborted"));
+    tx.onerror = () => { dropAppDb(); reject(tx.error || new Error("IndexedDB write failed")); };
+    tx.onabort = () => { dropAppDb(); reject(tx.error || new Error("IndexedDB write aborted")); };
   });
+  try { return await withTimeout(write, IDB_TX_TIMEOUT_MS, "IndexedDB write timeout"); }
+  catch (error) { if (error?.message === "IndexedDB write timeout") dropAppDb(); throw error; }
 }
 async function dbDelete(key) {
   const db = await openAppDb();
@@ -8978,6 +9003,7 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState, 
   if (role === "assistant" && typeof text === "string" && typeof hideRpBackstageNotes === "function") text = hideRpBackstageNotes(text);
   if (role === "assistant" && typeof text === "string" && typeof stripSelfCardTags === "function") text = stripSelfCardTags(text, !!streaming);
   if (role === "assistant" && typeof text === "string" && typeof stripSongPickTags === "function") text = stripSongPickTags(text, !!streaming);
+  if (role === "assistant" && typeof text === "string" && typeof stripImageMemoTags === "function") text = stripImageMemoTags(text, !!streaming);
   let thinkHtml = "", answer = text;
   if (role === "assistant") {
     const split = extractAssistantReasoning(text || "", streaming);
@@ -10786,7 +10812,7 @@ function messagePromptTokens(m, fileCharBudget = REFERENCE_FILE_PROMPT_CHAR_BUDG
   // Older pictures leave the wire as a short text marker (see apiMessagesFor),
   // so they must not keep reserving 1200 tokens each in the history budget.
   if (!sendsPixels && Array.isArray(content)) content = content.map(part => part?.type === "image" && part.dataUrl
-    ? { type: "text", text: part.desc ? `【图片内容】${part.desc}` : "【此前发送过一张图片】" }
+    ? { type: "text", text: pastImagePromptText(part) }
     : part);
   return estimateContentTokens(content, fileCharBudget) + 4;
 }
@@ -11383,7 +11409,7 @@ function apiMessagesFor(isAnthropic, sourceMessages) {
     const rawContent = sendContent(m);
     const sourceContent = m === newestVisualMessage || !Array.isArray(rawContent) ? rawContent
       : rawContent.map(part => part?.type === "image" && part.dataUrl
-        ? { type: "text", text: part.desc ? `【图片内容】${part.desc}` : "【此前发送过一张图片】" }
+        ? { type: "text", text: pastImagePromptText(part) }
         : part);
     let promptContent = isRoleplayConversation() && m.role === "assistant" && typeof sourceContent === "string"
       ? stripRoleplayPresentationalHtmlForPrompt(sourceContent) : sourceContent;
@@ -11441,7 +11467,7 @@ function geminiContentsFor(sourceMessages) {
     const rawContent = sendContent(m);
     const sourceContent = m === newestVisualMessage || !Array.isArray(rawContent) ? rawContent
       : rawContent.map(part => part?.type === "image" && part.dataUrl
-        ? { type: "text", text: part.desc ? `【图片内容】${part.desc}` : "【此前发送过一张图片】" }
+        ? { type: "text", text: pastImagePromptText(part) }
         : part);
     let promptContent = isRoleplayConversation() && m.role === "assistant" && typeof sourceContent === "string"
       ? stripRoleplayPresentationalHtmlForPrompt(sourceContent) : sourceContent;
@@ -11460,6 +11486,7 @@ function geminiPartsTokenEstimate(parts) {
 }
 // Vision relay: ask a dedicated image-capable model to describe an image, so the
 // (possibly text-only) main model can work from the text instead of the picture.
+const VISION_RELAY_TIMEOUT_MS = 45000;
 async function describeImage(dataUrl) {
   // Independent vision endpoint: if a dedicated base URL / key is set, use those so switching the
   // main provider never breaks image reading. Empty fields → fall back to the active provider.
@@ -11488,9 +11515,16 @@ async function describeImage(dataUrl) {
       { type: "text", text: prompt },
       { type: "image_url", image_url: { url: dataUrl } }] }] };
   }
-  const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
-  if (!resp.ok) throw new Error("vision HTTP " + resp.status);
-  const data = await resp.json();
+  // v376：读图请求最多 45 秒。以前没有超时，读图接口挂住时 send() 卡在「读图模型正在看图」，消息根本没发出去。
+  // 超时/失败时 send() 不写 desc，图片按原像素交给主模型。
+  const visionAbort = new AbortController();
+  const visionTimer = setTimeout(() => visionAbort.abort(), VISION_RELAY_TIMEOUT_MS);
+  let data;
+  try {
+    const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: visionAbort.signal });
+    if (!resp.ok) throw new Error("vision HTTP " + resp.status);
+    data = await resp.json();
+  } finally { clearTimeout(visionTimer); }
   return isAnthropic ? (data.content || []).map(c => c.text || "").join("").trim()
     : (data.choices?.[0]?.message?.content || "").trim();
 }
@@ -12035,6 +12069,9 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   }
   }
 
+  // v376 图记：只在这轮真的带像素图、而且这张图还没记过时才加一行。
+  if (typeof imageMemoTarget === "function" && imageMemoTarget(historyWindow.messages))
+    systemText = systemText ? systemText + "\n\n" + imageMemoPrompt() : imageMemoPrompt();
   if (activeSpeaker && !backstageMode) systemText += "\n\n" + roleplaySpeakerPrompt(activeSpeaker, rpProject);
   if (rpProject) {
     const memoryInjection = backstageMode ? { text: "", position: "" } : roleplayMemoryInjection(rpProject, currentConv());
@@ -13478,6 +13515,40 @@ async function webSearch(query) {
   const digest = compactSearchPayload(text);
   return usedFallback ? "【无 Key 后备搜索结果】\n" + digest : digest;
 }
+/* image-memo:start — v376 图记：带图那轮让他在末尾写 [图记:一句话]，应用剥掉并存进图片 part.memo。
+   之后这张图在请求里只是「【此前发过的图片：…】」一行字（不再是 base64，也不只是一句空标记），
+   他不会忘了图里是什么，也不占历史窗口。纯函数，回归脚本只 eval 这一段。 */
+function pastImagePromptText(part) {
+  if (part?.desc) return `【图片内容】${part.desc}`;
+  if (part?.memo) return `【此前发过的图片：${part.memo}】`;
+  return "【此前发送过一张图片】";
+}
+function imageMemoTagRe() { return /[\[【［]\s*图记\s*[:：]\s*([^\]】］\n]{1,160}?)\s*[\]】］]/g; }
+function stripImageMemoTags(text, streaming) {
+  if (typeof text !== "string" || !text) return text;
+  let out = text;
+  if (/图记/.test(out)) out = out.replace(imageMemoTagRe(), "");
+  if (streaming) out = out.replace(/[\[【［]\s*(?:图\s*(?:记\s*(?:[:：][^\]】］\n]*)?)?)?$/, "");
+  if (out === text) return text;
+  return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "");
+}
+function extractImageMemo(text) {
+  if (typeof text !== "string" || !/图记/.test(text)) return { text, memo: "" };
+  let memo = "", m;
+  const re = imageMemoTagRe();
+  while ((m = re.exec(text))) memo = m[1];
+  return { text: stripImageMemoTags(text).trim(), memo: String(memo || "").replace(/\s+/g, " ").trim().slice(0, 120) };
+}
+function imageMemoTarget(list) {
+  const user = [...(list || [])].reverse().find(message => message?.role === "user");
+  if (!user || !Array.isArray(user.content)) return null;
+  const images = user.content.filter(part => part?.type === "image" && part.dataUrl && !part.desc);
+  return images.length && !images.some(part => part.memo) ? images[0] : null;
+}
+function imageMemoPrompt() {
+  return "【图记】她这条消息里有图片。正常回应她；另外在回复最末尾单独写一个 `[图记:一句话客观记下图里是什么，60字内，多张就一起概括]`，由应用隐藏，只用于你以后记得这张图。";
+}
+/* image-memo:end */
 /* song-pick:start — v359 他自己点歌：[点歌:歌名]（也认【】［］和全角冒号），只给应用看 */
 function songPickTagRe() { return /[\[【［]\s*点歌\s*[:：]\s*([^\]】］\n]{1,80}?)\s*[\]】］]/g; }
 function stripSongPickTags(text, streaming) {
@@ -15635,12 +15706,16 @@ function stageImageFile(file) {
   }
   const p = imageStageQueue.then(async () => {
     try {
-      const prepared = await prepareChatImage(file);
+      // v376：解码/压缩最多等 CHAT_IMAGE_STAGE_TIMEOUT_MS。iOS 上 createImageBitmap / toBlob
+      // 偶尔不回调，以前串行队列会永远挂住，发送键一直呼吸、这张和之后的图都发不出去。
+      const prepared = await withTimeout(prepareChatImage(file), CHAT_IMAGE_STAGE_TIMEOUT_MS, "image stage timeout");
       pendingAttachments.push({ type: "image", ...prepared, name: file.name || "聊天图片" });
       renderAttachPreview();
     } catch (error) {
       console.warn("chat image prepare failed", error);
-      showToast("❌ 图片处理失败（iOS 有时不支持该格式），换张图试试", 4200);
+      showToast(error?.message === "image stage timeout"
+        ? "❌ 这张图处理太久了，没加进去，换张图或截个图再试"
+        : "❌ 图片处理失败（iOS 有时不支持该格式），换张图试试", 4200);
     }
   });
   imageStageQueue = p.catch(() => {});
@@ -16394,7 +16469,7 @@ async function send(opts) {
   if (!directParts && attachmentStaging.length) {
     const btn = $("send-btn");
     btn.disabled = true; btn.classList.add("staging");
-    try { await Promise.all(attachmentStaging); } catch (_) {}
+    try { await withTimeout(Promise.all(attachmentStaging), CHAT_IMAGE_STAGE_TIMEOUT_MS + 2000, "staging wait timeout"); } catch (_) {}
     btn.disabled = false; btn.classList.remove("staging");
   }
   if (!directParts && !text && pendingAttachments.length === 0 && !rpReplyMemberIds.length) return;
@@ -16424,7 +16499,7 @@ async function send(opts) {
     if (imgs.length) {
       const sb = $("send-btn"); sb.classList.add("staging");
       showToast("👀 读图模型正在看图…");
-      for (const p of imgs) { try { p.desc = await describeImage(p.dataUrl); } catch (e) { console.warn("describeImage failed", e); } }
+      for (const p of imgs) { try { p.desc = await describeImage(p.dataUrl); } catch (e) { console.warn("describeImage failed", e); showToast("读图模型没回应，图片直接发给他", 2600); } }
       sb.classList.remove("staging");
     }
   }
@@ -16441,10 +16516,14 @@ async function send(opts) {
   touchConversation();
   // Keep IndexedDB's full transcript clone from overlapping with request JSON /
   // base64 construction; the double peak is enough to kill iPhone WebKit.
+  // v376：最多等 IMAGE_SEND_SAVE_WAIT_MS。以前无上限地 await dbWriteQueue：iOS 选图回来后
+  // IDB 连接失效、或云同步后整批重写所有对话，都会让这里一直等，图显示了但请求永远不发。
+  // 超时后保存继续在后台跑，只是不再挡住回复。
   if (Array.isArray(userContent) && userContent.some(part => part?.type === "image" && part.dataUrl)) {
     flushConversationSave();
-    try { await dbWriteQueue; } catch (_) {}
-    await new Promise(resolve => requestAnimationFrame(() => resolve()));
+    try { await withTimeout(dbWriteQueue, IMAGE_SEND_SAVE_WAIT_MS, "image send save wait"); }
+    catch (error) { console.warn("[send] continuing before IDB save finished", error?.message || error); }
+    await new Promise(resolve => { requestAnimationFrame(() => resolve()); setTimeout(resolve, 120); });
   }
   pinToBottom();
   markSeen();
@@ -17606,6 +17685,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       .replace(/\[\s*(?:私记|私人日记|角色日记)\s*[:：][\s\S]*?\]/gi, "").trim();
     if (typeof stripSelfCardTags === "function") assistantMsg.content = stripSelfCardTags(assistantMsg.content, true).trim();
     if (typeof stripSongPickTags === "function") assistantMsg.content = stripSongPickTags(assistantMsg.content, true).trim();
+    if (typeof stripImageMemoTags === "function") assistantMsg.content = stripImageMemoTags(assistantMsg.content, true).trim();
     assistantMsg.content = stripRoleplaySpeakerMarker(assistantMsg.content);
   };
 
@@ -17728,6 +17808,14 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     const songPickResult = typeof extractSongPick === "function" ? extractSongPick(assistantMsg.content) : { text: assistantMsg.content, title: "" };
     assistantMsg.content = songPickResult.text;
     if (typeof assistantMsg.reasoning === "string" && typeof stripSongPickTags === "function") assistantMsg.reasoning = stripSongPickTags(assistantMsg.reasoning);
+    // v376 图记：存进她那条消息里第一张图的 memo（只存一次），正文和思考里都剥掉。
+    if (typeof extractImageMemo === "function") {
+      const memoResult = extractImageMemo(assistantMsg.content);
+      assistantMsg.content = memoResult.text;
+      if (typeof assistantMsg.reasoning === "string") assistantMsg.reasoning = stripImageMemoTags(assistantMsg.reasoning);
+      const memoPart = memoResult.memo ? imageMemoTarget(replyMessages.slice(0, Math.max(0, replyMessages.indexOf(assistantMsg)))) : null;
+      if (memoPart) { memoPart.memo = memoResult.memo; saveConversations(); }
+    }
     const songPickTitle = !independent && !replyProject && !backstageMode && settings.songPickEnabled !== false ? songPickResult.title : "";
     // v366 他自己写的卡：取最后一个 [自我卡:栏目|全文]，正文一律剥掉；只有主聊天且「让他自己补全」开着才真的改卡
     const selfCardResult = typeof extractSelfCardEdit === "function" ? extractSelfCardEdit(assistantMsg.content) : { text: assistantMsg.content, edit: null };

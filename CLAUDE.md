@@ -947,3 +947,8 @@
 - 2026-11-13 v368：发图后「断片」修复。旧图片在 apiMessagesFor 里已降成【此前发送过一张图片】文字标记，但 buildApiHistoryWindow 预算仍按每张 1200 token 计，两张图白占约 2400/8200，把更早的正文挤出窗口。现在 messagePromptTokens 第三参 sendsPixels，只有最新那条带图的用户消息按像素计，其余按标记文字计；新 helper newestVisualUserMessage。回归 image-attachment-regression 断言。
 - 2026-11-13 v369：渠道按中转地址自动分组。新 providerGroupKey/groupedProviders/appendGroupedProviderOptions：同一 baseUrl 主机名的渠道排在一起，两条以上包进 <optgroup label=主机名>；没地址的不分组。用于配置面板 provider-quick、设置 active-provider、记忆接口、回复助手、语义召回渠道选择，以及渠道管理列表顺序。只改显示顺序，不动存储。回归 scripts/provider-group-regression.mjs。
 - 2026-11-13 v370：天气时间卡注入修复（Hark）。index.html 不再含已提交的注入结果；注入器用 WX-INJECT 标记块替换、旧式残留报错；锁屏并入源码、脚本只做检查。详见顶部同日条目；回归 scripts/weather-inject-regression.mjs。
+- 2026-11-15 v376（分支 fix/image-send-stuck，未合 main，Hark）：发图卡住 + 图片失忆。
+  - 卡住根因：v302 起 send() 在发请求前无上限 `await dbWriteQueue`（还要等 rAF）；iOS 从相册选图回来 PWA 被挂起，旧 IDB 连接失效时事务不回调，队列永远挂起 → 图显示了但请求不发。云同步换掉对话对象后，第一次保存会整批重写所有对话，也会让这里等很久。另：imageStageQueue 串行解码无超时（一张挂住全队列挂住、发送键一直呼吸）；读图中继 describeImage 无超时。
+  - 修法：withTimeout 工具；发图前最多等 IMAGE_SEND_SAVE_WAIT_MS=3s，保存继续后台跑；rAF 加 120ms 兜底；单张图解码/压缩 20s 超时并提示；等 attachmentStaging 22s 上限；describeImage 45s AbortController，失败 toast 后按像素发；IDB 连接 onclose/onversionchange/出错/15s 超时都丢弃重开（对话仍是脏的，下次再存）。
+  - 失忆：核对过 base64 只在最新一条带图用户消息里发、按 1200 token 计，旧图都是一行文字（v302/v368 仍在）。缺口是没开读图中继时旧图只剩「【此前发送过一张图片】」，他忘了图里是什么。新增「图记」：带图那轮 system 加一行，让他末尾写 `[图记:一句话]`，应用剥掉（流式时半截也藏）存进第一张图 part.memo（不是 desc，重新生成仍发像素），之后请求里是「【此前发过的图片：…】」。纯函数在 index.html `image-memo:start/end` 段。
+  - 回归：image-attachment-regression 改为断言有界等待；新增 scripts/image-context-regression.mjs 实跑 buildApiHistoryWindow/apiMessagesFor（1.2MB 假图不进旧轮请求、不撑爆 8200 预算、只发一张像素图、图记提取/流式隐藏）。未真机验证。
