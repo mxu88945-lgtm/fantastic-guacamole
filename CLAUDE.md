@@ -959,3 +959,4 @@
   - 上下文：图记提示不再进常驻 system，只在有新图且没图记的那一轮，作为一句短提示挂在本轮最后一条用户消息末尾（imageWireContent/imageMemoTailMessage）。本轮像素不进历史预算（messagePromptTokens 第三参 liveImages 时图片算 0），另记 historyWindow.imageReserveTokens（每张 1200），所以带图那轮保留的历史和同样文字的纯文字轮完全一样；newestVisualUserMessage 删除，换成 liveImageMessages/currentImageTurn。纯函数都在 image-memo:start/end 段。
   - 回归：scripts/image-context-regression.mjs 改为 27 项（带图/不带图历史一致、三家接口主模型收到图、图记 40 字、重新生成仍发图、下一轮归档、同轮连发气泡、回看短语恰好 1 张最近图、图记关键词回看旧图、回看后下一轮再归档、多张旧图不累积）；image-attachment-regression 断言 liveImageMessages 和图记提示不在 system。未真机验证。
 
+- 2026-11-15 v378（Hark）：按需回看收紧。她说「修了代码」「跑剧情」，和下午截图的图记撞了 3 个字，原图被附回，他以为她刚发图。删掉图记 3 字匹配（imageMemoMentioned），只认 IMAGE_RECALL_PHRASE_RE 明确回指（那张图/刚才的截图/图里…），附最近一张；附回时前面加一行 RECALLED_IMAGE_NOTE「她之前发过的旧图…不是她刚发的」。回归 image-context-regression：标注断言 + 光说图记里的字不再附图。未真机验证。

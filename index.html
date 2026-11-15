@@ -13517,7 +13517,7 @@ async function webSearch(query) {
 /* image-memo:start — v376/v377 图记 + 图片归档。纯函数，回归脚本只 eval 这一段。
    v377 规则：真图只在它发出的那一轮（含重新生成这一轮）随请求发给主模型；从她下一轮起，
    这张图在请求里只剩一行「【此前发过的图片：图记】」（图记 ≤40 字；没有图记就「【此前发过的图片】」）。
-   她下一轮明确回指旧图（那张图/刚才的图/图里…，或说到某条图记里的东西）时，只把最近一张匹配的原图
+   她下一轮明确回指旧图（那张图/刚才的截图/图里…；v378 起光说到图记里的字不算）时，只把最近一张原图
    临时附进这一轮（最多 1 张），下一轮又归档。图片本身一直留在聊天界面里，存储不动。
    本轮真图不占历史预算（预算外单独算），所以带图那轮保留的正文和纯文字轮完全一样。 */
 var IMAGE_MEMO_MAX_CHARS = 40;
@@ -13562,35 +13562,23 @@ function imageTurnText(messagesInTurn) {
     .join(" ");
 }
 var IMAGE_RECALL_PHRASE_RE = /(?:那|这|刚才|刚刚|之前|上次|前面|上面)(?:张|个|的|发的|那张)?\s*(?:图片?|照片|相片|截图)|(?:图|照片|图片|截图)里|看看之前发的/;
-var IMAGE_MEMO_STOP_CHARS = /[的一了是在她他我你它这那个只张和很有着也都就把被跟与及或吗呢吧啊呀，。！？、：；\s]/;
-function imageMemoMentioned(memo, text) {
-  const chars = Array.from(String(memo || ""));
-  for (let i = 0; i + 3 <= chars.length; i++) {
-    const gram = chars.slice(i, i + 3);
-    if (gram.some(c => IMAGE_MEMO_STOP_CHARS.test(c))) continue;
-    if (text.includes(gram.join(""))) return true;
-  }
-  return false;
-}
-// 按需回看：返回要临时附上的那一张原图（最近的匹配，最多 1 张），否则 null。
+// v378：只认她明确回指旧图的说法；不再拿图记里的字去匹配（「修了代码」「跑剧情」这种日常话会误召下午的截图）。
+// 按需回看：返回要临时附上的那一张原图（最近一张，最多 1 张），否则 null。
 function findRecallImage(list) {
   const rows = list || [];
   const turn = currentImageTurn(rows);
   if (!turn.length || turn.some(m => Array.isArray(m.content) && m.content.some(isLiveImagePart))) return null;
   const text = imageTurnText(turn);
-  if (!text.trim()) return null;
+  if (!text.trim() || !IMAGE_RECALL_PHRASE_RE.test(text)) return null;
   const first = rows.indexOf(turn[0]);
-  const older = [];
   for (let i = first - 1; i >= 0; i--) {
     const m = rows[i];
     if (!m || m.role !== "user" || !Array.isArray(m.content)) continue;
-    for (const part of [...m.content].reverse()) if (isLiveImagePart(part)) older.push(part);
+    for (const part of [...m.content].reverse()) if (isLiveImagePart(part)) return part;
   }
-  if (!older.length) return null;
-  const byMemo = older.find(part => part.memo && imageMemoMentioned(part.memo, text));
-  if (byMemo) return byMemo;
-  return IMAGE_RECALL_PHRASE_RE.test(text) ? older[0] : null;
+  return null;
 }
+var RECALLED_IMAGE_NOTE = "【以下是她之前发过的旧图，因为她这轮提到了才附上，不是她刚发的】";
 // 只改发出去的副本：把回看的原图挂到本轮最后一条用户消息上，存储里的消息不动。
 function withRecalledImage(list, fullList) {
   const part = findRecallImage(fullList || list);
@@ -13598,7 +13586,7 @@ function withRecalledImage(list, fullList) {
   const turn = currentImageTurn(list);
   const target = turn[turn.length - 1];
   const base = typeof target.content === "string" ? [{ type: "text", text: target.content }] : [...target.content];
-  const clone = { ...target, content: [...base, { ...part, _recalled: true }], _imageRecall: true };
+  const clone = { ...target, content: [...base, { type: "text", text: RECALLED_IMAGE_NOTE }, { ...part, _recalled: true }], _imageRecall: true };
   return list.map(m => m === target ? clone : m);
 }
 function imageMemoTagRe() { return /[\[【［]\s*图记\s*[:：]\s*([^\]】］\n]{1,160}?)\s*[\]】］]/g; }

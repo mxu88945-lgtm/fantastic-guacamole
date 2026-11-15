@@ -122,10 +122,11 @@ ok(JSON.stringify(r.wire[r.wire.length - 1]).includes(bigBase64.slice(0, 40)) &&
 ok(typeof recallConv[recallConv.length - 1].content === 'string',
   'recall modified the stored message')
 ok(!JSON.stringify(r.wire).includes(api.imageMemoPrompt()), 'recall turn asked for a new 图记')
-// recall by naming something in a stored 图记 → that (older) image, still max 1
+ok(JSON.stringify(r.wire).includes('之前发过的旧图'), 'recalled image not labelled as an old picture')
+// v378: just mentioning words from a stored 图记 no longer re-attaches the picture
 ctx.messages = [...recallConv.slice(0, -1), { id: 'u4', role: 'user', content: '番茄牛腩面那家店叫什么来着' }]
 r = request()
-ok(pixels(r.wire) === 1 && JSON.stringify(r.wire).includes('base64,OLD'), '图记 keyword did not recall that one image')
+ok(pixels(r.wire) === 0 && JSON.stringify(r.wire).includes('【此前发过的图片：一碗番茄牛腩面】'), '图记 words alone re-attached an old image')
 // next turn after the recall → archived again
 ctx.messages = [...recallConv, { id: 'r3', role: 'assistant', content: '有个脚环' }, { id: 'u5', role: 'user', content: '好的睡啦' }]
 r = request()
