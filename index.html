@@ -3809,7 +3809,7 @@
           <input id="visionApiKey" type="password" placeholder="读图 API Key（选填，不上云；留空用当前接口）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:10px;">
             <input type="checkbox" id="visionRelay" style="width:auto;" onchange="readSettingsFromUI();" />
-            <span>开启图片转述 <span class="hint" style="font-weight:400;">（发图时自动先读图→文字）</span></span>
+            <span>开启图片转述 <span class="hint" style="font-weight:400;">（选填：主模型能直接看图就不用开，默认图直接发给主模型）</span></span>
           </label>
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
@@ -10739,7 +10739,7 @@ function toApiContent(content, isAnthropic, fileCharBudget = REFERENCE_FILE_PROM
   content = fileAwareContentOrder(content);
   // An image that's already been "read" into text (p.desc, via the vision relay)
   // is sent as text — so text-only models don't choke on it.
-  const realImages = content.filter(p => p.type === "image" && !p.desc);
+  const realImages = content.filter(p => p.type === "image" && !p.desc && p.dataUrl);
   // No real image to send as image? Join everything as plain text (text + sticker
   // notes + described images), which keeps text/sticker messages working everywhere.
   if (!realImages.length) {
@@ -10747,7 +10747,7 @@ function toApiContent(content, isAnthropic, fileCharBudget = REFERENCE_FILE_PROM
       if (p.type === "text") return p.text;
       if (p.type === "sticker") return `（发了一个表情：${p.name}）`;
       if (p.type === "file") return filePromptText(p, fileCharBudget);
-      if (p.type === "image") return p.desc ? `【图片内容】${p.desc}` : "";
+      if (p.type === "image") return p.desc ? `【图片内容】${p.desc}` : ARCHIVED_IMAGE_FALLBACK;
       return "";
     }).join(" ").trim();
   }
@@ -10760,6 +10760,7 @@ function toApiContent(content, isAnthropic, fileCharBudget = REFERENCE_FILE_PROM
     if (p.type === "file") return { type: "text", text: filePromptText(p, fileCharBudget) };
     // image part — if it was pre-described, send the description text instead of the image
     if (p.type === "image" && p.desc) return { type: "text", text: `【图片内容】${p.desc}` };
+    if (p.type === "image" && !p.dataUrl) return { type: "text", text: ARCHIVED_IMAGE_FALLBACK };
     if (isAnthropic) {
       const comma = p.dataUrl.indexOf(",");
       return { type: "image", source: { type: "base64",
@@ -10807,20 +10808,25 @@ function estimateContentTokens(content, fileCharBudget = REFERENCE_FILE_PROMPT_C
     return n + 10;
   }, 0);
 }
-function messagePromptTokens(m, fileCharBudget = REFERENCE_FILE_PROMPT_CHAR_BUDGET, sendsPixels = true) {
+// v377: archived pictures cost only their 图记 line. Pixels in the current
+// turn are reserved OUTSIDE the history budget (imageReserveTokens), so an
+// image turn keeps exactly the same history as a text-only turn.
+function messagePromptTokens(m, fileCharBudget = REFERENCE_FILE_PROMPT_CHAR_BUDGET, liveImages = false) {
   let content = sendContent(m);
-  // Older pictures leave the wire as a short text marker (see apiMessagesFor),
-  // so they must not keep reserving 1200 tokens each in the history budget.
-  if (!sendsPixels && Array.isArray(content)) content = content.map(part => part?.type === "image" && part.dataUrl
-    ? { type: "text", text: pastImagePromptText(part) }
-    : part);
+  if (Array.isArray(content)) content = content.flatMap(part => {
+    if (part?.type !== "image") return [part];
+    if (liveImages && isLiveImagePart(part)) return [];
+    return part.dataUrl ? [{ type: "text", text: pastImagePromptText(part) }] : [part];
+  });
   return estimateContentTokens(content, fileCharBudget) + 4;
 }
-function newestVisualUserMessage(list) {
-  const newestUser = [...(list || [])].reverse().find(message => message?.role === "user");
-  const content = newestUser && sendContent(newestUser);
-  return Array.isArray(content) && content.some(part => part?.type === "image" && part.dataUrl && !part.desc)
-    ? newestUser : null;
+function liveImageReserveTokens(list) {
+  let n = 0;
+  for (const m of liveImageMessages(list)) {
+    const c = sendContent(m);
+    if (Array.isArray(c)) n += c.filter(isLiveImagePart).length * 1200;
+  }
+  return n;
 }
 function roleRunCount(list) {
   let runs = 0, prior = "";
@@ -10844,13 +10850,13 @@ function buildApiHistoryWindow() {
   const newest = usable[usable.length - 1];
   const fullReferenceMessage = newest && newest.role === "user" && hasReferenceAttachment(newest)
     ? newest : null;
-  const visualMessage = newestVisualUserMessage(usable);
+  const liveVisual = liveImageMessages(usable);
   let totalTokens = 0;
   const chosen = [];
   for (let i = usable.length - 1; i >= 0; i--) {
     const fileBudget = usable[i] === fullReferenceMessage
       ? REFERENCE_FILE_PROMPT_CHAR_BUDGET : REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET;
-    const size = messagePromptTokens(usable[i], fileBudget, usable[i] === visualMessage);
+    const size = messagePromptTokens(usable[i], fileBudget, liveVisual.has(usable[i]));
     const enoughRecent = roleRunCount(chosen) >= CHAT_HISTORY_MIN_ROLE_RUNS;
     if (enoughRecent && (chosen.length >= CHAT_HISTORY_MESSAGE_CAP
         || totalTokens + size > historyBudget)) break;
@@ -10862,8 +10868,12 @@ function buildApiHistoryWindow() {
   const sentIds = new Set(chosen.map(m => m && m.id).filter(Boolean));
   const storedChatMessages = messages.filter(m => m
     && (m.role === "user" || m.role === "assistant") && !m._event);
+  // On-demand recall: when her new turn points back at an earlier picture, one
+  // original rides along on a wire-only copy of this turn (stored messages untouched).
+  const wireMessages = withRecalledImage(chosen, usable);
   return {
-    messages: chosen,
+    messages: wireMessages,
+    imageReserveTokens: liveImageReserveTokens(wireMessages),
     omitted,
     rollingSummary,
     totalMessages: usable.length,
@@ -11395,22 +11405,18 @@ function apiMessagesFor(isAnthropic, sourceMessages) {
   const newest = source[source.length - 1];
   const fullReferenceMessage = newest && newest.role === "user" && hasReferenceAttachment(newest)
     ? newest : null;
-  // Only a picture in the current user turn is sent as pixels. Older pictures
-  // stay intact in the local gallery, but become a tiny marker on the wire.
-  const newestUserMessage = [...source].reverse().find(message => message?.role === "user");
-  const newestVisualMessage = newestUserMessage
-    && Array.isArray(sendContent(newestUserMessage))
-    && sendContent(newestUserMessage).some(part => part?.type === "image" && part.dataUrl && !part.desc)
-    ? newestUserMessage : null;
+  // v377: only pictures in the current user turn (or one recalled on demand by
+  // buildApiHistoryWindow) go out as pixels. Older pictures stay intact in the
+  // local gallery, but are archived to one short 图记 line on the wire.
+  const liveImages = liveImageMessages(source);
+  const memoTailMessage = imageMemoTailMessage(source);
   for (const m of source) {
     if (m.role === "reminder" || m._compactedBy || m._summary || isNoReplyPlaceholder(m)) continue;
     const fileBudget = m === fullReferenceMessage
       ? REFERENCE_FILE_PROMPT_CHAR_BUDGET : REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET;
     const rawContent = sendContent(m);
-    const sourceContent = m === newestVisualMessage || !Array.isArray(rawContent) ? rawContent
-      : rawContent.map(part => part?.type === "image" && part.dataUrl
-        ? { type: "text", text: pastImagePromptText(part) }
-        : part);
+    const sourceContent = imageWireContent(m, rawContent, liveImages,
+      m === memoTailMessage ? imageMemoPrompt() : "");
     let promptContent = isRoleplayConversation() && m.role === "assistant" && typeof sourceContent === "string"
       ? stripRoleplayPresentationalHtmlForPrompt(sourceContent) : sourceContent;
     const content = toApiContent(promptContent, isAnthropic, fileBudget);
@@ -11455,20 +11461,15 @@ function geminiContentsFor(sourceMessages) {
   const newest = source[source.length - 1];
   const fullReferenceMessage = newest && newest.role === "user" && hasReferenceAttachment(newest)
     ? newest : null;
-  const newestUserMessage = [...source].reverse().find(message => message?.role === "user");
-  const newestVisualMessage = newestUserMessage
-    && Array.isArray(sendContent(newestUserMessage))
-    && sendContent(newestUserMessage).some(part => part?.type === "image" && part.dataUrl && !part.desc)
-    ? newestUserMessage : null;
+  const liveImages = liveImageMessages(source);
+  const memoTailMessage = imageMemoTailMessage(source);
   for (const m of source) {
     if (m.role === "reminder" || m._compactedBy || m._summary || isNoReplyPlaceholder(m)) continue;
     const fileBudget = m === fullReferenceMessage
       ? REFERENCE_FILE_PROMPT_CHAR_BUDGET : REFERENCE_FILE_FOLLOWUP_CHAR_BUDGET;
     const rawContent = sendContent(m);
-    const sourceContent = m === newestVisualMessage || !Array.isArray(rawContent) ? rawContent
-      : rawContent.map(part => part?.type === "image" && part.dataUrl
-        ? { type: "text", text: pastImagePromptText(part) }
-        : part);
+    const sourceContent = imageWireContent(m, rawContent, liveImages,
+      m === memoTailMessage ? imageMemoPrompt() : "");
     let promptContent = isRoleplayConversation() && m.role === "assistant" && typeof sourceContent === "string"
       ? stripRoleplayPresentationalHtmlForPrompt(sourceContent) : sourceContent;
     const parts = geminiPartsForContent(promptContent, fileBudget);
@@ -12069,9 +12070,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   }
   }
 
-  // v376 图记：只在这轮真的带像素图、而且这张图还没记过时才加一行。
-  if (typeof imageMemoTarget === "function" && imageMemoTarget(historyWindow.messages))
-    systemText = systemText ? systemText + "\n\n" + imageMemoPrompt() : imageMemoPrompt();
+  // v377 图记提示不进常驻 system：只在带新图那一轮，由 apiMessagesFor/geminiContentsFor 挂在本轮用户消息末尾。
   if (activeSpeaker && !backstageMode) systemText += "\n\n" + roleplaySpeakerPrompt(activeSpeaker, rpProject);
   if (rpProject) {
     const memoryInjection = backstageMode ? { text: "", position: "" } : roleplayMemoryInjection(rpProject, currentConv());
@@ -13515,13 +13514,92 @@ async function webSearch(query) {
   const digest = compactSearchPayload(text);
   return usedFallback ? "【无 Key 后备搜索结果】\n" + digest : digest;
 }
-/* image-memo:start — v376 图记：带图那轮让他在末尾写 [图记:一句话]，应用剥掉并存进图片 part.memo。
-   之后这张图在请求里只是「【此前发过的图片：…】」一行字（不再是 base64，也不只是一句空标记），
-   他不会忘了图里是什么，也不占历史窗口。纯函数，回归脚本只 eval 这一段。 */
+/* image-memo:start — v376/v377 图记 + 图片归档。纯函数，回归脚本只 eval 这一段。
+   v377 规则：真图只在它发出的那一轮（含重新生成这一轮）随请求发给主模型；从她下一轮起，
+   这张图在请求里只剩一行「【此前发过的图片：图记】」（图记 ≤40 字；没有图记就「【此前发过的图片】」）。
+   她下一轮明确回指旧图（那张图/刚才的图/图里…，或说到某条图记里的东西）时，只把最近一张匹配的原图
+   临时附进这一轮（最多 1 张），下一轮又归档。图片本身一直留在聊天界面里，存储不动。
+   本轮真图不占历史预算（预算外单独算），所以带图那轮保留的正文和纯文字轮完全一样。 */
+var IMAGE_MEMO_MAX_CHARS = 40;
+var ARCHIVED_IMAGE_FALLBACK = "【此前发过的图片】";
+function imageMemoClip(text) {
+  return Array.from(String(text || "").replace(/\s+/g, " ").trim()).slice(0, IMAGE_MEMO_MAX_CHARS).join("");
+}
 function pastImagePromptText(part) {
-  if (part?.desc) return `【图片内容】${part.desc}`;
-  if (part?.memo) return `【此前发过的图片：${part.memo}】`;
-  return "【此前发送过一张图片】";
+  const line = imageMemoClip(part?.memo) || imageMemoClip(part?.desc);
+  return line ? `【此前发过的图片：${line}】` : ARCHIVED_IMAGE_FALLBACK;
+}
+function isLiveImagePart(part) { return part?.type === "image" && !!part.dataUrl && !part.desc; }
+function imageTurnRow(message) {
+  return !!message && (message.role === "user" || message.role === "assistant")
+    && !message._compactedBy && !message._summary;
+}
+// 当前这一轮 = 最新一串连续的用户消息（她可能连发图+字几个气泡）；群聊里其他角色在这之后
+// 已回的消息不算新一轮，所以后面的发言人也能看到这轮的图。
+function currentImageTurn(list) {
+  const rows = list || [];
+  let end = rows.length - 1;
+  while (end >= 0 && !(imageTurnRow(rows[end]) && rows[end].role === "user")) end--;
+  if (end < 0) return [];
+  let start = end;
+  for (let i = end - 1; i >= 0; i--) {
+    if (!imageTurnRow(rows[i])) continue;
+    if (rows[i].role !== "user") break;
+    start = i;
+  }
+  return rows.slice(start, end + 1).filter(m => imageTurnRow(m) && m.role === "user");
+}
+function liveImageMessages(list) {
+  const content = m => (typeof sendContent === "function" ? sendContent(m) : m.content);
+  return new Set(currentImageTurn(list).filter(m => {
+    const c = content(m);
+    return Array.isArray(c) && c.some(isLiveImagePart);
+  }));
+}
+function imageTurnText(messagesInTurn) {
+  return (messagesInTurn || []).map(m => typeof m.content === "string" ? m.content
+    : Array.isArray(m.content) ? m.content.filter(p => p?.type === "text").map(p => p.text || "").join(" ") : "")
+    .join(" ");
+}
+var IMAGE_RECALL_PHRASE_RE = /(?:那|这|刚才|刚刚|之前|上次|前面|上面)(?:张|个|的|发的|那张)?\s*(?:图片?|照片|相片|截图)|(?:图|照片|图片|截图)里|看看之前发的/;
+var IMAGE_MEMO_STOP_CHARS = /[的一了是在她他我你它这那个只张和很有着也都就把被跟与及或吗呢吧啊呀，。！？、：；\s]/;
+function imageMemoMentioned(memo, text) {
+  const chars = Array.from(String(memo || ""));
+  for (let i = 0; i + 3 <= chars.length; i++) {
+    const gram = chars.slice(i, i + 3);
+    if (gram.some(c => IMAGE_MEMO_STOP_CHARS.test(c))) continue;
+    if (text.includes(gram.join(""))) return true;
+  }
+  return false;
+}
+// 按需回看：返回要临时附上的那一张原图（最近的匹配，最多 1 张），否则 null。
+function findRecallImage(list) {
+  const rows = list || [];
+  const turn = currentImageTurn(rows);
+  if (!turn.length || turn.some(m => Array.isArray(m.content) && m.content.some(isLiveImagePart))) return null;
+  const text = imageTurnText(turn);
+  if (!text.trim()) return null;
+  const first = rows.indexOf(turn[0]);
+  const older = [];
+  for (let i = first - 1; i >= 0; i--) {
+    const m = rows[i];
+    if (!m || m.role !== "user" || !Array.isArray(m.content)) continue;
+    for (const part of [...m.content].reverse()) if (isLiveImagePart(part)) older.push(part);
+  }
+  if (!older.length) return null;
+  const byMemo = older.find(part => part.memo && imageMemoMentioned(part.memo, text));
+  if (byMemo) return byMemo;
+  return IMAGE_RECALL_PHRASE_RE.test(text) ? older[0] : null;
+}
+// 只改发出去的副本：把回看的原图挂到本轮最后一条用户消息上，存储里的消息不动。
+function withRecalledImage(list, fullList) {
+  const part = findRecallImage(fullList || list);
+  if (!part || !currentImageTurn(list).length) return list;
+  const turn = currentImageTurn(list);
+  const target = turn[turn.length - 1];
+  const base = typeof target.content === "string" ? [{ type: "text", text: target.content }] : [...target.content];
+  const clone = { ...target, content: [...base, { ...part, _recalled: true }], _imageRecall: true };
+  return list.map(m => m === target ? clone : m);
 }
 function imageMemoTagRe() { return /[\[【［]\s*图记\s*[:：]\s*([^\]】］\n]{1,160}?)\s*[\]】］]/g; }
 function stripImageMemoTags(text, streaming) {
@@ -13537,16 +13615,36 @@ function extractImageMemo(text) {
   let memo = "", m;
   const re = imageMemoTagRe();
   while ((m = re.exec(text))) memo = m[1];
-  return { text: stripImageMemoTags(text).trim(), memo: String(memo || "").replace(/\s+/g, " ").trim().slice(0, 120) };
+  return { text: stripImageMemoTags(text).trim(), memo: imageMemoClip(memo) };
 }
+// 只有这一轮真新发的图（不是回看的旧图）、而且还没记过时，才要图记。
 function imageMemoTarget(list) {
-  const user = [...(list || [])].reverse().find(message => message?.role === "user");
-  if (!user || !Array.isArray(user.content)) return null;
-  const images = user.content.filter(part => part?.type === "image" && part.dataUrl && !part.desc);
-  return images.length && !images.some(part => part.memo) ? images[0] : null;
+  for (const message of currentImageTurn(list)) {
+    if (!Array.isArray(message.content)) continue;
+    const images = message.content.filter(part => isLiveImagePart(part) && !part._recalled);
+    if (images.length) return images.some(part => part.memo) ? null : images[0];
+  }
+  return null;
 }
 function imageMemoPrompt() {
-  return "【图记】她这条消息里有图片。正常回应她；另外在回复最末尾单独写一个 `[图记:一句话客观记下图里是什么，60字内，多张就一起概括]`，由应用隐藏，只用于你以后记得这张图。";
+  return "（应用提示：回复末尾另写 [图记:图里是什么，40字内]，会被隐藏。）";
+}
+// 发出去的内容：本轮真图原样；旧图换成一行图记；需要图记时把一句提示挂在本轮最后一条用户消息末尾（不进常驻 system）。
+function imageWireContent(message, rawContent, live, memoTail) {
+  let content = rawContent;
+  if (Array.isArray(content) && !live.has(message))
+    content = content.map(part => part?.type === "image" && part.dataUrl
+      ? { type: "text", text: pastImagePromptText(part) } : part);
+  if (memoTail) {
+    const base = typeof content === "string" ? [{ type: "text", text: content }] : Array.isArray(content) ? content : [];
+    content = [...base, { type: "text", text: memoTail }];
+  }
+  return content;
+}
+function imageMemoTailMessage(list) {
+  if (!imageMemoTarget(list)) return null;
+  const turn = currentImageTurn(list);
+  return turn[turn.length - 1] || null;
 }
 /* image-memo:end */
 /* song-pick:start — v359 他自己点歌：[点歌:歌名]（也认【】［］和全角冒号），只给应用看 */

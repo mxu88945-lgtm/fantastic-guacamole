@@ -20,8 +20,10 @@ requireText('async function prepareChatImage(file)', 'memory-safe image preparat
 requireText('let imageStageQueue = Promise.resolve()', 'multiple selected images are not decoded serially on iOS')
 requireText('previewDataUrl || p.dataUrl', 'message bubbles still decode the full provider image for thumbnails')
 requireText('previewDataUrl || part.dataUrl', 'composer preview still decodes the full provider image')
-requireText('【此前发送过一张图片】', 'older image pixels are still resent on later requests')
-requireText('messagePromptTokens(usable[i], fileBudget, usable[i] === visualMessage)', 'older images still reserve 1200 tokens each in the history window budget')
+requireText('【此前发过的图片】', 'older image pixels are still resent on later requests')
+requireText('const liveImages = liveImageMessages(source);', 'image pixels are not limited to the current turn (v377)')
+if (html.includes('systemText + "\\n\\n" + imageMemoPrompt()')) throw new Error('图记 instruction is back in the resident system prompt (v377)')
+requireText('messagePromptTokens(usable[i], fileBudget, liveVisual.has(usable[i]))', 'image tokens are counted inside the history window budget')
 requireText('await withTimeout(dbWriteQueue, IMAGE_SEND_SAVE_WAIT_MS', 'image sends must flush IndexedDB first, but only for a bounded time')
 if (html.includes('try { await dbWriteQueue; } catch (_) {}')) throw new Error('image send waits on IndexedDB without a timeout (v376 regression)')
 requireText('withTimeout(prepareChatImage(file), CHAT_IMAGE_STAGE_TIMEOUT_MS', 'one stuck image decode can freeze the serial staging queue')
@@ -49,11 +51,11 @@ requireText(
   'file action does not use the iOS-safe picker path',
 )
 
-if (!sw.includes('const CACHE = "role-chat-cache-v376";')) {
+if (!sw.includes('const CACHE = "role-chat-cache-v377";')) {
   throw new Error('service worker cache was not bumped for the image fixes')
 }
 
-console.log('image attachment regression: 24 checks passed')
+console.log('image attachment regression: 26 checks passed')
 
 {
   const { readFileSync } = await import("node:fs");
