@@ -2856,6 +2856,16 @@
 .self-card-inner { max-width: 720px; margin: 0 auto; width: 100%; box-sizing: border-box; }
 .self-card-card { display: grid; gap: 12px; margin-bottom: 14px; padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--bg-panel); }
 .self-card-card[hidden] { display: none; }
+#agency-status-bar { display: flex; align-items: center; gap: 7px; flex: 0 1 auto; min-width: 0; max-width: 58%; padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-panel); color: var(--text-dim); font: inherit; font-size: 11px; line-height: 1; cursor: pointer; }
+#agency-status-bar[hidden] { display: none; }
+.agency-meter { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.agency-meter i { font-style: normal; font-size: 11px; }
+.agency-meter b { position: relative; display: block; width: 32px; height: 5px; overflow: hidden; border-radius: 3px; background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.agency-meter em { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--accent); transition: width .4s ease; }
+.agency-meter.sleepy em { background: #8fa3c8; }
+.agency-meter small { min-width: 14px; font-size: 10px; font-variant-numeric: tabular-nums; }
+.agency-bar-note, .agency-bar-pause { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agency-bar-pause { flex: none; color: var(--accent); font-weight: 600; }
 .agency-status { margin: -6px 4px 14px; color: var(--text-dim); font-size: 12px; line-height: 1.5; }
 .agency-room { gap: 0; padding: 4px 14px; }
 .agency-room-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
@@ -3036,6 +3046,8 @@
       <button class="icon-btn" id="rp-chat-back" title="返回 RP 剧场" aria-label="返回 RP 剧场" hidden>‹</button>
       <button id="rp-chat-identity" type="button" title="编辑当前剧本" hidden><span id="rp-chat-actor">RP 角色</span><small id="rp-chat-meta">由当前本体出演 · 点此编辑剧本</small></button>
       <button id="rp-chat-mode" type="button" title="切换为沉浸模式" aria-label="切换剧情显示模式" hidden>导演</button>
+      <div class="spacer"></div>
+      <button id="agency-status-bar" type="button" aria-label="他的状态" hidden></button>
       <div class="spacer"></div>
       <div class="header-actions">
         <button class="icon-btn" id="header-search-btn" title="搜索聊天记录" aria-label="搜索聊天记录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
@@ -14006,15 +14018,30 @@ function refreshAgencyComposer() {
   if (!input) return;
   const conv = typeof currentConv === "function" ? currentConv() : null;
   const paused = conv && !isRoleplayConversation(conv) && settings.agencyPauseEnabled === true && agencyPauseActive(conv.agencyPause);
+  renderAgencyStatusBar(conv, paused);
+  const ticking = paused || (conv && !isRoleplayConversation(conv) && settings.agencyBodyEnabled === true);
+  if (ticking && !agencyComposerTimer) agencyComposerTimer = setInterval(refreshAgencyComposer, 30000);
+  if (!ticking && agencyComposerTimer) { clearInterval(agencyComposerTimer); agencyComposerTimer = null; }
   if (paused) {
     const { name } = agencyNames();
     input.placeholder = `🌙 ${name}暂停中，还剩 ${agencyFormatLeft(conv.agencyPause.until - Date.now())} · 写一句递「申请继续」`;
     input.dataset.agencyPaused = "1";
-    if (!agencyComposerTimer) agencyComposerTimer = setInterval(refreshAgencyComposer, 30000);
-  } else {
-    if (input.dataset.agencyPaused) { input.placeholder = "发送消息"; delete input.dataset.agencyPaused; }
-    if (agencyComposerTimer) { clearInterval(agencyComposerTimer); agencyComposerTimer = null; }
-  }
+  } else if (input.dataset.agencyPaused) { input.placeholder = "发送消息"; delete input.dataset.agencyPaused; }
+}
+/** v380 状态栏：顶栏中间，精力/困意两条小进度 + 他写的一句；暂停时显示倒计时。点一下打开小天地。 */
+function renderAgencyStatusBar(conv, paused) {
+  const bar = document.getElementById("agency-status-bar");
+  if (!bar) return;
+  const main = conv && !isRoleplayConversation(conv);
+  const bodyOn = main && settings.agencyBodyEnabled === true;
+  if (!bodyOn && !paused) { bar.hidden = true; bar.innerHTML = ""; return; }
+  const role = selfCardRoleFor(conv);
+  const b = bodyOn ? agencyCurrentBody(role && role.agencyBody) : null;
+  const meter = (cls, icon, v, title) => `<span class="agency-meter ${cls}" title="${title}"><i>${icon}</i><b><em style="width:${v}%"></em></b><small>${v}</small></span>`;
+  bar.hidden = false;
+  bar.classList.toggle("paused", !!paused);
+  bar.innerHTML = (paused ? `<span class="agency-bar-pause">🌙 暂停中 · ${agencyFormatLeft(conv.agencyPause.until - Date.now())}</span>` : "")
+    + (b ? meter("energy", "⚡", b.energy, "精力") + meter("sleepy", "💤", b.sleepy, "困意") + (b.note && !paused ? `<span class="agency-bar-note">${escapeHtml(b.note)}</span>` : "") : "");
 }
 function refreshAgencyEntryStatus() {
   const el = document.getElementById("agency-entry-status");
@@ -14061,7 +14088,7 @@ document.addEventListener("change", (event) => {
 document.addEventListener("click", (event) => {
   const target = event.target && event.target.closest ? event.target : null;
   if (!target) return;
-  if (target.closest("#agency-open")) { event.preventDefault(); openAgencyPanel(); return; }
+  if (target.closest("#agency-open") || target.closest("#agency-status-bar")) { event.preventDefault(); openAgencyPanel(); return; }
   if (target.closest("#agency-close")) { event.preventDefault(); closeAgencyPanel(); return; }
   const open = target.closest("[data-agency-open]");
   if (open) { const id = open.dataset.agencyOpen; agencyOpenNote = agencyOpenNote === id ? "" : id; renderAgencyPanel(); return; }
@@ -21974,7 +22001,7 @@ if ("serviceWorker" in navigator) {
 /* iOS PWA "needs two taps" fix for send / regenerate / message actions:
    fire on a clean touch tap (pointerup) and swallow the late native click. */
 (function () {
-  const SEL = "#send-btn, .msg-act, .song-pick-chip, .self-card-chip, #self-card-open, #self-card-close, #agency-open, #agency-close, .agency-room-ask, .agency-room-title, .self-card-expand, .self-card-restore, #plus-menu button[data-act=\"location\"], #plus-menu button[data-act=\"assist\"], #global-prompt-add";
+  const SEL = "#send-btn, .msg-act, .song-pick-chip, .self-card-chip, #self-card-open, #self-card-close, #agency-open, #agency-close, #agency-status-bar, .agency-room-ask, .agency-room-title, .self-card-expand, .self-card-restore, #plus-menu button[data-act=\"location\"], #plus-menu button[data-act=\"assist\"], #global-prompt-add";
   let start = null, suppressEl = null, suppressUntil = 0, synth = false, tapX = 0, tapY = 0;
   const hit = (e) => e.target && e.target.closest ? e.target.closest(SEL) : null;
   document.addEventListener("pointerdown", (e) => {

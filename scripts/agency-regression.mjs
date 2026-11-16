@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v379";'), "service worker cache bumped for the agency release");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v380";'), "service worker cache bumped for the agency release");
 
 const start = html.indexOf("/* agency:start");
 const end = html.indexOf("/* agency:end */");
@@ -46,4 +46,5 @@ assert.ok(html.includes("if (typeof stripAgencyTags === \"function\") text = str
 assert.ok(html.includes("applyAgencyReply(assistantMsg.content, replyConv,"), "reply processing wired");
 assert.ok(html.includes("buildAgencyPromptText(currentConv())"), "prompt wired");
 assert.ok(html.includes('id="agency-panel"') && html.includes('id="agency-open"'), "panel and entry present");
+assert.ok(html.includes('id="agency-status-bar"') && html.includes("function renderAgencyStatusBar("), "header status bar present");
 console.log("agency regression passed");

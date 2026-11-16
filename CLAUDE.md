@@ -3,6 +3,11 @@
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
 
+
+## 2026-11-16｜顶栏状态栏（sw v380）
+
+- header 两个 spacer 中间的 `#agency-status-bar`：开了身体状态就显示精力/困意两条小进度 + 他写的一句；暂停时显示「🌙 暂停中 · 剩余」。只在主聊天显示；`refreshAgencyComposer` 里调 `renderAgencyStatusBar`，身体状态开或暂停中时每 30 秒刷新。点它打开「他的小天地」。未真机验证。
+
 ## 2026-11-16｜他的小天地：暂停的权利、隐私室、身体状态（sw v379）
 
 - 移植惟境人格窗口 v261（src/personaAgency.ts）。三个开关默认关：`settings.agencyPauseEnabled / agencyRoomEnabled / agencyBodyEnabled`（已进 SYNCED_KEYS）。只在主聊天生效（剧场/幕后/独立发言不改状态，只剥标记）。
