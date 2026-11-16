@@ -2898,6 +2898,8 @@
 .agency-meter.sleepy em { background: #8fa3c8; }
 .agency-meter small { min-width: 14px; font-size: 10px; font-variant-numeric: tabular-nums; }
 .agency-bar-note, .agency-bar-pause { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agency-bar-note { max-width: 0; opacity: 0; transition: opacity .5s ease, max-width .5s ease; }
+.agency-bar-note.show { max-width: 60vw; opacity: 1; }
 .agency-bar-pause { flex: none; color: var(--accent); font-weight: 600; }
 .agency-status { margin: -6px 4px 14px; color: var(--text-dim); font-size: 12px; line-height: 1.5; }
 .agency-room { gap: 0; padding: 4px 14px; }
@@ -14122,7 +14124,19 @@ function renderAgencyStatusBar(conv, paused) {
   bar.hidden = false;
   bar.classList.toggle("paused", !!paused);
   bar.innerHTML = (paused ? `<span class="agency-bar-pause">🌙 暂停中 · ${agencyFormatLeft(conv.agencyPause.until - Date.now())}</span>` : "")
-    + (b ? meter("energy", "⚡", b.energy, "精力") + meter("sleepy", "💤", b.sleepy, "困意") + (b.note && !paused ? `<span class="agency-bar-note">${escapeHtml(b.note)}</span>` : "") : "");
+    + (b ? meter("energy", "⚡", b.energy, "精力") + meter("sleepy", "💤", b.sleepy, "困意") + (b.note && !paused ? `<span class="agency-bar-note${agencyNoteShowing(b.note) ? " show" : ""}">${escapeHtml(b.note)}</span>` : "") : "");
+}
+/** v386：状态栏那句话只在他换新一句时亮约 6 秒，随后淡出；全句仍在小天地里。 */
+var agencyNoteSeen = null, agencyNoteShowUntil = 0, agencyNoteTimer = null;
+function agencyNoteShowing(note) {
+  if (agencyNoteSeen === null) { agencyNoteSeen = note; return false; }
+  if (note !== agencyNoteSeen) {
+    agencyNoteSeen = note;
+    agencyNoteShowUntil = Date.now() + 6000;
+    clearTimeout(agencyNoteTimer);
+    agencyNoteTimer = setTimeout(() => { const el = document.querySelector("#agency-status-bar .agency-bar-note"); if (el) el.classList.remove("show"); }, 6000);
+  }
+  return Date.now() < agencyNoteShowUntil;
 }
 function refreshAgencyEntryStatus() {
   const el = document.getElementById("agency-entry-status");
