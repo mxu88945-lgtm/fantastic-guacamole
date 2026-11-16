@@ -5,6 +5,12 @@
 
 
 
+
+## 2026-11-16｜简洁输入框（sw v382）
+
+- 输入框改一行胶囊：textarea 在左，＋ 和 🎤/发送在右；`.composer.has-content`（有字或有附件，autoResize 里算，attach-preview 上挂 MutationObserver）时 🎤 换成发送；生成中 .stop 的发送键始终显示。
+- 模型入口 `#model-config-btn` 移到 ••• 菜单第一项（data-hact="model"），菜单关后开 openModelConfig；label/effort 的 id 不变。
+
 ## 2026-11-16｜顶栏照惟境（sw v381）
 
 - 修漏：`.header-menu button{display:flex}` / `header .icon-btn{display:grid}` 盖过了 `hidden`，剧场按钮（‹、群聊与剧情记忆、幕后手记、情景与角色资料）漏进主聊天；加 `header [hidden], .header-menu button[hidden]{display:none!important}`。
