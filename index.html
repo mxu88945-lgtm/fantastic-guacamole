@@ -768,6 +768,15 @@
     -webkit-backdrop-filter: blur(18px) saturate(1.12);
   }
   .header-actions .icon-btn { width: 42px; height: 42px; }
+  /* v381: [hidden] 必须赢——之前 .header-menu button / header .icon-btn 的 display 盖过了 hidden，剧场按钮漏进主聊天 */
+  header [hidden], .header-menu button[hidden] { display: none !important; }
+  /* v381: 主聊天顶栏照惟境独立窗口——左 ☰、中间状态栏、右 •••，不要整条/右侧胶囊底 */
+  body:not(.rp-chat-active) .main > header > #toggle-sidebar,
+  body:not(.rp-chat-active) .header-actions {
+    background: transparent; border-color: transparent; box-shadow: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  body:not(.rp-chat-active) .header-actions { padding: 0; min-height: 44px; }
   .header-menu {
     position: absolute; top: calc(100% + 8px); right: 0; z-index: 60;
     background: var(--bg-panel); border: 1px solid var(--border); border-radius: 13px;
@@ -3050,8 +3059,6 @@
       <button id="agency-status-bar" type="button" aria-label="他的状态" hidden></button>
       <div class="spacer"></div>
       <div class="header-actions">
-        <button class="icon-btn" id="header-search-btn" title="搜索聊天记录" aria-label="搜索聊天记录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
-        <button class="icon-btn" id="header-new-btn" title="新对话" aria-label="新对话"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h6"/><path d="M17 3v8M13 7h8"/></svg></button>
         <button class="icon-btn" id="header-more-btn" title="更多" aria-label="更多对话操作"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
         <div class="header-menu" id="header-menu">
           <button data-hact="rp-group" id="header-rp-group" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M17 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></svg>群聊与剧情记忆</button>
@@ -3059,7 +3066,6 @@
           <button data-hact="rp" id="header-rp-settings" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>情景与角色资料</button>
           <button data-hact="files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6l2 3h8v13H4Z"/><path d="M8 12h8M8 16h5"/></svg>本对话资料<span class="header-menu-count" id="conversation-files-count">0</span></button>
           <button data-hact="rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>重命名对话</button>
-          <button data-hact="export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>导出长图</button>
           <button data-hact="compact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 11h12"/><path d="M3 16h7"/></svg>压缩对话</button>
           <button data-hact="delete" class="danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>删除对话</button>
         </div>
@@ -4286,6 +4292,7 @@
         <button data-act="gift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 1 1 2.1-3.85L12 7Zm0 0h4.5a2.5 2.5 0 1 0-2.1-3.85L12 7Z"/></svg>礼物</button>
         <button data-act="location" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>位置</button>
         <button data-act="draw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2.5 2.5 0 0 0 2.5-2.5c0-.6-.2-1.1-.6-1.5-.4-.4-.6-.9-.6-1.5A2.5 2.5 0 0 1 15.8 14H18a4 4 0 0 0 4-4 8 8 0 0 0-10-8Z"/></svg>生成图片</button>
+        <button data-act="export" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>导出长图</button>
         <div class="plus-sheet-route"><span>帮答通道</span><select id="reply-helper-provider" aria-label="AI 帮答接口"></select><select id="reply-helper-model" aria-label="AI 帮答模型"></select><button type="button" id="reply-helper-pull" class="reply-helper-pull" aria-label="拉取这个通道的模型" title="拉取这个通道的模型">↻</button></div>
         <p class="plus-sheet-hint">AI 帮答只填入输入框，由你确认后再发送</p>
       </div>
@@ -20326,7 +20333,7 @@ async function init() {
   $("rp-chat-back").onclick = () => window.JYCRoleplay?.open?.();
   $("rp-chat-identity").onclick = (event) => { event.preventDefault(); event.stopPropagation(); window.JYCRoleplay?.editCurrent?.(); };
   $("rp-chat-mode").onclick = (event) => { event.preventDefault(); event.stopPropagation(); toggleRoleplayDisplayMode(); };
-  $("header-search-btn").onclick = () => {
+  if ($("header-search-btn")) $("header-search-btn").onclick = () => {
     const q = prompt("搜索聊天记录");
     if (!q || !q.trim()) return;
     settings.sidebarCollapsed = false; saveSettings(); applySidebar();
@@ -20342,7 +20349,7 @@ async function init() {
   $("mem-add-btn").onclick = () => { addMemEntry($("mem-add").value); $("mem-add").value = ""; };
   $("memory-inspection-refresh").onclick = renderMemoryInspection;
   $("mem-sum-gen").onclick = generateMemSummary;
-  $("header-new-btn").onclick = createConversation;
+  if ($("header-new-btn")) $("header-new-btn").onclick = createConversation;
   $("header-more-btn").onclick = (e) => {
     e.stopPropagation();
     if (isRoleplayConversation()) {

@@ -4,6 +4,13 @@
 
 
 
+
+## 2026-11-16｜顶栏照惟境（sw v381）
+
+- 修漏：`.header-menu button{display:flex}` / `header .icon-btn{display:grid}` 盖过了 `hidden`，剧场按钮（‹、群聊与剧情记忆、幕后手记、情景与角色资料）漏进主聊天；加 `header [hidden], .header-menu button[hidden]{display:none!important}`。
+- 删顶栏搜索、新对话按钮；主聊天（非 rp-chat-active）☰ 与 ••• 去掉胶囊底，中间是状态栏。
+- 导出长图从 ••• 菜单移到 + 面板（data-act="export"）。
+
 ## 2026-11-16｜顶栏状态栏（sw v380）
 
 - header 两个 spacer 中间的 `#agency-status-bar`：开了身体状态就显示精力/困意两条小进度 + 他写的一句；暂停时显示「🌙 暂停中 · 剩余」。只在主聊天显示；`refreshAgencyComposer` 里调 `renderAgencyStatusBar`，身体状态开或暂停中时每 30 秒刷新。点它打开「他的小天地」。未真机验证。
