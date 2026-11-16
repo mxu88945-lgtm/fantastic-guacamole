@@ -2,6 +2,17 @@
 
 给在这个仓库工作的 Claude 的项目记忆 / 上下文说明。
 
+
+## 2026-11-16｜他的小天地：暂停的权利、隐私室、身体状态（sw v379）
+
+- 移植惟境人格窗口 v261（src/personaAgency.ts）。三个开关默认关：`settings.agencyPauseEnabled / agencyRoomEnabled / agencyBodyEnabled`（已进 SYNCED_KEYS）。只在主聊天生效（剧场/幕后/独立发言不改状态，只剥标记）。
+- 数据：暂停在对话上 `conv.agencyPause {until, reason, at}`；隐私室 `role.privateRoom[]`、身体状态 `role.agencyBody` 跟角色走。她的消息字段 `pauseAppeal`、`roomAskId`。
+- 标记：[暂停:时长|理由]（1 分钟–24 小时）、[继续]、[隐私室:标题|内容]（≤300 字）、[分享:标题]、[状态:精力 X|困意 Y|一句话]。纯函数在 `/* agency:start */…/* agency:end */`；剥离挂在 stripSelfCardTags 开头，所以所有剥离点（气泡、记忆文本、sendContent、导出、流式）都覆盖。回复完成时 `applyAgencyReply` 在自我卡之前读标记、改状态、弹提示。
+- 提示词：streamChat 自我卡之后接 `buildAgencyPromptText`（规则 + 身体状态行 + 暂停中申请继续说明 + 隐私室申请时附那篇原文）。
+- 发送：暂停中她的话自动标为申请继续，10 分钟一次（`agencyGateSend`）；输入框占位显示剩余时间（renderMessages 时刷新，暂停中每 30 秒刷新）。关掉暂停开关立刻解除所有暂停。
+- 隐私室申请：设置 → 系统提示词 → 「🌙 他的小天地」里点「申请看」，发一条可见消息「（站在你的隐私室门口）可以给我看看《X》吗？」，带 roomAskId；他写 [分享:…] 才解锁，被拒 6 小时后可再问。
+- 回归：`scripts/agency-regression.mjs`。未真机验证。
+
 ## 2026-11-14｜立绘：点他冒爱心，双击隐身（sw v375）
 - 单击小人：头顶附近冒 3–5 颗粉色 ♥（纯文字 span，`.sprite-hearts` 层在 stage 里、`pointer-events:none`、无 backdrop-filter），约 900ms 上浮淡出，带随机左右漂移/缩放/延迟（纯函数 `spriteHeartSpecs(alive)`，同时存活上限 12）；表情切到 `love` 并小跳约 2s（`SPRITE_LOVE_MS`），再回到之前的表情。连点每次都冒心、都跳，2s 从最后一次点击算。
 - 双击（两次点击间隔 ≤300ms，`spriteTapKind`）：隐身留小竖条（旧的单击行为）；第一次点击的爱心照常冒，随小人一起淡出。常驻模式仍记 `jyc_sprite_hidden`。

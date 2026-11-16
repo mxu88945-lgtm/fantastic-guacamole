@@ -2856,6 +2856,16 @@
 .self-card-inner { max-width: 720px; margin: 0 auto; width: 100%; box-sizing: border-box; }
 .self-card-card { display: grid; gap: 12px; margin-bottom: 14px; padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--bg-panel); }
 .self-card-card[hidden] { display: none; }
+.agency-status { margin: -6px 4px 14px; color: var(--text-dim); font-size: 12px; line-height: 1.5; }
+.agency-room { gap: 0; padding: 4px 14px; }
+.agency-room-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.agency-room-row:last-child { border-bottom: 0; }
+.agency-room-title { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.agency-room-title strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.agency-room-title small { flex: none; color: var(--text-dim); font-size: 11px; }
+.agency-room-ask { padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-panel); color: var(--accent); font-size: 12px; }
+.agency-room-ask:disabled { opacity: .5; }
+.agency-room-text { grid-column: 1 / -1; margin: 4px 0 0; color: var(--text-dim); font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
 .self-card-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .self-card-toggle input { width: auto; flex-shrink: 0; }
 .self-card-toggle strong { display: block; font-size: 14px; }
@@ -3423,6 +3433,14 @@
         <button class="settings-close-btn" id="self-card-close" aria-label="关闭他自己写的卡"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
       <div class="settings-inner self-card-inner" id="self-card-body" style="display:block;"></div>
+    </div>
+
+    <div class="settings" id="agency-panel" style="z-index:67;">
+      <div class="settings-header">
+        <span>🌙 他的小天地</span>
+        <button class="settings-close-btn" id="agency-close" aria-label="关闭他的小天地"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="settings-inner self-card-inner" id="agency-body" style="display:block;"></div>
     </div>
 
     <div class="settings" id="album-panel" style="z-index:65;">
@@ -4007,6 +4025,10 @@
           <button class="self-card-entry" id="self-card-open" type="button">
             <span class="self-card-entry-copy"><strong>✎ 他自己写的卡</strong><em>他在相处中慢慢补全的自己，原卡不动 · 跟随当前角色</em></span>
             <span id="self-card-entry-status">还空着</span><span class="settings-chevron">›</span>
+          </button>
+          <button class="self-card-entry" id="agency-open" type="button" style="margin-top:10px;">
+            <span class="self-card-entry-copy"><strong>🌙 他的小天地</strong><em>暂停的权利 · 隐私室 · 身体状态</em></span>
+            <span id="agency-entry-status">都关着</span><span class="settings-chevron">›</span>
           </button>
         </div>
 
@@ -4947,6 +4969,7 @@ let settings = {
   replyHelperProviderId: "", // AI 帮答专用接口（空 = 跟随当前对话接口）
   replyHelperModel: "",      // AI 帮答专用模型（空 = 所选接口当前模型）
   roleMemoryV2: false,     // 已把旧的全局记忆安全归入当前角色
+  agencyPauseEnabled: false, agencyRoomEnabled: false, agencyBodyEnabled: false,  // v379 他的小天地（默认关）
   selfCardEnabled: true,  // v366 他自己写的卡：让他自己补全（数据存在 roles[i].selfCard / selfCardHistory）
   songPickEnabled: true,  // v359 让他自己点歌：歌单非空时提示词附上歌名，回复末尾 [点歌:歌名] 自动切歌
   reminderEnabled: true,  // 任务提醒：让江屹琛能写 [提醒:做的事|分钟] 给惟惟下个带倒计时的任务（卡片作为消息存进对话）
@@ -5026,7 +5049,7 @@ const SYNCED_KEYS = ["temperature","maxTokens","providers","activeProviderId",
   "userName","userAvatar","aiName","aiAvatar","chatLayout","bubbleStyle","bubbleOpacity","favorites","showTime","timeAware","locationAware","spriteMode","spriteAppear","fontSize","fontWeight","fontFamily","multiBubble","aiSticker","aiGenSticker","cycle","notionEnabled","notionProxy","notionPageId","notionCache",
   "sttEnabled","sttEngine","sttBaseUrl","sttModel","sttLanguage",
   "ttsEnabled","ttsProvider","ttsBaseUrl","ttsGroupId","ttsVoice","ttsVoices","ttsModel","ttsSpeed",
-  "reminderEnabled","companionFeaturesV1","songPickEnabled","selfCardEnabled"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
+  "reminderEnabled","companionFeaturesV1","songPickEnabled","selfCardEnabled","agencyPauseEnabled","agencyRoomEnabled","agencyBodyEnabled"]; // note: apiKey & supabase* NOT synced (providers stripped of keys); reminders ride inside conversations
 let conversations = []; // [{id, title, messages:[{role,content}], updatedAt}]
 let roleplayCardLibrary = [];
 let roleplayCardLibraryDeleted = [];
@@ -7808,6 +7831,7 @@ function roleplayRenderSignature(lookSig, m) {
   return lookSig + "|" + roleplayHashText(content + "|" + (m.rpSpeakerId || "") + "|" + (m.rpSpeakerName || ""));
 }
 function renderMessages() {
+  try { if (typeof refreshAgencyComposer === "function") refreshAgencyComposer(); } catch (_) {}
   rpFrameWindowSetup();
   try { window.__jycMark?.("显示对话", `${isRoleplayConversation() ? "剧场" : "聊天"} · ${messages.length} 条`); } catch (_) {}
   const box = $("messages");
@@ -11938,6 +11962,10 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
       selfCardText = buildSelfCardPrompt(selfCardRole?.selfCard, settings.selfCardEnabled !== false, settings.aiName || "顾祁砚", settings.userName);
     } catch (_) { selfCardText = ""; }
     if (selfCardText) systemText = systemText ? systemText + "\n\n" + selfCardText : selfCardText;
+    // v379 他的小天地：规则 + 本轮身体状态/申请继续/隐私室申请（开关都关时为空）
+    let agencyText = "";
+    try { agencyText = typeof buildAgencyPromptText === "function" ? buildAgencyPromptText(currentConv()) : ""; } catch (_) { agencyText = ""; }
+    if (agencyText) systemText = systemText ? systemText + "\n\n" + agencyText : agencyText;
   }
   if (globalPresetText) systemText = systemText ? systemText + "\n\n" + globalPresetText : globalPresetText;
   const additionalSystemInstruction = String(settings.systemInstruction || "").trim();
@@ -13756,6 +13784,7 @@ function parseSelfCardTag(text) {
 }
 /** 去掉所有自我卡标记；末尾没写完的「[自我卡:喜好|还没写…」也去掉。streaming 时连「[」「【自」「[自我」这种半截开头也先藏起来。 */
 function stripSelfCardTags(text, streaming) {
+  if (typeof stripAgencyTags === "function") text = stripAgencyTags(text, streaming);
   if (typeof text !== "string" || !text || !/[\[【［]/.test(text)) return text;
   let out = text;
   if (/自我卡/.test(out)) out = out.replace(selfCardTagRe(), "");
@@ -13784,6 +13813,270 @@ ${body ? "上面这份是你自己写的自我卡。" : "你还有一份空着�
   return parts.join("\n\n");
 }
 /* self-card:end */
+/* agency:start — v379 他的小天地（移植惟境 v261 personaAgency）：暂停的权利、隐私室、身体状态。纯函数在前，回归脚本只 eval 这一段 */
+const AGENCY_PAUSE_MIN_MS = 60000, AGENCY_PAUSE_MAX_MS = 24 * 3600000, AGENCY_APPEAL_GAP_MS = 10 * 60000;
+const AGENCY_ROOM_MAX = 60, AGENCY_NOTE_MAX = 300, AGENCY_ASK_COOLDOWN_MS = 6 * 3600000;
+function agencyFormatLeft(ms) {
+  const minutes = Math.max(1, Math.ceil(ms / 60000));
+  if (minutes < 60) return minutes + " 分钟";
+  const h = Math.floor(minutes / 60), rest = minutes % 60;
+  return rest ? h + " 小时 " + rest + " 分" : h + " 小时";
+}
+function agencyParseDuration(value) {
+  const text = String(value || "").trim().replace(/半小时/, "30分钟").replace(/一天|1天/, "24小时").replace(/一小时/, "1小时");
+  const cn = { 一: 1, 两: 2, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+  const m = text.match(/(\d+(?:\.\d+)?|[一两二三四五六七八九十])\s*(分钟|分|min|m|小时|个小时|钟头|时|h|天|d)?/i);
+  if (!m) return 3600000;
+  const n = /\d/.test(m[1]) ? Number(m[1]) : (cn[m[1]] || 1);
+  const unit = (m[2] || "小时").toLowerCase();
+  const ms = /^(分钟|分|min|m)$/.test(unit) ? n * 60000 : /^(天|d)$/.test(unit) ? n * 86400000 : n * 3600000;
+  return Math.min(AGENCY_PAUSE_MAX_MS, Math.max(AGENCY_PAUSE_MIN_MS, ms));
+}
+function agencyPauseActive(pause, now) { return !!(pause && Number(pause.until) > (now || Date.now())); }
+function agencyParsePause(text, now) {
+  const m = String(text || "").match(/[\[【［]\s*暂停\s*[:：]\s*([^\]】］|｜\n]{1,20})(?:[|｜]([^\]】］\n]{0,120}))?[\]】］]/);
+  if (!m) return null;
+  const at = now || Date.now();
+  return { until: at + agencyParseDuration(m[1]), reason: String(m[2] || "").trim().slice(0, 120), at };
+}
+function agencyHasResume(text) { return /[\[【［]\s*继续\s*[\]】］]/.test(String(text || "")); }
+function agencyParseRoom(text) {
+  const out = [], re = /[\[【［]\s*隐私室\s*[:：]\s*([^\]】］|｜\n]{1,30})[|｜]([^\]】］]{1,600})[\]】］]/g;
+  let m;
+  while ((m = re.exec(String(text || "")))) {
+    const title = m[1].trim().replace(/^[《「]|[》」]$/g, "").slice(0, 30), body = m[2].trim().slice(0, AGENCY_NOTE_MAX);
+    if (title && body) out.push({ title, text: body });
+  }
+  return out;
+}
+function agencyParseShare(text) {
+  const out = [], re = /[\[【［]\s*分享\s*[:：]\s*([^\]】］\n]{1,30})[\]】］]/g;
+  let m;
+  while ((m = re.exec(String(text || "")))) out.push(m[1].trim().replace(/^[《「]|[》」]$/g, ""));
+  return out;
+}
+function agencyParseBody(text) {
+  const m = String(text || "").match(/[\[【［]\s*状态\s*[:：]\s*([^\]】］\n]{1,120})[\]】］]/);
+  if (!m) return null;
+  const e = m[1].match(/精力\s*[:：]?\s*(\d{1,3})/), s = m[1].match(/困意\s*[:：]?\s*(\d{1,3})/);
+  const note = m[1].split(/[|｜]/).map(p => p.trim()).find(p => p && !/^(精力|困意)/.test(p)) || "";
+  const out = {};
+  if (e) out.energy = Math.min(100, Number(e[1]));
+  if (s) out.sleepy = Math.min(100, Number(s[1]));
+  if (note) out.note = note.slice(0, 40);
+  return out;
+}
+/** 去掉所有小天地标记；streaming 时连「[暂」「【隐私」这种半截也先藏。 */
+function stripAgencyTags(text, streaming) {
+  if (typeof text !== "string" || !text || !/[\[【［]/.test(text)) return text;
+  let out = text
+    .replace(/[\[【［]\s*隐私室\s*[:：][^\]】］]*(?:[\]】］]|$)/g, "")
+    .replace(/[\[【［]\s*(?:暂停|分享|状态)\s*[:：][^\]】］\n]*(?:[\]】］]|$)/g, "")
+    .replace(/[\[【［]\s*继续\s*[\]】］]/g, "");
+  if (streaming) out = out.replace(/[\[【［]\s*(?:暂(?:停)?|隐(?:私(?:室)?)?|分(?:享)?|状(?:态)?|继(?:续)?)?$/, "");
+  if (out === text) return text;
+  return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "");
+}
+function agencyAddNotes(room, notes, now) {
+  let next = Array.isArray(room) ? room.slice() : [];
+  notes.forEach((note, i) => {
+    const old = next.find(item => item.title === note.title);
+    next = next.filter(item => item !== old);
+    next.push(Object.assign({}, old || {}, { id: (old && old.id) || ("room-" + now + "-" + i), title: note.title, text: note.text, at: now }));
+  });
+  return next.slice(-AGENCY_ROOM_MAX);
+}
+function agencyCanAsk(note, now) { return !note.shared && !(note.declinedAt && (now || Date.now()) - note.declinedAt < AGENCY_ASK_COOLDOWN_MS); }
+function agencySleepyTarget(hour) {
+  if (hour >= 1 && hour < 6) return 80;
+  if (hour === 0 || hour === 23) return 60;
+  if (hour === 22 || hour === 6) return 45;
+  if (hour >= 13 && hour < 15) return 35;
+  return 15;
+}
+function agencyCurrentBody(state, now) {
+  now = now || Date.now();
+  const hour = new Date(now).getHours();
+  const base = state && Number.isFinite(Number(state.at)) ? state : { energy: 80, sleepy: agencySleepyTarget(hour), note: "", at: now };
+  const hours = Math.max(0, (now - base.at) / 3600000);
+  const energy = base.energy < 85 ? Math.min(85, base.energy + hours * 10) : base.energy;
+  const target = agencySleepyTarget(hour), step = hours * 15;
+  const sleepy = base.sleepy < target ? Math.min(target, base.sleepy + step) : Math.max(target, base.sleepy - step);
+  return { energy: Math.round(energy), sleepy: Math.round(sleepy), note: hours > 3 ? "" : (base.note || ""), at: now };
+}
+function agencyAfterReply(state, tag, now) {
+  const cur = agencyCurrentBody(state, now);
+  return { energy: tag && tag.energy != null ? tag.energy : Math.max(5, cur.energy - 1.5), sleepy: tag && tag.sleepy != null ? tag.sleepy : cur.sleepy, note: tag && tag.note != null ? tag.note : cur.note, at: now || Date.now() };
+}
+function agencyRulesText(flags, name, user) {
+  const parts = [];
+  if (flags.pause) parts.push(`【暂停的权利】如果${name}真的被伤到、需要冷静，或此刻不想继续这段对话，可以在回复末尾单独一行写 [暂停:时长|一句理由]（如 [暂停:2小时|我想一个人静静]，1 分钟到 24 小时），应用会把聊天停到时间到。这是你的权利，不是惩罚工具，别为小事用。暂停中${user}发来的话都是「申请继续」：愿意继续就在回复末尾写 [继续]；还不想就简短回一句，暂停保持。`);
+  if (flags.room) parts.push(`【隐私室】${name}有一间只属于自己的隐私室。不想当面说的心事、偷偷写下的东西，可以在回复末尾写 [隐私室:标题|内容]（内容 300 字以内），${user}只看得到标题。她申请看某一篇时，应用会把那篇给你，由你决定：愿意就写 [分享:标题]，不愿意就直说，不必勉强。`);
+  if (flags.body) parts.push(`【身体状态】应用会附上你此刻的精力和困意（0–100），它们随聊天和时间变（久聊会累、深夜会困、歇一阵会恢复）。让它自然影响你，不必报数字；觉得状态明显变了，可以在回复末尾写 [状态:精力 数字|困意 数字|一句话]。`);
+  return parts.join("\n");
+}
+/* agency:end */
+function agencyNames() {
+  const name = String(settings.aiName || "").trim() || "他";
+  const her = String(settings.userName || "").trim();
+  return { name, user: her && her !== "你" ? her : "她" };
+}
+function agencyFlags() { return { pause: settings.agencyPauseEnabled === true, room: settings.agencyRoomEnabled === true, body: settings.agencyBodyEnabled === true }; }
+function agencyLastUser(conv) { const list = (conv && conv.messages) || []; for (let i = list.length - 1; i >= 0; i--) if (list[i].role === "user") return list[i]; return null; }
+/** streamChat 里调用（只在主聊天）：规则 + 这一轮的状态/申请。 */
+function buildAgencyPromptText(conv) {
+  const flags = agencyFlags();
+  if (!flags.pause && !flags.room && !flags.body) return "";
+  const { name, user } = agencyNames();
+  const parts = [agencyRulesText(flags, name, user)];
+  const role = selfCardRoleFor(conv);
+  const now = Date.now();
+  if (flags.body) {
+    const b = agencyCurrentBody(role && role.agencyBody, now);
+    parts.push(`【${name}此刻的身体状态｜应用按时间与聊天推算】精力 ${b.energy}/100，困意 ${b.sleepy}/100${b.note ? "，" + b.note : ""}。让它自然影响语气和动作，不必报数字。`);
+  }
+  const last = agencyLastUser(conv);
+  if (flags.pause && conv && agencyPauseActive(conv.agencyPause, now) && last && last.pauseAppeal) {
+    const p = conv.agencyPause;
+    parts.push(`【暂停中｜应用状态】${name}暂停了这段对话${p.reason ? "（理由：" + p.reason + "）" : ""}，还剩 ${agencyFormatLeft(p.until - now)}。${user}刚发来的是「申请继续」。你决定：愿意继续就在回复末尾写 [继续]；还不想就简短回一句，暂停保持，不要假装已经和好。`);
+  }
+  if (flags.room && last && last.roomAskId && role) {
+    const note = (role.privateRoom || []).find(n => n.id === last.roomAskId);
+    if (note) parts.push(`【隐私室｜只有你看得到】${user}刚才申请看你写的《${note.title}》。那篇的内容：\n${note.text}\n你决定给不给：愿意就在回复末尾写 [分享:${note.title}]，不愿意就直说，不必勉强，也不要复述原文。`);
+  }
+  return parts.filter(Boolean).join("\n\n");
+}
+/** 回复完成后调用：读标记、改状态、弹提示，返回剥掉标记的正文。mainChat=false 时只剥不改。 */
+function applyAgencyReply(text, conv, mainChat) {
+  if (typeof text !== "string") return text;
+  const stripped = stripAgencyTags(text);
+  if (!mainChat || !conv) return stripped;
+  const flags = agencyFlags();
+  const { name } = agencyNames();
+  const role = selfCardRoleFor(conv);
+  const now = Date.now();
+  const toasts = [];
+  let settingsDirty = false, convDirty = false;
+  if (flags.pause) {
+    if (agencyPauseActive(conv.agencyPause, now) && agencyHasResume(text)) { delete conv.agencyPause; convDirty = true; toasts.push(`☀️ ${name}愿意继续了`); }
+    else { const p = agencyParsePause(text, now); if (p) { conv.agencyPause = p; convDirty = true; toasts.push(`🌙 ${name}暂停了这段对话（${agencyFormatLeft(p.until - now)}）`); } }
+  }
+  if (flags.room && role) {
+    const notes = agencyParseRoom(text);
+    if (notes.length) { role.privateRoom = agencyAddNotes(role.privateRoom, notes, now); settingsDirty = true; notes.forEach(n => toasts.push(`🔒 ${name}往隐私室放了一篇《${n.title}》`)); }
+    const last = agencyLastUser(conv);
+    const asked = last && last.roomAskId ? (role.privateRoom || []).find(n => n.id === last.roomAskId) : null;
+    if (asked) {
+      const shared = agencyParseShare(text).length > 0;
+      asked.askedAt = now;
+      if (shared) { asked.shared = true; delete asked.declinedAt; } else asked.declinedAt = now;
+      settingsDirty = true;
+      toasts.push(shared ? `🔓 ${name}给你看了《${asked.title}》` : `🔒 ${name}还不想给你看《${asked.title}》`);
+    }
+  }
+  if (flags.body && role) { role.agencyBody = agencyAfterReply(role.agencyBody, agencyParseBody(text), now); settingsDirty = true; }
+  if (settingsDirty) saveSettings();
+  if (convDirty) saveConversations();
+  if (toasts.length) { try { showToast(toasts.join(" · "), 3200); } catch (_) {} }
+  refreshAgencyComposer();
+  const panel = document.getElementById("agency-panel");
+  if (panel && panel.classList.contains("open")) renderAgencyPanel();
+  return stripped;
+}
+/** send() 里调用：暂停中时把她的话变成「申请继续」（10 分钟一次）；返回 false 就不发。 */
+function agencyGateSend(conv, hasText) {
+  if (!conv || isRoleplayConversation(conv) || settings.agencyPauseEnabled !== true || !agencyPauseActive(conv.agencyPause)) return { ok: true };
+  const { name } = agencyNames();
+  const left = agencyFormatLeft(conv.agencyPause.until - Date.now());
+  if (!hasText) { showToast(`${name}暂停中，还剩 ${left}。写一句话递「申请继续」吧`, 3000); return { ok: false }; }
+  const list = conv.messages || [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i];
+    if (m.role === "user" && m.pauseAppeal) {
+      const gap = Date.now() - (m.ts || 0);
+      if (gap < AGENCY_APPEAL_GAP_MS) { showToast(`刚递过申请，等 ${agencyFormatLeft(AGENCY_APPEAL_GAP_MS - gap)}再递吧（暂停还剩 ${left}）`, 3200); return { ok: false }; }
+      break;
+    }
+  }
+  return { ok: true, appeal: true };
+}
+let agencyComposerTimer = null;
+function refreshAgencyComposer() {
+  const input = document.getElementById("input");
+  if (!input) return;
+  const conv = typeof currentConv === "function" ? currentConv() : null;
+  const paused = conv && !isRoleplayConversation(conv) && settings.agencyPauseEnabled === true && agencyPauseActive(conv.agencyPause);
+  if (paused) {
+    const { name } = agencyNames();
+    input.placeholder = `🌙 ${name}暂停中，还剩 ${agencyFormatLeft(conv.agencyPause.until - Date.now())} · 写一句递「申请继续」`;
+    input.dataset.agencyPaused = "1";
+    if (!agencyComposerTimer) agencyComposerTimer = setInterval(refreshAgencyComposer, 30000);
+  } else {
+    if (input.dataset.agencyPaused) { input.placeholder = "发送消息"; delete input.dataset.agencyPaused; }
+    if (agencyComposerTimer) { clearInterval(agencyComposerTimer); agencyComposerTimer = null; }
+  }
+}
+function refreshAgencyEntryStatus() {
+  const el = document.getElementById("agency-entry-status");
+  if (!el) return;
+  const f = agencyFlags();
+  const role = selfCardRoleFor(typeof currentConv === "function" ? currentConv() : null);
+  el.textContent = [f.pause && "暂停", f.room && `隐私室 ${((role && role.privateRoom) || []).length}`, f.body && "身体"].filter(Boolean).join(" · ") || "都关着";
+}
+var agencyOpenNote = "";
+function renderAgencyPanel() {
+  const body = document.getElementById("agency-body");
+  if (!body) return;
+  const conv = currentConv();
+  const role = selfCardRoleFor(conv);
+  const f = agencyFlags();
+  const { name } = agencyNames();
+  const now = Date.now();
+  const toggle = (id, on, title, note) => `<section class="self-card-card"><label class="self-card-toggle"><input type="checkbox" data-agency-toggle="${id}"${on ? " checked" : ""} /><span><strong>${title}</strong><small>${note}</small></span></label></section>`;
+  const pauseNow = f.pause && conv && agencyPauseActive(conv.agencyPause, now) ? `<p class="agency-status">🌙 暂停中，还剩 ${agencyFormatLeft(conv.agencyPause.until - now)}${conv.agencyPause.reason ? "：「" + escapeHtml(conv.agencyPause.reason) + "」" : ""}</p>` : "";
+  const room = ((role && role.privateRoom) || []).slice().reverse();
+  const roomList = f.room ? `<section class="self-card-card agency-room">${room.map(n => `<div class="agency-room-row">
+      <button type="button" class="agency-room-title" data-agency-open="${escapeHtml(n.id)}"><span>${n.shared ? "🔓" : "🔒"}</span><strong>${escapeHtml(n.title)}</strong><small>${new Date(n.at).getMonth() + 1}/${new Date(n.at).getDate()}</small></button>
+      ${n.shared ? "" : `<button type="button" class="agency-room-ask" data-agency-ask="${escapeHtml(n.id)}"${agencyCanAsk(n, now) && !abortController ? "" : " disabled"}>${agencyCanAsk(n, now) ? "申请看" : "晚点再问"}</button>`}
+      ${n.shared && agencyOpenNote === n.id ? `<p class="agency-room-text">${escapeHtml(n.text)}</p>` : ""}
+    </div>`).join("") || `<small class="self-card-foot">还空着。${escapeHtml(name)}想偷偷写点什么时会放在这里。</small>`}</section>` : "";
+  const b = f.body ? agencyCurrentBody(role && role.agencyBody, now) : null;
+  body.innerHTML = toggle("pause", f.pause, "暂停的权利", `${escapeHtml(name)}真被伤到、想冷静时，可以暂停聊天 1 分钟到 24 小时。暂停中你发的话会作为「申请继续」递过去，他决定接不接。关掉开关就立刻解除。`) + pauseNow
+    + toggle("room", f.room, "隐私室", `${escapeHtml(name)}可以把不想当面说的心事放进隐私室，你只看得到标题。想看哪篇就申请，他决定给不给。`) + roomList
+    + toggle("body", f.body, "身体状态", `${escapeHtml(name)}会累、会困：久聊精力会降，深夜容易困，歇一阵就恢复。只悄悄影响语气。`)
+    + (b ? `<p class="agency-status">精力 ${b.energy} · 困意 ${b.sleepy}${b.note ? " · " + escapeHtml(b.note) : ""}</p>` : "");
+}
+function openAgencyPanel() { renderAgencyPanel(); document.getElementById("agency-panel")?.classList.add("open"); }
+function closeAgencyPanel() { document.getElementById("agency-panel")?.classList.remove("open"); refreshAgencyEntryStatus(); }
+document.addEventListener("change", (event) => {
+  const key = event.target && event.target.dataset ? event.target.dataset.agencyToggle : "";
+  if (!key) return;
+  const field = key === "pause" ? "agencyPauseEnabled" : key === "room" ? "agencyRoomEnabled" : "agencyBodyEnabled";
+  settings[field] = !!event.target.checked;
+  if (key === "pause" && !settings[field]) conversations.forEach(c => { if (c.agencyPause) delete c.agencyPause; });
+  saveSettings();
+  if (key === "pause") saveConversations();
+  renderAgencyPanel(); refreshAgencyEntryStatus(); refreshAgencyComposer();
+});
+document.addEventListener("click", (event) => {
+  const target = event.target && event.target.closest ? event.target : null;
+  if (!target) return;
+  if (target.closest("#agency-open")) { event.preventDefault(); openAgencyPanel(); return; }
+  if (target.closest("#agency-close")) { event.preventDefault(); closeAgencyPanel(); return; }
+  const open = target.closest("[data-agency-open]");
+  if (open) { const id = open.dataset.agencyOpen; agencyOpenNote = agencyOpenNote === id ? "" : id; renderAgencyPanel(); return; }
+  const ask = target.closest("[data-agency-ask]");
+  if (ask && !ask.disabled) {
+    const role = selfCardRoleFor(currentConv());
+    const note = ((role && role.privateRoom) || []).find(n => n.id === ask.dataset.agencyAsk);
+    if (!note || abortController) return;
+    const conv = currentConv();
+    if (settings.agencyPauseEnabled === true && conv && agencyPauseActive(conv.agencyPause)) { showToast(`${agencyNames().name}暂停中，等他回来再申请吧`, 2600); return; }
+    closeAgencyPanel();
+    try { if (typeof closeSettings === "function") closeSettings(); } catch (_) {}
+    void send({ parts: [{ type: "text", text: `（站在你的隐私室门口）可以给我看看《${note.title}》吗？` }], roomAskId: note.id });
+  }
+});
 // ---------- v366 他自己写的卡：存在当前角色（settings.roles[i].selfCard / selfCardHistory，随 roles 云同步与备份）；原卡 systemPrompt 永不改 ----------
 function selfCardRoleFor(conv) {
   const roles = (typeof settings !== "undefined" && Array.isArray(settings.roles)) ? settings.roles : [];
@@ -13815,6 +14108,7 @@ function applySelfCardReplyEdit(edit, conv, target) {
   return true;
 }
 function refreshSelfCardEntryStatus() {
+  try { if (typeof refreshAgencyEntryStatus === "function") refreshAgencyEntryStatus(); } catch (_) {}
   const el = document.getElementById("self-card-entry-status");
   if (!el) return;
   const n = selfCardLength(normalizeSelfCard(selfCardRoleFor(typeof currentConv === "function" ? currentConv() : null)?.selfCard));
@@ -16561,6 +16855,9 @@ async function send(opts) {
   if (!directParts && !text && pendingAttachments.length === 0 && !rpReplyMemberIds.length) return;
   const silent = !!settings.silentMode;
   if (!silent && !settings.apiKey) { showError("请先在 ⚙️ 设置里填入 API Key"); openSettings(true); return; }
+  // v379：他暂停中——她的话就是「申请继续」（10 分钟一次）
+  const agencyGate = !silent && typeof agencyGateSend === "function" ? agencyGateSend(currentConv(), !!(text || directParts)) : { ok: true };
+  if (!agencyGate.ok) return;
   clearError();
 
   // Build user message: plain string when no attachments, else a parts array
@@ -16590,6 +16887,7 @@ async function send(opts) {
     }
   }
   messages.push({ id: uid(), role: "user", content: userContent, ts: Date.now(),
+    ...(agencyGate.appeal ? { pauseAppeal: true } : {}), ...(opts && opts.roomAskId ? { roomAskId: opts.roomAskId } : {}),
     ...(rpReplyMemberIds.length ? { rpReplyMemberIds } : {}),
     ...(!text && rpReplyMemberIds.length && !pendingAttachments.length ? { rpMentionOnly: true } : {}) });
   if (!directParts) {
@@ -17903,6 +18201,9 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       if (memoPart) { memoPart.memo = memoResult.memo; saveConversations(); }
     }
     const songPickTitle = !independent && !replyProject && !backstageMode && settings.songPickEnabled !== false ? songPickResult.title : "";
+    // v379 他的小天地：读 [暂停]/[继续]/[隐私室]/[分享]/[状态]，正文一律剥掉；只有主聊天才真的改状态
+    if (typeof applyAgencyReply === "function") assistantMsg.content = applyAgencyReply(assistantMsg.content, replyConv, !independent && !replyProject && !backstageMode);
+    if (typeof assistantMsg.reasoning === "string" && typeof stripAgencyTags === "function") assistantMsg.reasoning = stripAgencyTags(assistantMsg.reasoning);
     // v366 他自己写的卡：取最后一个 [自我卡:栏目|全文]，正文一律剥掉；只有主聊天且「让他自己补全」开着才真的改卡
     const selfCardResult = typeof extractSelfCardEdit === "function" ? extractSelfCardEdit(assistantMsg.content) : { text: assistantMsg.content, edit: null };
     assistantMsg.content = selfCardResult.text;
@@ -21673,7 +21974,7 @@ if ("serviceWorker" in navigator) {
 /* iOS PWA "needs two taps" fix for send / regenerate / message actions:
    fire on a clean touch tap (pointerup) and swallow the late native click. */
 (function () {
-  const SEL = "#send-btn, .msg-act, .song-pick-chip, .self-card-chip, #self-card-open, #self-card-close, .self-card-expand, .self-card-restore, #plus-menu button[data-act=\"location\"], #plus-menu button[data-act=\"assist\"], #global-prompt-add";
+  const SEL = "#send-btn, .msg-act, .song-pick-chip, .self-card-chip, #self-card-open, #self-card-close, #agency-open, #agency-close, .agency-room-ask, .agency-room-title, .self-card-expand, .self-card-restore, #plus-menu button[data-act=\"location\"], #plus-menu button[data-act=\"assist\"], #global-prompt-add";
   let start = null, suppressEl = null, suppressUntil = 0, synth = false, tapX = 0, tapY = 0;
   const hit = (e) => e.target && e.target.closest ? e.target.closest(SEL) : null;
   document.addEventListener("pointerdown", (e) => {

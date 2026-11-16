@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v378";'), "service worker cache bumped for the self-card release");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v379";'), "service worker cache bumped for the self-card release");
 
 // ---- pure helpers from index.html ----
 const start = html.indexOf("/* self-card:start");
@@ -111,7 +111,7 @@ assert.ok(html.includes("✎ 他改了自己的「${escapeHtml(selfCardLabel(key
 assert.ok(html.includes('selfCardEdit: m.role === "assistant" && !isRoleplayConversation() ? m.selfCardEdit : ""'), "chip rendered from the saved message");
 assert.ok(html.includes('id="self-card-panel"') && html.includes('id="self-card-open"'), "settings page + entry");
 assert.ok(html.includes('selfCardEnabled: true,'), "toggle defaults on");
-assert.ok(/"songPickEnabled","selfCardEnabled"\]/.test(html), "toggle is cloud-synced");
+assert.ok(/"songPickEnabled","selfCardEnabled"[,\]]/.test(html), "toggle is cloud-synced");
 assert.ok(html.includes("window.confirm(\"恢复到这一版？"), "restore asks first");
 assert.ok(/document\.addEventListener\("focusout"[\s\S]{0,200}saveSelfCardField/.test(html), "save on blur");
 assert.ok(/function closeSelfCardPanel\(\) \{[\s\S]{0,200}saveSelfCardField/.test(html), "save on close");
