@@ -2936,6 +2936,7 @@
 <link rel="stylesheet" href="./src/rp-theater-polish.css" />
 <link rel="stylesheet" href="./src/manuscript-themes.css" />
 <link rel="stylesheet" href="./src/theme-archives.css" />
+<link rel="stylesheet" href="./src/theme-greynote.css" />
 <link rel="stylesheet" href="./src/rp-manuscript-themes.css" />
 </head>
 <body>
@@ -9181,6 +9182,7 @@ function mainArchiveHeading(theme, name, avatar, user) {
   if (theme === "mobile") return `<div class="archive-heading"><div class="mobile-status" aria-hidden="true"><span>MESSAGE</span><span>⌁ ▰</span></div><div class="archive-portrait"><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy"><strong class="archive-name">${escapeHtml(name)}</strong><small>${user ? "我的消息" : "他的来信"}</small></div></div>`;
   if (theme === "letter") return `<div class="archive-heading"><div class="letter-cover" aria-hidden="true"><span>LETTERS · AFTERGLOW</span><i>✦</i></div><div class="archive-portrait"><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy"><strong class="archive-name">${escapeHtml(name)}</strong><small>${user ? "@answer_before_dawn" : "@letters_at_midnight"}</small><p>${user ? "循着纸页的微光而来，把回信交给你。" : "把未寄出的黄昏折进信里，等你醒来。"}</p><div class="letter-stats" aria-hidden="true"><span><b>1314</b> Following</span><span><b>5.20k</b> Letters</span></div></div></div>`;
   if (theme === "nightglow") return `<div class="archive-heading"><div class="archive-portrait"><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy"><strong class="archive-name">${escapeHtml(name)}</strong></div></div>`;
+  if (theme === "greynote") return `<div class="archive-heading"><div class="archive-portrait"><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy"><strong class="archive-name">${escapeHtml(name)}</strong><small>${user ? "à toi" : "pour toi"}</small></div></div>`;
   if (theme === "mistnote") return `<div class="archive-heading"><div class="mistnote-kicker" aria-hidden="true"><span>LETTERS · MIST</span><i>✦</i></div><div class="archive-portrait"><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy"><strong class="archive-name">${escapeHtml(name)}</strong><small>${user ? "循光而来" : "雾色来信"}</small><p>${user ? "纸页翻向你，回声停在右岸。" : "长夜很轻，话落成一封未寄出的信。"}</p></div></div>`;
   const vinyl = theme === "vinyl";
   return `<div class="archive-heading">${vinyl ? '<div class="archive-kicker" aria-hidden="true"><span>REEL 24 / 33⅓ RPM</span><b>✦ SCENE ✦</b><span>CYAN & AMBER ✦</span></div>' : ""}<div class="archive-portrait"><div class="archive-disc" aria-hidden="true"></div><div class="archive-cover">${portrait}</div></div><div class="archive-heading-copy">${vinyl ? '<small>SIDE A · CHARACTER ARCHIVE</small>' : ""}<strong class="archive-name">${escapeHtml(name)}</strong>${vinyl ? '<em>Spinning softly, frame by frame.</em><div class="archive-track" aria-hidden="true"><i></i><span>33⅓</span></div>' : ""}</div>${vinyl ? '<div class="archive-caption" aria-hidden="true">ANALOG PHONOGRAPH & CINEMA ARCHIVE</div>' : `<span class="archive-grade" aria-hidden="true">${user ? "A+" : "B−"}</span>`}</div>`;
@@ -9190,7 +9192,7 @@ function makeMsgEl(role, content, opts) {
   // A scene always uses its own prose layout. Main-chat bubble/flat switches
   // must never rebuild RP messages with a different DOM structure.
   const sceneArchive = { "scene-academy": "academy", "scene-vinyl": "vinyl", "scene-mobile": "mobile", "scene-letter": "letter", "scene-mistnote": "mistnote", "scene-nightglow": "nightglow", "scene-pudding": "pudding" }[currentConv()?.rpProject?.rpTheme];
-  const archiveTheme = !isRoleplayConversation() && ["academy", "vinyl", "mobile", "letter", "mistnote", "nightglow", "pudding"].includes(settings.themeName) ? settings.themeName : (isRoleplayConversation() ? sceneArchive || "" : "");
+  const archiveTheme = !isRoleplayConversation() && ["academy", "vinyl", "mobile", "letter", "mistnote", "nightglow", "pudding", "greynote"].includes(settings.themeName) ? settings.themeName : (isRoleplayConversation() ? sceneArchive || "" : "");
   const flat = isRoleplayConversation() || settings.chatLayout === "flat" || !!archiveTheme;
   const el = document.createElement("div");
   const stickerOnly = Array.isArray(content) && content.length > 0 && content.every(p => p.type === "sticker");
@@ -18594,6 +18596,8 @@ THEMES.push(
     bg:"#f3f6f7", "bg-soft":"#f7f9fa", "bg-panel":"#eef3f5", border:"#cbd7de", text:"#35424b", "text-dim":"#74828b", accent:"#647d8d", "accent-soft":"#e7eef2", "assistant-bubble":"#fbfcfc", "user-bubble":"#e3ebef", "code-bg":"#e8eff3", "err-bg":"#f6e8e7", "err-text":"#a34d52", "item-active":"#dfe8ed" } },
   { key: "nightglow", name: "暗夜流光", dark: false, textColor: "#2b2522", textDim: "#7a6e68", vars: {
     bg:"#f6f1ee", "bg-soft":"#faf7f4", "bg-panel":"#ffffff", border:"#e8dfd8", text:"#2b2522", "text-dim":"#7a6e68", accent:"#9a4a4a", "accent-soft":"#f3e6e4", "assistant-bubble":"#faf7f4", "user-bubble":"#efe7e1", "code-bg":"#f2ece8", "err-bg":"#fbe4e6", "err-text":"#b4232f", "item-active":"#ede5df" } },
+  { key: "greynote", name: "浅灰信笺", dark: false, textColor: "#3a3836", textDim: "#8f8c89", vars: {
+    bg:"#f1f1f0", "bg-soft":"#f7f7f6", "bg-panel":"#ffffff", border:"#e2e1df", text:"#3a3836", "text-dim":"#8f8c89", accent:"#8c8a88", "accent-soft":"#ececeb", "assistant-bubble":"#ffffff", "user-bubble":"#fbfafa", "code-bg":"#f2f2f1", "err-bg":"#f6e8e7", "err-text":"#a34d52", "item-active":"#e8e7e6" } },
   { key: "vinyl", name: "青橙唱片", dark: false, textColor: "#315868", textDim: "#7b98a4", vars: {
     bg:"#ffffff", "bg-soft":"#f8fbfc", "bg-panel":"#f8fbfc", border:"#c8d9df", text:"#315868", "text-dim":"#7b98a4", accent:"#416978", "accent-soft":"#edf4f6", "assistant-bubble":"#ffffff", "user-bubble":"#ffffff", "code-bg":"#eaf1f5", "err-bg":"#fbe8e6", "err-text":"#a34850", "item-active":"#dfeaf0" } },
   // 暖茶笺 — 奶油纸底、焦糖点缀、普通左右气泡（v358）。样式在 src/theme-archives.css 末尾。
@@ -18660,7 +18664,7 @@ function applyTheme() {
   applyBubbleStyle();
   applyFont();
   updateSilentUI();
-  if (priorThemeKey !== t.key && [priorThemeKey, t.key].some(key => ["academy", "vinyl", "mobile", "letter", "mistnote", "nightglow", "pudding"].includes(key))
+  if (priorThemeKey !== t.key && [priorThemeKey, t.key].some(key => ["academy", "vinyl", "mobile", "letter", "mistnote", "nightglow", "pudding", "greynote"].includes(key))
       && !isRoleplayConversation() && document.querySelector("#messages .msg")) renderMessages();
   if (typeof webFontCss === "function" && webFontCss(settings.fontFamily)) {
     ensureWebFont(settings.fontFamily).then(applyFont).catch(() => {});

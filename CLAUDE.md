@@ -6,6 +6,10 @@
 
 
 
+## 2026-11-16｜浅灰信笺主题（sw v384）
+
+- 移植惟境 v265/v266 的 greynote：样式在 `src/theme-greynote.css`（index.html 里紧跟 theme-archives.css 引入），主题表 `{ key: "greynote" }`，archive 头像分支、两处档案主题数组都加了 greynote。对白只变色（强制盖过通用 chat-quote），用户信纸 fit-content（min 190px）。回归 `scripts/greynote-regression.mjs`。未真机。
+
 ## 2026-11-16｜简洁输入框（sw v382）
 
 - 输入框改一行胶囊：textarea 在左，＋ 和 🎤/发送在右；`.composer.has-content`（有字或有附件，autoResize 里算，attach-preview 上挂 MutationObserver）时 🎤 换成发送；生成中 .stop 的发送键始终显示。
