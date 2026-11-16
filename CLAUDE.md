@@ -6,6 +6,16 @@
 
 
 
+## 2026-11-16｜顾祁砚自己的相册：翻原图、喜欢就存（sw v387）
+- 移植惟境 v267–v272（personaAgency.ts 相册部分）的思路，复用「我们的相册」(src/album.js, IndexedDB albumEntriesV1, 已在备份里)。主聊天常开，不跟小天地开关走；剧场仍用旧的 [相册:] 识图检索说明。
+- 规则纯函数在 `src/album-agency.js`（ES module，index.html 里 `<script type="module">` 在 album.js 之前载入，挂 `window.JYCAlbumAgency`；album.js 不 import，保持能被 startup-memory 回归当普通脚本跑）。index.html `/* album-agency:start */…/* album-agency:end */` 只放同步剥离 `stripAlbumAgencyTags`、发图格式 `albumPeekWireMessages`（复用 toApiContent / geminiPartsForContent）、`albumTurnImages`。
+- 照片新字段：`by` 'char'|'user'、`caption`（≤60）、`locked`、`seen:false`（只有显式 false 算未读，旧照片都算看过）、`sourceKey`（消息 id:序号，防重复收）、category 新值 `kept`（他收的）。密码 `role.albumCode`（角色上，随角色备份/同步），bridge `albumCode()`。
+- 标记：[存相册:一句话(|锁)] 收她这轮（currentImageTurn）发来的图，经 album 的 sourceToDataUrl 压缩，toast「📷 …收进了相册」；[相册密码:4–12位]；[锁照片:词]/[解锁照片:词]；[翻相册:词]（无词=最近 3 张，含上锁格）。剥离挂在 stripSelfCardTags 开头（所有剥离点都覆盖，流式藏半截）；回复完成时 `applyAlbumReply` 在其他剥离之前读标记。
+- 翻相册：send() 工具循环里（只主聊天，和其他工具共用 2 次额外机会）→ `pendingAlbumPeeks`，streamChat 在请求末尾追加「他刚才那句(assistant) + 应用说明和原图(user)」，他看完再答，显示的是最后一次。平时不发图。
+- 尾巴：streamChat 构好 body 后 `buildAlbumTurnTail` 挂到最后一条用户消息末尾（不进 system）：上锁行（带他的密码）、她新放未告知的照片说明（≤5，回复后标看过）、她提到「相册/照片/相片/合照/那张图」时附目录（只有说明）。system 只是把旧 albumNote 换成稳定的 albumPromptText（约 300 字）。
+- 相册面板：新增「他收的」tab；卡片 meta 显示「他收的/我放的」「还没看到」；上锁照片默认隐藏，顶部「🔒 上锁的 N 张」格，点击输他的密码，对了本次打开，关面板重新锁上。旧 [相册:] 识图检索不再返回上锁照片。
+- 回归：`scripts/album-peek-regression.mjs`。未真机验证。
+
 ## 2026-11-16｜消息底部照惟境（sw v385）
 - assistant/user 的 .msg-actions 由 collapseMsgActionBar 收成 ••• + 文字胶囊（复制/引用/朗读/重新生成/编辑/更多/删除）；▶ 续写和 msg-local-time 留在外面。回归：scripts/msg-footer-regression.mjs。
 

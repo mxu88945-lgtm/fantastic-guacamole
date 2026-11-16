@@ -149,3 +149,17 @@
 @media (prefers-reduced-motion: reduce) {
   .album-thumb img { transition: none; }
 }
+
+/* v387 他自己的相册：上锁那格（密码是他设的；猜对这次打开，关掉相册重新锁上） */
+.album-lock-tile {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; max-width: 900px; margin: 0 auto 16px; padding: 14px 16px;
+  border: 1px dashed color-mix(in srgb, var(--text-dim) 55%, transparent);
+  border-radius: 14px; background: var(--bg-panel); color: var(--text);
+  text-align: left; cursor: pointer; font: inherit;
+}
+.album-lock-tile.open { border-style: solid; }
+.album-lock-icon { font-size: 22px; line-height: 1; }
+.album-lock-copy strong { display: block; font-size: 14px; }
+.album-lock-copy small { display: block; margin-top: 2px; color: var(--text-dim); font-size: 11px; }
+.album-card.locked .album-thumb { outline: 1.5px dashed color-mix(in srgb, var(--text-dim) 60%, transparent); outline-offset: -1.5px; }

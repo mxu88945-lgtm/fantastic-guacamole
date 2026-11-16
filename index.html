@@ -3504,6 +3504,7 @@
             <button type="button" class="album-tab active" data-album-category="all" role="tab" aria-selected="true">全部</button>
             <button type="button" class="album-tab" id="album-tab-role" data-album-category="role" role="tab" aria-selected="false">TA</button>
             <button type="button" class="album-tab" id="album-tab-user" data-album-category="user" role="tab" aria-selected="false">我</button>
+            <button type="button" class="album-tab" id="album-tab-kept" data-album-category="kept" role="tab" aria-selected="false">他收的</button>
             <button type="button" class="album-tab" data-album-category="art" role="tab" aria-selected="false">画册</button>
           </div>
           <div class="album-toolbar-actions">
@@ -12131,7 +12132,10 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     const webNote = "【联网】新闻、天气、价格等实时问题或确实不知道时写 `[联网:关键词]`，收到结果后再答并注意时效。";
     systemText = systemText ? systemText + "\n\n" + webNote : webNote;
   }
-  const albumNote = "【私有相册】当用户让你看相册、回忆某张照片，或回答确实依赖照片内容时，先只写 `[相册:标题/日期/关键词]`。应用只会检索当前角色自己的相册并把可靠结果交给你；收到结果前禁止假装看过。不要在无关话题中滥用。";
+  // v387 主聊天：他自己的相册（存/锁/翻原图）常开，替换旧的 [相册:] 识图检索说明；剧场仍用旧说明。
+  const ownAlbumNote = !rpProject && window.JYCAlbumAgency?.albumPromptText
+    ? window.JYCAlbumAgency.albumPromptText(settings.aiName || "顾祁砚", settings.userName) : "";
+  const albumNote = ownAlbumNote || "【私有相册】当用户让你看相册、回忆某张照片，或回答确实依赖照片内容时，先只写 `[相册:标题/日期/关键词]`。应用只会检索当前角色自己的相册并把可靠结果交给你；收到结果前禁止假装看过。不要在无关话题中滥用。";
   systemText = systemText ? systemText + "\n\n" + albumNote : albumNote;
   if (!rpProject && window.JYCGifts?.buildGiftSystemNote) {
     const roleGiftParts = privateRoleConvs().flatMap(conv => (conv.messages || []).flatMap(message =>
@@ -12306,6 +12310,18 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
       body.reasoning = { effort: "medium" };
     }
     if (/openrouter\.ai/i.test(base)) body.usage = { include: true };  // OpenRouter: also return cost
+  }
+  // v387 他自己的相册（只在主聊天）：每轮会变的相册内容挂在她最后一条消息末尾（不进 system，稳定前缀不动）；
+  // 翻相册时把他刚才那句和原图追加成额外一组消息——只有翻的这一轮才发图。
+  if (!rpProject && typeof buildAlbumTurnTail === "function") {
+    const wireFormat = isGemini ? "gemini" : isAnthropic ? "anthropic" : "openai";
+    const wireHistory = isGemini ? body.contents : body.messages;
+    try {
+      const tail = await buildAlbumTurnTail(currentConv(), historyWindow.messages);
+      albumToldIds = tail.toldIds || [];
+      if (tail.text) window.JYCAlbumAgency?.appendTailToWire?.(wireHistory, tail.text, wireFormat);
+    } catch (_) { albumToldIds = []; }
+    for (const peek of pendingAlbumPeeks) wireHistory.push(...albumPeekWireMessages(wireFormat, peek));
   }
   // Relays and Gemini may require the final turn to be user rather than a
   // different group member's assistant reply. This dispatch turn is API-only.
@@ -13880,6 +13896,7 @@ function parseSelfCardTag(text) {
 /** 去掉所有自我卡标记；末尾没写完的「[自我卡:喜好|还没写…」也去掉。streaming 时连「[」「【自」「[自我」这种半截开头也先藏起来。 */
 function stripSelfCardTags(text, streaming) {
   if (typeof stripAgencyTags === "function") text = stripAgencyTags(text, streaming);
+  if (typeof stripAlbumAgencyTags === "function") text = stripAlbumAgencyTags(text, streaming);
   if (typeof text !== "string" || !text || !/[\[【［]/.test(text)) return text;
   let out = text;
   if (/自我卡/.test(out)) out = out.replace(selfCardTagRe(), "");
@@ -13908,6 +13925,42 @@ ${body ? "上面这份是你自己写的自我卡。" : "你还有一份空着�
   return parts.join("\n\n");
 }
 /* self-card:end */
+/* album-agency:start — v387 顾祁砚自己的相册（移植惟境 v267–v272 思路）。[存相册:说明(|锁)] [相册密码:x] [锁照片:词] [解锁照片:词] [翻相册:词]
+   纯规则在 src/album-agency.js（window.JYCAlbumAgency）；这里只放同步的剥离和发图格式，回归脚本只 eval 这一段。 */
+var pendingAlbumPeeks = [];   // 本轮翻相册：[{assistant, text, photos}]，streamChat 追加到请求末尾，回复结束清空
+function stripAlbumAgencyTags(text, streaming) {
+  if (typeof text !== "string" || !text || !/[\[【［]/.test(text)) return text;
+  let out = text.replace(/[\[【［]\s*(?:存相册|相册密码|锁照片|解锁照片|翻相册)\s*(?:[:：][^\]】］\n]*)?(?:[\]】］]|$)/g, "");
+  if (streaming) out = out.replace(/[\[【［]\s*(?:存(?:相(?:册)?)?|翻(?:相(?:册)?)?|相(?:册(?:密(?:码)?)?)?|锁(?:照(?:片)?)?|解(?:锁(?:照(?:片)?)?)?)$/, "");
+  if (out === text) return text;
+  return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "");
+}
+// 翻相册：他刚才那句（带 [翻相册]）作为 assistant，原图作为额外一条 user 消息。
+// 图片走和聊天附件同一套格式（toApiContent → OpenAI image_url / Anthropic base64；Gemini inlineData）。
+function albumPeekWireMessages(format, peek) {
+  const parts = [{ type: "text", text: String(peek.text || "") }];
+  for (const photo of peek.photos || []) {
+    if (typeof photo?.dataUrl !== "string" || !photo.dataUrl.startsWith("data:image/")) continue;
+    const mediaType = /^data:([^;,]+)/i.exec(photo.dataUrl)?.[1] || "image/jpeg";
+    parts.push({ type: "image", dataUrl: photo.dataUrl, mediaType });
+  }
+  const said = String(peek.assistant || "").trim() || "[翻相册]";
+  if (format === "gemini") return [{ role: "model", parts: [{ text: said }] }, { role: "user", parts: geminiPartsForContent(parts) }];
+  return [{ role: "assistant", content: said }, { role: "user", content: toApiContent(parts, format === "anthropic") }];
+}
+// 她这一轮（最新一串连续用户消息）发来的图，用于 [存相册]。key = 消息 id + 序号，防重复收。
+function albumTurnImages(list) {
+  const out = [];
+  for (const message of currentImageTurn(list || [])) {
+    if (!Array.isArray(message.content)) continue;
+    message.content.forEach((part, index) => {
+      if (part?.type === "image" && typeof part.dataUrl === "string" && part.dataUrl.startsWith("data:image/") && !part._recalled)
+        out.push({ key: `${message.id || "msg"}:${index}`, dataUrl: part.dataUrl });
+    });
+  }
+  return out;
+}
+/* album-agency:end */
 /* agency:start — v379 他的小天地（移植惟境 v261 personaAgency）：暂停的权利、隐私室、身体状态。纯函数在前，回归脚本只 eval 这一段 */
 const AGENCY_PAUSE_MIN_MS = 60000, AGENCY_PAUSE_MAX_MS = 24 * 3600000, AGENCY_APPEAL_GAP_MS = 10 * 60000;
 const AGENCY_ROOM_MAX = 60, AGENCY_NOTE_MAX = 300, AGENCY_ASK_COOLDOWN_MS = 6 * 3600000;
@@ -14018,6 +14071,63 @@ function agencyNames() {
 }
 function agencyFlags() { return { pause: settings.agencyPauseEnabled === true, room: settings.agencyRoomEnabled === true, body: settings.agencyBodyEnabled === true }; }
 function agencyLastUser(conv) { const list = (conv && conv.messages) || []; for (let i = list.length - 1; i >= 0; i--) if (list[i].role === "user") return list[i]; return null; }
+/* v387 他自己的相册：主聊天常开（不跟小天地任何开关走）。 */
+var albumToldIds = [];   // 这轮尾巴里告诉过他的「她新放的照片」，回复完成后标成看过
+function albumMainRole(conv) { return typeof selfCardRoleFor === "function" ? selfCardRoleFor(conv) : activeRole(); }
+/** streamChat 里调用（只在主聊天）：每轮会变的相册内容，挂在本轮最后一条用户消息末尾，不进 system。 */
+async function buildAlbumTurnTail(conv, list) {
+  const agency = window.JYCAlbumAgency, album = window.JYCAlbum;
+  if (!agency?.buildAlbumTail || !album?.entriesFor) return { text: "", toldIds: [] };
+  try { if (album.ready) await withTimeout(album.ready, 3000, "album ready timeout"); } catch (_) {}
+  const role = albumMainRole(conv);
+  const entries = album.entriesFor(role?.id);
+  if (!entries.length) return { text: "", toldIds: [] };
+  const userText = typeof imageTurnText === "function" ? imageTurnText(currentImageTurn(list || [])) : "";
+  return agency.buildAlbumTail(entries, { code: String(role?.albumCode || ""), userText, userName: agencyNames().user });
+}
+/** 翻相册：按词挑原图（最多 3 张，含上锁那格），返回本轮要追加的一组消息内容。 */
+async function albumPeekFor(conv, key, assistantText) {
+  const agency = window.JYCAlbumAgency, album = window.JYCAlbum;
+  let photos = [];
+  try {
+    if (album?.ready) await withTimeout(album.ready, 3000, "album ready timeout");
+    photos = agency?.pickAlbumPeek ? agency.pickAlbumPeek(album?.entriesFor?.(albumMainRole(conv)?.id) || [], key) : [];
+  } catch (_) { photos = []; }
+  const text = agency?.albumPeekResult ? agency.albumPeekResult(photos, key)
+    : "【应用｜翻相册，不是她的新话】相册暂时打不开。照实回应她，别编照片内容。";
+  return { assistant: assistantText, text, photos };
+}
+/** 回复完成后调用：[存相册]收她这轮的图、[相册密码]、[锁照片]/[解锁照片]；返回剥掉标记的正文。mainChat=false 时只剥。 */
+function applyAlbumReply(text, conv, mainChat, turnList) {
+  if (typeof text !== "string") return text;
+  const stripped = stripAlbumAgencyTags(text);
+  const told = albumToldIds; albumToldIds = [];
+  const agency = window.JYCAlbumAgency, album = window.JYCAlbum;
+  if (!mainChat || !conv || !agency || !album) return stripped;
+  const role = albumMainRole(conv);
+  const { name } = agencyNames();
+  const tags = agency.parseAlbumTags(text);
+  const code = agency.parseAlbumCode(text);
+  const lockTags = agency.parseLockPhotoTags(text);
+  if (code && role) {
+    const had = !!role.albumCode;
+    role.albumCode = code;
+    saveSettings();
+    try { showToast(`🔐 ${name}${had ? "换了" : "设了"}相册密码`, 2600); } catch (_) {}
+  }
+  const images = tags.length ? albumTurnImages(turnList) : [];
+  (async () => {
+    try {
+      if (images.length) {
+        const locked = tags.some(tag => tag.locked);
+        const added = await album.addFromChat({ roleId: role?.id, images, captions: tags.map(tag => tag.caption), locked });
+        if (added) showToast(`📷 ${name}把你发的${added > 1 ? ` ${added} 张图` : "照片"}收进了相册${locked ? "，还上了锁" : ""}`, 3000);
+      }
+      if (lockTags.length || told.length) await album.applyAgencyUpdate({ roleId: role?.id, lockTags, seenIds: told });
+    } catch (error) { console.warn("Album reply update failed", error); }
+  })();
+  return stripped;
+}
 /** streamChat 里调用（只在主聊天）：规则 + 这一轮的状态/申请。 */
 function buildAgencyPromptText(conv) {
   const flags = agencyFlags();
@@ -18201,6 +18311,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     // or [相册:X] (the active role's private album), run it, feed the
     // results back (via pendingSearchContext) and re-stream so it can answer. Capped to avoid loops.
     pendingSearchContext = "";
+    pendingAlbumPeeks = [];
     let searchRounds = 0;
     let pendingHistorySources = [];
     while (true) {
@@ -18236,7 +18347,12 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       mergeMessageHistoryRecall(assistantMsg, pendingHistorySources);
       pendingHistorySources = [];
       let act = null;
-      if (!independent && searchRounds < 2 && settings.crossSearch) {
+      // v387 翻相册（只在主聊天）：当场把原图递给他，他看完再答；和其他工具共用两次额外机会。
+      if (!independent && !replyProject && searchRounds < 2 && typeof window.JYCAlbumAgency?.parseAlbumPeek === "function") {
+        const peekKey = window.JYCAlbumAgency.parseAlbumPeek(assistantMsg.content);
+        if (peekKey !== null) act = { type: "peek", q: peekKey };
+      }
+      if (!act && !independent && searchRounds < 2 && settings.crossSearch) {
         const m = assistantMsg.content.match(/\[\s*搜索\s*[:：]\s*([^\]\n]+)\]/);
         if (m) act = { type: "local", q: m[1].trim() };
         if (!act) {
@@ -18256,10 +18372,15 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       searchRounds++;
       assistantMsg.content = "";
       assistantMsg.responseState = "tool";
-      const toolTrace = startMessageTrace(assistantMsg, act.type === "original" ? "local" : act.type, (act.type === "original" ? "原文编号：" : "关键词：") + act.q);
+      const peekSaid = act.type === "peek" ? assistantMsg.content : "";
+      const toolTrace = act.type === "peek"
+        ? startMessageTrace(assistantMsg, "album", "翻相册：" + (act.q || "最近几张"))
+        : startMessageTrace(assistantMsg, act.type === "original" ? "local" : act.type, (act.type === "original" ? "原文编号：" : "关键词：") + act.q);
       paint();
       try {
-        if (act.type === "local" || act.type === "original") {
+        if (act.type === "peek") {
+          pendingAlbumPeeks.push(await albumPeekFor(replyConv, act.q, peekSaid));
+        } else if (act.type === "local" || act.type === "original") {
           const evidence = act.type === "original" ? readHistoryOriginal(act.q) : searchHistoryRecall(act.q);
           pendingSearchContext = "（这是你刚才请求查阅的旧聊天结果，请依据实际提供的原文作答。）\n" + evidence.text;
           pendingHistorySources = evidence.sources || [];
@@ -18269,7 +18390,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
         } else {
           pendingSearchContext = await inspectAlbumForModel(act.q);
         }
-        if (searchRounds >= 2) pendingSearchContext += "\n【本轮工具次数已用完】请基于已提供的结果回答，不再请求工具；没读完的范围如实说明。";
+        if (searchRounds >= 2 && act.type !== "peek") pendingSearchContext += "\n【本轮工具次数已用完】请基于已提供的结果回答，不再请求工具；没读完的范围如实说明。";
         finishMessageTrace(assistantMsg, toolTrace.id, "completed");
       } catch (toolError) {
         finishMessageTrace(assistantMsg, toolTrace.id, "error", "执行失败，请稍后重试");
@@ -18279,8 +18400,15 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       paint();
     }
     pendingSearchContext = "";
+    pendingAlbumPeeks = [];
     finishRunningTraces(assistantMsg, "completed");
     assistantMsg.responseState = "complete";
+    // v387 他自己的相册：在任何剥离之前读 [存相册]/[相册密码]/[锁照片]；只有主聊天才真的存，其余只剥。
+    if (typeof applyAlbumReply === "function") {
+      assistantMsg.content = applyAlbumReply(assistantMsg.content, replyConv, !independent && !replyProject && !backstageMode,
+        replyMessages.slice(0, Math.max(0, replyMessages.indexOf(assistantMsg))));
+      if (typeof assistantMsg.reasoning === "string") assistantMsg.reasoning = stripAlbumAgencyTags(assistantMsg.reasoning);
+    }
     // Capture the private marker before reasoning normalization. A relay may
     // flatten hidden reasoning into content, or stream it through the separate
     // reasoning channel; either way it must be saved before that channel is
@@ -18429,6 +18557,8 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     }
   } catch (e) {
     pendingSearchContext = "";
+    pendingAlbumPeeks = [];
+    albumToldIds = [];
     console.error("[generateReply error]", e);
     cleanPartialReply();
     if (e.name === "AbortError") {
@@ -20987,6 +21117,8 @@ window.JYCAlbumBridge = {
   isMobile,
   closeSidebar,
   toast: showToast,
+  // v387 他设的相册密码（存在角色上，随角色备份/同步）
+  albumCode: () => String(activeRole()?.albumCode || ""),
 };
 
 function resolveReadingChat(ref) {
@@ -22075,6 +22207,7 @@ if ("serviceWorker" in navigator) {
   <div class="music-mini-info"><span class="music-mini-name" id="music-mini-name"></span><span class="music-mini-artist" id="music-mini-artist"></span></div>
   <div class="music-mini-controls"><button type="button" id="music-mini-prev" aria-label="上一首">⏮︎</button><button type="button" id="music-mini-play" aria-label="播放或暂停">▶</button><button type="button" id="music-mini-next" aria-label="下一首">⏭︎</button></div>
 </div>
+<script type="module" src="./src/album-agency.js"></script>
 <script type="module" src="./src/album.js"></script>
 <script type="module" src="./src/reading-room.js"></script>
 <script type="module" src="./src/music.js"></script>
@@ -22105,7 +22238,7 @@ if ("serviceWorker" in navigator) {
 /* iOS PWA "needs two taps" fix for send / regenerate / message actions:
    fire on a clean touch tap (pointerup) and swallow the late native click. */
 (function () {
-  const SEL = "#send-btn, .msg-act, .song-pick-chip, .self-card-chip, #self-card-open, #self-card-close, #agency-open, #agency-close, #agency-status-bar, .agency-room-ask, .agency-room-title, .self-card-expand, .self-card-restore, #plus-menu button[data-act=\"location\"], #plus-menu button[data-act=\"assist\"], #global-prompt-add";
+  const SEL = "#send-btn, .msg-act, .song-pick-chip, .self-card-chip, #self-card-open, #self-card-close, .album-lock-tile, #agency-open, #agency-close, #agency-status-bar, .agency-room-ask, .agency-room-title, .self-card-expand, .self-card-restore, #plus-menu button[data-act=\"location\"], #plus-menu button[data-act=\"assist\"], #global-prompt-add";
   let start = null, suppressEl = null, suppressUntil = 0, synth = false, tapX = 0, tapY = 0;
   const hit = (e) => e.target && e.target.closest ? e.target.closest(SEL) : null;
   document.addEventListener("pointerdown", (e) => {

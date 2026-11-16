@@ -1,4 +1,8 @@
 const bridge = window.JYCAlbumBridge;
+// v387 他自己的相册：规则在 src/album-agency.js（单独的 module 脚本，挂在 window.JYCAlbumAgency 上）。
+// 这里不 import，保持本文件能被回归脚本当普通脚本跑；用到时再取。
+const albumAgency = () => window.JYCAlbumAgency || null;
+const CAPTION_MAX = 60;
 
 if (!bridge) {
   console.error("Album bridge is unavailable");
@@ -15,6 +19,7 @@ if (!bridge) {
     visible: [],
     pending: [],
     ready: false,
+    unlocked: false,
   };
 
   const localDate = () => {
@@ -26,7 +31,8 @@ if (!bridge) {
   const roleName = () => bridge.activeRole()?.name || bridge.activeRole()?.aiName || "TA";
   const userName = () => bridge.userName() || "我";
   const entryId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
-  const categoryName = (category) => category === "role" ? roleName() : category === "user" ? userName() : "画册";
+  const categoryName = (category) => category === "role" ? roleName() : category === "user" ? userName() : category === "kept" ? `${roleName()}收的` : "画册";
+  const albumCode = () => String(bridge.albumCode?.() || "");
   const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) ? value : localDate();
   const formatDate = (value) => {
     const [year, month, day] = validDate(value).split("-");
@@ -39,12 +45,18 @@ if (!bridge) {
       .map((entry) => ({
         id: String(entry.id || entryId()),
         roleId: String(entry.roleId || "default"),
-        category: ["role", "user", "art"].includes(entry.category) ? entry.category : "art",
+        category: ["role", "user", "art", "kept"].includes(entry.category) ? entry.category : "art",
         title: String(entry.title || "未命名照片").slice(0, 80),
         note: String(entry.note || "").slice(0, 600),
         date: validDate(entry.date),
         createdAt: Number(entry.createdAt) || Date.now(),
         dataUrl: entry.dataUrl,
+        // v387 他自己的相册：谁放的、一句说明、上锁、她新放还没告诉他（只有显式 false 算未读）
+        by: entry.by === "char" ? "char" : "user",
+        caption: String(entry.caption || "").trim().slice(0, CAPTION_MAX),
+        ...(entry.locked === true ? { locked: true } : {}),
+        ...(entry.seen === false ? { seen: false } : {}),
+        ...(entry.sourceKey ? { sourceKey: String(entry.sourceKey).slice(0, 120) } : {}),
       }));
   }
 
@@ -64,7 +76,8 @@ if (!bridge) {
   }
 
   function currentList() {
-    const list = roleEntries().filter((entry) => state.category === "all" || entry.category === state.category);
+    const list = roleEntries().filter((entry) => (state.category === "all" || entry.category === state.category)
+      && (!entry.locked || state.unlocked));
     list.sort((a, b) => state.newestFirst
       ? b.date.localeCompare(a.date) || b.createdAt - a.createdAt
       : a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
@@ -89,6 +102,7 @@ if (!bridge) {
     $("album-hero-title").textContent = `${roleName()}的相册`;
     $("album-tab-role").textContent = roleName();
     $("album-tab-user").textContent = userName();
+    if ($("album-tab-kept")) $("album-tab-kept").textContent = `${roleName()}收的`;
     $("album-category-role").textContent = roleName();
     $("album-category-user").textContent = userName();
   }
@@ -106,7 +120,9 @@ if (!bridge) {
     });
     const timeline = $("album-timeline");
     timeline.replaceChildren();
-    $("album-empty").hidden = state.visible.length > 0;
+    const lockedCount = roleEntries().filter((entry) => entry.locked).length;
+    $("album-empty").hidden = state.visible.length > 0 || lockedCount > 0;
+    if (lockedCount) timeline.appendChild(lockTile(lockedCount));
     for (const group of groupByDate(state.visible)) {
       const section = document.createElement("section");
       section.className = "album-date-group";
@@ -132,7 +148,8 @@ if (!bridge) {
         title.textContent = entry.title;
         const meta = document.createElement("span");
         meta.className = "album-card-meta";
-        meta.textContent = categoryName(entry.category);
+        meta.textContent = cardMeta(entry);
+        if (entry.locked) button.classList.add("locked");
         button.append(thumb, title, meta);
         button.addEventListener("click", () => openViewer(state.visible.findIndex((item) => item.id === entry.id)));
         grid.appendChild(button);
@@ -140,6 +157,43 @@ if (!bridge) {
       section.append(label, grid);
       timeline.appendChild(section);
     }
+  }
+
+  // v387：谁放的 + 分类；她新放、他还没被告知的标一下。
+  function cardMeta(entry) {
+    const who = entry.by === "char" ? `${roleName()}收的` : "我放的";
+    const kind = entry.category === "kept" ? "" : ` · ${categoryName(entry.category)}`;
+    return `${entry.locked ? "🔒 " : ""}${who}${kind}${entry.by === "user" && entry.seen === false ? ` · ${roleName()}还没看到` : ""}`;
+  }
+
+  // 上锁那格：密码是他设的（存在角色上）；猜对这次打开，关掉相册就重新锁上。
+  function lockTile(count) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "album-lock-tile" + (state.unlocked ? " open" : "");
+    const icon = document.createElement("span");
+    icon.className = "album-lock-icon";
+    icon.textContent = state.unlocked ? "🔓" : "🔒";
+    const copy = document.createElement("span");
+    copy.className = "album-lock-copy";
+    const strong = document.createElement("strong");
+    strong.textContent = state.unlocked ? "上锁的照片已打开" : `上锁的 ${count} 张`;
+    const small = document.createElement("small");
+    small.textContent = state.unlocked ? "点一下重新锁上" : `密码是${roleName()}设的`;
+    copy.append(strong, small);
+    button.append(icon, copy);
+    button.addEventListener("click", tryUnlock);
+    return button;
+  }
+
+  function tryUnlock() {
+    if (state.unlocked) { state.unlocked = false; closeViewer(); render(); return; }
+    const code = albumCode();
+    if (!code) { alert(`${roleName()}还没设密码，这格谁都打不开。去问问他？`); return; }
+    const input = prompt(`上锁的照片。输入${roleName()}的相册密码：`, "");
+    if (input == null) return;
+    if (input.trim() === code) { state.unlocked = true; render(); bridge.toast("🔓 打开了"); }
+    else alert(`密码不对。去哄哄${roleName()}？`);
   }
 
   async function openPanel() {
@@ -151,6 +205,7 @@ if (!bridge) {
   }
 
   function closePanel() {
+    state.unlocked = false;
     closeViewer();
     closeComposer();
     $("album-panel").classList.remove("open");
@@ -233,6 +288,10 @@ if (!bridge) {
           date,
           createdAt: Date.now() + index,
           dataUrl,
+          // v387：她直接放的照片算「我放的」，下一轮用一句说明告诉他（不发图）
+          by: "user",
+          caption: (customTitle && state.pending.length === 1 ? customTitle : note).slice(0, CAPTION_MAX),
+          seen: false,
         });
       }
       state.entries.unshift(...additions);
@@ -254,7 +313,7 @@ if (!bridge) {
     const entry = state.visible[index];
     $("album-view-image").src = entry.dataUrl;
     $("album-view-title").textContent = entry.title;
-    $("album-view-meta").textContent = `${categoryName(entry.category)} · ${formatDate(entry.date)} · ${index + 1}/${state.visible.length}`;
+    $("album-view-meta").textContent = `${cardMeta(entry)} · ${formatDate(entry.date)} · ${index + 1}/${state.visible.length}`;
     $("album-view-note").textContent = entry.note;
     $("album-view-note").hidden = !entry.note;
     $("album-viewer").hidden = false;
@@ -340,7 +399,7 @@ if (!bridge) {
     const needle = raw.toLocaleLowerCase();
     const generic = !needle || /^(?:最新|最近|第一张|相册|照片|看看|随便看看|全部)$/.test(needle);
     const terms = needle.split(/[\s,，、/]+/).filter(Boolean);
-    const ranked = roleEntries().map((entry) => {
+    const ranked = roleEntries().filter((entry) => !entry.locked).map((entry) => {
       const title = entry.title.toLocaleLowerCase();
       const note = entry.note.toLocaleLowerCase();
       const date = entry.date.toLocaleLowerCase();
@@ -360,6 +419,60 @@ if (!bridge) {
       .sort((a, b) => b.score - a.score || b.entry.date.localeCompare(a.entry.date) || b.entry.createdAt - a.entry.createdAt)
       .slice(0, Math.max(1, Math.min(5, Number(limit) || 3)));
     return ranked.map(({ entry }) => ({ ...entry }));
+  }
+
+  // ── v387 他自己的相册：给主聊天用的接口（都只碰指定角色的照片）──
+  function entriesFor(targetRoleId) {
+    if (!state.ready) return [];
+    const id = String(targetRoleId || roleId());
+    return state.entries.filter((entry) => entry.roleId === id).map((entry) => ({ ...entry }));
+  }
+
+  // 他写了 [存相册:…]：把她这轮发来的图压缩后收进来（by:'char'）。返回收了几张。
+  async function addFromChat({ roleId: targetRoleId, images, captions, locked } = {}) {
+    await ready();
+    const id = String(targetRoleId || roleId());
+    const have = new Set(state.entries.map((entry) => entry.sourceKey).filter(Boolean));
+    const fresh = (images || []).filter((image) => image?.dataUrl && !(image.key && have.has(image.key)));
+    if (!fresh.length) return 0;
+    const compressed = [];
+    for (const image of fresh) {
+      try { compressed.push({ key: image.key, dataUrl: await sourceToDataUrl({ dataUrl: image.dataUrl }) }); }
+      catch (error) { console.warn("Album compress failed", error); }
+    }
+    if (!albumAgency()?.newAlbumAdditions) return 0;
+    const additions = albumAgency().newAlbumAdditions(state.entries, compressed, captions, { roleId: id, locked: !!locked, now: Date.now(), date: localDate() });
+    if (!additions.length) return 0;
+    state.entries.unshift(...additions.map((entry) => ({ id: entryId(), ...entry })));
+    await persist();
+    render();
+    return additions.length;
+  }
+
+  // [锁照片:词]/[解锁照片:词] + 本轮已告诉他的新照片标成看过。
+  async function applyAgencyUpdate({ roleId: targetRoleId, lockTags, seenIds } = {}) {
+    await ready();
+    const id = String(targetRoleId || roleId());
+    let changed = 0;
+    if (Array.isArray(lockTags) && lockTags.length) {
+      const mine = state.entries.filter((entry) => entry.roleId === id);
+      const result = albumAgency()?.applyLockPhotoTags(mine, lockTags) || { entries: mine, changed: 0 };
+      if (result.changed) {
+        const byId = new Map(result.entries.map((entry) => [entry.id, entry]));
+        state.entries = state.entries.map((entry) => byId.get(entry.id) || entry);
+        changed += result.changed;
+      }
+    }
+    const seen = new Set(seenIds || []);
+    if (seen.size) state.entries = state.entries.map((entry) => {
+      if (!seen.has(entry.id) || entry.seen !== false) return entry;
+      changed += 1;
+      const next = { ...entry };
+      delete next.seen;
+      return next;
+    });
+    if (changed) { await persist(); render(); }
+    return changed;
   }
 
   document.querySelectorAll(".album-tab").forEach((button) => button.addEventListener("click", () => {
@@ -406,6 +519,6 @@ if (!bridge) {
     window.dispatchEvent(new CustomEvent("jyc:album-updated"));
   }
 
-  window.JYCAlbum = { open: openPanel, addFromDataUrl, exportSnapshot, restoreSnapshot, reassignRole, summary, findForModel, ready: null };
+  window.JYCAlbum = { open: openPanel, addFromDataUrl, exportSnapshot, restoreSnapshot, reassignRole, summary, entriesFor, addFromChat, applyAgencyUpdate, findForModel, ready: null };
   Object.defineProperty(window.JYCAlbum, "ready", { get: ready });
 }
