@@ -6,6 +6,9 @@
 
 
 
+## 2026-11-16｜消息底部照惟境（sw v385）
+- assistant/user 的 .msg-actions 由 collapseMsgActionBar 收成 ••• + 文字胶囊（复制/引用/朗读/重新生成/编辑/更多/删除）；▶ 续写和 msg-local-time 留在外面。回归：scripts/msg-footer-regression.mjs。
+
 ## 2026-11-16｜浅灰信笺主题（sw v384）
 
 - 移植惟境 v265/v266 的 greynote：样式在 `src/theme-greynote.css`（index.html 里紧跟 theme-archives.css 引入），主题表 `{ key: "greynote" }`，archive 头像分支、两处档案主题数组都加了 greynote。对白只变色（强制盖过通用 chat-quote），用户信纸 fit-content（min 190px）。回归 `scripts/greynote-regression.mjs`。未真机。
