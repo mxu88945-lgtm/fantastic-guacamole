@@ -3094,8 +3094,9 @@
           <button data-hact="rp-notes" id="header-rp-notes" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v16l-4-2-4 2-4-2-3 2V5a2 2 0 0 1 2-2Z"/><path d="M9 8h6M9 12h4"/></svg>幕后手记<span class="header-menu-count" id="rp-notes-count"></span></button>
           <button data-hact="rp" id="header-rp-settings" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>情景与角色资料</button>
           <button data-hact="files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6l2 3h8v13H4Z"/><path d="M8 12h8M8 16h5"/></svg>本对话资料<span class="header-menu-count" id="conversation-files-count">0</span></button>
+          <button data-hact="self-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h10l4 4v14H5Z"/><path d="M9 12h6M9 16h4"/></svg>他自己写的卡</button>
+          <button data-hact="agency"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/></svg>他的小天地</button>
           <button data-hact="rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>重命名对话</button>
-          <button data-hact="compact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 11h12"/><path d="M3 16h7"/></svg>压缩对话</button>
           <button data-hact="delete" class="danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>删除对话</button>
         </div>
       </div>
@@ -20594,6 +20595,8 @@ async function init() {
       if (a === "rp-notes") openRpBackstageNotes();
       else if (a === "rp") window.JYCRoleplay?.editCurrent?.();
       else if (a === "files") openConversationProjectFiles();
+      else if (a === "self-card") openSelfCardPanel("");
+      else if (a === "agency") openAgencyPanel();
       else if (a === "model") openModelConfig();
       else if (a === "rename") renameConversation(currentId);
       else if (a === "export") openExportDialog();
