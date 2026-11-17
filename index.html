@@ -21287,7 +21287,7 @@ window.JYCReadingBridge = {
   },
 };
 function roleplayPublicProject(conv) {
-  if (!isRoleplayConversation(conv)) return null;
+  if (!conv || !isRoleplayConversation(conv)) return null;
   const p = normalizedRoleplayProject(conv.rpProject, conv);
   return cloneChatData({
     id: conv.id, familyId: conv.rpProjectFamilyId || "", title: conv.title || p.title, updatedAt: conv.updatedAt || 0,
