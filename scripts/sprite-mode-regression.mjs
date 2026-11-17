@@ -4,7 +4,7 @@ import { readFileSync, statSync } from "node:fs";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 const copyStatic = readFileSync(new URL("./copy-static.mjs", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v390";'), "service worker cache bumped for 立绘 点他冒爱心，双击隐身");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v391";'), "service worker cache bumped for 立绘 点他冒爱心，双击隐身");
 
 // ---- pure classifier from index.html ----
 const start = html.indexOf("/* sprite-mode:start");
@@ -161,7 +161,7 @@ assert.ok(/spriteAppear: "mood",/.test(html), "default 有情绪时出现");
 assert.ok(html.includes('"spriteMode","spriteAppear"'), "spriteAppear is a synced setting");
 assert.ok(html.includes("const SPRITE_STAY_MS = 8000;"), "stays ~8s");
 assert.ok(html.includes('if (mood !== "cold") { setSpriteMood(mood); spriteShowFor(SPRITE_STAY_MS); return; }'), "pops in only for non-neutral replies");
-assert.ok(html.includes("spritePinned = true;  // summoned by hand: stays until double-tapped"), "manual summon stays");
+assert.ok(html.includes("if (spriteAppearMode() === \"mood\") spriteArmAway(SPRITE_STAY_MS); else spritePinned = true;"), "manual summon: auto mode leaves after 8s");
 for (const cls of ["html[data-kb] #sprite-tab", "body.dashboard-open #sprite-tab", "body.rp-chat-active #sprite-tab", "body.rp-theater-open #sprite-tab", "html[data-kb] #sprite-stage .sprite-hit"])
   assert.ok(html.includes(cls), `tab/hit hidden for ${cls}`);
 assert.ok(/prefers-reduced-motion: reduce\)[^@]*#sprite-stage, #sprite-stage \.sprite-img, #sprite-stage\.snapping \{ transition: none; \}/.test(html), "snap glide respects reduced motion");

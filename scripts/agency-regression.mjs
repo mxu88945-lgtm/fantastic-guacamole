@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v390";'), "service worker cache bumped for the agency release");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v391";'), "service worker cache bumped for the agency release");
 
 const start = html.indexOf("/* agency:start");
 const end = html.indexOf("/* agency:end */");

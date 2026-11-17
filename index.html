@@ -7348,7 +7348,7 @@ function wireSpriteStage(stage) {
       stage.style.transform = "";
       setTimeout(() => stage.classList.remove("snapping"), 260);
     }
-    if (spriteAppearMode() === "mood" && spriteShown) spritePinned = true;  // moved him: let him stay
+    if (spriteAppearMode() === "mood" && spriteShown && !spritePinned) spriteArmAway(SPRITE_STAY_MS);  // v391：拖完不再永远钉住，放手后再待 8 秒就回去
   };
   hit.addEventListener("pointerup", end);
   hit.addEventListener("pointercancel", end);
@@ -7358,7 +7358,7 @@ function wireSpriteStage(stage) {
     tab.addEventListener("pointerup", (e) => {
       e.preventDefault(); e.stopPropagation();
       spriteSetShown(true, { hop: true });
-      spritePinned = true;  // summoned by hand: stays until double-tapped
+      if (spriteAppearMode() === "mood") spriteArmAway(SPRITE_STAY_MS); else spritePinned = true;  // v391：自动模式下手动叫出来也只待 8 秒
       if (spriteAppearMode() === "always") { try { localStorage.removeItem("jyc_sprite_hidden"); } catch (_) {} }
     });
     tab.addEventListener("click", stop);
