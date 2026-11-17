@@ -81,7 +81,7 @@ function wxEnsureWidget() {
   }
   wxTickClock();
   setInterval(wxTickClock, 1000);
-  document.getElementById('wx-weather-btn').addEventListener('click', function () { wxRefresh(true); });
+  document.getElementById('wx-weather-btn').addEventListener('click', function () { wxRefresh(true, true); });
 }
 // Every network/geo step is time-capped so the card can never hang on 「获取中」.
 function wxWithTimeout(promise, ms, tag) {
@@ -95,6 +95,42 @@ async function wxFetchJson(url, ms) {
     .catch(function (e) { try { controller && controller.abort(); } catch (_) {} throw e; });
   if (!resp.ok) throw new Error('wx ' + resp.status);
   return wxWithTimeout(resp.json(), ms, 'wx-timeout');
+}
+// v388：wttr.in 备用源，转成和 Open-Meteo 一样的结构（WWO 天气码粗略换成 WMO 码）。
+function wxWwoToWmo(code) {
+  const c = Number(code);
+  if (c === 113) return 0;
+  if (c === 116) return 2;
+  if (c === 119 || c === 122) return 3;
+  if ([143, 248, 260].indexOf(c) >= 0) return 45;
+  if ([200, 386, 389, 392, 395].indexOf(c) >= 0) return 95;
+  if ([179, 227, 230, 323, 326, 329, 332, 335, 338, 368, 371].indexOf(c) >= 0) return 73;
+  if ([182, 185, 281, 284, 311, 314, 317, 320, 350, 362, 365, 374, 377].indexOf(c) >= 0) return 66;
+  if ([299, 302, 305, 308, 356, 359].indexOf(c) >= 0) return 63;
+  if ([176, 263, 266, 293, 296, 353].indexOf(c) >= 0) return 61;
+  return 3;
+}
+async function wxFetchWttr(latitude, longitude) {
+  const j = await wxFetchJson('https://wttr.in/' + latitude.toFixed(3) + ',' + longitude.toFixed(3) + '?format=j1', 15000);
+  const cur = j.current_condition[0];
+  const days = (j.weather || []).slice(0, 2);
+  const mid = function (d) { const h = d.hourly || []; return wxWwoToWmo((h[4] || h[0] || {}).weatherCode); };
+  return {
+    current: { temperature_2m: Number(cur.temp_C), weather_code: wxWwoToWmo(cur.weatherCode) },
+    daily: {
+      temperature_2m_max: days.map(function (d) { return Number(d.maxtempC); }),
+      temperature_2m_min: days.map(function (d) { return Number(d.mintempC); }),
+      weather_code: days.map(mid)
+    }
+  };
+}
+function wxFirstOk(promises) {
+  return new Promise(function (resolve, reject) {
+    let left = promises.length, lastErr = null;
+    promises.forEach(function (p) {
+      p.then(resolve, function (e) { lastErr = e; if (--left === 0) reject(lastErr); });
+    });
+  });
 }
 async function wxFetch() {
   // 定位失败或超时时，用上次缓存的大致位置（约 1 km）查天气，不让整张卡失败。
@@ -116,12 +152,11 @@ async function wxFetch() {
     + '&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto&forecast_days=2';
   // Place name (BigDataCloud, 8s cap) runs alongside the weather and can never fail it.
   const placeP = (typeof jycReverseGeocode === 'function') ? jycReverseGeocode(latitude, longitude).catch(function () { return null; }) : Promise.resolve(null);
-  let data;
-  try {
-    data = await wxFetchJson(url, 10000);
-  } catch (_) {
-    data = await wxFetchJson(url, 12000); // 天气服务偶尔慢，重试一次
-  }
+  // v388：Open-Meteo 在国内常连不上，同时问 wttr.in，谁先回就用谁。
+  const data = await wxFirstOk([
+    wxFetchJson(url, 12000).catch(function () { return wxFetchJson(url, 12000); }),
+    wxFetchWttr(latitude, longitude)
+  ]);
   const geo = await placeP;
   const next = {
     temp: Math.round(data.current.temperature_2m),
@@ -169,7 +204,7 @@ function wxToast(msg) {
   el._t = setTimeout(function () { el.style.display = 'none'; }, 4000);
 }
 
-async function wxRefresh(force) {
+async function wxRefresh(force, fromTap) {
   if (wxRefreshing) return;
   const cached = wxReadCache();
   if (cached && Date.now() - cached.at < WX_TTL && !force) { wxPaint(cached); return; }
@@ -186,6 +221,8 @@ async function wxRefresh(force) {
     wxPaint(w);
   } catch (e) {
     const code = e && e.code;
+    // v388：后台自动刷新失败就安静地用旧数据，只有她亲手点天气卡才弹提示。
+    if (!fromTap) { wxPaint(cached); return; }
     if (code === 1) {
       wxToast('定位被拒绝了：去 iPhone 设置 → 隐私与安全性 → 定位服务 → Safari（或你用的浏览器）打开定位');
     } else if (e && e.message === 'no-geo') {
