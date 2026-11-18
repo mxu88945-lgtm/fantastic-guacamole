@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 const mentions = readFileSync(new URL("../src/rp-mentions.js", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v400";'), "service worker cache bumped for the guests release");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v401";'), "service worker cache bumped for the guests release");
 
 // ---- pure helpers from index.html ----
 const start = html.indexOf("/* guests:start");
@@ -154,5 +154,15 @@ assert.ok(html.includes('data-guest-field="keepStory"'), "card guests can opt in
 assert.ok(html.includes("function guestCardRule(") && html.includes("guest.keepStory === true"), "keepStory toggles the 借人不借戏 rule per guest");
 
 assert.ok(html.includes("guestIsMentionOnly(m, guestMentionNames)") && html.includes("guestStripMentions(m.content, guestMentionNames)"), "@ names hidden from her bubble, pure-@ messages hidden");
+
+{
+  // v401：没勾原卡剧情的客人开口时，看不到别的客人的原卡剧情
+  const kid = { id: "g-kid", name: "小Eli", fromCard: true, keepStory: true, persona: "三岁", world: "在孤儿院长大", memories: [] };
+  const other = { id: "g-b", name: "阿七", fromCard: true, persona: "侠客", world: "", memories: [] };
+  const p2 = { mode: "mention", guests: [kid, other] };
+  const asOther = lib.guestSystemBlock(p2, names, false, "g-b");
+  assert.ok(!asOther.includes("孤儿院") && asOther.includes("阿七不在那出戏里") && asOther.includes("这一轮是阿七开口"), "strip guest does not see keepStory guest's story");
+  for (const id of ["g-kid", undefined]) assert.ok(lib.guestSystemBlock(p2, names, false, id).includes("孤儿院"), "keepStory guest and host still see it");
+}
 
 console.log("guests regression passed");
