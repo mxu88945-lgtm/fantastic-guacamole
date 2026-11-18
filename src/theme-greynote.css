@@ -1,6 +1,6 @@
 /* v384 浅灰信笺（移植惟境 v265/v266）：浅灰底 + 白信纸，一条 Mon Chéri 细分割线，淡玫瑰对白只变色，头像一圈白边细灰线；用户信纸随字数伸缩。 */
 html[data-theme-key="greynote"] { --wall-top: #f1f1f0; }
-.theme-choice-grid button.greynote i { border: 1px solid #d9d8d6; border-radius: 9px; background: linear-gradient(145deg,#f1f1f0 0 52%,#ffffff 53% 76%,#b9898f 77%) !important; }
+.theme-choice-grid button.greynote i { border: 1px solid #d9d8d6; border-radius: 9px; background: linear-gradient(145deg,#f1f1f0 0 52%,#ffffff 53% 76%,#9ca5ad 77%) !important; }
 .archive-row.archive-greynote { width: 100%; max-width: 820px; margin: 22px auto 30px !important; color: #3a3836; }
 .archive-greynote.user { width: min(90%,720px); align-self: flex-end; margin-left: auto !important; margin-right: 0 !important; }
 .archive-greynote .archive-heading { display: flex; align-items: center; gap: 14px; padding: 0 4px; border: 0; background: none; box-shadow: none; }
@@ -9,7 +9,7 @@ html[data-theme-key="greynote"] { --wall-top: #f1f1f0; }
 .archive-greynote .archive-name { color: #3a3836; font-size: 22px; line-height: 1.2; font-weight: 700; }
 .archive-greynote .archive-heading-copy small { display: block; margin-top: 4px; color: #a3a09d; font: italic 11px/1.3 Georgia,serif; letter-spacing: .08em; }
 .archive-greynote .archive-body { box-sizing: border-box; width: 100%; min-width: 0; margin-top: 12px; padding: 18px 20px; border: 1px solid #e5e4e2; border-radius: 20px; background: #fff; box-shadow: 0 6px 18px rgba(60,58,56,.05); color: #3a3836; line-height: 2; }
-.archive-greynote .archive-body::before { content: 'Mon Chéri'; display: flex; align-items: center; justify-content: center; margin: 0 0 14px; color: #b9898f; font: italic 13px/1 Georgia,'Times New Roman',serif; letter-spacing: .06em; background: linear-gradient(#e2d4d6,#e2d4d6) left center / calc(50% - 46px) 1px no-repeat, linear-gradient(#e2d4d6,#e2d4d6) right center / calc(50% - 46px) 1px no-repeat; }
+.archive-greynote .archive-body::before { content: 'Mon Chéri'; display: flex; align-items: center; justify-content: center; margin: 0 0 14px; color: #9ca5ad; font: italic 13px/1 Georgia,'Times New Roman',serif; letter-spacing: .06em; background: linear-gradient(#e2d4d6,#e2d4d6) left center / calc(50% - 46px) 1px no-repeat, linear-gradient(#e2d4d6,#e2d4d6) right center / calc(50% - 46px) 1px no-repeat; }
 .archive-greynote.user .archive-body::before { content: 'Réponse'; }
 .archive-greynote .archive-body :is(.bubble,.message-content,.message-plain-text,.rp-story-text) { width: 100%; max-width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: inherit; line-height: inherit; }
 .archive-greynote .archive-body :is(p,.message-story-paragraph,.rp-mixed-paragraph) { margin: 0 0 1.1em; line-height: 2; }
@@ -20,7 +20,7 @@ html[data-theme-key="greynote"] { --wall-top: #f1f1f0; }
 .archive-greynote.user .archive-heading-copy { text-align: right; }
 .archive-greynote.user :is(.msg-actions,.user-msg-actions,.message-action-row) { align-self: flex-end; }
 /* 通用 .msg.assistant .bubble span.chat-quote 会盖掉，这里强制：对白只变色，不加底。 */
-#messages .msg.archive-greynote .archive-body :is(span.chat-quote,.message-quote,blockquote.chat-quote) { display: inline !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: none !important; box-shadow: none !important; color: var(--chat-quote-color,#a0656d) !important; font-weight: 600 !important; line-height: inherit !important; }
+#messages .msg.archive-greynote .archive-body :is(span.chat-quote,.message-quote,blockquote.chat-quote) { display: inline !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: none !important; box-shadow: none !important; color: var(--chat-quote-color,#56626d) !important; font-weight: 600 !important; line-height: inherit !important; }
 /* 用户信纸跟着字数伸缩。 */
 #messages .msg.archive-greynote.user .archive-body { width: fit-content !important; min-width: 190px; max-width: 100% !important; margin-left: auto !important; margin-right: 0 !important; background: #fbfafa; text-align: left !important; }
 #messages .msg.archive-greynote.user .archive-body :is(.bubble,.message-content,.message-plain-text) { width: fit-content; margin-left: auto; text-align: left; }
