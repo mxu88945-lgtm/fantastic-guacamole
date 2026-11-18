@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 const mentions = readFileSync(new URL("../src/rp-mentions.js", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v394";'), "service worker cache bumped for the guests release");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v395";'), "service worker cache bumped for the guests release");
 
 // ---- pure helpers from index.html ----
 const start = html.indexOf("/* guests:start");
@@ -152,5 +152,7 @@ assert.ok(ctxBody.includes("if (!active && !hadGuests) return null;"), "nothing 
 
 assert.ok(html.includes('data-guest-field="keepStory"'), "card guests can opt into their original story");
 assert.ok(html.includes("function guestCardRule(") && html.includes("guest.keepStory === true"), "keepStory toggles the 借人不借戏 rule per guest");
+
+assert.ok(html.includes("guestIsMentionOnly(m, guestMentionNames)") && html.includes("guestStripMentions(m.content, guestMentionNames)"), "@ names hidden from her bubble, pure-@ messages hidden");
 
 console.log("guests regression passed");

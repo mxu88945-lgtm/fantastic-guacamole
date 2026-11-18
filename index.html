@@ -7978,11 +7978,13 @@ function renderMessages() {
   for (const summaryId of expandedSummaryIds) {
     if (!messages.some(m => m && m.id === summaryId && m._summary && !m._compactedBy)) expandedSummaryIds.delete(summaryId);
   }
+  const guestMentionNames = guestMentionNamesFor(conv);
   for (let i = renderFrom; i < messages.length; i++) {
     const m = messages[i];
     if (m._event || (m._compactedBy && !revealedArchivedIds.has(m.id))) continue;
     if (isNoReplyPlaceholder(m)) continue;
     if (isHiddenRoleplayMentionMessage(m)) continue;
+    if (guestMentionNames && m.role === "user" && guestIsMentionOnly(m, guestMentionNames)) continue;
     if (m.role === "reminder") { box.appendChild(reminderCardEl(m)); continue; }   // countdown / done card
     if (m._summary && !expandedSummaryIds.has(m.id)) {
       const archivedCount = archivedMessagesForSummary(conv, m).length || m._summaryCount || 0;
@@ -7995,7 +7997,7 @@ function renderMessages() {
       continue;
     }
     const isLast = i === messages.length - 1;
-    const el = makeMsgEl(m.role, m.content, {
+    const el = makeMsgEl(m.role, guestMentionNames && m.role === "user" ? guestStripMentions(m.content, guestMentionNames) : m.content, {
       actions: true, isLast, reasoning: m.reasoning, traces: m.traces,
       responseState: m.responseState, ts: m.ts, rpSpeakerId: m.rpSpeakerId, rpSpeakerName: m.rpSpeakerName, rpSpeakerAvatar: m.rpSpeakerAvatar,
       speakerId: m.speakerId, speakerName: m.speakerName, speakerAvatar: m.speakerAvatar,
@@ -14082,6 +14084,28 @@ function guestParseMentions(text, speakers, cap = GUEST_MENTION_CAP) {
     if (hit && !ids.includes(hit.id)) ids.push(hit.id);
   }
   return ids.slice(0, cap);
+}
+/** v395：她气泡里不显示 @名字（点名照样生效）；只有 @ 的那条整条不显示。只在主聊天、库里有客人时。 */
+function guestMentionNamesFor(conv) {
+  if (!conv || isRoleplayConversation(conv)) return null;
+  const role = typeof guestRoleFor === "function" ? guestRoleFor(conv) : null;
+  const guests = guestList(role);
+  if (!guests.length) return null;
+  const main = String(settings.aiName || "").trim();
+  return [main, ...guests.map(g => String(g.name || "").trim()), "所有人", "全体"].filter(Boolean).sort((a, b) => b.length - a.length);
+}
+function guestMentionPattern(names) { return new RegExp("[@＠](?:" + names.map(guestEscapeRe).join("|") + ")[\\s,，、]*", "g"); }
+function guestStripMentionText(text, names) { return String(text || "").replace(guestMentionPattern(names), "").replace(/^\s+/, ""); }
+function guestStripMentions(content, names) {
+  if (typeof content === "string") return guestStripMentionText(content, names);
+  if (Array.isArray(content)) return content.map(part => part && part.type === "text" && typeof part.text === "string" ? { ...part, text: guestStripMentionText(part.text, names) } : part);
+  return content;
+}
+function guestIsMentionOnly(m, names) {
+  const text = messageText(m);
+  if (!/[@＠]/.test(text)) return false;
+  const hasPics = Array.isArray(m.content) && m.content.some(part => part && part.type !== "text");
+  return !hasPics && !guestStripMentionText(text, names).trim();
 }
 /** 这一轮谁说：@ 点名看她最新一条消息 @ 了谁（没 @ = 主人）；自然接话：targets=null，按顺序每人可选不接话，最多 3 人。 */
 function guestPlanTurn(role, conv, latestUserText, main) {
