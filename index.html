@@ -14054,7 +14054,7 @@ function guestResolve(guest) {
   const name = String(guest.name || "").trim() || "客人";
   const persona = String(guest.persona || "").replace(/\{\{char\}\}/gi, name).trim();
   const world = String(guest.world || "").replace(/\{\{char\}\}/gi, name).trim();
-  return { id: guest.id, name, avatar: guest.avatar || "", main: false, fromCard: guest.source === "card",
+  return { id: guest.id, name, avatar: guest.avatar || "", main: false, fromCard: guest.source === "card", keepStory: guest.source === "card" && guest.keepStory === true,
     persona: guestClip(persona, GUEST_PERSONA_MAX), world: guestClip(world, GUEST_WORLD_MAX), memories: Array.isArray(guest.memories) ? guest.memories : [] };
 }
 function guestPresentIds(role, conv) {
@@ -14107,6 +14107,15 @@ function guestMemoryLines(entries, max = GUEST_MEMORY_PROMPT_MAX) {
   }
   return rows.join("\n");
 }
+/** 角色卡客人：默认借人不借戏；勾了「带上原卡剧情和关系」的按原卡来。 */
+function guestCardRule(plan, user) {
+  const cardGuests = plan.guests.filter(g => g.fromCard);
+  const strip = cardGuests.filter(g => !g.keepStory), keep = cardGuests.filter(g => g.keepStory);
+  let out = "";
+  if (strip.length) out += "- 从角色卡拉来的客人" + (keep.length ? "（" + strip.map(g => g.name).join("、") + "）" : "") + "是“借人不借戏”：原卡里的剧情、人物关系、恩怨和与" + user + "或任何人的过往一律不作数；原卡里的其他人物不在场，也不要提起。他是第一次走进这里，和在场的人原本素不相识，彼此的关系只从这里发生的事开始（他自己的记忆和世界观另有写明的除外）。\n";
+  if (keep.length) out += "- " + keep.map(g => g.name).join("、") + "带着原卡的身份、人物关系和过往来到这里：原卡写的都作数，可以自然提起；原卡里的其他人物不在场，不要替他们说话。\n";
+  return out;
+}
 /** 第一条 system 的稳定部分：成员、各自人设/世界观/记忆、模式与格式。只随成员、模式、客人卡或客人记忆变化；每轮谁说放尾巴。 */
 function guestSystemBlock(plan, names, canKick) {
   const char = names.char, user = names.user;
@@ -14115,7 +14124,7 @@ function guestSystemBlock(plan, names, canKick) {
     const memory = guestMemoryLines(g.memories);
     return [
       "〔" + g.name + "｜临时加入的客人〕",
-      g.persona && (g.fromCard ? "人设（借自角色卡，只取性格、说话方式、外貌与身份气质）：\n" + g.persona : "人设：\n" + g.persona),
+      g.persona && (g.fromCard ? (g.keepStory ? "人设（来自角色卡，原卡里的身份、人物关系和过往都作数）：\n" : "人设（借自角色卡，只取性格、说话方式、外貌与身份气质）：\n") + g.persona : "人设：\n" + g.persona),
       g.world && g.name + "的世界观：\n" + g.world,
       memory && g.name + "在这里记得的事（只属于" + g.name + "）：\n" + memory,
     ].filter(Boolean).join("\n");
@@ -14129,7 +14138,7 @@ function guestSystemBlock(plan, names, canKick) {
     + "【群聊回复格式】\n"
     + "- 每次只写轮到的那个人的一段，段首另起一行写【名字】，名字只能是：" + allowed.join("、") + "。这个标记只给应用看，会被隐藏，不会显示给她。\n"
     + "- 只写这个人自己的话和简短动作；不替别人说话（别人会自己回），不替" + user + "发言、行动或决定。\n"
-    + "- 从角色卡拉来的客人是“借人不借戏”：原卡里的剧情、人物关系、恩怨和与" + user + "或任何人的过往一律不作数；原卡里的其他人物不在场，也不要提起。他是第一次走进这里，和在场的人原本素不相识，彼此的关系只从这里发生的事开始（他自己的记忆和世界观另有写明的除外）。\n"
+    + guestCardRule(plan, user)
     + "- 客人各按自己的人设与世界观说话，只知道自己在场时发生的事；" + char + "的长期记忆、日记、相册和与" + user + "的私事，客人并不知道，不得引用或暗示。\n"
     + (canKick ? "- 请出：这里是" + char + "的地方。" + char + "真被某位客人惹烦、或客人越界、冒犯" + user + "时，可以在【" + char + "】那段末尾单独一行写 [请出:客人名字]，应用会请他离开（他的记忆保留，" + user + "随时能再拉回来）。先用话说清再请；别为一点小事请人，也不要每轮都请。客人不能请出任何人。\n" : "")
     + "- 礼物、人物档案、自我卡、点歌、相册、日记、任务卡、提醒和小天地的标记只属于" + char + "，只能写在【" + char + "】那一段；客人段落里不要写这些标记（写了也会被丢掉），客人也不能查旧聊天或联网。客人想记住的事，可以在自己那段末尾写 [记忆:一句话]，只记进他自己的记忆。";
@@ -14294,6 +14303,7 @@ function guestUpdate(role, guestId, patch, now = Date.now()) {
     const value = patch[key];
     if (key === "name") { const n = String(value || "").trim().slice(0, 40); if (n) guest.name = n; continue; }
     if (key === "memories") { guest.memories = Array.isArray(value) ? value : []; continue; }
+    if (key === "keepStory") { if (value === true) guest.keepStory = true; else delete guest.keepStory; continue; }
     if (value === undefined || value === null || !String(value).trim()) delete guest[key];
     else guest[key] = String(value).slice(0, 8000);
   }
@@ -14645,6 +14655,7 @@ function guestEditorHtml(conv, guest) {
   const memories = (guest.memories || []).slice().reverse().slice(0, 20);
   return `<div class="guest-editor">
     <label class="guest-field"><span>人设</span><textarea rows="3" maxlength="8000" data-guest-field="persona" data-guest-for="${id}" placeholder="他是谁、性格和说话方式">${escapeHtml(guest.persona || "")}</textarea></label>
+    ${guest.source === "card" ? `<label class="self-card-toggle"><input type="checkbox" data-guest-field="keepStory" data-guest-for="${id}"${guest.keepStory === true ? " checked" : ""} /><span><strong>带上原卡剧情和关系</strong><small>不勾 = 借人不借戏，只借性格和样子。</small></span></label>` : ""}
     <label class="guest-field"><span>他的世界观</span><textarea rows="3" maxlength="8000" data-guest-field="world" data-guest-for="${id}" placeholder="${guest.source === "card" ? "不填就只借人不借戏：不带原卡剧情和人物关系" : "他来自哪里、那个世界的规则"}">${escapeHtml(guest.world || "")}</textarea></label>
     ${guestChannelFields(guest)}
     <div class="guest-memory">
@@ -14845,6 +14856,7 @@ document.addEventListener("change", (event) => {
     if (profile && !String(profile.modelList || "").trim()) pullProviderModels(profile).then(() => renderGuestPanelIfOpen()).catch(() => {});
     return;
   }
+  if (field === "keepStory") { guestUpdate(role, id, { keepStory: el.checked === true }); guestPanelChanged(null); return; }
   guestUpdate(role, id, { [field]: el.value });
   guestPanelChanged(null, field === "model");
 });

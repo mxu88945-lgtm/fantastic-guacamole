@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 const mentions = readFileSync(new URL("../src/rp-mentions.js", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v393";'), "service worker cache bumped for the guests release");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v394";'), "service worker cache bumped for the guests release");
 
 // ---- pure helpers from index.html ----
 const start = html.indexOf("/* guests:start");
@@ -149,5 +149,8 @@ assert.ok(html.includes("#guest-close, #guest-panel button, #global-prompt-add\"
 const ctxStart = html.indexOf("function guestStreamContext(");
 const ctxBody = html.slice(ctxStart, html.indexOf("\n}\n", ctxStart));
 assert.ok(ctxBody.includes("if (!active && !hadGuests) return null;"), "nothing changes without guests");
+
+assert.ok(html.includes('data-guest-field="keepStory"'), "card guests can opt into their original story");
+assert.ok(html.includes("function guestCardRule(") && html.includes("guest.keepStory === true"), "keepStory toggles the 借人不借戏 rule per guest");
 
 console.log("guests regression passed");
