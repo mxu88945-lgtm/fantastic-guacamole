@@ -4147,6 +4147,14 @@
               </span>
               <button type="button" class="mini-btn" id="push-enable-btn" onclick="pushEnable()" style="flex-shrink:0;">开启</button>
             </div>
+            <div style="display:flex;align-items:center;gap:10px;min-height:50px;padding:8px 12px;font-size:13px;font-weight:600;border-top:1px solid var(--border);">
+              <span style="flex:1;">💌 他会主动来找你
+                <span class="hint" style="display:block;font-weight:400;margin-top:2px;">白天 9 点到 22 点半之间，他想起你就自己发一条；你在聊时不打扰。需先开启上面的提醒。</span>
+              </span>
+              <select id="push-proactive" onchange="pushSetProactive(this.value)" style="width:auto;flex-shrink:0;">
+                <option value="0">关</option><option value="1">每天 1 条</option><option value="2">每天 2 条</option><option value="3">每天 3 条</option><option value="5">每天 5 条</option>
+              </select>
+            </div>
             <label style="display:flex;align-items:center;gap:10px;min-height:50px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;border-top:1px solid var(--border);">
               <input type="checkbox" id="songPickEnabled" style="width:auto;flex-shrink:0;" onchange="readSettingsFromUI();" />
               <span>🎵 让他自己点歌
@@ -16530,6 +16538,7 @@ function pushKeyBytes(b64) { b64 = b64.replace(/-/g, "+").replace(/_/g, "/"); wh
 function pushStatusText() {
   const el = $("push-status"), btn = $("push-enable-btn");
   if (!el) return;
+  const pp = $("push-proactive"); if (pp) { pp.value = String(pushProactivePerDay()); pp.disabled = localStorage.getItem("gqy-push-on") !== "1"; }
   const standalone = window.navigator.standalone === true || window.matchMedia?.("(display-mode: standalone)").matches;
   if (!/^https:/.test(PUSH_BASE)) { el.textContent = "推送服务还没接好。"; if (btn) btn.disabled = true; return; }
   if (!("PushManager" in window) || !("serviceWorker" in navigator)) { el.textContent = standalone ? "这台设备不支持网页推送（iOS 需 16.4 以上）。" : "先把顾祁砚添加到主屏幕，从主屏幕打开再开启。"; if (btn) btn.disabled = true; return; }
@@ -16549,6 +16558,7 @@ async function pushEnable() {
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushKeyBytes(publicKey) });
     await pushPost("/subscribe", { subscription: sub.toJSON() });
     localStorage.setItem("gqy-push-on", "1");
+    pushSyncContext();
     // 已有还没到点的提醒，补排进服务器。
     for (const r of allReminderMsgs()) if (!r.done && !r.canceled && r.dueAt > Date.now()) pushSchedule(r);
     pushStatusText(); showToast("🔔 后台提醒开好了");
@@ -16559,6 +16569,46 @@ function pushSchedule(r) {
   pushPost("/schedule", { id: r.id, at: r.dueAt, title: (settings.aiName || "顾祁砚") + " · 提醒", body: r.text, url: location.href.split("#")[0] }).catch(() => {});
 }
 function pushCancel(id) { if (pushReady() && id) pushPost("/cancel", { id }).catch(() => {}); }
+// v403 主动消息：App 收到后台时把人设和最近聊天交给推送服务器，他在白天随机醒来自己写一句推过来；回到 App 时把这些消息放回聊天。
+function pushProactivePerDay() { const v = localStorage.getItem("gqy-push-proactive"); return v == null ? 3 : Math.max(0, Math.min(6, Number(v) || 0)); }
+function pushSetProactive(v) { localStorage.setItem("gqy-push-proactive", String(Number(v) || 0)); pushSyncContext(); showToast(Number(v) ? "💌 他会主动来找你了" : "已关掉主动消息"); }
+function pushSyncContext() {
+  if (!pushReady()) return;
+  try {
+    const conv = latestRoleConversation();
+    const perDay = pushProactivePerDay();
+    if (!conv) { pushPost("/context", { perDay: 0 }).catch(() => {}); return; }
+    const role = (settings.roles || []).find(r => r.id === conv.roleId) || activeRole();
+    let sys = settings.systemPrompt || "";
+    const en = emojiStyleNote(settings.emojiStyle); if (en) sys += "\n\n" + en;
+    const coreMem = coreMemoryText(); if (coreMem) sys += "\n\n以下是需要长期记住的信息（用户的长期记忆）：\n" + coreMem;
+    const continuity = rollingSummaryPrompt(conv.messages); if (continuity) sys += "\n\n" + continuity;
+    const cyc = cycleSystemNote(); if (cyc) sys += "\n\n" + cyc;
+    const diary = privateDiaryPrompt(role, false, ""); if (diary) sys += "\n\n" + diary;
+    pushPost("/context", { perDay, system: sys.slice(-16000), recent: recentConversationForMailbox(conv).slice(-5000),
+      name: settings.aiName || "顾祁砚", conv: conv.id, url: location.href.split("#")[0] }).catch(() => {});
+  } catch (e) { console.warn("push context failed", e); }
+}
+let pushInboxBusy = false;
+async function pushPullInbox() {
+  if (!pushReady() || pushInboxBusy) return;
+  pushInboxBusy = true;
+  try {
+    const { messages: list } = await pushPost("/inbox", {});
+    if (!Array.isArray(list) || !list.length) return;
+    const done = [];
+    for (const m of list) {
+      const conv = conversations.find(c => c.id === m.conv) || latestRoleConversation();
+      if (!conv) break;
+      const msg = appendProactiveMessage(conv, m.text);
+      if (msg) { msg.ts = m.ts || msg.ts; done.push(m.id); }
+    }
+    if (done.length) { saveConversations(); await pushPost("/ack", { ids: done }); }
+  } catch (e) { console.warn("push inbox failed", e); }
+  finally { pushInboxBusy = false; }
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) pushSyncContext(); });
+window.addEventListener("pagehide", () => pushSyncContext());
 function fireReminder(r) {
   showToast("⏰ 提醒：" + r.text, 6000);
   try {
@@ -19036,6 +19086,7 @@ function maybeCycleReminder() {
 // App became active (cold start / tab refocus): caring period reminder takes priority,
 function onAppActive() {
   updateReminderCards(); startReminderTimer();   // catch up countdowns after the tab was backgrounded
+  pushPullInbox();
   notionAutoSync();
   if (maybeReadMailbox()) return;
   if (maybeCycleReminder()) return;
@@ -22052,6 +22103,7 @@ async function init() {
 
   // Resume task cards, mailbox, cycle reminders and cloud sync when the PWA returns.
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !window.__jycSafeBoot) onAppActive(); });
+  setTimeout(() => { if (!window.__jycSafeBoot) pushPullInbox(); }, 2500);
   if (!window.__jycSafeBoot) setTimeout(onAppActive, 8000);
   if (!window.__jycSafeBoot) setTimeout(() => { shrinkOldChatImages().catch(() => {}); }, 40000);
   window.__jycMark?.("首页就绪");
