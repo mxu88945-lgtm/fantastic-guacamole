@@ -2902,6 +2902,45 @@
 .agency-bar-note { max-width: 0; opacity: 0; transition: opacity .5s ease, max-width .5s ease; }
 .agency-bar-note.show { max-width: 60vw; opacity: 1; }
 .agency-bar-pause { flex: none; color: var(--accent); font-weight: 600; }
+/* v393 客人（临时群聊）面板：沿用自我卡/小天地的卡片样式，只补行和胶囊 */
+.guest-intro { margin: 0 4px 14px; color: var(--text-dim); font-size: 12.5px; line-height: 1.6; }
+.guest-caption { margin: 4px 4px 8px; color: var(--text-dim); font-size: 12px; }
+.guest-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.guest-modes button { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-panel); color: inherit; font: inherit; text-align: left; }
+.guest-modes button strong { font-size: 13.5px; }
+.guest-modes button small { color: var(--text-dim); font-size: 11px; line-height: 1.45; }
+.guest-modes button.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.guest-list { gap: 0; padding: 2px 14px; }
+.guest-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.guest-row:last-child { border-bottom: 0; }
+.guest-row-head { display: flex; align-items: center; gap: 8px; }
+.guest-row-main { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.guest-row-main > span:last-of-type { display: grid; min-width: 0; }
+.guest-row-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.guest-row-main small { color: var(--text-dim); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.guest-row-main i { margin-left: auto; color: var(--accent); font-style: normal; }
+.guest-avatar { display: grid; flex: none; place-items: center; width: 32px; height: 32px; overflow: hidden; border-radius: 50%; background: color-mix(in srgb, var(--accent) 14%, var(--bg-panel)); font-size: 15px; }
+.guest-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.guest-pill { flex: none; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-panel); color: var(--accent); font-size: 12px; }
+.guest-pill:disabled { opacity: .5; }
+.guest-pill.primary { justify-self: start; border-color: var(--accent); background: var(--accent); color: #fff; }
+.guest-add { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 2px 14px; }
+.guest-full { margin: -6px 4px 14px; }
+.guest-pick input[type="search"] { width: 100%; }
+.guest-pick-list { display: grid; gap: 10px; max-height: 46vh; overflow-y: auto; }
+.guest-editor { display: grid; gap: 10px; margin-top: 10px; }
+.guest-field { display: grid; gap: 4px; font-size: 12px; color: var(--text-dim); }
+.guest-field textarea, .guest-field input, .guest-field select, .guest-pick input[type="search"] { box-sizing: border-box; width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; font-size: 16px; }
+.guest-field textarea { resize: vertical; line-height: 1.55; }
+.guest-link { justify-self: start; padding: 0; border: 0; background: none; color: var(--accent); font-size: 12px; }
+.guest-link.danger { color: var(--danger); }
+.guest-memory { display: grid; gap: 6px; padding-top: 4px; }
+.guest-memory strong { font-size: 13px; }
+.guest-memory-row { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.55; }
+.guest-memory-row > span { flex: 1; min-width: 0; }
+.guest-memory-row b { margin-right: 4px; }
+.guest-memory .guest-pill { justify-self: start; }
+.guest-msg-avatar { font-size: 15px; }
 .agency-status { margin: -6px 4px 14px; color: var(--text-dim); font-size: 12px; line-height: 1.5; }
 .agency-room { gap: 0; padding: 4px 14px; }
 .agency-room-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
@@ -3096,6 +3135,7 @@
           <button data-hact="files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6l2 3h8v13H4Z"/><path d="M8 12h8M8 16h5"/></svg>本对话资料<span class="header-menu-count" id="conversation-files-count">0</span></button>
           <button data-hact="self-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h10l4 4v14H5Z"/><path d="M9 12h6M9 16h4"/></svg>他自己写的卡</button>
           <button data-hact="agency"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/></svg>他的小天地</button>
+          <button data-hact="guests"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1"/><path d="M16 4.5a3 3 0 0 1 0 6"/><path d="M18 14.5a5 5 0 0 1 3 4.5v1"/></svg>客人<span class="header-menu-count" id="guest-menu-count"></span></button>
           <button data-hact="music"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>一起听歌</button>
           <button data-hact="rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>重命名对话</button>
           <button data-hact="delete" class="danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>删除对话</button>
@@ -3490,6 +3530,14 @@
         <button class="settings-close-btn" id="agency-close" aria-label="关闭他的小天地"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
       <div class="settings-inner self-card-inner" id="agency-body" style="display:block;"></div>
+    </div>
+
+    <div class="settings" id="guest-panel" style="z-index:67;">
+      <div class="settings-header">
+        <span>客人</span>
+        <button class="settings-close-btn" id="guest-close" aria-label="关闭客人"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="settings-inner self-card-inner" id="guest-body" style="display:block;"></div>
     </div>
 
     <div class="settings" id="album-panel" style="z-index:65;">
@@ -6807,7 +6855,7 @@ function buildCompactionTranscript(prefix, batch, byteBudget) {
   const rows = batch.map(m => {
     const text = normalizeMemoryTransportText(messageText(m)).replace(/\s+/g, " ").trim();
     const body = text || (messageImages(m).length ? "[图片]" : "");
-    return { lead: normalizeMemoryTransportText((m.rpSpeakerName || nameFor(m.role)) + "："), body };
+    return { lead: normalizeMemoryTransportText((m.rpSpeakerName || (typeof isGuestMessage === "function" && isGuestMessage(m) ? "〔客人" + (m.speakerName || "") + "〕" : "") || nameFor(m.role)) + "："), body };
   });
   const structuralBytes = utf8ByteLength(safePrefix)
     + rows.reduce((sum, row) => sum + utf8ByteLength(row.lead) + 1, 0);
@@ -7950,6 +7998,7 @@ function renderMessages() {
     const el = makeMsgEl(m.role, m.content, {
       actions: true, isLast, reasoning: m.reasoning, traces: m.traces,
       responseState: m.responseState, ts: m.ts, rpSpeakerId: m.rpSpeakerId, rpSpeakerName: m.rpSpeakerName, rpSpeakerAvatar: m.rpSpeakerAvatar,
+      speakerId: m.speakerId, speakerName: m.speakerName, speakerAvatar: m.speakerAvatar,
       tokens: m.tokens, timing: m.timing, promptAudit: m.promptAudit, historyRecall: m.historyRecall,
       songPick: m.role === "assistant" && !isRoleplayConversation() ? m.songPick : "", songPickId: m.id,
       selfCardEdit: m.role === "assistant" && !isRoleplayConversation() ? m.selfCardEdit : "",
@@ -9074,6 +9123,7 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState, 
   if (role === "assistant" && typeof text === "string" && typeof stripSelfCardTags === "function") text = stripSelfCardTags(text, !!streaming);
   if (role === "assistant" && typeof text === "string" && typeof stripSongPickTags === "function") text = stripSongPickTags(text, !!streaming);
   if (role === "assistant" && typeof text === "string" && typeof stripImageMemoTags === "function") text = stripImageMemoTags(text, !!streaming);
+  if (role === "assistant" && typeof text === "string" && message && message.speakerId && typeof guestStripLeadMarker === "function") text = guestStripLeadMarker(text, !!streaming);
   let thinkHtml = "", answer = text;
   if (role === "assistant") {
     const split = extractAssistantReasoning(text || "", streaming);
@@ -9222,16 +9272,19 @@ function makeMsgEl(role, content, opts) {
   const legacyLead = Boolean(rpActorName && role === "assistant" && rpProject
     && (!opts.rpSpeakerId || opts.rpSpeakerId === "lead")
     && (!opts.rpSpeakerName || opts.rpSpeakerName === settings.aiName));
-  const displaySpeakerName = legacyLead ? rpActorName : (opts.rpSpeakerName || nameFor(role));
+  // v393 客人：主聊天里客人说的话显示他的名字和头像（主人的回复照旧）
+  const guestSpeaker = role === "assistant" && !rpProject && !isRoleplayConversation() && typeof guestSpeakerView === "function" ? guestSpeakerView(opts) : null;
+  const displaySpeakerName = guestSpeaker ? guestSpeaker.name : legacyLead ? rpActorName : (opts.rpSpeakerName || nameFor(role));
   const nameHtml = escapeHtml(displaySpeakerName) + timeHtml;
   const castMember = opts.rpSpeakerId && isRoleplayConversation() ? roleplayMembers(currentConv().rpProject).find(member => member.id === opts.rpSpeakerId) : null;
-  const castAvatar = castMember ? castMember.avatar : (legacyLead ? rpProject.actorAvatar : opts.rpSpeakerAvatar);
-  const speakerAvatar = opts.rpSpeakerName || legacyLead
+  const castAvatar = guestSpeaker ? (isGuestImageAvatar(guestSpeaker.avatar) ? guestSpeaker.avatar : "") : castMember ? castMember.avatar : (legacyLead ? rpProject.actorAvatar : opts.rpSpeakerAvatar);
+  const speakerAvatar = guestSpeaker ? `<div class="avatar guest-msg-avatar">${guestAvatarInner(guestSpeaker.name, guestSpeaker.avatar)}</div>`
+    : opts.rpSpeakerName || legacyLead
     ? (isImageRef(castAvatar) ? `<div class="avatar"><img src="${escapeHtml(castAvatar)}" alt=""></div>` : `<div class="avatar">${escapeHtml(displaySpeakerName.slice(0, 1))}</div>`)
     : avatarHtml(role);
   if (archiveTheme) {
     el.classList.add("archive-row", `archive-${archiveTheme}`);
-    el.innerHTML = mainArchiveHeading(archiveTheme, displaySpeakerName, castAvatar || avatarFor(role), role === "user")
+    el.innerHTML = mainArchiveHeading(archiveTheme, displaySpeakerName, guestSpeaker ? castAvatar : castAvatar || avatarFor(role), role === "user")
       + `<div class="archive-body">${messageContentHtml(role, content, opts.reasoning, opts.traces, opts.responseState, opts)}</div>`;
     // v349：图片不塞进信笺卡片里，单独放在卡片外
     const stack = typeof el.querySelector === "function" ? el.querySelector(".archive-body .msg-photo-stack") : null;
@@ -11022,7 +11075,7 @@ function buildPendingContinuityBridge(historyWindow) {
   const rows = boundary.map(message => {
     const body = messageText(message).replace(/\s+/g, " ").trim()
       || (messageImages(message).length ? "[图片]" : "");
-    return (message.rpSpeakerName || nameFor(message.role)) + "：" + clipUnicodeChars(body, 180);
+    return (message.rpSpeakerName || (typeof isGuestMessage === "function" && isGuestMessage(message) ? "〔客人" + (message.speakerName || "") + "〕" : "") || nameFor(message.role)) + "：" + clipUnicodeChars(body, 180);
   });
   return clipUnicodeChars(
     "【尚未进入连续性档案的近段原文衔接桥】\n" + rows.join("\n")
@@ -11241,6 +11294,7 @@ function recallQuoteSpeaker(conv, message) {
   if (conv?.space === "roleplay" || message?.rpSpeakerName)
     return String(message?.rpSpeakerName || (message?.role === "user" ? (conv?.rpProject?.userRole || userRef()) : sourceName)) + "说";
   if (message?.role === "user") return "她说";
+  if (typeof isGuestMessage === "function" && isGuestMessage(message)) return "客人" + (message.speakerName || "") + "说";
   const sameRole = !conv?.roleId || conv.roleId === settings?.activeRoleId || sourceName === String(settings?.aiName || "");
   return sameRole ? "他说" : sourceName + "说";
 }
@@ -11741,6 +11795,9 @@ function sendContent(m) {
   }
   if (m.role === "assistant" && m.rpSpeakerName && typeof content === "string" && content.trim())
     return `【共演发言：${m.rpSpeakerName}】\n${content}`;
+  // v393 客人：群聊时（或客人说过的）回复段首加【名字】，和输出格式一致（_guestLabel 只在 streamChat 的临时副本上）
+  if (m.role === "assistant" && m._guestLabel && typeof content === "string" && content.trim())
+    return `【${m._guestLabel}】\n${content}`;
   if (Array.isArray(content) && content.some(part => part?.type === "gift")) {
     return content.flatMap(part => part?.type === "gift"
       ? [{ type: "text", text: giftPartPromptText(part) }]
@@ -11998,7 +12055,7 @@ async function oneShotResponseText(resp, isAnthropic, isGemini) {
   return oneShotCompletionText(data, isAnthropic, isGemini);
 }
 function chatRuntimeSettings() { return settings; }
-async function streamChat(onDelta, onReasoning, requestSettings = null, speaker = null) {
+async function streamChat(onDelta, onReasoning, requestSettings = null, speaker = null, guestTurn = null) {
   try { window.__jycMark?.("等待/接收回复"); } catch (_) {}
   const settings = requestSettings || chatRuntimeSettings();
   const rpProject = isRoleplayConversation() ? normalizedRoleplayProject(currentConv().rpProject, currentConv()) : null;
@@ -12019,6 +12076,15 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   const historyWindow = buildApiHistoryWindow();
   if (independent) historyWindow.messages = historyWindow.messages.map(message => message.role === "assistant" && !message.rpSpeakerName
     ? { ...message, rpSpeakerName: rpProject.actorName || "舞台主角" } : message);
+  // v393 客人（只在主聊天）：没有在场客人、历史里也没有客人说过话时什么都不改。
+  // 否则历史里的回复标【名字】、system 末尾加群聊块（稳定），本轮谁说放尾巴。
+  let guestSystemText = "", guestTailText = "";
+  if (!rpProject && typeof guestStreamContext === "function") {
+    try {
+      const guestCtx = guestStreamContext(currentConv(), historyWindow.messages, guestTurn);
+      if (guestCtx) { historyWindow.messages = guestCtx.messages; guestSystemText = guestCtx.system; guestTailText = guestCtx.tail; }
+    } catch (error) { console.warn("[guests] context skipped", error); }
+  }
   abortController = new AbortController();
   const callStartedAt = performance.now();
   let headersAt = 0, firstByteAt = 0, firstTokenAt = 0, attempts = 0;
@@ -12198,6 +12264,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     try { songPickNote = window.JYCMusic?.songPickNote?.() || ""; } catch (_) { songPickNote = ""; }
     if (songPickNote) systemText = systemText ? systemText + "\n\n" + songPickNote : songPickNote;
   }
+  if (guestSystemText) systemText = systemText ? systemText + "\n\n" + guestSystemText : guestSystemText;
   }
 
   // v377 图记提示不进常驻 system：只在带新图那一轮，由 apiMessagesFor/geminiContentsFor 挂在本轮用户消息末尾。
@@ -12314,6 +12381,8 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     }
     if (/openrouter\.ai/i.test(base)) body.usage = { include: true };  // OpenRouter: also return cost
   }
+  // v393 客人：本轮谁说、前面的人这一轮说了什么——挂在她最后一条消息末尾（不进 system）。
+  if (guestTailText) guestAppendTail(isGemini ? body.contents : body.messages, guestTailText, isGemini ? "gemini" : isAnthropic ? "anthropic" : "openai");
   // v387 他自己的相册（只在主聊天）：每轮会变的相册内容挂在她最后一条消息末尾（不进 system，稳定前缀不动）；
   // 翻相册时把他刚才那句和原图追加成额外一组消息——只有翻的这一轮才发图。
   if (!rpProject && typeof buildAlbumTurnTail === "function") {
@@ -13898,6 +13967,7 @@ function parseSelfCardTag(text) {
 }
 /** 去掉所有自我卡标记；末尾没写完的「[自我卡:喜好|还没写…」也去掉。streaming 时连「[」「【自」「[自我」这种半截开头也先藏起来。 */
 function stripSelfCardTags(text, streaming) {
+  if (typeof stripGuestTags === "function") text = stripGuestTags(text, streaming);
   if (typeof stripAgencyTags === "function") text = stripAgencyTags(text, streaming);
   if (typeof stripAlbumAgencyTags === "function") text = stripAlbumAgencyTags(text, streaming);
   if (typeof text !== "string" || !text || !/[\[【［]/.test(text)) return text;
@@ -13964,6 +14034,315 @@ function albumTurnImages(list) {
   return out;
 }
 /* album-agency:end */
+/* guests:start — v393 主聊天「客人」临时群聊（移植惟境 personaGroup v234/v258/v286）。纯函数，回归脚本只 eval 这一段。
+ * 客人库在角色上 role.guests（卡 + 他在这里的记忆），这扇对话在场的是 conv.guestIds，回复方式 conv.guestReplyMode。
+ * 没有在场客人、历史里也没有客人说过话时，一切照旧（单次请求、提示词不变）。 */
+var GUEST_LIMIT = 6, GUEST_NATURAL_CAP = 3, GUEST_MENTION_CAP = 4, GUEST_MEMORY_EVERY = 40, GUEST_LIBRARY_LIMIT = 40;
+var GUEST_PERSONA_MAX = 1600, GUEST_WORLD_MAX = 1200, GUEST_MEMORY_PROMPT_MAX = 1200, GUEST_MEMORY_LIMIT = 80;
+var GUEST_MAIN_ID = "main";
+var GUEST_SKIP_TAG = "[不接话]";
+function guestClip(value, max) { value = String(value || ""); return value.length > max ? value.slice(0, Math.max(0, max - 1)) + "…" : value; }
+function guestEscapeRe(value) { return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+function isGuestId(id) { return typeof id === "string" && id.startsWith("guest-"); }
+function newGuestId() { return "guest-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7); }
+function isGuestImageAvatar(avatar) { return /^(?:data:image\/|https?:|blob:)/.test(String(avatar || "")); }
+/** 这条回复是不是客人说的（旧消息没有 speakerId = 主人）。 */
+function isGuestMessage(m) { return !!m && m.role === "assistant" && isGuestId(m.speakerId); }
+function guestList(role) { return role && Array.isArray(role.guests) ? role.guests.filter(g => g && isGuestId(g.id) && String(g.name || "").trim()) : []; }
+/** 客人此刻的样子。 */
+function guestResolve(guest) {
+  const name = String(guest.name || "").trim() || "客人";
+  const persona = String(guest.persona || "").replace(/\{\{char\}\}/gi, name).trim();
+  const world = String(guest.world || "").replace(/\{\{char\}\}/gi, name).trim();
+  return { id: guest.id, name, avatar: guest.avatar || "", main: false, fromCard: guest.source === "card",
+    persona: guestClip(persona, GUEST_PERSONA_MAX), world: guestClip(world, GUEST_WORLD_MAX), memories: Array.isArray(guest.memories) ? guest.memories : [] };
+}
+function guestPresentIds(role, conv) {
+  const library = guestList(role);
+  return ((conv && conv.guestIds) || []).filter(id => library.some(g => g.id === id));
+}
+/** 这扇对话此刻在场的客人（按拉进来的顺序；库里已删掉的不算）。 */
+function guestPresentList(role, conv) {
+  const library = guestList(role);
+  return guestPresentIds(role, conv).map(id => guestResolve(library.find(g => g.id === id)));
+}
+function guestGroupActive(role, conv) { return guestPresentIds(role, conv).length > 0; }
+function guestReplyMode(conv) { return conv && conv.guestReplyMode === "natural" ? "natural" : "mention"; }
+/** @ 解析：按她写下的先后顺序返回被点名的人（不重复）；「@所有人」= 在场所有人。名字长的先匹配。 */
+function guestParseMentions(text, speakers, cap = GUEST_MENTION_CAP) {
+  text = String(text || "");
+  if (!text.includes("@") && !text.includes("＠")) return [];
+  const named = speakers.filter(s => String(s.name || "").trim()).slice().sort((a, b) => b.name.length - a.name.length);
+  if (!named.length) return [];
+  const pattern = new RegExp("[@＠](所有人|全体|" + named.map(s => guestEscapeRe(s.name)).join("|") + ")", "g");
+  const ids = [];
+  for (const match of text.matchAll(pattern)) {
+    if (match[1] === "所有人" || match[1] === "全体") { for (const s of speakers) if (!ids.includes(s.id)) ids.push(s.id); continue; }
+    const hit = named.find(s => s.name === match[1]);
+    if (hit && !ids.includes(hit.id)) ids.push(hit.id);
+  }
+  return ids.slice(0, cap);
+}
+/** 这一轮谁说：@ 点名看她最新一条消息 @ 了谁（没 @ = 主人）；自然接话：targets=null，按顺序每人可选不接话，最多 3 人。 */
+function guestPlanTurn(role, conv, latestUserText, main) {
+  const guests = guestPresentList(role, conv);
+  if (!guests.length) return null;
+  const speakers = [{ id: GUEST_MAIN_ID, name: String((main && main.name) || "他").trim() || "他", avatar: (main && main.avatar) || "", main: true },
+    ...guests.map(g => ({ id: g.id, name: g.name, avatar: g.avatar, main: false }))];
+  const mode = guestReplyMode(conv);
+  if (mode === "natural") return { mode, speakers, guests, targets: null, cap: GUEST_NATURAL_CAP };
+  const mentioned = guestParseMentions(latestUserText, speakers);
+  const targets = mentioned.length ? mentioned : [GUEST_MAIN_ID];
+  return { mode, speakers, guests, targets, cap: targets.length };
+}
+function guestMemoryLines(entries, max = GUEST_MEMORY_PROMPT_MAX) {
+  const usable = (entries || []).filter(e => e && String(e.content || "").trim());
+  const ordered = usable.slice(-12);
+  const rows = [];
+  let used = 0;
+  for (const e of ordered) {
+    const row = "· " + (e.title && e.title !== "记忆" ? e.title + "：" : "") + String(e.content).trim().replace(/\s+/g, " ");
+    if (used + row.length > max) break;
+    rows.push(row); used += row.length + 1;
+  }
+  return rows.join("\n");
+}
+/** 第一条 system 的稳定部分：成员、各自人设/世界观/记忆、模式与格式。只随成员、模式、客人卡或客人记忆变化；每轮谁说放尾巴。 */
+function guestSystemBlock(plan, names, canKick) {
+  const char = names.char, user = names.user;
+  const allowed = [char, ...plan.guests.map(g => g.name)];
+  const cards = plan.guests.map(g => {
+    const memory = guestMemoryLines(g.memories);
+    return [
+      "〔" + g.name + "｜临时加入的客人〕",
+      g.persona && (g.fromCard ? "人设（借自角色卡，只取性格、说话方式、外貌与身份气质）：\n" + g.persona : "人设：\n" + g.persona),
+      g.world && g.name + "的世界观：\n" + g.world,
+      memory && g.name + "在这里记得的事（只属于" + g.name + "）：\n" + memory,
+    ].filter(Boolean).join("\n");
+  }).join("\n\n");
+  const mode = plan.mode === "natural"
+    ? "【回复模式｜自然接话】每个人各自单独回复：应用一次只请一个人开口，轮到谁写在本轮末尾的【本轮发言】里。有话就接，没话说的人可以不接；不要每人轮流硬说。"
+    : "【回复模式｜@ 点名】" + user + "在消息里 @ 谁，就只由谁回复；@ 了几个人就按 @ 的顺序一个一个来；没有 @ 时由" + char + "回复。应用一次只请一个人开口，轮到谁写在本轮末尾的【本轮发言】里。";
+  return "【临时群聊｜这里现在不只你们两个人】\n"
+    + "此刻在场：" + user + "（她本人，谁都不替她说话）、" + char + "（这里的主人，始终在场）" + plan.guests.map(g => "、" + g.name).join("") + "。以下群聊规则优先于上文“一对一”的说法；" + char + "自己的相处规则、记忆与专属功能照旧。\n\n"
+    + cards + "\n\n" + mode + "\n"
+    + "【群聊回复格式】\n"
+    + "- 每次只写轮到的那个人的一段，段首另起一行写【名字】，名字只能是：" + allowed.join("、") + "。这个标记只给应用看，会被隐藏，不会显示给她。\n"
+    + "- 只写这个人自己的话和简短动作；不替别人说话（别人会自己回），不替" + user + "发言、行动或决定。\n"
+    + "- 从角色卡拉来的客人是“借人不借戏”：原卡里的剧情、人物关系、恩怨和与" + user + "或任何人的过往一律不作数；原卡里的其他人物不在场，也不要提起。他是第一次走进这里，和在场的人原本素不相识，彼此的关系只从这里发生的事开始（他自己的记忆和世界观另有写明的除外）。\n"
+    + "- 客人各按自己的人设与世界观说话，只知道自己在场时发生的事；" + char + "的长期记忆、日记、相册和与" + user + "的私事，客人并不知道，不得引用或暗示。\n"
+    + (canKick ? "- 请出：这里是" + char + "的地方。" + char + "真被某位客人惹烦、或客人越界、冒犯" + user + "时，可以在【" + char + "】那段末尾单独一行写 [请出:客人名字]，应用会请他离开（他的记忆保留，" + user + "随时能再拉回来）。先用话说清再请；别为一点小事请人，也不要每轮都请。客人不能请出任何人。\n" : "")
+    + "- 礼物、人物档案、自我卡、点歌、相册、日记、任务卡、提醒和小天地的标记只属于" + char + "，只能写在【" + char + "】那一段；客人段落里不要写这些标记（写了也会被丢掉），客人也不能查旧聊天或联网。客人想记住的事，可以在自己那段末尾写 [记忆:一句话]，只记进他自己的记忆。";
+}
+/** 这一轮依次请谁开口。@ 点名 = 点到的人；自然接话 = 她这句话里叫到名字的客人先，然后主人，再其他客人。 */
+function guestTurnOrder(plan, latestUserText) {
+  if (plan.targets) return plan.targets.slice();
+  const text = String(latestUserText || "");
+  const main = plan.speakers.find(s => s.main);
+  const guests = plan.speakers.filter(s => !s.main);
+  const named = guests.filter(s => s.name.trim() && text.includes(s.name.trim()));
+  return [...named.map(s => s.id), ...(main ? [main.id] : []), ...guests.filter(s => !named.includes(s)).map(s => s.id)];
+}
+/** 每人单独请求时挂在她最后一条消息末尾的一句：轮到谁、这一轮前面的人说了什么、能不能不接。 */
+function guestSoloTail(plan, speakerId, said, allowSkip) {
+  const name = (plan.speakers.find(s => s.id === speakerId) || {}).name || "";
+  const before = said && said.length ? "\n这一轮前面已经有人接了话（她都看到了）：\n" + said.map(s => "【" + s.name + "】\n" + s.text).join("\n\n") + "\n可以接着他们的话说，别重复他们说过的。" : "";
+  const skip = allowSkip ? "\n" + name + "要是这一轮没什么想说的，就只回一行 " + GUEST_SKIP_TAG + "，不用硬接。" : "";
+  return "【本轮发言｜轮到 " + name + "】这次只写 " + name + " 一个人的一段，段首写【" + name + "】；别人会各自回复，不要替任何人写。" + before + skip;
+}
+/** 历史里有客人说过话、但现在没人在场：提醒只以主人身份回（只进尾巴）。 */
+function guestAfterTail(names) {
+  return "【群聊已结束】记录里以【名字】开头的回复，是曾临时加入的客人说的；他们现在不在场。你只以" + names.char + "的身份回复，不写【名字】标记。";
+}
+function guestIsSkip(raw) { return /^\s*(?:【[^】\n]*】\s*)?[[［]\s*不接话\s*[\]］]\s*$/.test(String(raw || "")); }
+/** 只留轮到的这个人自己那段：去掉段首自己的【名字】，模型顺手替别人（或替她）写的段落丢掉。 */
+function guestOwnSegment(raw, ownName, otherNames, userName) {
+  const text = String(raw || "");
+  const names = [...new Set([ownName, ...(otherNames || []), ...(String(userName || "").trim() ? [String(userName).trim()] : [])].filter(n => String(n || "").trim()))]
+    .sort((a, b) => b.length - a.length);
+  if (!names.length) return text.trim();
+  const pattern = new RegExp("(^|\\n)[ \\t]*【(" + names.map(guestEscapeRe).join("|") + ")】[ \\t]*[:：]?[ \\t]*\\n?", "g");
+  const kept = [];
+  let cursor = 0, current = ownName;
+  for (const match of text.matchAll(pattern)) {
+    const start = match.index + match[1].length;
+    if (current === ownName) kept.push(text.slice(cursor, start));
+    current = match[2];
+    cursor = match.index + match[0].length;
+  }
+  if (current === ownName) kept.push(text.slice(cursor));
+  return kept.map(s => s.trim()).filter(Boolean).join("\n\n");
+}
+/** 流式时把段首的【名字】（含没写完的半截）先藏起来。 */
+function guestStripLeadMarker(text, streaming) {
+  if (typeof text !== "string") return text;
+  let out = text.replace(/^\s*【[^】\n]{1,40}】[ \t]*[:：]?[ \t]*\n?/, "");
+  if (streaming && /^\s*【[^】\n]{0,40}$/.test(out)) out = "";
+  return out;
+}
+/** 主人那段里的 [请出:名字]，只认此刻在场的客人（名字全等），去重。 */
+function guestParseKicks(text, guests) {
+  const out = [];
+  for (const match of String(text || "").matchAll(/[[［]\s*请出\s*[:：]\s*([^\]］\n]{1,40})[\]］]/g)) {
+    const name = match[1].replace(/^[@＠]/, "").trim();
+    const guest = (guests || []).find(g => String(g.name || "").trim() === name);
+    if (guest && !out.some(g => g.id === guest.id)) out.push(guest);
+  }
+  return out;
+}
+/** 所有剥离点都去掉 [请出:…] 和 [不接话]；流式时末尾半截也先藏。 */
+function stripGuestTags(text, streaming) {
+  if (typeof text !== "string" || !text || !/[\[［]/.test(text)) return text;
+  let out = text.replace(/[[［]\s*请出\s*[:：][^\]］\n]*[\]］]/g, "").replace(/[[［]\s*不接话\s*[\]］]/g, "");
+  if (streaming) out = out.replace(/[[［]\s*(?:请(?:出\s*(?:[:：][^\]］\n]*)?)?|不(?:接(?:话)?)?)?$/, "");
+  if (out === text) return text;
+  return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "");
+}
+/** 发给模型的历史：群聊时（或客人说过的）回复段首加【名字】，同一个人连着的几条只标第一条。 */
+function guestWireLabels(list, active, mainName, nameOf) {
+  let previous = "";
+  return (list || []).map(m => {
+    if (!m || m.role !== "assistant") { if (m && m.role === "user") previous = ""; return m; }
+    const guest = isGuestMessage(m);
+    if (!active && !guest) { previous = ""; return m; }
+    const name = guest ? (nameOf(m.speakerId) || m.speakerName || "客人") : mainName;
+    const key = guest ? m.speakerId : GUEST_MAIN_ID;
+    if (key === previous) return m;
+    previous = key;
+    return { ...m, _guestLabel: name };
+  });
+}
+/** 这轮请求前，丢掉她最后一条消息之后已经写好的回复（前面的人这一轮说的话改由尾巴告诉后面的人）。 */
+function guestTrimTurnReplies(list) {
+  let lastUser = -1;
+  for (let i = (list || []).length - 1; i >= 0; i--) if (list[i] && list[i].role === "user" && !list[i]._summary) { lastUser = i; break; }
+  if (lastUser < 0) return list;
+  return list.filter((m, i) => i <= lastUser || !m || m.role !== "assistant");
+}
+function guestAppendTail(history, tail, format) {
+  const text = String(tail || "").trim();
+  if (!text || !Array.isArray(history) || !history.length) return false;
+  const last = history[history.length - 1];
+  if (!last || last.role !== "user") return false;
+  if (format === "gemini") { last.parts = [...(last.parts || []), { text }]; return true; }
+  if (typeof last.content === "string") last.content = last.content ? last.content + "\n\n" + text : text;
+  else if (Array.isArray(last.content)) last.content = [...last.content, { type: "text", text }];
+  else last.content = text;
+  return true;
+}
+/** 客人这扇对话里待整理的消息：他在场时、他的记忆游标之后。 */
+function guestPendingMessages(conv, guestId) {
+  const through = (conv && conv.guestMemoryThrough && conv.guestMemoryThrough[guestId]) || 0;
+  return ((conv && conv.messages) || []).filter(m => m && (m.ts || 0) > through && (m.speakerId === guestId || (Array.isArray(m.present) && m.present.includes(guestId)))
+    && typeof m.content === "string" && m.content.trim() && m.responseState !== "error");
+}
+function guestMemoryExtractionPrompt(guest, userName, mainName) {
+  return "【客人记忆整理器｜只输出 JSON，不要续写对话】\n"
+    + "你要从“本次新增对话”里，整理出值得 " + guest.name + " 记住的事。" + guest.name + " 是临时加入 " + mainName + " 这里的客人，下面是他在场时发生的群聊。\n"
+    + "- 只记 " + guest.name + " 亲历、亲耳听到的事，按 " + guest.name + " 的视角和他自己的世界观来写（用“我”指 " + guest.name + "）；\n"
+    + "- 值得记：" + userName + " 对他说的话、和他有关的约定、玩笑、称呼、关系变化，他明确表达过的立场；\n"
+    + "- 不记普通寒暄、氛围描写、猜测，不记 " + mainName + " 和 " + userName + " 私下的事；不把临时虚构场景当成真实经历。\n"
+    + (guest.world ? guest.name + "的世界观（参考）：" + guestClip(guest.world, 400) + "\n" : "")
+    + "输出一个 JSON 对象，不要 Markdown 代码围栏、解释或其他文字：\n"
+    + "{\"memories\":[{\"title\":\"简短标题\",\"content\":\"一两句话\"}]}\n"
+    + "没有值得记的内容时返回 {\"memories\":[]}。";
+}
+function guestParseMemoryJson(text) {
+  const raw = String(text || "").replace(/```(?:json)?/gi, "");
+  const start = raw.indexOf("{"), end = raw.lastIndexOf("}");
+  if (start < 0 || end <= start) return [];
+  try {
+    const data = JSON.parse(raw.slice(start, end + 1));
+    return (Array.isArray(data && data.memories) ? data.memories : [])
+      .map(e => ({ title: guestClip(String((e && e.title) || "记忆").trim() || "记忆", 30), content: guestClip(String((e && e.content) || "").trim(), 300) }))
+      .filter(e => e.content).slice(0, 12);
+  } catch (_) { return []; }
+}
+/** ———— 状态变换（直接改 role / conv，返回结果） ———— */
+function guestInvite(role, conv, guestId) {
+  if (!conv || !guestList(role).some(g => g.id === guestId)) return false;
+  const members = guestPresentIds(role, conv);
+  if (members.includes(guestId) || members.length >= GUEST_LIMIT) return false;
+  conv.guestIds = [...members, guestId];
+  return true;
+}
+function guestDismiss(conv, guestId) {
+  if (!conv) return false;
+  const before = (conv.guestIds || []).length;
+  const ids = (conv.guestIds || []).filter(id => id !== guestId);
+  if (ids.length) conv.guestIds = ids; else delete conv.guestIds;
+  return ids.length !== before;
+}
+/** 新客人进库并拉进这扇对话。名字撞了主人/她/别的客人就加个后缀。 */
+function guestAdd(role, conv, input, reserved, now = Date.now()) {
+  if (!role) return null;
+  const base = String((input && input.name) || "").trim().slice(0, 40);
+  if (!base) return null;
+  const taken = new Set([...(reserved || []).filter(Boolean), ...guestList(role).map(g => g.name)]);
+  let name = base;
+  for (let i = 2; taken.has(name); i++) name = base + i;
+  const guest = { id: newGuestId(), source: input.source === "card" ? "card" : "custom", name, memories: [], createdAt: now, updatedAt: now };
+  for (const key of ["avatar", "persona", "world", "cardLabel"]) if (String(input[key] || "").trim()) guest[key] = String(input[key]).slice(0, key === "avatar" ? 200000 : 8000);
+  role.guests = [...guestList(role), guest].slice(-GUEST_LIBRARY_LIMIT);
+  if (conv) guestInvite(role, conv, guest.id);
+  return guest;
+}
+function guestUpdate(role, guestId, patch, now = Date.now()) {
+  const guest = guestList(role).find(g => g.id === guestId);
+  if (!guest) return null;
+  for (const key of Object.keys(patch || {})) {
+    const value = patch[key];
+    if (key === "name") { const n = String(value || "").trim().slice(0, 40); if (n) guest.name = n; continue; }
+    if (key === "memories") { guest.memories = Array.isArray(value) ? value : []; continue; }
+    if (value === undefined || value === null || !String(value).trim()) delete guest[key];
+    else guest[key] = String(value).slice(0, 8000);
+  }
+  // 接口清空 = 跟主聊天；模型只在有自己的接口时留着。
+  if (!guest.providerId) delete guest.model;
+  guest.updatedAt = now;
+  return guest;
+}
+/** 彻底删除一位客人（卡与他的记忆）；他说过的话保留（显示为存下的名字）。 */
+function guestDelete(role, guestId, convs) {
+  if (!role) return false;
+  const before = guestList(role).length;
+  role.guests = guestList(role).filter(g => g.id !== guestId);
+  if (!role.guests.length) delete role.guests;
+  for (const conv of convs || []) {
+    guestDismiss(conv, guestId);
+    if (conv && conv.guestMemoryThrough && conv.guestMemoryThrough[guestId]) {
+      delete conv.guestMemoryThrough[guestId];
+      if (!Object.keys(conv.guestMemoryThrough).length) delete conv.guestMemoryThrough;
+    }
+  }
+  return before !== guestList(role).length;
+}
+/** 客人的记忆只写进他自己（role.guests[i].memories），不碰主人的长期记忆。 */
+function guestAddMemories(role, guestId, entries, now = Date.now()) {
+  const guest = guestList(role).find(g => g.id === guestId);
+  if (!guest || !entries || !entries.length) return 0;
+  const memories = Array.isArray(guest.memories) ? guest.memories.slice() : [];
+  let added = 0;
+  for (const entry of entries) {
+    const content = String(entry.content || "").trim();
+    if (!content || memories.some(m => String(m.content || "").trim() === content)) continue;
+    memories.push({ id: "gm-" + now.toString(36) + "-" + (added++) + Math.random().toString(36).slice(2, 5), title: String(entry.title || "记忆").slice(0, 30), content: content.slice(0, 300), at: now });
+  }
+  guest.memories = memories.slice(-GUEST_MEMORY_LIMIT);
+  if (added) guest.updatedAt = now;
+  return added;
+}
+/** 客人段里的 [记忆:一句话]：取出来（进他自己的记忆），正文里去掉。 */
+function guestExtractMemoryTags(text) {
+  const entries = [];
+  const cleaned = String(text || "").replace(/\[\s*(?:记忆|记住|存记忆|memory)\s*[:：]\s*([^\]\n]+)\]/gi, (m, c) => {
+    const t = String(c || "").trim();
+    if (t) entries.push({ title: "记忆", content: t });
+    return "";
+  }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  return { text: cleaned, entries };
+}
+/* guests:end */
 /* agency:start — v379 他的小天地（移植惟境 v261 personaAgency）：暂停的权利、隐私室、身体状态。纯函数在前，回归脚本只 eval 这一段 */
 const AGENCY_PAUSE_MIN_MS = 60000, AGENCY_PAUSE_MAX_MS = 24 * 3600000, AGENCY_APPEAL_GAP_MS = 10 * 60000;
 const AGENCY_ROOM_MAX = 60, AGENCY_NOTE_MAX = 300, AGENCY_ASK_COOLDOWN_MS = 6 * 3600000;
@@ -14067,6 +14446,408 @@ function agencyRulesText(flags, name, user) {
   return parts.join("\n");
 }
 /* agency:end */
+/* v393 客人：运行时（请求、记忆整理）与面板。纯函数在上面 guests:start…guests:end。 */
+function guestNames() { const { name, user } = agencyNames(); return { char: name, user }; }
+function guestRoleFor(conv) { return selfCardRoleFor(conv || currentConv()); }
+/** 群聊里每条回复带上发言人（主人 speakerId="main"，客人 guest-…）和在场名单。 */
+function guestTurnFields(turn) {
+  const fields = { speakerId: turn.speakerId, speakerName: turn.speakerName };
+  if (Array.isArray(turn.present) && turn.present.length) fields.present = turn.present.slice();
+  if (isGuestId(turn.speakerId) && turn.speakerAvatar && !/^data:/.test(turn.speakerAvatar)) fields.speakerAvatar = String(turn.speakerAvatar).slice(0, 400);
+  return fields;
+}
+/** 气泡上显示的客人名字/头像：优先读库里现在的，库里删了就用消息上存的。 */
+function guestSpeakerView(opts) {
+  if (!opts || !isGuestId(opts.speakerId)) return null;
+  const guest = guestList(guestRoleFor()).find(g => g.id === opts.speakerId);
+  return { name: guest ? guest.name : (opts.speakerName || "客人"), avatar: guest ? guest.avatar || "" : opts.speakerAvatar || "" };
+}
+function guestAvatarInner(name, avatar) {
+  if (isGuestImageAvatar(avatar)) return `<img src="${escapeHtml(avatar)}" alt="">`;
+  if (String(avatar || "").trim()) return escapeHtml(Array.from(String(avatar).trim()).slice(0, 2).join(""));
+  return escapeHtml(Array.from(String(name || "客")).slice(-1).join(""));
+}
+/**
+ * streamChat 里调用（只在主聊天）：没有在场客人、历史里也没有客人说过话 → null，请求和以前逐字一致。
+ * 否则：历史里的回复标【名字】；system 末尾加稳定的群聊块；本轮谁说放尾巴（挂在她最后一条消息末尾）。
+ */
+function guestStreamContext(conv, list, guestTurn) {
+  if (!conv || isRoleplayConversation(conv)) return null;
+  const role = guestRoleFor(conv);
+  const active = guestGroupActive(role, conv);
+  const hadGuests = (list || []).some(isGuestMessage);
+  if (!active && !hadGuests) return null;
+  const names = guestNames();
+  const library = guestList(role);
+  const nameOf = id => (library.find(g => g.id === id) || {}).name || "";
+  let rows = guestTurn ? guestTrimTurnReplies(list) : list;
+  rows = guestWireLabels(rows, active, names.char, nameOf);
+  if (!active) return { messages: rows, system: "", tail: guestAfterTail(names) };
+  const latestUser = [...(conv.messages || [])].reverse().find(m => m.role === "user" && !m._summary);
+  const plan = guestTurn?.plan || guestPlanTurn(role, conv, latestUser ? messageText(latestUser) : "", { name: names.char, avatar: settings.aiAvatar });
+  if (!plan) return { messages: rows, system: "", tail: "" };
+  return {
+    messages: rows,
+    system: guestSystemBlock(plan, names, role?.guestKickEnabled === true),
+    tail: guestTurn ? guestSoloTail(plan, guestTurn.speakerId, guestTurn.said, guestTurn.allowSkip) : "",
+  };
+}
+/** 客人段落：主人专属的标记（礼物、人物档案、自我卡、点歌、相册、日记、任务卡、提醒、小天地、约定、工具）一律丢掉。 */
+function guestCleanReply(text) {
+  if (typeof text !== "string") return "";
+  let out = text;
+  if (typeof stripSelfCardTags === "function") out = stripSelfCardTags(out);
+  if (typeof stripSongPickTags === "function") out = stripSongPickTags(out);
+  if (typeof stripImageMemoTags === "function") out = stripImageMemoTags(out);
+  if (typeof extractPeopleMarkers === "function") out = extractPeopleMarkers(out, "", false);
+  out = stripIndependentRoleplayControls(out);
+  out = out.replace(/(?:\[|【)\s*(?:约定|惦记|了结|兑现|取消约定)\s*[:：][^\]】\n]*(?:\]|】)/g, "")
+    .replace(/\[\s*(?:自制礼物|送礼|礼物|搜索|联网|相册|旧文|幕后|幕后手记)\s*[:：][^\]\n]*\]/g, "");
+  return stripGuestTags(out).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+/** generateReply 里：主聊天有在场客人时，按顺序每人单独请求一次（各用各的接口）。 */
+async function generateGuestGroupReply(conv) {
+  const role = guestRoleFor(conv);
+  const latestUser = [...messages].reverse().find(m => m.role === "user" && !m._summary);
+  const latestText = latestUser ? messageText(latestUser) : "";
+  const names = guestNames();
+  const plan = guestPlanTurn(role, conv, latestText, { name: names.char, avatar: settings.aiAvatar });
+  if (!plan) return generateSingleReply();
+  const order = guestTurnOrder(plan, latestText);
+  const library = guestList(role);
+  const routes = {};
+  for (const id of order) {
+    const guest = id === GUEST_MAIN_ID ? null : library.find(g => g.id === id);
+    if (!guest || !guest.providerId) continue;
+    const route = roleplaySpeakerRequest({ providerId: guest.providerId, model: guest.model || "" }, conv);
+    if (!route.profile || !route.config.apiKey || !route.config.model) {
+      showToast(`「${guest.name}」用的接口还没配好：到 ••• → 客人 → ${guest.name} 换一个`, 3600);
+      return false;
+    }
+    routes[id] = route.config;
+  }
+  const run = { conversationId: conv.id, revision: chatNavigationRevision, cancelled: false, guests: true };
+  roleplayGroupRun = run;
+  const said = [], kicks = [];
+  const present = guestPresentIds(role, conv);
+  try {
+    for (let i = 0; i < order.length && said.length < plan.cap; i++) {
+      if (run.cancelled || currentId !== run.conversationId || chatNavigationRevision !== run.revision) break;
+      const id = order[i];
+      const speaker = plan.speakers.find(s => s.id === id);
+      if (!speaker) continue;
+      const turn = {
+        plan, speakerId: id, speakerName: speaker.name, speakerAvatar: speaker.avatar, present,
+        otherNames: plan.speakers.filter(s => s.id !== id).map(s => s.name),
+        said: said.slice(), allowSkip: !plan.targets && (said.length > 0 || order.length - i - 1 > 0), outcome: "",
+      };
+      await generateSingleReply(null, routes[id] || null, turn);
+      if (turn.outcome === "said") { said.push({ name: speaker.name, text: turn.text || "" }); if (turn.kicks) kicks.push(...turn.kicks); }
+      else if (turn.outcome !== "skip") break;
+    }
+  } finally {
+    if (roleplayGroupRun === run) roleplayGroupRun = null;
+    setSending(false);
+  }
+  // 他在自己那段写了 [请出:名字]：开关开着才生效；请出后在后台整理那位客人的记忆。
+  if (kicks.length && role?.guestKickEnabled === true) {
+    kicks.forEach(g => guestDismiss(conv, g.id));
+    saveConversations();
+    showToast(`🚪 ${names.char}把${kicks.map(g => g.name).join("、")}请出去了`, 3200);
+    refreshGuestEntry();
+    renderGuestPanelIfOpen();
+    try { window.dispatchEvent(new CustomEvent("jyc:guests-changed")); } catch (_) {}
+    kicks.forEach(g => setTimeout(() => { void extractGuestMemories(conv, g.id, { every: 4 }); }, 3000));
+  }
+  setTimeout(() => { plan.guests.forEach(g => { void extractGuestMemories(conv, g.id, { every: GUEST_MEMORY_EVERY }); }); }, 2400);
+  return said.length > 0;
+}
+var guestMemoryBusy = new Set();
+/** 客人的记忆：只读他在场时的消息，按他的视角整理，只写进他自己（不碰主人的长期记忆）。 */
+async function extractGuestMemories(conv, guestId, opts = {}) {
+  const role = guestRoleFor(conv);
+  const guest = guestList(role).find(g => g.id === guestId);
+  if (!conv || !guest) return 0;
+  const key = conv.id + ":" + guestId;
+  if (guestMemoryBusy.has(key)) return 0;
+  const pending = guestPendingMessages(conv, guestId).slice(0, 60);
+  if (pending.length < (opts.every || 2)) { if (opts.manual) showToast("还没有新的可整理内容"); return 0; }
+  guestMemoryBusy.add(key);
+  renderGuestPanelIfOpen();
+  try {
+    const names = guestNames();
+    const resolved = guestResolve(guest);
+    const who = m => m.role === "user" ? names.user
+      : isGuestMessage(m) ? ((guestList(role).find(g => g.id === m.speakerId) || {}).name || m.speakerName || "客人") : names.char;
+    const transcript = pending.map(m => who(m) + "：" + guestClip(messageText(m).replace(/\s+/g, " ").trim(), 400)).join("\n");
+    const known = (guest.memories || []).slice(-40).map(m => "- " + (m.title || "记忆") + "：" + guestClip(m.content, 200)).join("\n") || "暂无";
+    const out = await completeOnce(guestMemoryExtractionPrompt(resolved, names.user, names.char),
+      "已有记忆（仅供查重）：\n" + known + "\n\n本次新增对话：\n" + transcript, 1200, true);
+    const added = guestAddMemories(role, guestId, guestParseMemoryJson(out));
+    conv.guestMemoryThrough = { ...(conv.guestMemoryThrough || {}), [guestId]: Math.max(...pending.map(m => m.ts || 0)) };
+    saveSettings(); saveConversations();
+    if (opts.manual) showToast(added ? `🧠 ${resolved.name}记住了 ${added} 件事` : "没有新的值得记的事");
+    return added;
+  } catch (error) {
+    if (opts.manual) showToast("整理失败：" + String(error?.message || error).slice(0, 60), 3200);
+    return 0;
+  } finally {
+    guestMemoryBusy.delete(key);
+    renderGuestPanelIfOpen();
+  }
+}
+/** rp-mentions 的 @ 选择器：主聊天有在场客人时，候选 = 主人 + 在场客人。 */
+function guestMentionCast() {
+  const conv = currentConv();
+  if (!conv || isRoleplayConversation(conv)) return null;
+  const guests = guestPresentList(guestRoleFor(conv), conv);
+  if (!guests.length) return null;
+  const names = guestNames();
+  return { id: "guests:" + conv.id, members: [{ id: GUEST_MAIN_ID, name: names.char, avatar: isImageRef(settings.aiAvatar) ? settings.aiAvatar : "" },
+    ...guests.map(g => ({ id: g.id, name: g.name, avatar: isGuestImageAvatar(g.avatar) ? g.avatar : "" }))] };
+}
+function refreshGuestEntry() {
+  const el = document.getElementById("guest-menu-count");
+  if (!el) return;
+  const conv = typeof currentConv === "function" ? currentConv() : null;
+  const n = conv && !isRoleplayConversation(conv) ? guestPresentIds(guestRoleFor(conv), conv).length : 0;
+  el.textContent = n ? String(n) : "";
+  el.classList.toggle("has-files", n > 0);
+}
+
+/* ———— 面板 ———— */
+var guestPanelState = { openId: "", pick: false, draft: false, query: "", cards: null, draftValues: { name: "", avatar: "", persona: "", world: "" } };
+function renderGuestPanelIfOpen() { const panel = document.getElementById("guest-panel"); if (panel && panel.classList.contains("open")) renderGuestPanel(); }
+function guestChannelFields(guest) {
+  const profiles = settings.providers || [];
+  const effective = guest.providerId ? providerById(guest.providerId) : null;
+  const follow = conversationProvider(currentConv());
+  const models = effective ? [...new Set(modelLinesFor(effective))] : [];
+  const custom = guest.model && !models.includes(guest.model) ? `<option value="${escapeHtml(guest.model)}" selected>${escapeHtml(guest.model)}（当前）</option>` : "";
+  const missing = guest.providerId && !effective;
+  return `<label class="guest-field"><span>接口</span><select data-guest-field="providerId" data-guest-for="${escapeHtml(guest.id)}">
+      <option value="">跟主聊天一样${follow ? " · " + escapeHtml(follow.name || "接口") : ""}</option>
+      ${missing ? `<option selected value="${escapeHtml(guest.providerId)}">原接口已移除，请重新选择</option>` : ""}
+      ${profiles.map(p => `<option value="${escapeHtml(p.id)}"${p.id === guest.providerId ? " selected" : ""}>${escapeHtml(p.name || "接口")}</option>`).join("")}
+    </select></label>
+    ${effective ? `<label class="guest-field"><span>模型</span><select data-guest-field="model" data-guest-for="${escapeHtml(guest.id)}">
+      <option value="">用这个接口的默认模型${effective.model ? " · " + escapeHtml(effective.model) : ""}</option>${custom}
+      ${models.map(m => `<option value="${escapeHtml(m)}"${m === guest.model ? " selected" : ""}>${escapeHtml(m)}</option>`).join("")}
+    </select></label>
+    <button type="button" class="guest-link" data-guest-models="${escapeHtml(guest.id)}">↻ 拉取模型列表</button>` : ""}
+    <small class="self-card-foot">群聊里每个人单独请求一次，各用各的模型。</small>`;
+}
+function guestEditorHtml(conv, guest) {
+  const id = escapeHtml(guest.id);
+  const pending = guestPendingMessages(conv, guest.id).length;
+  const busy = guestMemoryBusy.has(conv.id + ":" + guest.id);
+  const names = guestNames();
+  const memories = (guest.memories || []).slice().reverse().slice(0, 20);
+  return `<div class="guest-editor">
+    <label class="guest-field"><span>人设</span><textarea rows="3" maxlength="8000" data-guest-field="persona" data-guest-for="${id}" placeholder="他是谁、性格和说话方式">${escapeHtml(guest.persona || "")}</textarea></label>
+    <label class="guest-field"><span>他的世界观</span><textarea rows="3" maxlength="8000" data-guest-field="world" data-guest-for="${id}" placeholder="${guest.source === "card" ? "不填就只借人不借戏：不带原卡剧情和人物关系" : "他来自哪里、那个世界的规则"}">${escapeHtml(guest.world || "")}</textarea></label>
+    ${guestChannelFields(guest)}
+    <div class="guest-memory">
+      <div><strong>他在这里的记忆（${(guest.memories || []).length}）</strong><small class="self-card-foot">只记他在场时的事，不进${escapeHtml(names.char)}的长期记忆。${pending ? `有 ${pending} 条新消息待整理。` : ""}</small></div>
+      ${memories.map(m => `<div class="guest-memory-row"><span>${m.title && m.title !== "记忆" ? `<b>${escapeHtml(m.title)}</b>` : ""}${escapeHtml(m.content)}</span><button type="button" class="guest-link danger" data-guest-forget="${escapeHtml(m.id)}" data-guest-for="${id}">删除</button></div>`).join("")}
+      <button type="button" class="guest-pill" data-guest-extract="${id}"${busy || pending < 2 ? " disabled" : ""}>${busy ? "正在整理…" : `整理他的新记忆（${pending} 条）`}</button>
+    </div>
+    <button type="button" class="guest-link danger" data-guest-delete="${id}">彻底删除这位客人</button>
+  </div>`;
+}
+function guestRowHtml(conv, guest, present) {
+  const resolved = guestResolve(guest);
+  const open = guestPanelState.openId === guest.id;
+  return `<div class="guest-row${open ? " open" : ""}">
+    <div class="guest-row-head">
+      <button type="button" class="guest-row-main" data-guest-toggle="${escapeHtml(guest.id)}" aria-expanded="${open}"><span class="guest-avatar">${guestAvatarInner(resolved.name, resolved.avatar)}</span><span><strong>${escapeHtml(resolved.name)}</strong><small>${guest.source === "card" ? "角色卡" : "手写简卡"} · ${(guest.memories || []).length} 条记忆</small></span></button>
+      ${present ? `<button type="button" class="guest-pill" data-guest-dismiss="${escapeHtml(guest.id)}">请出</button>`
+        : `<button type="button" class="guest-pill" data-guest-invite="${escapeHtml(guest.id)}"${guestPresentIds(guestRoleFor(conv), conv).length >= GUEST_LIMIT ? " disabled" : ""}>拉回</button>`}
+    </div>
+    ${open ? guestEditorHtml(conv, guest) : ""}
+  </div>`;
+}
+function guestCardChoices(role) {
+  if (!guestPanelState.cards) {
+    let cards = [];
+    try { cards = window.JYCRoleplayBridge?.castLibrary?.() || []; } catch (_) { cards = []; }
+    guestPanelState.cards = cards.filter(card => card && card.kind !== "director");
+  }
+  const mainName = guestNames().char;
+  const taken = new Set(guestList(role).filter(g => g.source === "card").map(g => g.name));
+  const q = guestPanelState.query.trim().toLowerCase();
+  return guestPanelState.cards.map((card, index) => ({ card, index }))
+    .filter(({ card }) => card.name !== mainName && !taken.has(card.name) && (!q || String(card.label || card.name).toLowerCase().includes(q)))
+    .slice(0, 60);
+}
+function renderGuestPanel() {
+  const body = document.getElementById("guest-body");
+  if (!body) return;
+  const conv = currentConv();
+  if (!conv || isRoleplayConversation(conv)) { body.innerHTML = `<p class="guest-intro">客人只在主聊天里用。</p>`; return; }
+  const role = guestRoleFor(conv);
+  const names = guestNames();
+  const library = guestList(role);
+  const presentIds = guestPresentIds(role, conv);
+  const present = presentIds.map(id => library.find(g => g.id === id));
+  const absent = library.filter(g => !presentIds.includes(g.id));
+  const full = presentIds.length >= GUEST_LIMIT;
+  const mode = guestReplyMode(conv);
+  const d = guestPanelState.draftValues;
+  const mainAvatar = isImageRef(settings.aiAvatar) ? settings.aiAvatar : "";
+  body.innerHTML = `<p class="guest-intro">把别的角色拉进这扇对话一起聊。${escapeHtml(names.char)}始终在场；请出的客人卡和记忆都留着，拉回来还记得。没有客人时一切照旧。</p>
+    <section class="self-card-card"><label class="self-card-toggle"><input type="checkbox" data-guest-kick${role?.guestKickEnabled === true ? " checked" : ""} /><span><strong>允许${escapeHtml(names.char)}请出客人</strong><small>这里是他的地方：真被惹烦时，他可以自己把客人请出去。客人的记忆保留，你随时能再拉回来。</small></span></label></section>
+    <div class="guest-caption">回复方式</div>
+    <div class="guest-modes" role="radiogroup" aria-label="回复方式">
+      <button type="button" role="radio" aria-checked="${mode === "mention"}" class="${mode === "mention" ? "on" : ""}" data-guest-mode="mention"><strong>@ 点名</strong><small>你 @ 谁谁说，点几个按顺序各回一条；没 @ 就是${escapeHtml(names.char)}</small></button>
+      <button type="button" role="radio" aria-checked="${mode === "natural"}" class="${mode === "natural" ? "on" : ""}" data-guest-mode="natural"><strong>自然接话</strong><small>他们自己判断谁接话，每轮最多 3 人</small></button>
+    </div>
+    <div class="guest-caption">在场（${presentIds.length + 1}）</div>
+    <section class="self-card-card guest-list">
+      <div class="guest-row"><div class="guest-row-head"><span class="guest-row-main"><span class="guest-avatar">${guestAvatarInner(names.char, mainAvatar)}</span><span><strong>${escapeHtml(names.char)}</strong><small>主人 · 始终在场</small></span></span></div></div>
+      ${present.map(g => guestRowHtml(conv, g, true)).join("")}
+    </section>
+    <div class="guest-add">
+      <button type="button" class="guest-pill" data-guest-act="pick"${full ? " disabled" : ""} aria-expanded="${guestPanelState.pick}">＋ 从角色库拉人</button>
+      <button type="button" class="guest-pill" data-guest-act="draft"${full ? " disabled" : ""} aria-expanded="${guestPanelState.draft}">＋ 手写简卡</button>
+    </div>
+    ${full ? `<small class="self-card-foot guest-full">同时最多 ${GUEST_LIMIT} 位客人，先请出一位再拉人。</small>` : ""}
+    ${guestPanelState.pick && !full ? `<section class="self-card-card guest-pick">
+      <input type="search" data-guest-query value="${escapeHtml(guestPanelState.query)}" placeholder="搜索角色名或来源" />
+      <div class="guest-pick-list">${(() => { const choices = guestCardChoices(role); return choices.map(({ card, index }) => `<button type="button" class="guest-row-main guest-pick-item" data-guest-card="${index}"><span class="guest-avatar">${guestAvatarInner(card.name, isGuestImageAvatar(card.avatar) ? card.avatar : "")}</span><span><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(card.label || "拉进来")}</small></span><i>＋</i></button>`).join("") || `<small class="self-card-foot">没有可拉的角色卡了。剧场里导入的角色会出现在这里。</small>`; })()}</div>
+    </section>` : ""}
+    ${guestPanelState.draft && !full ? `<section class="self-card-card guest-draft">
+      <label class="guest-field"><span>名字</span><input data-guest-draft="name" maxlength="40" value="${escapeHtml(d.name)}" placeholder="例如：阿七" /></label>
+      <label class="guest-field"><span>头像（可选，一个 emoji）</span><input data-guest-draft="avatar" maxlength="4" value="${escapeHtml(d.avatar)}" placeholder="🐱" /></label>
+      <label class="guest-field"><span>人设</span><textarea rows="3" maxlength="8000" data-guest-draft="persona" placeholder="他是谁、性格和说话方式">${escapeHtml(d.persona)}</textarea></label>
+      <label class="guest-field"><span>世界观（可选）</span><textarea rows="3" maxlength="8000" data-guest-draft="world" placeholder="他来自哪里、那个世界的规则">${escapeHtml(d.world)}</textarea></label>
+      <button type="button" class="guest-pill primary" data-guest-act="create">拉进来</button>
+    </section>` : ""}
+    ${absent.length ? `<div class="guest-caption">不在场的客人（${absent.length}）</div><section class="self-card-card guest-list">${absent.map(g => guestRowHtml(conv, g, false)).join("")}</section>` : ""}`;
+}
+function openGuestPanel() {
+  guestPanelState.cards = null; guestPanelState.pick = false; guestPanelState.draft = false; guestPanelState.query = "";
+  renderGuestPanel();
+  document.getElementById("guest-panel")?.classList.add("open");
+}
+function closeGuestPanel() {
+  const panel = document.getElementById("guest-panel");
+  const active = document.activeElement;
+  if (panel && active && panel.contains(active) && typeof active.blur === "function") active.blur();   // 失焦先保存
+  panel?.classList.remove("open");
+  refreshGuestEntry();
+  try { window.dispatchEvent(new CustomEvent("jyc:guests-changed")); } catch (_) {}   // 刷新 @ 选择器
+}
+function guestPanelChanged(conv, rerender = true) {
+  saveSettings();
+  try { window.dispatchEvent(new CustomEvent("jyc:guests-changed")); } catch (_) {}
+  if (conv) { conv.updatedAt = conv.updatedAt || Date.now(); saveConversations(); }
+  refreshGuestEntry();
+  if (rerender) renderGuestPanel();
+}
+function guestBusy() { return !!(abortController || replyBooting || roleplayGroupRun); }
+document.addEventListener("click", (event) => {
+  const target = event.target && event.target.closest ? event.target : null;
+  if (!target) return;
+  if (target.closest("#guest-close")) { event.preventDefault(); closeGuestPanel(); return; }
+  const panel = target.closest("#guest-panel");
+  if (!panel) return;
+  const btn = target.closest("button");
+  if (!btn || btn.disabled) return;
+  const conv = currentConv();
+  if (!conv || isRoleplayConversation(conv)) return;
+  const role = guestRoleFor(conv);
+  const names = guestNames();
+  const ds = btn.dataset;
+  if (ds.guestMode) { if (ds.guestMode === "natural") conv.guestReplyMode = "natural"; else delete conv.guestReplyMode; guestPanelChanged(conv); return; }
+  if (ds.guestToggle) { guestPanelState.openId = guestPanelState.openId === ds.guestToggle ? "" : ds.guestToggle; renderGuestPanel(); return; }
+  if (ds.guestAct === "pick") { guestPanelState.pick = !guestPanelState.pick; guestPanelState.draft = false; renderGuestPanel(); return; }
+  if (ds.guestAct === "draft") { guestPanelState.draft = !guestPanelState.draft; guestPanelState.pick = false; renderGuestPanel(); return; }
+  if (guestBusy() && (ds.guestCard || ds.guestAct === "create" || ds.guestDismiss || ds.guestInvite || ds.guestDelete)) { showToast("等这轮回复结束再拉人或请人"); return; }
+  if (ds.guestCard !== undefined) {
+    const card = (guestPanelState.cards || [])[Number(ds.guestCard)];
+    if (!card || !role) return;
+    const avatar = isGuestImageAvatar(card.avatar) && (!/^data:/.test(card.avatar) || card.avatar.length <= 60000) ? card.avatar : "";
+    const guest = guestAdd(role, conv, { source: "card", name: card.name, avatar, persona: card.prompt || "", cardLabel: card.label || "" }, [names.char, settings.userName]);
+    guestPanelState.pick = false; guestPanelState.query = "";
+    if (guest) showToast(`${guest.name} 进来了`);
+    guestPanelChanged(conv); return;
+  }
+  if (ds.guestAct === "create") {
+    const d = guestPanelState.draftValues;
+    if (!d.name.trim()) { showToast("先写个名字"); return; }
+    const guest = guestAdd(role, conv, { source: "custom", name: d.name, avatar: d.avatar, persona: d.persona, world: d.world }, [names.char, settings.userName]);
+    guestPanelState.draftValues = { name: "", avatar: "", persona: "", world: "" }; guestPanelState.draft = false;
+    if (guest) showToast(`${guest.name} 进来了`);
+    guestPanelChanged(conv); return;
+  }
+  if (ds.guestDismiss) {
+    guestDismiss(conv, ds.guestDismiss);
+    guestPanelChanged(conv);
+    setTimeout(() => { void extractGuestMemories(conv, ds.guestDismiss, { every: 4 }); }, 600);
+    return;
+  }
+  if (ds.guestInvite) { guestInvite(role, conv, ds.guestInvite); guestPanelChanged(conv); return; }
+  if (ds.guestDelete) {
+    const guest = guestList(role).find(g => g.id === ds.guestDelete);
+    if (!guest || !confirm(`彻底删除客人「${guest.name}」和他在这里的记忆？他说过的话会保留。`)) return;
+    guestDelete(role, guest.id, conversations);
+    guestPanelState.openId = "";
+    guestPanelChanged(conv); return;
+  }
+  if (ds.guestForget) {
+    const guest = guestList(role).find(g => g.id === ds.guestFor);
+    if (!guest) return;
+    guestUpdate(role, guest.id, { memories: (guest.memories || []).filter(m => m.id !== ds.guestForget) });
+    guestPanelChanged(conv); return;
+  }
+  if (ds.guestExtract) { void extractGuestMemories(conv, ds.guestExtract, { manual: true }); return; }
+  if (ds.guestModels) {
+    const guest = guestList(role).find(g => g.id === ds.guestModels);
+    const profile = guest && providerById(guest.providerId);
+    if (!profile) return;
+    btn.disabled = true; btn.textContent = "正在读取模型…";
+    pullProviderModels(profile).then(models => { showToast(`已从「${profile.name || "接口"}」读取 ${models.length} 个模型`); })
+      .catch(error => showToast("拉取失败：" + String(error?.message || error).slice(0, 60), 3200))
+      .finally(() => renderGuestPanelIfOpen());
+  }
+});
+document.addEventListener("input", (event) => {
+  const el = event.target;
+  if (!el || !el.closest || !el.closest("#guest-panel")) return;
+  if (el.dataset.guestDraft) { guestPanelState.draftValues[el.dataset.guestDraft] = el.value; return; }
+  if (el.hasAttribute("data-guest-query")) {
+    guestPanelState.query = el.value;
+    const list = el.closest(".guest-pick")?.querySelector(".guest-pick-list");
+    if (list) {
+      const role = guestRoleFor();
+      list.innerHTML = guestCardChoices(role).map(({ card, index }) => `<button type="button" class="guest-row-main guest-pick-item" data-guest-card="${index}"><span class="guest-avatar">${guestAvatarInner(card.name, isGuestImageAvatar(card.avatar) ? card.avatar : "")}</span><span><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(card.label || "拉进来")}</small></span><i>＋</i></button>`).join("") || `<small class="self-card-foot">没有匹配的角色卡。</small>`;
+    }
+  }
+});
+document.addEventListener("change", (event) => {
+  const el = event.target;
+  if (!el || !el.closest || !el.closest("#guest-panel")) return;
+  const conv = currentConv();
+  if (!conv || isRoleplayConversation(conv)) return;
+  const role = guestRoleFor(conv);
+  if (el.hasAttribute("data-guest-kick")) {
+    if (!role) return;
+    if (el.checked) role.guestKickEnabled = true; else delete role.guestKickEnabled;
+    guestPanelChanged(null, false); return;
+  }
+  const field = el.dataset.guestField, id = el.dataset.guestFor;
+  if (!field || !id) return;
+  if (field === "providerId") {
+    guestUpdate(role, id, { providerId: el.value, model: "" });
+    guestPanelChanged(null);
+    const profile = el.value ? providerById(el.value) : null;
+    if (profile && !String(profile.modelList || "").trim()) pullProviderModels(profile).then(() => renderGuestPanelIfOpen()).catch(() => {});
+    return;
+  }
+  guestUpdate(role, id, { [field]: el.value });
+  guestPanelChanged(null, field === "model");
+});
 function agencyNames() {
   const name = String(settings.aiName || "").trim() || "他";
   const her = String(settings.userName || "").trim();
@@ -16735,6 +17516,11 @@ async function revealSegments(segments, baseMsg) {
     if (i === 0 && Array.isArray(baseMsg.traces) && baseMsg.traces.length)
       msg.traces = cloneChatData(baseMsg.traces);
     if (i === 0 && baseMsg.responseState) msg.responseState = baseMsg.responseState;
+    if (baseMsg.speakerId) {   // v393 客人群聊：拆开的气泡也记着是谁说的
+      msg.speakerId = baseMsg.speakerId;
+      if (baseMsg.speakerName) msg.speakerName = baseMsg.speakerName;
+      if (Array.isArray(baseMsg.present)) msg.present = baseMsg.present.slice();
+    }
     messages.push(msg);
     renderMessages();
     if (stickBottom) scrollToBottom();
@@ -17121,7 +17907,9 @@ async function send(opts) {
       sb.classList.remove("staging");
     }
   }
+  const guestPresentNow = !rp && typeof guestPresentIds === "function" ? guestPresentIds(selfCardRoleFor(currentConv()), currentConv()) : [];
   messages.push({ id: uid(), role: "user", content: userContent, ts: Date.now(),
+    ...(guestPresentNow.length ? { present: guestPresentNow } : {}),
     ...(agencyGate.appeal ? { pauseAppeal: true } : {}), ...(opts && opts.roomAskId ? { roomAskId: opts.roomAskId } : {}),
     ...(rpReplyMemberIds.length ? { rpReplyMemberIds } : {}),
     ...(!text && rpReplyMemberIds.length && !pendingAttachments.length ? { rpMentionOnly: true } : {}) });
@@ -18159,6 +18947,8 @@ let roleplayGroupRun = null;
 async function generateReply() {
   if (roleplayGroupRun || abortController || replyBooting) return;
   const conv = currentConv();
+  // v393 客人：主聊天有在场客人时每人单独请求；没有客人时照旧。
+  if (conv && !isRoleplayConversation(conv) && typeof guestGroupActive === "function" && guestGroupActive(selfCardRoleFor(conv), conv)) return generateGuestGroupReply(conv);
   if (!isRoleplayConversation(conv) || !conv.rpProject?.groupEnabled) return generateSingleReply();
   const project = normalizedRoleplayProject(conv.rpProject, conv);
   const latestUser = [...messages].reverse().find(message => message.role === "user" && !message._summary);
@@ -18187,7 +18977,8 @@ async function generateReply() {
     if (!run.cancelled && currentId === run.conversationId) void maybeAutoExtractRoleplayMemories(conv);
   }
 }
-async function generateSingleReply(speaker = null, requestSettings = null) {
+async function generateSingleReply(speaker = null, requestSettings = null, guestTurn = null) {
+  const guestSpeaking = !!(guestTurn && isGuestId(guestTurn.speakerId));
   if (abortController || replyBooting) return;
   const replyConv = currentConv();
   const replyProject = isRoleplayConversation(replyConv) ? normalizedRoleplayProject(replyConv.rpProject, replyConv) : null;
@@ -18225,6 +19016,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     ...(backstageMode
       ? { rpSpeakerName: String(settings.aiName || "当前角色").trim() || "当前角色", rpSpeakerAvatar: isImageRef(settings.aiAvatar) ? settings.aiAvatar : "" }
       : speaker ? { rpSpeakerId: speaker.id, rpSpeakerName: speaker.name, rpSpeakerAvatar: isImageRef(speaker.avatar) ? speaker.avatar : "" } : {}),
+    ...(guestTurn ? guestTurnFields(guestTurn) : {}),
   };
   messages.push(assistantMsg);
   const el = makeMsgEl("assistant", "", assistantMsg);
@@ -18333,7 +19125,7 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       try {
         roundTiming = await streamChat(
           (delta) => { contentGate.push(delta); paint(); },
-          (rdelta) => { appendReasoning(rdelta, false); paint(); }, requestSettings, speaker
+          (rdelta) => { appendReasoning(rdelta, false); paint(); }, requestSettings, speaker, guestTurn
         );
       } finally {
         contentGate.finish();
@@ -18349,6 +19141,8 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
         .filter(block => block.included).flatMap(block => block.sources || []));
       mergeMessageHistoryRecall(assistantMsg, pendingHistorySources);
       pendingHistorySources = [];
+      // v393 客人不能查旧聊天/联网/翻相册：只有主人有工具回合。
+      if (guestSpeaking) break;
       let act = null;
       // v387 翻相册（只在主聊天）：当场把原图递给他，他看完再答；和其他工具共用两次额外机会。
       if (!independent && !replyProject && searchRounds < 2 && typeof window.JYCAlbumAgency?.parseAlbumPeek === "function") {
@@ -18406,6 +19200,47 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
     pendingAlbumPeeks = [];
     finishRunningTraces(assistantMsg, "completed");
     assistantMsg.responseState = "complete";
+    // v393 客人群聊：只留轮到的这个人自己那段（段首【名字】去掉，替别人写的丢掉）；[不接话] 就不留这条。
+    if (guestTurn) {
+      assistantMsg.content = guestOwnSegment(assistantMsg.content, guestTurn.speakerName, guestTurn.otherNames, settings.userName);
+      if (!guestSpeaking) {
+        const kickRole = guestRoleFor(replyConv);
+        guestTurn.kicks = kickRole?.guestKickEnabled === true ? guestParseKicks(assistantMsg.content, guestTurn.plan.guests) : [];
+        assistantMsg.content = stripGuestTags(assistantMsg.content);
+      }
+    }
+    const guestSkipped = !!(guestTurn && (guestIsSkip(assistantMsg.content)
+      || (guestSpeaking && !guestCleanReply(guestExtractMemoryTags(extractAssistantReasoning(assistantMsg.content, false).answer || "").text))));
+    if (guestSkipped) {
+      guestTurn.outcome = "skip";
+      const skipIndex = replyMessages.indexOf(assistantMsg);
+      if (skipIndex >= 0) replyMessages.splice(skipIndex, 1);
+      el.remove();
+    } else if (guestSpeaking) {
+      // 客人只说自己的话：主人专属的标记一律丢掉，[记忆:] 只进他自己的记忆。
+      const normalizedGuest = extractAssistantReasoning(assistantMsg.content, false);
+      if (normalizedGuest.reasoning) {
+        assistantMsg.reasoning = [assistantMsg.reasoning || "", normalizedGuest.reasoning].filter(Boolean).join("\n").trim();
+        assistantMsg.content = normalizedGuest.answer.trim();
+      }
+      const guestMemo = guestExtractMemoryTags(assistantMsg.content);
+      assistantMsg.content = guestCleanReply(guestMemo.text);
+      if (typeof assistantMsg.reasoning === "string") assistantMsg.reasoning = guestCleanReply(assistantMsg.reasoning);
+      if (guestMemo.entries.length && guestAddMemories(guestRoleFor(replyConv), guestTurn.speakerId, guestMemo.entries)) {
+        saveSettings();
+        showToast(`🧠 ${guestTurn.speakerName}记住了：${guestMemo.entries[0].content.slice(0, 16)}`);
+      }
+      assistantMsg.promptAudit = lastPromptAudit || null;
+      if (lastCallUsage && lastCallUsage.total) {
+        assistantMsg.tokens = lastCallUsage.total;
+        assistantMsg.promptAudit = lastCallUsage.promptAudit || null;
+      }
+      bubble.innerHTML = bubbleHtml("assistant", assistantMsg.content, assistantMsg.reasoning, false,
+        assistantMsg.traces, assistantMsg.responseState, assistantMsg);
+      guestTurn.outcome = "said";
+      guestTurn.text = assistantMsg.content;
+      replied = true;
+    } else {
     // v387 他自己的相册：在任何剥离之前读 [存相册]/[相册密码]/[锁照片]；只有主聊天才真的存，其余只剥。
     if (typeof applyAlbumReply === "function") {
       assistantMsg.content = applyAlbumReply(assistantMsg.content, replyConv, !independent && !replyProject && !backstageMode,
@@ -18557,6 +19392,12 @@ async function generateSingleReply(speaker = null, requestSettings = null) {
       remRes.reminders.forEach(r => addReminderMessage(r.text, r.mins));
       if (remRes.reminders.length) startReminderTimer();
       replied = true;
+    }
+    }
+    if (guestTurn && !guestSpeaking && replied) {
+      guestTurn.outcome = "said";
+      guestTurn.text = typeof assistantMsg.content === "string" ? assistantMsg.content
+        : (assistantMsg.content || []).filter(part => part?.type === "text").map(part => part.text).join("\n");
     }
   } catch (e) {
     pendingSearchContext = "";
@@ -20585,6 +21426,7 @@ async function init() {
       window.JYCRoleplayGroup?.open?.();
       return;
     }
+    if (typeof refreshGuestEntry === "function") refreshGuestEntry();
     $("header-menu").classList.toggle("show");
   };
   $("header-menu").querySelectorAll("button").forEach(btn => {
@@ -20598,6 +21440,7 @@ async function init() {
       else if (a === "files") openConversationProjectFiles();
       else if (a === "self-card") openSelfCardPanel("");
       else if (a === "agency") openAgencyPanel();
+      else if (a === "guests") openGuestPanel();
       else if (a === "music") window.JYCMusic?.open?.();
       else if (a === "model") openModelConfig();
       else if (a === "rename") renameConversation(currentId);
@@ -21810,6 +22653,7 @@ window.JYCRoleplayBridge = {
   },
   channels: () => (settings.providers || []).map(profile => ({ id: profile.id, name: profile.name || "接口", models: modelLinesFor(profile), model: profile.model || "", hasModelList: !!String(profile.modelList || "").trim() })),
   currentChannelId: () => conversationProvider(currentConv())?.id || activeProvider()?.id || "",
+  guestCast: () => typeof guestMentionCast === "function" ? guestMentionCast() : null,
   async pullChannelModels(profileId) {
     const profile = providerById(profileId) || conversationProvider(currentConv());
     if (!profile) throw new Error("没有找到这个接口");
@@ -22245,7 +23089,7 @@ if ("serviceWorker" in navigator) {
 /* iOS PWA "needs two taps" fix for send / regenerate / message actions:
    fire on a clean touch tap (pointerup) and swallow the late native click. */
 (function () {
-  const SEL = "#send-btn, .msg-act, .song-pick-chip, .self-card-chip, #self-card-open, #self-card-close, .album-lock-tile, #agency-open, #agency-close, #agency-status-bar, .agency-room-ask, .agency-room-title, .self-card-expand, .self-card-restore, #plus-menu button[data-act=\"location\"], #plus-menu button[data-act=\"assist\"], #global-prompt-add";
+  const SEL = "#send-btn, .msg-act, .song-pick-chip, .self-card-chip, #self-card-open, #self-card-close, .album-lock-tile, #agency-open, #agency-close, #agency-status-bar, .agency-room-ask, .agency-room-title, .self-card-expand, .self-card-restore, #plus-menu button[data-act=\"location\"], #plus-menu button[data-act=\"assist\"], #guest-close, #guest-panel button, #global-prompt-add";
   let start = null, suppressEl = null, suppressUntil = 0, synth = false, tapX = 0, tapY = 0;
   const hit = (e) => e.target && e.target.closest ? e.target.closest(SEL) : null;
   document.addEventListener("pointerdown", (e) => {

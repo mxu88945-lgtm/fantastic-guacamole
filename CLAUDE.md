@@ -6,6 +6,17 @@
 
 
 
+## 2026-11-18｜主聊天「客人」临时群聊（sw v393）
+- 移植惟境 personaGroup v234/v258/v286 的思路，只在主聊天（剧场不动）。入口：右上 ••• →「客人」（`data-hact="guests"`，后面小数字 = 在场人数）→ 全屏 `#guest-panel`（样式沿用自我卡/小天地）。
+- 数据：客人库在角色上 `role.guests[]`（`guest-…` id、source card|custom、name、avatar emoji/小图、persona、world、providerId/model、memories），随 roles 同步；`role.guestKickEnabled`（默认关）。这扇对话在场的是 `conv.guestIds`，回复方式 `conv.guestReplyMode`（默认 @ 点名，`natural` = 自然接话），客人记忆游标 `conv.guestMemoryThrough`。消息：群聊里每条回复带 `speakerId`（主人 "main"，客人 guest-…）/`speakerName`/`present`；她的消息带 `present`。拆开的多气泡也带 speaker。
+- 纯函数在 index.html `/* guests:start */…/* guests:end */`（回归只 eval 这一段），运行时/面板紧跟 `/* agency:end */`。
+- 发送：`generateReply` 发现在场客人 → `generateGuestGroupReply`：@ 点名 = 按 @ 顺序（没 @ = 主人）；自然接话 = 她话里叫到名字的客人先、主人、其他客人，每人可回 [不接话]，最多 3 人，最后一个在没人说话时不能跳过。每人一次 `generateSingleReply(null, 客人接口或 null, guestTurn)`，各用各的接口（客人没选接口 = 跟主聊天）。只有主人有工具回合；主人专属标记（礼物/人物档案/自我卡/点歌/相册/日记/提醒/小天地/约定/锁屏）只认主人那段，客人段里全丢；客人的 [记忆:] 只进他自己。[请出:名字] 只在开关开着时、只认主人那段。
+- 提示词：streamChat 里 `guestStreamContext`：没有在场客人且历史里没有客人说过话 → null，请求逐字不变。否则历史回复标【名字】（sendContent 读临时 `_guestLabel`），群聊块进第一条 system 末尾（稳定），本轮谁说/前面的人这轮说了什么挂在她最后一条消息末尾（这轮前面的回复从历史里去掉，改由尾巴告诉后面的人）。群散了之后只加「群聊已结束」尾巴。
+- @ 选择器复用 `src/rp-mentions.js`：bridge `guestCast()`，候选 = 主人 + 在场客人，只插「@名字」，不变成剧场的 rpReplyMemberIds。
+- 客人记忆：请出时（≥4 条）、每攒 40 条在场新消息、或面板里手动「整理他的新记忆」，用记忆 API `completeOnce(…, true)` 按他的视角整理成 JSON。
+- 回归：`scripts/guests-regression.mjs`。另用 Playwright Chromium 跑过：无客人 1 次请求无群聊块；自然接话按 阿七→顾祁砚→小林(第二接口) 依次请求、小林 [不接话] 不留消息、阿七的 [自我卡] 被丢、[记忆:] 进他自己、顾祁砚替阿七写的段被丢。未真机验证。
+- 限制：客人头像只有 emoji 或角色卡自带的小图（>60KB 的 data 图不存）；角色卡客人存的是拉进来时那一刻的人设快照；不支持绑定剧场/前世记忆。
+
 ## 2026-11-16｜顾祁砚自己的相册：翻原图、喜欢就存（sw v387）
 - 移植惟境 v267–v272（personaAgency.ts 相册部分）的思路，复用「我们的相册」(src/album.js, IndexedDB albumEntriesV1, 已在备份里)。主聊天常开，不跟小天地开关走；剧场仍用旧的 [相册:] 识图检索说明。
 - 规则纯函数在 `src/album-agency.js`（ES module，index.html 里 `<script type="module">` 在 album.js 之前载入，挂 `window.JYCAlbumAgency`；album.js 不 import，保持能被 startup-memory 回归当普通脚本跑）。index.html `/* album-agency:start */…/* album-agency:end */` 只放同步剥离 `stripAlbumAgencyTags`、发图格式 `albumPeekWireMessages`（复用 toApiContent / geminiPartsForContent）、`albumTurnImages`。

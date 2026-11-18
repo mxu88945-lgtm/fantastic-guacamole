@@ -31,10 +31,15 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
     let ids = [], selectedSceneId = "", query = null, offered = [], activeIndex = 0, composing = false, dismissedKey = "";
 
     function currentScene() {
-      try { const scene = bridge.current(); return scene?.rpProject?.groupEnabled ? scene : null; }
-      catch (_) { return null; }
+      try { const scene = bridge.current(); if (scene?.rpProject?.groupEnabled) return scene; }
+      catch (_) {}
+      // v393 主聊天「客人」：有在场客人时，@ 候选 = 主人 + 在场客人（只用来插入「@名字」，谁回复由正文里的 @ 决定）。
+      try { const cast = bridge.guestCast?.(); if (cast && Array.isArray(cast.members) && cast.members.length > 1) return { id: cast.id, guestCast: cast.members }; }
+      catch (_) {}
+      return null;
     }
     function members(scene) {
+      if (scene.guestCast) return scene.guestCast;
       const p = scene.rpProject;
       return [{ id: "lead", name: p.actorName || "舞台主角", avatar: p.actorAvatar || "", kind: "actor" }, ...(p.members || [])];
     }
@@ -61,7 +66,7 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
     }
     function refresh() {
       const scene = currentScene();
-      input.placeholder = scene ? "输入 @ 选择回答的角色……" : defaultPlaceholder;
+      input.placeholder = scene ? (scene.guestCast ? "发送消息（@ 可以点名谁回答）" : "输入 @ 选择回答的角色……") : defaultPlaceholder;
       if (!scene) { ids = []; selectedSceneId = ""; hide(); return; }
       const cast = members(scene);
       if (selectedSceneId && selectedSceneId !== scene.id) {
@@ -83,7 +88,7 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
       head.append(title, close);
       list.append(head);
       if (!offered.length) {
-        const empty = document.createElement("p"); empty.textContent = "没有匹配的成员，可在右侧群聊设置中添加"; list.append(empty);
+        const empty = document.createElement("p"); empty.textContent = scene.guestCast ? "没有匹配的人" : "没有匹配的成员，可在右侧群聊设置中添加"; list.append(empty);
       }
       offered.forEach((member, index) => {
         const option = document.createElement("button");
@@ -143,12 +148,13 @@ if (typeof document !== "undefined" && window.JYCRoleplayBridge) {
     }, true);
     document.addEventListener("pointerdown", event => { if (event.target !== input && !tools.contains(event.target)) hide(); });
     function clear() { ids = []; hide(); refresh(); }
-    for (const event of ["jyc:app-ready", "jyc:chat-opened", "jyc:role-changed", "jyc:roleplay-updated"]) window.addEventListener(event, refresh);
+    for (const event of ["jyc:app-ready", "jyc:chat-opened", "jyc:role-changed", "jyc:roleplay-updated", "jyc:guests-changed"]) window.addEventListener(event, refresh);
     window.JYCRoleplayMentions = { selectedIds: () => {
       const scene = currentScene();
-      return scene?.id === selectedSceneId ? selectedFromText(members(scene)) : [];
+      return scene && !scene.guestCast && scene.id === selectedSceneId ? selectedFromText(members(scene)) : [];
     }, clear, restore: values => {
       const scene = currentScene();
+      if (scene?.guestCast) { hide(); refresh(); return; }
       selectedSceneId = scene?.id || "";
       const cast = scene ? members(scene) : [];
       ids = Array.isArray(values) ? [...new Set(values)].filter(id => cast.some(member => member.id === id)) : [];
