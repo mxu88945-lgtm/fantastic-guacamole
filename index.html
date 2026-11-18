@@ -3096,6 +3096,7 @@
           <button data-hact="files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6l2 3h8v13H4Z"/><path d="M8 12h8M8 16h5"/></svg>本对话资料<span class="header-menu-count" id="conversation-files-count">0</span></button>
           <button data-hact="self-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h10l4 4v14H5Z"/><path d="M9 12h6M9 16h4"/></svg>他自己写的卡</button>
           <button data-hact="agency"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/></svg>他的小天地</button>
+          <button data-hact="music"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>一起听歌</button>
           <button data-hact="rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>重命名对话</button>
           <button data-hact="delete" class="danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>删除对话</button>
         </div>
@@ -20597,6 +20598,7 @@ async function init() {
       else if (a === "files") openConversationProjectFiles();
       else if (a === "self-card") openSelfCardPanel("");
       else if (a === "agency") openAgencyPanel();
+      else if (a === "music") window.JYCMusic?.open?.();
       else if (a === "model") openModelConfig();
       else if (a === "rename") renameConversation(currentId);
       else if (a === "export") openExportDialog();
