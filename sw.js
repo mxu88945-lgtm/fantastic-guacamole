@@ -1,7 +1,7 @@
 // Network-first service worker that BYPASSES the HTTP cache (cache: "no-store"),
 // so the very latest files always load when online; falls back to the cache only
 // when offline. This stops code changes from getting stuck behind a stale cache.
-const CACHE = "role-chat-cache-v401";
+const CACHE = "role-chat-cache-v402";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil((async () => {
@@ -25,5 +25,21 @@ self.addEventListener("fetch", (e) => {
     } catch (_) {
       return (await caches.match(cacheRequest)) || Response.error();
     }
+  })());
+});
+
+// v402 后台推送：到点由推送服务器叫醒，显示通知；点通知回到顾祁砚。
+self.addEventListener("push", (e) => {
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; } catch (_) { data = { body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(data.title || "顾祁砚", { body: data.body || "", tag: data.tag || undefined, data: { url: data.url || "./" }, icon: "apple-touch-icon.png", badge: "apple-touch-icon.png" }));
+});
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "./";
+  e.waitUntil((async () => {
+    const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of list) { if ("focus" in c) return c.focus(); }
+    return self.clients.openWindow(url);
   })());
 });

@@ -4141,6 +4141,12 @@
                 <span class="hint" style="display:block;font-weight:400;margin-top:2px;">在对话里生成倒计时任务卡；可完成或取消，到点会提醒。</span>
               </span>
             </label>
+            <div style="display:flex;align-items:center;gap:10px;min-height:50px;padding:8px 12px;font-size:13px;font-weight:600;border-top:1px solid var(--border);">
+              <span style="flex:1;">🔔 关掉 App 也能收到提醒
+                <span class="hint" id="push-status" style="display:block;font-weight:400;margin-top:2px;">需要先把顾祁砚添加到主屏幕，从主屏幕打开再开启。</span>
+              </span>
+              <button type="button" class="mini-btn" id="push-enable-btn" onclick="pushEnable()" style="flex-shrink:0;">开启</button>
+            </div>
             <label style="display:flex;align-items:center;gap:10px;min-height:50px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;border-top:1px solid var(--border);">
               <input type="checkbox" id="songPickEnabled" style="width:auto;flex-shrink:0;" onchange="readSettingsFromUI();" />
               <span>🎵 让他自己点歌
@@ -16379,6 +16385,7 @@ function addReminderMessage(text, mins) {
     dueAt: now + mins * 60000, done: false, doneAt: null, canceled: false, fired: false, ts: now });
   try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch (e) {}
   showToast("⏰ " + mins + "分钟后提醒你：" + text.slice(0, 14) + (text.length > 14 ? "…" : ""));
+  pushSchedule(messages[messages.length - 1]);
 }
 function fmtRemain(ms) {
   if (ms < 0) ms = 0;
@@ -16506,10 +16513,56 @@ function scrollToReminder(id) {
   el.querySelector(".remind-card")?.classList.add("flash");
   setTimeout(() => el.querySelector(".remind-card")?.classList.remove("flash"), 1500);
 }
+// v402 后台推送：到点由 Cloudflare 小服务器推过来，App 被 iPhone 冻住或关掉也能响。只存在这台设备，不进云同步。
+var PUSH_BASE = "https://gqy-push.lyy0305123.workers.dev";
+function pushReady() { return /^https:/.test(PUSH_BASE) && localStorage.getItem("gqy-push-on") === "1"; }
+function pushDevice() {
+  let id = localStorage.getItem("gqy-push-device");
+  if (!id) { const a = new Uint8Array(24); crypto.getRandomValues(a); id = Array.from(a, b => b.toString(16).padStart(2, "0")).join(""); localStorage.setItem("gqy-push-device", id); }
+  return id;
+}
+async function pushPost(path, data) {
+  const res = await fetch(PUSH_BASE + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device: pushDevice(), ...data }) });
+  if (!res.ok) throw new Error("推送服务 " + res.status);
+  return res.json();
+}
+function pushKeyBytes(b64) { b64 = b64.replace(/-/g, "+").replace(/_/g, "/"); while (b64.length % 4) b64 += "="; const s = atob(b64); return Uint8Array.from(s, c => c.charCodeAt(0)); }
+function pushStatusText() {
+  const el = $("push-status"), btn = $("push-enable-btn");
+  if (!el) return;
+  const standalone = window.navigator.standalone === true || window.matchMedia?.("(display-mode: standalone)").matches;
+  if (!/^https:/.test(PUSH_BASE)) { el.textContent = "推送服务还没接好。"; if (btn) btn.disabled = true; return; }
+  if (!("PushManager" in window) || !("serviceWorker" in navigator)) { el.textContent = standalone ? "这台设备不支持网页推送（iOS 需 16.4 以上）。" : "先把顾祁砚添加到主屏幕，从主屏幕打开再开启。"; if (btn) btn.disabled = true; return; }
+  if (window.Notification && Notification.permission === "denied") { el.textContent = "通知被拒绝了：到 iPhone 设置 → 通知 → 顾祁砚 里打开。"; return; }
+  if (localStorage.getItem("gqy-push-on") === "1") { el.textContent = "已开启：到点 App 没开也会响。点按钮发条测试。"; if (btn) btn.textContent = "测试"; return; }
+  el.textContent = "开启后，提醒到点 App 没开也会响。";
+}
+async function pushEnable() {
+  if (pushReady()) { try { await pushPost("/test", { title: (settings.aiName || "顾祁砚"), body: "我在。以后到点就这样叫你。", url: location.href.split("#")[0] }); showToast("测试推送发出去了"); } catch (e) { showToast("测试失败：" + e.message, 5000); } return; }
+  try {
+    if (!/^https:/.test(PUSH_BASE) || !("PushManager" in window)) { pushStatusText(); return; }
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") { pushStatusText(); showToast("没拿到通知权限"); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const { publicKey } = await (await fetch(PUSH_BASE + "/vapid")).json();
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushKeyBytes(publicKey) });
+    await pushPost("/subscribe", { subscription: sub.toJSON() });
+    localStorage.setItem("gqy-push-on", "1");
+    // 已有还没到点的提醒，补排进服务器。
+    for (const r of allReminderMsgs()) if (!r.done && !r.canceled && r.dueAt > Date.now()) pushSchedule(r);
+    pushStatusText(); showToast("🔔 后台提醒开好了");
+  } catch (e) { showToast("开启失败：" + (e.message || e), 5000); pushStatusText(); }
+}
+function pushSchedule(r) {
+  if (!pushReady() || !r || !r.dueAt) return;
+  pushPost("/schedule", { id: r.id, at: r.dueAt, title: (settings.aiName || "顾祁砚") + " · 提醒", body: r.text, url: location.href.split("#")[0] }).catch(() => {});
+}
+function pushCancel(id) { if (pushReady() && id) pushPost("/cancel", { id }).catch(() => {}); }
 function fireReminder(r) {
   showToast("⏰ 提醒：" + r.text, 6000);
   try {
-    if (window.Notification && Notification.permission === "granted")
+    if (!pushReady() && window.Notification && Notification.permission === "granted")
       new Notification((settings.aiName || "角色") + " · 提醒", { body: r.text });
   } catch (e) {}
   try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch (e) {}
@@ -16519,6 +16572,7 @@ function reminderDone(id) {
   const r = messages.find(m => m.role === "reminder" && m.id === id);
   if (!r || r.done) return;
   r.done = true; r.doneAt = Date.now();
+  pushCancel(r.id);
   saveConversations();
   renderMessages(); if (stickBottom) scrollToBottom();
   if (!allReminderMsgs().some(x => !x.done && !x.canceled)) stopReminderTimer();
@@ -16528,6 +16582,7 @@ function reminderDone(id) {
 function reminderCancel(id) {
   const i = messages.findIndex(m => m.role === "reminder" && m.id === id);
   if (i < 0) return;
+  pushCancel(id);
   messages.splice(i, 1);   // drop the canceled card from the conversation (mutate in place)
   saveConversations();
   renderMessages();
@@ -20479,6 +20534,7 @@ function syncSettingsToUI() {
   updateSystemInstructionUI();
   renderGlobalPromptPresets();
   $("reminderEnabled").checked = settings.reminderEnabled !== false;
+  pushStatusText();
   if ($("songPickEnabled")) $("songPickEnabled").checked = settings.songPickEnabled !== false;
   if (typeof refreshSelfCardEntryStatus === "function") refreshSelfCardEntryStatus();
   $("cycleEnabled").checked = cycleData().enabled !== false;
