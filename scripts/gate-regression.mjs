@@ -12,9 +12,9 @@ const lib = new Function(html.slice(start, end) + `
 return { GATE_BASE, gateParseKey, stripGateTags, extractGateCommands, gateCommandBodies, buildGatePromptText };`)();
 
 const KEY = "bw0123456789abcdef0123456789abcd";
-assert.equal(lib.GATE_BASE, "https://burne-gate.lyy0305123.workers.dev");
+assert.equal(lib.GATE_BASE, "https://gate.zhouweiweihome.top");
 assert.equal(lib.gateParseKey(KEY), KEY, "bare key");
-assert.equal(lib.gateParseKey(`https://burne-gate.lyy0305123.workers.dev/lock?k=${KEY}&app=抖音`), KEY, "link with k=");
+assert.equal(lib.gateParseKey(`https://gate.zhouweiweihome.top/lock?k=${KEY}&app=抖音`), KEY, "link with k=");
 assert.equal(lib.gateParseKey(`shortcuts://x?url=${encodeURIComponent("https://g.dev/open?k=" + KEY)}`), KEY, "encoded link");
 assert.equal(lib.gateParseKey("short"), "");
 assert.equal(lib.gateParseKey("https://example.com/?q=1"), "");

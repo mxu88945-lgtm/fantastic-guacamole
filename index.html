@@ -16539,7 +16539,7 @@ function scrollToReminder(id) {
   setTimeout(() => el.querySelector(".remind-card")?.classList.remove("flash"), 1500);
 }
 // v402 后台推送：到点由 Cloudflare 小服务器推过来，App 被 iPhone 冻住或关掉也能响。只存在这台设备，不进云同步。
-var PUSH_BASE = "https://gqy-push.lyy0305123.workers.dev";
+var PUSH_BASE = "https://push.zhouweiweihome.top";
 function pushReady() { return /^https:/.test(PUSH_BASE) && localStorage.getItem("gqy-push-on") === "1"; }
 function pushDevice() {
   let id = localStorage.getItem("gqy-push-device");
@@ -21355,7 +21355,7 @@ function tryUnlock() {
 }
 
 /* gate:start — v404 他管着你：和伯恩共用 burne-gate 那扇门（同一把钥匙），顾祁砚以客人身份（by=他的名字）锁她的手机。纯函数，回归只 eval 这一段。 */
-const GATE_BASE = "https://burne-gate.lyy0305123.workers.dev";
+const GATE_BASE = "https://gate.zhouweiweihome.top";
 const GATE_KEY_RE = /^[A-Za-z0-9_-]{16,64}$/;
 const GATE_LOCK_RE = /[【\[]\s*锁屏\s*(\d{1,3})\s*(?:分钟|分|min)?\s*(?:[：:，,]\s*([^】\]]{0,60}))?[】\]]/g;
 const GATE_UNLOCK_RE = /[【\[]\s*解锁\s*[】\]]/g;
