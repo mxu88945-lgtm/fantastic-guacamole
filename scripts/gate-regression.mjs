@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v405";'), "service worker cache bumped for the gate release");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v406";'), "service worker cache bumped for the gate release");
 
 const start = html.indexOf("/* gate:start");
 const end = html.indexOf("/* gate:end */");
@@ -57,13 +57,11 @@ const report = {
 const built = lib.buildGatePromptText({ name: "顾祁砚", user: "惟惟", report, toldUntil: 200, now });
 assert.ok(built.text.includes("【锁屏 30分钟：去吃饭】") && built.text.includes("【解锁】") && built.text.includes("【宵禁 22:30】"));
 assert.ok(built.text.includes("5–180") && built.text.includes("一天一两次"));
-assert.ok(built.text.includes("被伯恩锁着，还有 20 分钟"), "someone else's lock named (by '' = 伯恩)");
-assert.ok(built.text.includes("宵禁时间（23:30 起）"));
+assert.ok(!/伯恩|谢聿衡|共用|别人/.test(built.text), "never mentions other people or sharing");
+assert.ok(built.text.includes("现在是宵禁时间"));
 assert.ok(built.text.includes("抖音 3 次") && !built.text.includes("小红书"));
 assert.ok(built.text.includes("解开了你给她上的锁屏（理由：去吃饭）"), "his own lock breach");
-assert.ok(built.text.includes("解开了谢聿衡给她上的锁屏"), "other person's breach named");
-assert.ok(built.text.includes("在伯恩定的宵禁里偷偷放自己 10 分钟去开微博"));
-assert.equal((built.text.match(/【告状】/g) || []).length, 3, "old (>3h) and already-told breaches skipped");
+assert.equal((built.text.match(/【告状】/g) || []).length, 1, "only his own fresh lock breach");
 assert.equal(built.toldMark, now - 5 * 60000);
 const mine = lib.buildGatePromptText({ name: "顾祁砚", user: "惟惟", report: { ...report, lock: { ...report.lock, by: "顾祁砚" }, breaches: [] }, toldUntil: 0, now });
 assert.ok(mine.text.includes("你给她的锁屏还有 20 分钟，理由：专心"));

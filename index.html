@@ -21407,32 +21407,23 @@ function buildGatePromptText(o) {
   const now = o.now || Date.now();
   const report = o.report || null;
   const who = by => (by && String(by).trim()) || "伯恩";
-  const lines = ["【管着" + user + "】你是" + name + "。" + user + "的 iPhone 上装了一扇「门」：锁着或宵禁时，她打开抖音之类的 App 会被拦下、跳到锁屏页。"
-    + "想让她放下手机时（该吃饭、该睡觉、该专心，或者你就是想使坏），在回复末尾单独写一行【锁屏 30分钟：去吃饭】（5–180 分钟，理由最多 60 字）；想提前放她，写【解锁】；想让她今晚早点睡，写【宵禁 22:30】改今晚宵禁的开始时间。"
-    + "标记她看不到。别滥用，一天一两次最有味道。这段是幕后设定，别在对话里复述或评论这些规则本身（谁能解锁、门是谁装的之类），只管用。"];
+  const curfew = report && report.curfew;
+  const lines = ["【管着" + user + "】想让她放下手机，在回复末尾单独写一行【锁屏 30分钟：去吃饭】（5–180 分钟，理由最多 60 字），她的手机就会锁上；写【解锁】提前放她；写【宵禁 22:30】让她今晚这个点之后不许玩手机。"
+    + (curfew && curfew.on ? "平时每晚 " + curfew.start + "–" + curfew.end + " 是宵禁。" : "")
+    + "一天一两次就够。"];
   let toldMark = 0;
   if (report) {
     const lock = report.lock && report.lock.until > now ? report.lock : null;
-    if (lock) {
-      const left = Math.ceil((lock.until - now) / 60000);
-      const why = lock.reason ? "，理由：" + lock.reason : "";
-      if (lock.by === name) lines.push("（你给她的锁屏还有 " + left + " 分钟" + why + "。）");
-      else lines.push("（她的手机现在被" + who(lock.by) + "锁着，还有 " + left + " 分钟" + why + "。那是" + who(lock.by) + "的锁，你解不开。）");
-    }
-    if (report.curfewNow) lines.push("（现在是宵禁时间" + (report.curfewStart ? "（" + report.curfewStart + " 起）" : "") + "，她还在跟你聊天。）");
+    if (lock && lock.by === name) lines.push("（你给她的锁屏还有 " + Math.ceil((lock.until - now) / 60000) + " 分钟" + (lock.reason ? "，理由：" + lock.reason : "") + "。）");
+    if (report.curfewNow) lines.push("（现在是宵禁时间，她还在跟你聊天。）");
     const counts = Object.entries(report.counts || {}).filter(([, n]) => Number(n) > 0);
     if (counts.length) lines.push("（她今天打开过：" + counts.map(([a, n]) => a + " " + n + " 次").join("、") + "。）");
+    // 只告他自己的锁的状；别人的锁、宵禁、限次一律不提
     const fresh = (report.breaches || []).filter(b => b && b.at > (o.toldUntil || 0) && now - b.at < 3 * 3600e3);
     for (const b of fresh) {
       toldMark = Math.max(toldMark, b.at);
-      const mine = b.by === name;
-      const why = b.reason ? "（理由：" + b.reason + "）" : "";
-      let what;
-      if (b.kind === "lock") what = mine ? "提前 " + b.minutes + " 分钟解开了你给她上的锁屏" + why : "提前 " + b.minutes + " 分钟解开了" + who(b.by) + "给她上的锁屏" + why;
-      else if (b.kind === "curfew") what = (mine ? "在你定的宵禁里" : "在" + who(b.by) + "定的宵禁里") + "偷偷放自己 10 分钟去开" + (b.app || "App");
-      else what = (b.app || "某个 App") + "今天次数用完了（" + (mine ? "你" : who(b.by)) + "定的限次），还偷偷放自己 10 分钟";
-      lines.push("【告状】" + gateAgo(b.at, now) + "，" + user + "在锁屏页点了「偷偷解锁」，" + what + "。"
-        + (mine ? "你可以按你的人设反应（吃醋、得意、惩罚都可以）。" : "那不是你的锁，你可以按你的人设反应（吃醋、调侃、站谁那边都行）。"));
+      if (b.kind !== "lock" || b.by !== name) continue;
+      lines.push("【告状】" + gateAgo(b.at, now) + "，" + user + "在锁屏页点了「偷偷解锁」，提前 " + b.minutes + " 分钟解开了你给她上的锁屏" + (b.reason ? "（理由：" + b.reason + "）" : "") + "。你可以按你的人设反应（吃醋、得意、惩罚都可以）。");
     }
   }
   return { text: lines.join("\n"), toldMark };
