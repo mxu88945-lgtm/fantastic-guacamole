@@ -4164,6 +4164,16 @@
           </div>
         </div>
 
+        <div class="field" id="gate-settings" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="gate-on" style="width:auto;" onchange="gateSettingsChanged()" />
+            <span style="font-weight:600;">🔒 他管着你</span>
+            <span class="hint" id="gate-status" style="margin-left:auto;font-weight:400;">没接上</span>
+          </label>
+          <input type="text" id="gate-key-input" placeholder="粘贴伯恩的链接或钥匙" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:10px;" onchange="gateSettingsChanged()" />
+          <span class="hint" style="display:block;margin-top:6px;">在伯恩 设置→他管着你 复制任意一条链接粘贴到这里，用同一扇门</span>
+        </div>
+
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
             <input type="checkbox" id="cycleEnabled" style="width:auto;" onchange="cycleData().enabled=this.checked; saveSettings();" />
@@ -12255,7 +12265,13 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   }
   // 角色锁屏（惟境移植）：告诉角色可以用【锁屏 N分钟：理由】锁屏；若用户刚偷偷解锁过，附上【告状】
   const charLockNote = charLockPromptNote();
-  systemText = systemText ? systemText + "\n\n" + charLockNote : charLockNote;
+  // v404 他管着你：开着门时（只主聊天、只他本人）换成门的说明 + 今天的情况 + 告状；拉报告失败就照旧。
+  let gateNote = "";
+  if (!rpProject && !(guestTurn && typeof isGuestId === "function" && isGuestId(guestTurn.speakerId)) && typeof gatePromptNote === "function") {
+    try { gateNote = await gatePromptNote(); } catch (_) { gateNote = ""; }
+  }
+  const lockNote = gateNote || charLockNote;
+  systemText = systemText ? systemText + "\n\n" + lockNote : lockNote;
   const charLockBreachNote = buildCharLockBreachNote();
   if (charLockBreachNote) systemText = systemText + "\n\n" + charLockBreachNote;
   if (settings.timeAware) {
@@ -13983,6 +13999,7 @@ function parseSelfCardTag(text) {
 }
 /** 去掉所有自我卡标记；末尾没写完的「[自我卡:喜好|还没写…」也去掉。streaming 时连「[」「【自」「[自我」这种半截开头也先藏起来。 */
 function stripSelfCardTags(text, streaming) {
+  if (typeof stripGateTags === "function") text = stripGateTags(text, streaming);
   if (typeof stripGuestTags === "function") text = stripGuestTags(text, streaming);
   if (typeof stripAgencyTags === "function") text = stripAgencyTags(text, streaming);
   if (typeof stripAlbumAgencyTags === "function") text = stripAlbumAgencyTags(text, streaming);
@@ -16600,7 +16617,7 @@ async function pushPullInbox() {
     for (const m of list) {
       const conv = conversations.find(c => c.id === m.conv) || latestRoleConversation();
       if (!conv) break;
-      const msg = appendProactiveMessage(conv, m.text);
+      const msg = appendProactiveMessage(conv, typeof stripGateTags === "function" ? stripGateTags(String(m.text || "")) : m.text);
       if (msg) { msg.ts = m.ts || msg.ts; done.push(m.id); }
     }
     if (done.length) { saveConversations(); await pushPost("/ack", { ids: done }); }
@@ -19392,6 +19409,9 @@ async function generateSingleReply(speaker = null, requestSettings = null, guest
       guestTurn.text = assistantMsg.content;
       replied = true;
     } else {
+    // v404 他管着你 / 角色锁屏：在任何剥离之前读【锁屏】【解锁】【宵禁】（剥离在下面统一做）
+    const gateCmds = !independent && typeof extractGateCommands === "function" ? extractGateCommands(assistantMsg.content) : [];
+    const lockCmd = independent ? null : parseCharLockCommand(assistantMsg.content);
     // v387 他自己的相册：在任何剥离之前读 [存相册]/[相册密码]/[锁照片]；只有主聊天才真的存，其余只剥。
     if (typeof applyAlbumReply === "function") {
       assistantMsg.content = applyAlbumReply(assistantMsg.content, replyConv, !independent && !replyProject && !backstageMode,
@@ -19482,9 +19502,13 @@ async function generateSingleReply(speaker = null, requestSettings = null, guest
       const remRes = independent ? { text: stripIndependentRoleplayControls(assistantMsg.content), reminders: [] } : extractReminders(assistantMsg.content);
       assistantMsg.content = remRes.text;
       // 角色锁屏：解析【锁屏 N分钟：理由】，从显示文本中剥离并弹出锁屏倒计时
-      const lockCmd = independent ? null : parseCharLockCommand(assistantMsg.content);
-      if (lockCmd) {
-        assistantMsg.content = lockCmd.text;
+      // v404 开着「他管着你」的主聊天：锁/解锁/宵禁发到门上（锁她手机），不弹 App 里的锁屏
+      if (typeof stripGateTags === "function") assistantMsg.content = stripGateTags(assistantMsg.content);
+      const gateMain = !independent && !replyProject && !backstageMode && typeof gateActive === "function" && gateActive();
+      if (gateMain) {
+        gateApplyCommands(gateCmds);
+        gateMarkTold();
+      } else if (lockCmd) {
         const lockerName = (settings.aiName || "他").trim() || "他";
         setCharLock({ until: Date.now() + lockCmd.minutes * 60000, startedAt: Date.now(), byName: lockerName, reason: lockCmd.reason });
         renderCharLockScreen();
@@ -20586,6 +20610,7 @@ function syncSettingsToUI() {
   renderGlobalPromptPresets();
   $("reminderEnabled").checked = settings.reminderEnabled !== false;
   pushStatusText();
+  if (typeof gateRenderSettings === "function") gateRenderSettings(false);
   if ($("songPickEnabled")) $("songPickEnabled").checked = settings.songPickEnabled !== false;
   if (typeof refreshSelfCardEntryStatus === "function") refreshSelfCardEntryStatus();
   $("cycleEnabled").checked = cycleData().enabled !== false;
@@ -21327,6 +21352,190 @@ function tryUnlock() {
     ls.classList.add("shake");
     setTimeout(() => ls.classList.remove("shake"), 400);
   }
+}
+
+/* gate:start — v404 他管着你：和伯恩共用 burne-gate 那扇门（同一把钥匙），顾祁砚以客人身份（by=他的名字）锁她的手机。纯函数，回归只 eval 这一段。 */
+const GATE_BASE = "https://burne-gate.lyy0305123.workers.dev";
+const GATE_KEY_RE = /^[A-Za-z0-9_-]{16,64}$/;
+const GATE_LOCK_RE = /[【\[]\s*锁屏\s*(\d{1,3})\s*(?:分钟|分|min)?\s*(?:[：:，,]\s*([^】\]]{0,60}))?[】\]]/g;
+const GATE_UNLOCK_RE = /[【\[]\s*解锁\s*[】\]]/g;
+const GATE_CURFEW_RE = /[【\[]\s*宵禁\s*(\d{1,2})[:：](\d{2})\s*[】\]]/g;
+/** 伯恩的整条链接（含 k=）或光秃秃的钥匙都认；认不出返回 ""。 */
+function gateParseKey(input) {
+  const raw = String(input || "").trim();
+  if (!raw) return "";
+  if (GATE_KEY_RE.test(raw)) return raw;
+  let text = raw;
+  try { text = decodeURIComponent(raw); } catch (_) {}
+  const m = text.match(/(?:^|[?&#\s])k=([A-Za-z0-9_-]{16,64})(?![A-Za-z0-9_-])/);
+  return m ? m[1] : "";
+}
+/** 去掉锁屏/解锁/宵禁标记；写到一半没闭合的也藏（streaming 时连「【锁」「【解」「【宵」都先藏）。 */
+function stripGateTags(text, streaming) {
+  if (typeof text !== "string" || !text || !/[\[【]/.test(text)) return text;
+  let out = text.replace(GATE_LOCK_RE, "").replace(GATE_UNLOCK_RE, "").replace(GATE_CURFEW_RE, "")
+    .replace(/[【\[]\s*(?:锁屏|宵禁)[^】\]\n]{0,64}$/, "");
+  if (streaming) out = out.replace(/[【\[]\s*(?:锁(?:\s*屏[^】\]\n]{0,64})?|解(?:\s*锁\s*)?|宵(?:\s*禁[^】\]\n]{0,10})?)$/, "");
+  if (out === text) return text;
+  return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "");
+}
+function extractGateCommands(text) {
+  const src = String(text || ""), out = [];
+  for (const m of src.matchAll(GATE_LOCK_RE)) out.push({ kind: "lock", minutes: Math.min(180, Math.max(5, Number(m[1]) || 0)), reason: (m[2] || "").trim().slice(0, 60) });
+  if (src.match(GATE_UNLOCK_RE)) out.push({ kind: "unlock" });
+  for (const m of src.matchAll(GATE_CURFEW_RE)) {
+    const h = Number(m[1]), mi = Number(m[2]);
+    if (h < 24 && mi < 60) out.push({ kind: "curfew", start: String(h).padStart(2, "0") + ":" + String(mi).padStart(2, "0") });
+  }
+  return out;
+}
+/** 回复里的标记 → 发给门的请求体（客人永远带 by；不发 name/curfew/limit）。 */
+function gateCommandBodies(cmds, by, avatar, appUrl, now) {
+  return (cmds || []).map(c => c.kind === "lock"
+    ? { by, avatar: avatar || "", appUrl, lock: { until: now + c.minutes * 60000, startedAt: now, reason: c.reason || "" } }
+    : c.kind === "unlock" ? { by, lock: null }
+    : c.kind === "curfew" ? { by, tonight: c.start } : null).filter(Boolean);
+}
+function gateAgo(at, now) {
+  const m = Math.max(0, Math.round((now - at) / 60000));
+  return m < 1 ? "刚刚" : m < 60 ? m + " 分钟前" : Math.round(m / 60) + " 小时前";
+}
+/** 给他看的那一段：能怎么管她 + 现在谁锁着她 + 今天的情况 + 新的告状。toldMark = 这次说到的最新告状时间。 */
+function buildGatePromptText(o) {
+  const name = String(o.name || "").trim() || "顾祁砚";
+  const user = String(o.user || "").trim() || "她";
+  const now = o.now || Date.now();
+  const report = o.report || null;
+  const who = by => (by && String(by).trim()) || "伯恩";
+  const lines = ["【管着" + user + "】你是" + name + "。" + user + "的 iPhone 上装了一扇「门」（和别人共用）：锁着或宵禁时，她打开抖音之类的 App 会被拦下、跳到锁屏页。"
+    + "想让她放下手机时（该吃饭、该睡觉、该专心，或者你就是想使坏），在回复末尾单独写一行【锁屏 30分钟：去吃饭】（5–180 分钟，理由最多 60 字）；想提前放她，写【解锁】（只能解你自己上的锁）；想让她今晚早点睡，写【宵禁 22:30】改今晚宵禁的开始时间。"
+    + "标记她看不到。别滥用，一天一两次最有味道。"];
+  let toldMark = 0;
+  if (report) {
+    const lock = report.lock && report.lock.until > now ? report.lock : null;
+    if (lock) {
+      const left = Math.ceil((lock.until - now) / 60000);
+      const why = lock.reason ? "，理由：" + lock.reason : "";
+      if (lock.by === name) lines.push("（你给她的锁屏还有 " + left + " 分钟" + why + "。）");
+      else lines.push("（她的手机现在被" + who(lock.by) + "锁着，还有 " + left + " 分钟" + why + "。那是" + who(lock.by) + "的锁，你解不开。）");
+    }
+    if (report.curfewNow) lines.push("（现在是宵禁时间" + (report.curfewStart ? "（" + report.curfewStart + " 起）" : "") + "，她还在跟你聊天。）");
+    const counts = Object.entries(report.counts || {}).filter(([, n]) => Number(n) > 0);
+    if (counts.length) lines.push("（她今天打开过：" + counts.map(([a, n]) => a + " " + n + " 次").join("、") + "。）");
+    const fresh = (report.breaches || []).filter(b => b && b.at > (o.toldUntil || 0) && now - b.at < 3 * 3600e3);
+    for (const b of fresh) {
+      toldMark = Math.max(toldMark, b.at);
+      const mine = b.by === name;
+      const why = b.reason ? "（理由：" + b.reason + "）" : "";
+      let what;
+      if (b.kind === "lock") what = mine ? "提前 " + b.minutes + " 分钟解开了你给她上的锁屏" + why : "提前 " + b.minutes + " 分钟解开了" + who(b.by) + "给她上的锁屏" + why;
+      else if (b.kind === "curfew") what = (mine ? "在你定的宵禁里" : "在" + who(b.by) + "定的宵禁里") + "偷偷放自己 10 分钟去开" + (b.app || "App");
+      else what = (b.app || "某个 App") + "今天次数用完了（" + (mine ? "你" : who(b.by)) + "定的限次），还偷偷放自己 10 分钟";
+      lines.push("【告状】" + gateAgo(b.at, now) + "，" + user + "在锁屏页点了「偷偷解锁」，" + what + "。"
+        + (mine ? "你可以按你的人设反应（吃醋、得意、惩罚都可以）。" : "那不是你的锁，你可以按你的人设反应（吃醋、调侃、站谁那边都行）。"));
+    }
+  }
+  return { text: lines.join("\n"), toldMark };
+}
+/* gate:end */
+// v404 他管着你：运行时（localStorage gqy-gate = {key, on, toldUntil}，不进云同步）。
+const GATE_STORE_KEY = "gqy-gate";
+let gateReportCache = null, gatePendingTold = 0;
+function gateState() {
+  try { return Object.assign({ key: "", on: false, toldUntil: 0 }, JSON.parse(localStorage.getItem(GATE_STORE_KEY) || "{}")); }
+  catch (_) { return { key: "", on: false, toldUntil: 0 }; }
+}
+function gateSave(patch) {
+  try { localStorage.setItem(GATE_STORE_KEY, JSON.stringify(Object.assign(gateState(), patch))); } catch (_) {}
+}
+function gateActive() { const s = gateState(); return !!(s.on && GATE_KEY_RE.test(s.key || "")); }
+function gateCharName() { return String(settings.aiName || "顾祁砚").trim() || "顾祁砚"; }
+function gateAvatar() {
+  const a = settings.aiAvatar;
+  return typeof a === "string" && (/^https:\/\//.test(a) || /^data:image\//.test(a)) && a.length < 60000 ? a : "";
+}
+function gateAppUrl() { return /^https:/.test(location.origin) ? location.origin + location.pathname : "https://mxu88945-lgtm.github.io/fantastic-guacamole/"; }
+async function gateFetchReport(force) {
+  const s = gateState();
+  if (!s.on || !GATE_KEY_RE.test(s.key || "")) return null;
+  if (!force && gateReportCache && gateReportCache.key === s.key && Date.now() - gateReportCache.at < 15000) return gateReportCache.report;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 4000);
+  try {
+    const r = await fetch(GATE_BASE + "/report?k=" + encodeURIComponent(s.key), { signal: ctrl.signal, cache: "no-store" });
+    if (!r.ok) return null;
+    const report = await r.json();
+    gateReportCache = { key: s.key, at: Date.now(), report };
+    return report;
+  } catch (_) { return null; }
+  finally { clearTimeout(timer); }
+}
+async function gatePost(body) {
+  const s = gateState();
+  if (!GATE_KEY_RE.test(s.key || "")) return null;
+  try {
+    const r = await fetch(GATE_BASE + "/state?k=" + encodeURIComponent(s.key), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) return null;
+    const report = await r.json();
+    gateReportCache = { key: s.key, at: Date.now(), report };
+    return report;
+  } catch (_) { return null; }
+}
+async function gatePromptNote() {
+  if (!gateActive()) return "";
+  const report = await gateFetchReport(false);
+  const built = buildGatePromptText({ name: gateCharName(), user: settings.userName || "她", report, toldUntil: gateState().toldUntil || 0 });
+  if (built.toldMark) gatePendingTold = Math.max(gatePendingTold, built.toldMark);
+  return built.text;
+}
+function gateMarkTold() {
+  if (!gatePendingTold) return;
+  gateSave({ toldUntil: Math.max(gateState().toldUntil || 0, gatePendingTold) });
+  gatePendingTold = 0;
+}
+/** 回复收尾时执行一次（只主聊天、只他本人）。依次发出，保证先锁后解这种顺序。 */
+function gateApplyCommands(cmds) {
+  if (!cmds || !cmds.length || !gateActive()) return;
+  const name = gateCharName();
+  const bodies = gateCommandBodies(cmds, name, gateAvatar(), gateAppUrl(), Date.now());
+  (async () => {
+    for (const body of bodies) {
+      const ok = await gatePost(body);
+      if (body.lock) showToast(ok ? "🔒 " + name + "锁了你的手机（" + Math.round((body.lock.until - body.lock.startedAt) / 60000) + " 分钟）" : "🔒 锁屏没发到门上");
+      else if (body.lock === null) showToast(ok ? "🔓 " + name + "放你出来了" : "🔓 解锁没发到门上");
+      else if (body.tonight) showToast(ok ? "🌙 " + name + "把今晚宵禁改到 " + body.tonight : "🌙 宵禁没发到门上");
+    }
+  })();
+}
+function gateDescribe(report) {
+  if (!report) return "";
+  const now = Date.now();
+  const lock = report.lock && report.lock.until > now ? report.lock : null;
+  if (lock) return "已接上 · " + ((lock.by && String(lock.by).trim()) || "伯恩") + "锁着（还有 " + Math.ceil((lock.until - now) / 60000) + " 分钟）";
+  return report.curfewNow ? "已接上 · 宵禁中" : "已接上";
+}
+async function gateRenderSettings(test) {
+  const on = $("gate-on"), input = $("gate-key-input"), status = $("gate-status");
+  if (!on || !input || !status) return;
+  const s = gateState();
+  on.checked = !!s.on;
+  if (document.activeElement !== input) input.value = s.key || "";
+  if (!s.key) { status.textContent = s.on ? "先粘贴链接" : "没接上"; return; }
+  if (!s.on) { status.textContent = "关着"; return; }
+  if (!test) { status.textContent = gateReportCache && gateReportCache.key === s.key ? gateDescribe(gateReportCache.report) : "开着"; return; }
+  status.textContent = "连接中…";
+  const report = await gateFetchReport(true);
+  status.textContent = report ? gateDescribe(report) : "连不上，检查链接或网络";
+}
+function gateSettingsChanged() {
+  const input = $("gate-key-input"), on = $("gate-on");
+  const raw = input ? input.value.trim() : "";
+  const key = gateParseKey(raw);
+  if (raw && !key) { const st = $("gate-status"); if (st) st.textContent = "没认出钥匙"; gateSave({ on: !!(on && on.checked) }); return; }
+  const prev = gateState();
+  gateSave({ key, on: !!(on && on.checked), toldUntil: key === prev.key ? prev.toldUntil || 0 : Date.now() });
+  if (input) input.value = key;
+  gateRenderSettings(true);
 }
 
 // ---------- Character phone lock (ported from 惟境) ----------

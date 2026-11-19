@@ -6,6 +6,14 @@
 
 
 
+## 2026-11-19｜他管着你：和伯恩共用一扇门（sw v404）
+- 她在伯恩那边用 iPhone 快捷指令接了 Cloudflare Worker `burne-gate`（https://burne-gate.lyy0305123.workers.dev，伯恩的仓库 burne-home-core 的 src/lib/guard.ts、src/store/guardStore.ts）。顾祁砚以「客人」身份用同一把钥匙进同一扇门：POST /state 永远带 `by: settings.aiName`（默认 顾祁砚），只发 lock{until,startedAt,reason}+avatar（https/data:image 且 <60000 字，否则 ''）+appUrl、`lock:null`（门只解 by 相同的锁）、`tonight:"HH:MM"`；不发 name/curfew/limit。
+- 设置 → 角色陪伴 → 「主动陪伴」卡下面的「🔒 他管着你」卡（`#gate-settings`）：开关 `#gate-on`、输入框 `#gate-key-input`（整条链接含 k= 或光钥匙都认，`gateParseKey`）、状态 `#gate-status`（保存时拉一次 /report 显示 已接上/谁锁着/连不上）。存 localStorage `gqy-gate` = {key,on,toldUntil}，不进云同步；换钥匙时 toldUntil 设为当下，不翻旧账。
+- 纯函数在 index.html `/* gate:start */…/* gate:end */`（回归只 eval 这一段），运行时紧跟其后、在「Character phone lock」之前。
+- 提示词：streamChat 里原来放 charLockNote 的位置；开着门、主聊天、不是客人说话时 `await gatePromptNote()`（/report 4 秒超时、15 秒缓存，失败只给规则）替换 App 内锁屏说明：规则（5–180 分钟、【解锁】只解自己的、【宵禁 HH:MM】）+ 谁锁着她（by===他名字 = 他的；否则点名，'' = 伯恩）+ curfewNow + 今天次数 + toldUntil 之后且 3 小时内的告状（区分他的锁 / 别人的锁/宵禁/限次）。
+- 剥离：stripGateTags 挂在 stripSelfCardTags 开头（所有剥离点、流式半截、客人的 guestCleanReply 都覆盖），主动推送拉回的消息也剥。执行：generateSingleReply 主人分支在任何剥离之前读 `extractGateCommands` 和 parseCharLockCommand；收尾时开着门的主聊天 → `gateApplyCommands`（依次 POST、toast）+ `gateMarkTold()`，不弹 App 内锁屏；没开门 / 剧场 → 照旧弹 App 内锁屏。客人段不执行。
+- 回归：`scripts/gate-regression.mjs`。Worker 的 CORS 已用 curl 验过（* / content-type / POST）。未真机验证，没实际往她的门上发过锁。
+
 ## 2026-11-18｜主聊天「客人」临时群聊（sw v393）
 - 移植惟境 personaGroup v234/v258/v286 的思路，只在主聊天（剧场不动）。入口：右上 ••• →「客人」（`data-hact="guests"`，后面小数字 = 在场人数）→ 全屏 `#guest-panel`（样式沿用自我卡/小天地）。
 - 数据：客人库在角色上 `role.guests[]`（`guest-…` id、source card|custom、name、avatar emoji/小图、persona、world、providerId/model、memories），随 roles 同步；`role.guestKickEnabled`（默认关）。这扇对话在场的是 `conv.guestIds`，回复方式 `conv.guestReplyMode`（默认 @ 点名，`natural` = 自然接话），客人记忆游标 `conv.guestMemoryThrough`。消息：群聊里每条回复带 `speakerId`（主人 "main"，客人 guest-…）/`speakerName`/`present`；她的消息带 `present`。拆开的多气泡也带 speaker。

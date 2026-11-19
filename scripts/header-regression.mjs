@@ -19,7 +19,7 @@ requireText('<button data-act="export" type="button">', 'export should live in t
 if (html.includes('data-hact="export"')) throw new Error('export should leave the header menu')
 requireText('id="header-more-btn"', 'more action was lost')
 requireText('top: calc(100% + 8px); right: 0;', 'more menu is not anchored to the capsule')
-if (!sw.includes('const CACHE = "role-chat-cache-v403";')) throw new Error('service worker cache was not bumped')
+if (!sw.includes('const CACHE = "role-chat-cache-v404";')) throw new Error('service worker cache was not bumped')
 
 const headerStart = html.indexOf('<header>')
 const headerEnd = html.indexOf('</header>', headerStart)
