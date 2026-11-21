@@ -6,12 +6,36 @@
 
 /** 「阿梨粤-偏偏喜欢你(女声版).mp3」→ { title: "偏偏喜欢你", artist: "阿梨粤" } */
 export function guessLyricMeta(name) {
-  let s = String(name || "").replace(/\.[a-z0-9]{2,4}$/i, "").trim();
+  let s = stripTrackNo(String(name || "").replace(/\.[a-z0-9]{2,4}$/i, "").trim());
   let artist = "";
   const m = s.match(/^(.+?)\s*[-–—]\s*(.+)$/);
   if (m) { artist = m[1].trim(); s = m[2]; }
   const title = s.replace(/[（(【[].*?[）)】\]]/g, "").replace(/[-–—]+$/, "").trim();
   return { title: title || s.trim(), artist };
+}
+
+/** v409：去掉文件名前面的曲目编号「0921.」「01 」「02-」 */
+export function stripTrackNo(s) {
+  return String(s || "").replace(/^\d{1,4}\s*[.、_\-–—]\s*|^\d{1,4}\s+/, "").trim();
+}
+
+/**
+ * v409：文件名可能是「歌手-歌名」也可能是「歌名-歌手」（如「0921.你爱我像谁-张卫健」），
+ * 两种顺序都给出来，外加一条整串关键词，交给 lrclib 各搜一次。
+ */
+export function lyricQueryPairs(name, knownArtist = "") {
+  const meta = guessLyricMeta(name);
+  const pairs = [];
+  const add = (title, artist) => {
+    title = String(title || "").replace(/[（(【[].*?[）)】\]]/g, "").trim();
+    artist = String(artist || "").trim();
+    if (title && !pairs.some((p) => p.title === title && p.artist === artist)) pairs.push({ title, artist });
+  };
+  if (knownArtist) add(meta.artist && meta.artist !== knownArtist ? meta.artist : meta.title, knownArtist);
+  add(meta.title, meta.artist);
+  if (meta.artist) add(meta.artist, meta.title);
+  const query = stripTrackNo(String(name || "").replace(/\.[a-z0-9]{2,4}$/i, "")).replace(/[（(【[].*?[）)】\]]/g, " ").replace(/[-–—_]+/g, " ").replace(/\s+/g, " ").trim();
+  return { pairs, query };
 }
 
 export function rankLyrics(items, title, dur = 0) {

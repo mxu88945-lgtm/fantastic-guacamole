@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { rankLyrics, mergeCandidates, nextCandidateIndex, shiftLyricLines, guessLyricMeta } from "../src/music-lyrics.js";
+import { rankLyrics, mergeCandidates, nextCandidateIndex, shiftLyricLines, guessLyricMeta, lyricQueryPairs, stripTrackNo } from "../src/music-lyrics.js";
 import { findTrackByTitle, songTitleKeys, buildSongPickNote, songPickTitleList, toSimplified } from "../src/song-pick.js";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -80,7 +80,7 @@ assert.ok(music.includes('import { findTrackByTitle, buildSongPickNote } from ".
 assert.ok(music.includes('error.name === "NotAllowedError"'), "autoplay block fails quietly");
 assert.ok(!/accept\s*=\s*["']/.test(music) && !/\.accept\s*=/.test(music.slice(music.indexOf("function pickLocalFiles"), music.indexOf("function pickLocalFiles") + 900)), "import picker has no accept attribute");
 assert.ok(css.includes(".song-pick-chip"));
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v408";'), "service worker cache bumped");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v409";'), "service worker cache bumped");
 
 // ---- v361 换一版歌词 + 本地管理多选 ----
 const cands = rankLyrics([
@@ -101,6 +101,14 @@ assert.equal(nextCandidateIndex({ list: [], idx: 0 }), -1);
 assert.deepEqual(shiftLyricLines([{ time: 1, text: "x" }, { time: -1, text: "p" }], 0.5).map((l) => l.time), [1.5, -1]);
 assert.equal(shiftLyricLines([{ time: 0.2, text: "x" }], -1)[0].time, 0, "never negative");
 assert.deepEqual(guessLyricMeta("阿梨粤-偏偏喜欢你(女声版).mp3"), { title: "偏偏喜欢你", artist: "阿梨粤" });
+// v409：曲目编号去掉；「歌名-歌手」顺序也要搜得到
+assert.equal(stripTrackNo("0921.你爱我像谁-张卫健"), "你爱我像谁-张卫健");
+assert.equal(stripTrackNo("01 左右为难"), "左右为难");
+{
+  const q = lyricQueryPairs("0921.你爱我像谁-张卫健.mp3");
+  assert.ok(q.pairs.some((p) => p.title === "你爱我像谁" && p.artist === "张卫健"), "title-artist order searched");
+  assert.equal(q.query, "你爱我像谁 张卫健");
+}
 assert.ok(html.includes('id="music-version-btn"') && html.indexOf('id="music-version-btn"') - html.indexOf('id="music-lyrics-btn"') < 200, "换一版歌词 sits next to 歌词");
 assert.ok(music.includes("第 ${c.idx + 1}/${c.list.length} 版歌词"), "toast shows 第 x/y 版歌词");
 assert.ok(/const saved = await localGet\(`lyric:\$\{songId\}`\)/.test(music), "online songs read the switched lyric version");

@@ -6,7 +6,7 @@
  * to this browser origin.
  */
 import { findTrackByTitle, buildSongPickNote } from "./song-pick.js";
-import { guessLyricMeta, rankLyrics, mergeCandidates, nextCandidateIndex, shiftLyricLines } from "./music-lyrics.js";
+import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandidateIndex, shiftLyricLines } from "./music-lyrics.js";
 
 (() => {
   const CONFIG_KEY = "jyc_music_config_v1";
@@ -129,15 +129,21 @@ import { guessLyricMeta, rankLyrics, mergeCandidates, nextCandidateIndex, shiftL
     return Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
   }
   async function fetchLyricCandidates(song) {
-    const meta = guessLyricMeta(song.name);
-    const artist = song.artist && song.artist !== "本地音乐" && song.artist !== "未知歌手" ? song.artist : meta.artist;
-    if (!meta.title) return [];
+    const known = song.artist && song.artist !== "本地音乐" && song.artist !== "未知歌手" ? song.artist : "";
+    const { pairs, query } = lyricQueryPairs(song.name, known);
+    if (!pairs.length) return [];
     const dur = await waitDuration(song);
-    const get = async (q) => { const r = await fetch(`https://lrclib.net/api/search?${q}`); return r.ok ? r.json() : []; };
+    const get = async (q) => { try { const r = await fetch(`https://lrclib.net/api/search?${q}`); return r.ok ? r.json() : []; } catch (_) { return []; } };
     const enc = encodeURIComponent;
-    const byArtist = artist ? rankLyrics(await get(`track_name=${enc(meta.title)}&artist_name=${enc(artist)}`), meta.title, dur) : [];
-    const all = rankLyrics(await get(`track_name=${enc(meta.title)}`), meta.title, dur);
-    return mergeCandidates(byArtist, all);
+    // v409：歌手-歌名 / 歌名-歌手 两种顺序都搜，再用整串关键词兜底
+    const byArtist = await Promise.all(pairs.filter((p) => p.artist).map(async (p) => rankLyrics(await get(`track_name=${enc(p.title)}&artist_name=${enc(p.artist)}`), p.title, dur)));
+    const free = query ? await get(`q=${enc(query)}`) : [];
+    const byQuery = pairs.map((p) => rankLyrics(free, p.title, dur));
+    const found = [...byArtist, ...byQuery].reduce((acc, list) => mergeCandidates(acc, list), []);
+    if (found.length) return found;
+    // 都没搜到才只按歌名搜（容易搜到同名别的歌，放最后）
+    const alls = await Promise.all(pairs.map(async (p) => rankLyrics(await get(`track_name=${enc(p.title)}`), p.title, dur)));
+    return alls.reduce((acc, list) => mergeCandidates(acc, list), []);
   }
   async function fetchOnlineLyrics(song) {
     const list = await fetchLyricCandidates(song);
