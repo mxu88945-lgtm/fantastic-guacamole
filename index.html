@@ -19342,6 +19342,7 @@ async function generateSingleReply(speaker = null, requestSettings = null, guest
         ? startMessageTrace(assistantMsg, "album", "翻相册：" + (act.q || "最近几张"))
         : startMessageTrace(assistantMsg, act.type === "original" ? "local" : act.type, (act.type === "original" ? "原文编号：" : "关键词：") + act.q);
       paint();
+      let webSearchFailed = "";
       try {
         if (act.type === "peek") {
           pendingAlbumPeeks.push(await albumPeekFor(replyConv, act.q, peekSaid));
@@ -19351,12 +19352,18 @@ async function generateSingleReply(speaker = null, requestSettings = null, guest
           pendingHistorySources = evidence.sources || [];
         } else if (act.type === "web") {
           const web = await webSearch(act.q);
-          pendingSearchContext = "（你刚才请求联网搜索「" + act.q + "」，以下是网络搜索结果。请据此回答，注意信息可能有时效或不准，必要时提一下来源/不确定性）\n" + web;
+          // v407：搜索失败不再假装成功——过程条标红，并叫他如实说没搜到，不许编实时信息。
+          if (/^（联网搜索失败/.test(web)) {
+            webSearchFailed = web.replace(/^（|）$/g, "");
+            pendingSearchContext = "（你刚才请求联网搜索「" + act.q + "」，但这次没搜到：" + webSearchFailed + "。请如实告诉她这次没查到，不要编造新闻、天气、价格等实时信息；能凭常识答的部分要说明不是实时的。）";
+          } else {
+            pendingSearchContext = "（你刚才请求联网搜索「" + act.q + "」，以下是网络搜索结果。请据此回答，注意信息可能有时效或不准，必要时提一下来源/不确定性）\n" + web;
+          }
         } else {
           pendingSearchContext = await inspectAlbumForModel(act.q);
         }
         if (searchRounds >= 2 && act.type !== "peek") pendingSearchContext += "\n【本轮工具次数已用完】请基于已提供的结果回答，不再请求工具；没读完的范围如实说明。";
-        finishMessageTrace(assistantMsg, toolTrace.id, "completed");
+        finishMessageTrace(assistantMsg, toolTrace.id, webSearchFailed ? "error" : "completed", webSearchFailed || undefined);
       } catch (toolError) {
         finishMessageTrace(assistantMsg, toolTrace.id, "error", "执行失败，请稍后重试");
         paint();
