@@ -3941,7 +3941,7 @@
             <span>开启联网搜索</span>
           </label>
           <input id="webSearchUrl" placeholder="搜索接口地址（默认 Jina；无 Key 自动走后备）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
-          <input id="webSearchKey" type="password" placeholder="Jina API Key（选填；留空自动使用免费后备，不上云）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+          <input id="webSearchKey" type="password" placeholder="搜索 Key：填 Tavily 的 tvly- 开头 Key（推荐，和惟境同一个），或 Jina Key" style="margin-top:8px;" onchange="readSettingsFromUI();" />
         </div>
 
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>用量 · 账单</div>
@@ -13710,7 +13710,31 @@ function webSearchFallbackUrl(query) {
   return "https://r.jina.ai/http://html.duckduckgo.com/html/?q=" + encodeURIComponent(query);
 }
 // Returns a compact text digest of the top results to feed back to the model.
+// v408：和惟境一样走 Tavily——Key 以 tvly- 开头就自动用 Tavily（Jina 免费线路现在常拒绝无 Key 请求）。
+async function tavilyWebSearch(query, key) {
+  const news = /新闻|热搜|发布|最新|最近|今天|昨天|刚刚|发生了什么|怎么回事/.test(query);
+  let resp;
+  try {
+    resp = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "content-type": "application/json", "authorization": "Bearer " + key },
+      body: JSON.stringify(Object.assign({ query: String(query).slice(0, 380), max_results: 5, include_answer: true, search_depth: news ? "advanced" : "basic" }, news ? { topic: "news", days: 3 } : {})),
+      signal: abortController ? abortController.signal : undefined
+    });
+  } catch (e) {
+    if (e.name === "AbortError") throw e;
+    return "（联网搜索失败：" + (e.message || e) + "。连不上 Tavily，可能要开 VPN。）";
+  }
+  if (!resp.ok) return "（联网搜索失败：" + (resp.status === 401 ? "Tavily Key 无效" : "HTTP " + resp.status) + "）";
+  const data = await resp.json().catch(() => ({}));
+  const results = Array.isArray(data.results) ? data.results : [];
+  if (!data.answer && !results.length) return "（没搜到相关结果）";
+  const lines = results.slice(0, 5).map((r, i) => `${i + 1}. ${r.title || ""}${r.published_date ? "（" + String(r.published_date).slice(0, 10) + "）" : ""}\n${r.url || ""}\n${String(r.content || "").replace(/\s+/g, " ").slice(0, 360)}`);
+  return [data.answer ? "概要：" + String(data.answer).replace(/\s+/g, " ").slice(0, 300) : "", ...lines].filter(Boolean).join("\n\n");
+}
 async function webSearch(query) {
+  const tavilyKey = (settings.webSearchKey || "").trim();
+  if (/^tvly-/i.test(tavilyKey) || /tavily\.com/i.test(settings.webSearchUrl || "")) return tavilyWebSearch(query, tavilyKey);
   const raw = (settings.webSearchUrl || "https://s.jina.ai/").trim();
   const url = raw.replace(/\/+$/, "") + "/" + encodeURIComponent(query);
   const headers = { "Accept": "application/json" };
