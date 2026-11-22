@@ -1053,6 +1053,12 @@
   .diagnostic-row span { color:var(--text-dim); font-size:11px; }
   .diagnostic-row strong { margin-top:3px; font-size:13px; font-weight:600; }
   .diagnostic-summary { width:100%; min-height:112px; box-sizing:border-box; resize:vertical; font:12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .diagnostic-connectivity { display:grid; gap:6px; margin:10px 0; padding:10px; border-radius:11px; background:rgba(255,255,255,.35); }
+  .diagnostic-connectivity-results { display:grid; gap:6px; }
+  .diagnostic-connectivity-result { display:flex; justify-content:space-between; gap:8px; padding:7px 8px; border-radius:9px; background:rgba(255,255,255,.5); font-size:12px; }
+  .diagnostic-connectivity-result small { display:block; margin-top:2px; color:var(--text-dim); font-size:11px; }
+  .diagnostic-connectivity-ok { color:#327f61; }
+  .diagnostic-connectivity-fail { color:#a9505b; }
   @media (max-width:520px) { .diagnostic-grid { grid-template-columns:1fr; } }
   .settings-inner {
     min-width: 0; height: 100%; overflow-y: auto; padding: 24px clamp(16px, 4vw, 42px);
@@ -4373,6 +4379,11 @@
             <div class="diagnostic-row"><span>主题</span><strong id="diagnostic-theme">—</strong></div>
             <div class="diagnostic-row"><span>角色 / 会话</span><strong id="diagnostic-role-session">—</strong></div>
             <div class="diagnostic-row"><span>接口 / 模型</span><strong id="diagnostic-provider-model">—</strong></div>
+          </div>
+          <div class="diagnostic-connectivity" aria-label="连通检查">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;"><strong>连通检查</strong><button class="mini-btn" id="diagnostic-connectivity-check" type="button">一键检查</button></div>
+            <span class="hint">只发送只读 GET 请求，不修改任何状态。</span>
+            <div id="diagnostic-connectivity-results" class="diagnostic-connectivity-results" aria-live="polite"></div>
           </div>
           <textarea class="diagnostic-summary" id="diagnostic-summary" readonly aria-label="诊断摘要"></textarea>
           <div><button class="mini-btn" id="diagnostic-copy" type="button">复制诊断摘要</button><span class="hint" id="diagnostic-copy-status" style="margin-left:8px;"></span></div>
@@ -17799,6 +17810,23 @@ function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
 }
+const DIAGNOSTIC_CONNECTIVITY_TARGETS = [
+  { key: "gate", label: "gate", url: "https://gate.zhouweiweihome.top" },
+  { key: "push", label: "push", url: "https://push.zhouweiweihome.top" },
+  { key: "tools", label: "tools", url: "https://tools.zhouweiweihome.top" },
+];
+async function checkDiagnosticConnectivity() {
+  return Promise.all(DIAGNOSTIC_CONNECTIVITY_TARGETS.map(async (target) => {
+    const started = performance.now(); const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 8000);
+    try { const response = await fetch(target.url, { method: "GET", cache: "no-store", mode: "cors", signal: controller.signal }); return { ...target, ok: response.ok, latencyMs: Math.round(performance.now() - started), error: response.ok ? "" : `HTTP ${response.status}` }; }
+    catch (error) { return { ...target, ok: false, latencyMs: null, error: error?.name === "AbortError" ? "请求超时" : "无法连接" }; }
+    finally { clearTimeout(timer); }
+  }));
+}
+function renderDiagnosticConnectivity(results) {
+  const container = $("diagnostic-connectivity-results"); if (!container) return;
+  container.innerHTML = results.map((item) => `<div class="diagnostic-connectivity-result"><span>${item.label}</span><strong class="${item.ok ? "diagnostic-connectivity-ok" : "diagnostic-connectivity-fail"}">${item.ok ? `成功 · ${item.latencyMs} ms` : `失败${item.latencyMs === null ? "" : ` · ${item.latencyMs} ms`} · 可能需要开 VPN`}</strong></div>`).join("");
+}
 async function readServiceWorkerVersion() {
   try { const source = await (await fetch("sw.js", { cache: "no-store" })).text(); const match = source.match(/role-chat-cache-v(\d+)/); return match ? `v${match[1]}` : "未知"; } catch (_) { return "未知"; }
 }
@@ -17814,6 +17842,7 @@ async function renderRuntimeDiagnostic() {
 function setupRuntimeDiagnostic() {
   $("diagnostic-copy").onclick = async () => { const text = $("diagnostic-summary")?.value || diagnosticSummary(); try { await navigator.clipboard.writeText(text); } catch (_) { const el = $("diagnostic-summary"); el?.focus(); el?.select(); document.execCommand("copy"); } $("diagnostic-copy-status").textContent = "已复制"; setTimeout(() => { $("diagnostic-copy-status").textContent = ""; }, 1800); };
   renderRuntimeDiagnostic();
+  $("diagnostic-connectivity-check").onclick = async () => { const button = $("diagnostic-connectivity-check"); button.disabled = true; button.textContent = "检查中…"; try { renderDiagnosticConnectivity(await checkDiagnosticConnectivity()); } finally { button.disabled = false; button.textContent = "一键检查"; } };
 }
 // Force-refresh to the very latest deployed version: drop the service worker + its
 // caches, then reload to a cache-busted URL. Does NOT touch localStorage (your data).
