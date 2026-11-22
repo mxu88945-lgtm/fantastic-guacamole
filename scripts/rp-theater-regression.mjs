@@ -38,6 +38,12 @@ ok(js.includes("importCharacterCard") && js.includes("character_book"), "charact
 ok(js.includes("alternate_greetings") && js.includes("rp-greeting-list"), "alternate greeting import or picker is missing");
 ok(js.includes("rp-preview-greeting") && js.includes("greetingPreviewDocument"), "opening preview is missing");
 ok(js.includes("bridge.startWithGreeting") && js.includes("选择开场白"), "new scenes must start through the opening picker");
+ok(js.includes("剧本册") && js.includes("咱俩演过的戏") && js.includes("data-rp-start"), "theater drawer must expose a script book, archive label and one-tap opening");
+ok(js.includes("savedProjects") && js.includes("bridge.savedCards?.()"), "script book must include saved script templates, not only live scenes");
+ok(js.includes("rp-field-status-style") && js.includes("statusBarStyle"), "each script must persist its status bar style");
+ok(html.includes('statusBarStyle: ["liquid", "paper", "minimal"]') && html.includes('rp-status-${escapeHtml(project?.statusBarStyle || "liquid")}'), "status bar style must be normalized and isolated per RP project");
+ok(!html.includes("function roleplaySemanticDisplay(answer) {") && html.includes("function roleplaySemanticDisplay(answer, project = null)"), "RP status renderer must accept the scoped project");
+
 ok(css.includes(".rp-theater-panel") && css.includes("@media (max-width: 680px)"), "RP theater responsive layout is missing");
 ok(js.includes('data-rp-space="main"') && js.includes('data-rp-space="projects"') && js.includes('data-rp-space="roles"'), "RP theater home is missing categorized entrances");
 const navigation = { bridge: { list: () => [{ id: 'recent', updatedAt: 20 }, { id: 'current-story', updatedAt: 10 }], current: () => ({ id: 'current-story' }), toast: () => {} }, enter: id => { navigation.opened = id; }, setLibrarySection: section => { navigation.section = section; } };

@@ -31,5 +31,5 @@ assert.match(html, /pushTimeCapsule\(.*openAt/s);
 assert.match(html, /timeCapsules/);
 assert.match(html, /const SYNCED_KEYS = \[[\s\S]*?"roles"/);
 const sw = fs.readFileSync('sw.js', 'utf8');
-assert.match(sw, /role-chat-cache-v418/);
+assert.match(sw, /role-chat-cache-v419/);
 console.log('time capsule regression: ok');

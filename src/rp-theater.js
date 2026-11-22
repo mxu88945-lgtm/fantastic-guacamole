@@ -318,7 +318,7 @@ function plainPreviewWithMedia(value) {
               </div>
             </section>
             <section id="rp-projects-view" hidden>
-              <div class="rp-section-title"><div><strong>剧本项目</strong><small id="rp-project-count">0 个剧本</small></div><div class="rp-section-actions"><button type="button" data-rp-space="hub">返回分类</button></div></div>
+              <div class="rp-section-title"><div><strong>剧本册</strong><small id="rp-project-count">0 个剧本 · 人设、开场白和状态栏样式都保存在这里</small></div><div class="rp-section-actions"><button type="button" data-rp-space="hub">返回分类</button></div></div>
               <div class="rp-project-grid" id="rp-project-list"></div>
               <div class="rp-empty" id="rp-project-empty" hidden><span>◇</span><strong>还没有剧本</strong><p>新建一部剧本，角色会自动出现在角色库里。</p><button type="button" id="rp-empty-create">创建第一个剧本</button></div>
             </section>
@@ -394,6 +394,7 @@ function plainPreviewWithMedia(value) {
                 <textarea id="rp-field-world" rows="10" placeholder="填写本剧场的时代与地点、公共背景、人物关系、共同经历、势力结构和所有成员必须知道的事实……"></textarea>
                 <details class="rp-greeting-preview" id="rp-world-preview"><summary>世界观呈现预览</summary><div id="rp-world-preview-content"></div></details>
               </section>
+              <label class="rp-wide" data-rp-sec="main"><span>状态栏样式</span><select id="rp-field-status-style"><option value="liquid">液态卡片 · 信息分行</option><option value="paper">纸笺清单 · 轻边框</option><option value="minimal">极简横线 · 更少装饰</option></select><small class="rp-field-hint">每个剧本单独保存，只影响剧场里的状态卡，不会改主聊天。</small></label>
               <label class="rp-wide" data-rp-sec="main"><span>当前场景</span><textarea id="rp-field-scenario" rows="5" placeholder="现在的时间、地点、在场人物和关系阶段。这里是本场唯一有效的现在时锚点。"></textarea></label>
               <label class="rp-wide" data-rp-sec="main"><span>临时剧情推进</span><textarea id="rp-field-temporary" rows="4" placeholder="可随时修改或清空；只代表接下来想推进的方向，不算已经发生。"></textarea></label>
               <section class="rp-wide rp-greeting-editor" data-rp-sec="main">
@@ -468,6 +469,7 @@ function plainPreviewWithMedia(value) {
       chatTextColor: $("rp-field-text-color")?.value || "",
       chatNarrationColor: $("rp-field-narration-color")?.value || "",
       chatQuoteColor: $("rp-field-quote-color")?.value || "",
+      statusBarStyle: $("rp-field-status-style")?.value || "liquid",
     };
   }
 
@@ -505,6 +507,7 @@ function plainPreviewWithMedia(value) {
     $("rp-theater-world-enabled").checked = data.theaterWorldEnabled !== false;
     $("rp-field-scenario").value = safeText(data.scenario);
     $("rp-field-temporary").value = safeText(data.temporaryPlot);
+    $("rp-field-status-style").value = ["liquid", "paper", "minimal"].includes(data.statusBarStyle) ? data.statusBarStyle : "liquid";
     state.tags = Array.isArray(data.tags) ? data.tags.map((t) => safeText(t, 40)).filter(Boolean).slice(0, 24) : [];
     state.worldEntries = Array.isArray(data.worldEntries) ? data.worldEntries.map((e) => ({ id: safeText(e.id || "", 80), title: safeText(e.title || "条目", 80), keys: Array.isArray(e.keys) ? e.keys : [], secondaryKeys: Array.isArray(e.secondaryKeys) ? e.secondaryKeys : [], content: safeText(e.content || "", 50000), enabled: e.enabled !== false, constant: Boolean(e.constant), selective: Boolean(e.selective), useRegex: e.useRegex !== false, position: safeText(e.position || "before_char", 30), insertionOrder: Number(e.insertionOrder ?? 100) || 100, depth: Number(e.depth ?? 4) || 4, probability: Number(e.probability ?? 100) || 100, expanded: false })) : [];
     state.regexRules = Array.isArray(data.regexRules) ? data.regexRules.map((r) => ({ ...r, id: safeText(r.id || "", 80), name: safeText(r.name || "规则", 120), findRegex: safeText(r.findRegex || "", 20000), replaceString: safeText(r.replaceString || "", 50000), disabled: Boolean(r.disabled), expanded: false })) : [];
@@ -1133,7 +1136,9 @@ function plainPreviewWithMedia(value) {
 
   function render() {
     const info = bridge.role();
-    const projects = bridge.list();
+    const liveProjects = bridge.list();
+    const savedProjects = (bridge.savedCards?.() || []).map(card => bridge.get(card.id)).filter(Boolean);
+    const projects = [...liveProjects, ...savedProjects];
     const groups = projectGroups(projects);
     $("rp-hero-role").textContent = info.roleName || "TA";
     $("rp-theater-subtitle").textContent = `${info.roleName || "TA"} 本体在线 · 陪你入戏`;
@@ -1146,17 +1151,24 @@ function plainPreviewWithMedia(value) {
     list.innerHTML = groups.map((group) => {
       const project = group.sessions[0];
       const actor = project.rpProject?.actorName || "未命名角色";
+      const statusStyle = project.rpProject?.statusBarStyle || "liquid";
       const userRole = project.rpProject?.userRole ? `你演 ${project.rpProject.userRole}` : "你的戏内身份待定";
       const casting = project.rpProject?.leadChannel?.playedByOwner === false ? "独立角色" : `${info.roleName || "TA"} 演`;
       return `<article class="rp-project-card" data-rp-project="${escapeHtml(project.id)}">
         <span class="rp-project-mark">${project.rpProject?.actorAvatar ? `<img src="${escapeHtml(project.rpProject.actorAvatar)}" alt="">` : escapeHtml([...actor][0] || "剧")}</span>
-        <button type="button" class="rp-project-copy" data-rp-detail="${escapeHtml(project.id)}"><small>RP PROJECT · ${escapeHtml(formatTime(project.updatedAt))}</small><strong>${escapeHtml(group.title)}</strong><p>${escapeHtml(casting)} ${escapeHtml(actor)} · ${escapeHtml(userRole)}</p><em>${project.messageCount || 0} 条正文 · ${project.memoryCount || 0} 条剧情记忆 · ${group.sessions.length} 段对话</em></button>
-        <button type="button" class="rp-continue" data-rp-open="${escapeHtml(project.id)}">继续对戏</button>
+        <button type="button" class="rp-project-copy" data-rp-detail="${escapeHtml(project.id)}"><small>RP PROJECT · ${escapeHtml(formatTime(project.updatedAt))}</small><strong>${escapeHtml(group.title)}</strong><p>${escapeHtml(casting)} ${escapeHtml(actor)} · ${escapeHtml(userRole)}</p><em>${project.cardPreview ? "剧本模板 · " : `${project.messageCount || 0} 条正文 · ${project.memoryCount || 0} 条剧情记忆 · `}${group.sessions.filter(session => !session.cardPreview).length} 段对话 · 状态栏：${escapeHtml({ liquid: "液态卡片", paper: "纸笺清单", minimal: "极简横线" }[statusStyle] || "液态卡片")}</em></button>
+        <button type="button" class="rp-continue" data-rp-start="${escapeHtml(project.id)}">一键开演</button>
         <div class="rp-project-menu"><button type="button" data-rp-edit="${escapeHtml(project.id)}">角色卡与开场白</button><button type="button" data-rp-duplicate="${escapeHtml(project.id)}">选择开场并新建对话</button><button type="button" data-rp-copy-scene="${escapeHtml(project.id)}">复制当前场景并继续线路</button></div>
-        <details class="rp-project-sessions"><summary>历史对话（${group.sessions.length}）</summary>${group.sessions.map(session => `<div class="rp-session-row"><button type="button" data-rp-open="${escapeHtml(session.id)}">开场 ${(session.rpProject?.openingIndex || 0) + 1} · ${escapeHtml(formatTime(session.updatedAt))}<small>${session.messageCount || 0} 条正文 · ${session.memoryCount || 0} 条剧情记忆</small></button><button type="button" class="danger" data-rp-delete="${escapeHtml(session.id)}">删除</button></div>`).join("")}</details>
+        <details class="rp-project-sessions"><summary>咱俩演过的戏（${Math.max(0, group.sessions.filter(session => !session.cardPreview).length)} 段，可重温）</summary>${group.sessions.map(session => `<div class="rp-session-row"><button type="button" data-rp-open="${escapeHtml(session.id)}">开场 ${(session.rpProject?.openingIndex || 0) + 1} · ${escapeHtml(formatTime(session.updatedAt))}<small>${session.messageCount || 0} 条正文 · ${session.memoryCount || 0} 条剧情记忆</small></button>${session.cardPreview ? "" : `<button type="button" class="danger" data-rp-delete="${escapeHtml(session.id)}">删除</button>`}</div>`).join("")}</details>
       </article>`;
     }).join("");
     list.querySelectorAll("[data-rp-open]").forEach((button) => button.addEventListener("click", () => enter(button.dataset.rpOpen)));
+    list.querySelectorAll("[data-rp-start]").forEach((button) => button.addEventListener("click", () => {
+      const project = bridge.get(button.dataset.rpStart);
+      if (!project) return;
+      const started = bridge.startWithGreeting(project.id, Number(project.rpProject?.openingIndex || 0), true);
+      if (started) enter(started.id);
+    }));
     list.querySelectorAll("[data-rp-detail]").forEach((button) => button.addEventListener("click", () => showDetail(button.dataset.rpDetail)));
     list.querySelectorAll("[data-rp-edit]").forEach((button) => button.addEventListener("click", () => showEditor(bridge.get(button.dataset.rpEdit))));
     list.querySelectorAll("[data-rp-copy-scene]").forEach((button) => button.addEventListener("click", () => {

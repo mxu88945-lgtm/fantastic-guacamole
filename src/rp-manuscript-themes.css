@@ -665,3 +665,10 @@ html body.rp-chat-active #messages .rp-status-card {
 /* v339：剧场秋日批注同样去掉信封和胶带。 */
 html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy::after,
 html body.rp-chat-active:is([data-rp-theme="scene-academy"], [data-rp-theme="scene-vinyl"]) #messages .archive-academy .archive-heading::before { content: none !important; display: none !important; }
+
+/* Per-script status monitor styles. The selected style is stored on rpProject,
+   so it never changes the owner chat theme. */
+body.rp-chat-active .rp-status-paper { border-radius: 8px; border-style: dashed; box-shadow: none; }
+body.rp-chat-active .rp-status-paper > header { letter-spacing: .08em; }
+body.rp-chat-active .rp-status-minimal { border-width: 0 0 1px; border-radius: 0; background: transparent; box-shadow: none; }
+body.rp-chat-active .rp-status-minimal .rp-status-row { border-bottom-color: color-mix(in srgb, var(--text) 14%, transparent); }

@@ -8777,7 +8777,7 @@ function roleplayStoryParagraphs(value) {
 function renderRoleplayStoryText(value) {
   return `<div class="rp-story-text">${renderMarkdown(roleplayStoryParagraphs(value), true)}</div>`;
 }
-function roleplaySemanticDisplay(answer) {
+function roleplaySemanticDisplay(answer, project = null) {
   const source = String(answer || "");
   // <plot> is a story container in card greetings (the whole chapter), not a
   // scene label: unwrap it in place so the author's order survives — header,
@@ -8808,7 +8808,7 @@ function roleplaySemanticDisplay(answer) {
         : `<div class="rp-status-row rp-status-row-wide"><span>${escapeHtml(field)}</span></div>`;
     }).join("");
     const title = tag.toLowerCase() === "director_status" ? "DIRECTOR MONITOR" : "STATUS MONITOR";
-    return `<section class="rp-status-card"><header>${title}</header>${rows || '<div class="rp-status-row rp-status-row-wide"><span>本轮状态等待更新</span></div>'}</section>`;
+    return `<section class="rp-status-card rp-status-${escapeHtml(project?.statusBarStyle || "liquid")}"><header>${title}</header>${rows || '<div class="rp-status-row rp-status-row-wide"><span>本轮状态等待更新</span></div>'}</section>`;
   }).join("");
   return sceneHtml + (body ? `<div class="rp-story-body">${renderRoleplayStoryText(body)}</div>` : "") + statusHtml;
 }
@@ -9294,7 +9294,7 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState, 
   if (role === "assistant" && !streaming && isRoleplayConversation() && !looksLikeRoleplayRichHtml(answer)) answer = roleplayRegexDisplay(answer, message);
   const useRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && looksLikeRoleplayRichHtml(answer);
   const semanticRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && !useRoleplayHtml
-    ? roleplaySemanticDisplay(answer) : "";
+    ? roleplaySemanticDisplay(answer, normalizedRoleplayProject(currentConv()?.rpProject, currentConv())) : "";
   let textHtml = answer
     ? (useRoleplayHtml ? (roleplayCanInlineHtml(answer) ? roleplayInlineHtml(answer) : roleplayRichFrameHtml(answer)) : (semanticRoleplayHtml || (role === "assistant" ? (isRoleplayConversation() ? renderRoleplayStoryText(answer) : renderMarkdown(answer)) : (isRoleplayConversation() ? renderRoleplayStoryText(answer) : (userQuoteCapsules() ? renderMarkdown(answer, true) : escapeHtml(answer).replace(/\n/g, "<br>"))))))
     : "";
@@ -10373,6 +10373,7 @@ function normalizedRoleplayProject(value, conv) {
     chatFontSize: fontSizeValue,
     chatFontFamily: ["default", "kai", "song"].includes(raw.chatFontFamily) ? raw.chatFontFamily : "default",
     chatFontWeight: Number.isFinite(Number(raw.chatFontWeight)) ? Math.min(800, Math.max(300, Math.round(Number(raw.chatFontWeight) / 50) * 50)) : 400,
+    statusBarStyle: ["liquid", "paper", "minimal"].includes(raw.statusBarStyle) ? raw.statusBarStyle : "liquid",
     backstagePaused: raw.backstagePaused === true,
     sceneSystemPromptEnabled: raw.sceneSystemPromptEnabled !== false,
     sceneSystemPrompt: text("sceneSystemPrompt", 30000) || scenePromptDefault,
@@ -18097,7 +18098,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.5";
+const APP_VERSION = "1.0.6";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
@@ -23632,7 +23633,7 @@ window.JYCRoleplayBridge = {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
     if (!conv || abortController || replyBooting || roleplayGroupRun) { showToast("等当前回复结束后再保存设置"); return null; }
     const allowed = {};
-    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "userAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor", "chatFontSize", "chatFontFamily", "chatFontWeight", "rpTheme", "rpWallpaper", "rpWallpaperOpacity", "rpOverlayOpacity", "rpBaseColor", "sceneSystemPromptEnabled", "sceneSystemPrompt"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
+    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "userAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor", "chatFontSize", "chatFontFamily", "chatFontWeight", "statusBarStyle", "rpTheme", "rpWallpaper", "rpWallpaperOpacity", "rpOverlayOpacity", "rpBaseColor", "sceneSystemPromptEnabled", "sceneSystemPrompt"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
     const previousPortraits = JSON.stringify([conv.rpProject?.userAvatar || "", ...roleplayMembers(normalizedRoleplayProject(conv.rpProject, conv)).map(member => [member.id, member.avatar])]);
     const previousTextTheme = JSON.stringify([conv.rpProject?.rpTheme, conv.rpProject?.chatTextColor, conv.rpProject?.chatNarrationColor, conv.rpProject?.chatQuoteColor, conv.rpProject?.chatFontSize, conv.rpProject?.chatFontFamily, conv.rpProject?.chatFontWeight]);
     rememberRoleplayCards([conv]);
