@@ -1152,13 +1152,19 @@ function plainPreviewWithMedia(value) {
         <span class="rp-project-mark">${project.rpProject?.actorAvatar ? `<img src="${escapeHtml(project.rpProject.actorAvatar)}" alt="">` : escapeHtml([...actor][0] || "剧")}</span>
         <button type="button" class="rp-project-copy" data-rp-detail="${escapeHtml(project.id)}"><small>RP PROJECT · ${escapeHtml(formatTime(project.updatedAt))}</small><strong>${escapeHtml(group.title)}</strong><p>${escapeHtml(casting)} ${escapeHtml(actor)} · ${escapeHtml(userRole)}</p><em>${project.messageCount || 0} 条正文 · ${project.memoryCount || 0} 条剧情记忆 · ${group.sessions.length} 段对话</em></button>
         <button type="button" class="rp-continue" data-rp-open="${escapeHtml(project.id)}">继续对戏</button>
-        <div class="rp-project-menu"><button type="button" data-rp-edit="${escapeHtml(project.id)}">角色卡与开场白</button><button type="button" data-rp-duplicate="${escapeHtml(project.id)}">选择开场并新建对话</button></div>
+        <div class="rp-project-menu"><button type="button" data-rp-edit="${escapeHtml(project.id)}">角色卡与开场白</button><button type="button" data-rp-duplicate="${escapeHtml(project.id)}">选择开场并新建对话</button><button type="button" data-rp-copy-scene="${escapeHtml(project.id)}">复制当前场景并继续线路</button></div>
         <details class="rp-project-sessions"><summary>历史对话（${group.sessions.length}）</summary>${group.sessions.map(session => `<div class="rp-session-row"><button type="button" data-rp-open="${escapeHtml(session.id)}">开场 ${(session.rpProject?.openingIndex || 0) + 1} · ${escapeHtml(formatTime(session.updatedAt))}<small>${session.messageCount || 0} 条正文 · ${session.memoryCount || 0} 条剧情记忆</small></button><button type="button" class="danger" data-rp-delete="${escapeHtml(session.id)}">删除</button></div>`).join("")}</details>
       </article>`;
     }).join("");
     list.querySelectorAll("[data-rp-open]").forEach((button) => button.addEventListener("click", () => enter(button.dataset.rpOpen)));
     list.querySelectorAll("[data-rp-detail]").forEach((button) => button.addEventListener("click", () => showDetail(button.dataset.rpDetail)));
     list.querySelectorAll("[data-rp-edit]").forEach((button) => button.addEventListener("click", () => showEditor(bridge.get(button.dataset.rpEdit))));
+    list.querySelectorAll("[data-rp-copy-scene]").forEach((button) => button.addEventListener("click", () => {
+      const id = button.dataset.rpCopyScene;
+      const copied = bridge.duplicate?.(id);
+      if (copied) bridge.toast("已复制当前场景，并恢复跟随当前剧情线路");
+      else bridge.toast("复制场景失败，请重试");
+    }));
     list.querySelectorAll("[data-rp-duplicate]").forEach((button) => button.addEventListener("click", () => {
       chooseOpening(button.dataset.rpDuplicate, true);
     }));

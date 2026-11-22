@@ -365,4 +365,8 @@ ok(fenceStandalone.includes('<pre><code>') && fenceStandalone.includes('const a 
 const sceneFirst = sourceContext.roleplaySemanticDisplay('<scene>雨夜天台</scene>\n正文第一句。');
 ok(sceneFirst.includes('rp-scene-strip') && sceneFirst.indexOf('雨夜天台') < sceneFirst.indexOf('正文第一句'), 'real scene labels must still hoist to the strip above the body');
 ok(html.includes('const recovered = speaker ? normalizeRoleplayStatusForCard(text, statusTag, roleplayCardStatusLabels(speaker, project, statusTag)) : "";'), 'single-role display must recover missing card footer wrappers for existing replies');
+ok(html.includes('function roleplaySceneFromCurrent(source)'), 'current-scene copy helper is missing');
+ok(html.includes('conv.messages = cloneChatData(source.messages || [])'), 'copied scenes must retain the current conversation line');
+ok(html.includes('return roleplaySceneFromCurrent(source);'), 'scene duplication must follow the current storyline');
+ok(js.includes('data-rp-copy-scene') && js.includes('复制当前场景并继续线路'), 'theater must expose current-scene copy action');
 console.log(`RP theater regression checks passed (${checks})`);

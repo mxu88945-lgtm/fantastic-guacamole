@@ -23148,6 +23148,34 @@ async function maybeAutoExtractRoleplayMemories(conv = currentConv()) {
   try { await extractRoleplaySceneMemories(conv, { automatic: true }); return true; }
   catch (error) { console.warn("RP automatic memory extraction failed", error); return false; }
 }
+function roleplaySceneFromCurrent(source) {
+  if (!source || !isRoleplayConversation(source)) return null;
+  const p = normalizedRoleplayProject(source.rpProject, source);
+  const conv = newConversation("roleplay");
+  const baseTitle = String(source.title || p.title || "未命名剧本").replace(/(?: · 新场次| · 复制场景)+$/u, "");
+  conv.title = `${baseTitle} · 新场次`;
+  conv.rpProjectFamilyId = source.rpProjectFamilyId || source.id;
+  conv.providerId = source.providerId || conv.providerId;
+  conv.model = source.model || conv.model;
+  conv.reasoningEffort = source.reasoningEffort || conv.reasoningEffort;
+  conv.projectFiles = cloneChatData(conversationProjectFiles(source));
+  conv.rpProject = normalizedRoleplayProject(cloneChatData(p), conv);
+  conv.messages = cloneChatData(source.messages || []);
+  conv.updatedAt = Date.now();
+  conversations.unshift(conv);
+  currentId = conv.id;
+  messages = conv.messages;
+  activateConversationRuntime(conv);
+  saveConversations();
+  renderConvList();
+  renderMessages();
+  updateConvTitle();
+  updateConversationSpaceUI();
+  window.dispatchEvent(new CustomEvent("jyc:roleplay-updated", { detail: { conversationId: conv.id } }));
+  window.dispatchEvent(new CustomEvent("jyc:dashboard-data-changed"));
+  return roleplayPublicProject(conv);
+}
+
 function roleplaySceneFromGreeting(source, index, forceNew = false) {
   if (!source || !isRoleplayConversation(source)) return null;
   const p = normalizedRoleplayProject(source.rpProject, source);
@@ -23413,9 +23441,7 @@ window.JYCRoleplayBridge = {
   },
   duplicate(id) {
     const source = conversations.find(item => item.id === id && isRoleplayConversation(item));
-    if (!source) return null;
-    const p = normalizedRoleplayProject(source.rpProject, source);
-    return roleplaySceneFromGreeting(source, p.openingIndex, true);
+    return roleplaySceneFromCurrent(source);
   },
   remove(id) {
     const conv = conversations.find(item => item.id === id && isRoleplayConversation(item));
