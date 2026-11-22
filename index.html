@@ -3362,6 +3362,7 @@
                     <button type="button" class="music-control-btn text" id="music-version-btn" disabled>换一版歌词</button>
                     <button type="button" class="music-control-btn text" id="music-share-btn">发给 TA</button>
                   </div>
+                  <section class="music-annotations" id="music-annotations" aria-label="歌曲批注"></section>
                 </div>
               </section>
               <div class="music-error" id="music-inline-error" hidden></div>
@@ -5701,6 +5702,7 @@ function ensureRoleCompanionData(role) {
   if (!Array.isArray(role.commitmentLedger)) role.commitmentLedger = [];
   if (!Array.isArray(role.timeCapsules)) role.timeCapsules = [];
   if (!Array.isArray(role.bedsideNotes)) role.bedsideNotes = [];
+  if (!Array.isArray(role.songAnnotations)) role.songAnnotations = [];
   return role;
 }
 function roleMailbox(role) { return ensureRoleCompanionData(role || activeRole())?.mailbox || []; }
@@ -5766,6 +5768,7 @@ function addRole() {
     commitmentLedger: [],
     timeCapsules: [],
     bedsideNotes: [],
+    songAnnotations: [],
   };
   settings.roles = settings.roles || [];
   settings.roles.push(r);
@@ -14167,6 +14170,15 @@ function extractSongPick(text) {
   return { text: stripSongPickTags(text).trim(), title };
 }
 /* song-pick:end */
+/* song-annotation:start — v1 歌曲专属批注：角色标记只在主聊天主人段写入，播放器只读当前角色数据 */
+function songAnnotationId() { return "song-note-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7); }
+function songAnnotationTextKey(value) { return String(value || "").toLowerCase().replace(/\.[a-z0-9]{2,4}$/i, "").replace(/[《》「」『』【】\[\]（）()]/g, "").replace(/\s+/g, "").trim(); }
+function songAnnotationTagRe() { return /(?:\[|【|［)\s*(?:歌曲批注|批注)\s*[:：]\s*([^|｜\]\n]{1,100})\s*[|｜]\s*(\d{4}-\d{1,2}-\d{1,2})\s*[|｜]([\s\S]*?)(?:\]|】|］)/g; }
+function parseSongAnnotationTags(text) { if (typeof text !== "string") return []; const out = []; let m; const re = songAnnotationTagRe(); while ((m = re.exec(text))) { const title = String(m[1] || "").trim().slice(0, 100), date = String(m[2] || "").trim(), note = String(m[3] || "").trim().slice(0, 240); if (title && note && !Number.isNaN(Date.parse(date))) out.push({ title, date, text: note }); } return out; }
+function stripSongAnnotationTags(text, streaming) { if (typeof text !== "string") return text; let out = text.replace(songAnnotationTagRe(), ""); if (streaming) out = out.replace(/(?:\[|【|［)\s*(?:(?:歌曲)?批注\s*(?:[:：][^\]】］\n]*)?)?$/, ""); return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim(); }
+function applySongAnnotationTags(text, role, author) { const tags = parseSongAnnotationTags(text); if (!tags.length || author === "guest" || !role) return { text: stripSongAnnotationTags(text), annotations: [] }; if (!Array.isArray(role.songAnnotations)) role.songAnnotations = []; const added = tags.map(tag => ({ id: songAnnotationId(), title: tag.title, date: tag.date, text: tag.text, author: author === "character" ? "character" : "user", createdAt: Date.now() })); role.songAnnotations = [...role.songAnnotations, ...added].slice(-120); return { text: stripSongAnnotationTags(text), annotations: added }; }
+function songAnnotationsFor(role, song) { const list = Array.isArray(role?.songAnnotations) ? role.songAnnotations : []; if (!song) return []; const id = String(song.songId || ""); const key = songAnnotationTextKey(song.name); return list.filter(item => item && (id && item.songId === id || songAnnotationTextKey(item.title) === key)).sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")) || Number(a.createdAt || 0) - Number(b.createdAt || 0)); }
+/* song-annotation:end */
 /* time-capsule:start */
 function timeCapsuleId() { return "capsule-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8); }
 function timeCapsuleList(role) { if (!role) return []; if (!Array.isArray(role.timeCapsules)) role.timeCapsules = []; return role.timeCapsules; }
@@ -14277,6 +14289,7 @@ function parseSelfCardTag(text) {
 }
 /** 去掉所有自我卡标记；末尾没写完的「[自我卡:喜好|还没写…」也去掉。streaming 时连「[」「【自」「[自我」这种半截开头也先藏起来。 */
 function stripSelfCardTags(text, streaming) {
+  if (typeof stripSongAnnotationTags === "function") text = stripSongAnnotationTags(text, streaming);
   if (typeof stripBedsideNudgeTags === "function") text = stripBedsideNudgeTags(text, streaming);
   if (typeof stripTimeCapsuleTags === "function") text = stripTimeCapsuleTags(text, streaming);
   if (typeof stripGateTags === "function") text = stripGateTags(text, streaming);
@@ -14866,6 +14879,7 @@ function guestCleanReply(text) {
   let out = text;
   if (typeof stripSelfCardTags === "function") out = stripSelfCardTags(out);
   if (typeof stripSongPickTags === "function") out = stripSongPickTags(out);
+  if (typeof stripSongAnnotationTags === "function") out = stripSongAnnotationTags(out);
   if (typeof stripImageMemoTags === "function") out = stripImageMemoTags(out);
   if (typeof extractPeopleMarkers === "function") out = extractPeopleMarkers(out, "", false);
   out = stripIndependentRoleplayControls(out);
@@ -18083,7 +18097,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.4";
+const APP_VERSION = "1.0.5";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
@@ -19895,6 +19909,7 @@ async function generateSingleReply(speaker = null, requestSettings = null, guest
       if (typeof assistantMsg.reasoning === "string") assistantMsg.reasoning = stripAlbumAgencyTags(assistantMsg.reasoning);
     }
     if (!guestTurn && !independent && !replyProject && !backstageMode && typeof applyBedsideNudgeReply === "function") { const nudgeResult = applyBedsideNudgeReply(assistantMsg.content, activeRole(), true); assistantMsg.content = nudgeResult.text; if (nudgeResult.note) saveSettings(); }
+    if (!guestTurn && !independent && !replyProject && !backstageMode && typeof applySongAnnotationTags === "function") { const annotationResult = applySongAnnotationTags(assistantMsg.content, activeRole(), "character"); assistantMsg.content = annotationResult.text; if (annotationResult.annotations.length) { saveSettings(); window.dispatchEvent(new CustomEvent("jyc:song-annotations-updated")); } }
     // 时光胶囊只认主聊天主人段；客人/剧场不写入角色胶囊。
     if (!guestTurn && !independent && !replyProject && !backstageMode && typeof applyTimeCapsuleTag === "function") { const capsuleResult = applyTimeCapsuleTag(assistantMsg.content, activeRole(), "character", assistantMsg.id); assistantMsg.content = capsuleResult.text; if (capsuleResult.capsule) { saveSettings(); pushTimeCapsule(capsuleResult.capsule); capsuleResult.capsule.pushScheduled = pushReady(); } }
     // Capture the private marker before reasoning normalization. A relay may
@@ -19930,6 +19945,7 @@ async function generateSingleReply(speaker = null, requestSettings = null, guest
     const songPickResult = typeof extractSongPick === "function" ? extractSongPick(assistantMsg.content) : { text: assistantMsg.content, title: "" };
     assistantMsg.content = songPickResult.text;
     if (typeof assistantMsg.reasoning === "string" && typeof stripSongPickTags === "function") assistantMsg.reasoning = stripSongPickTags(assistantMsg.reasoning);
+    if (typeof assistantMsg.reasoning === "string" && typeof stripSongAnnotationTags === "function") assistantMsg.reasoning = stripSongAnnotationTags(assistantMsg.reasoning);
     // v376 图记：存进她那条消息里第一张图的 memo（只存一次），正文和思考里都剥掉。
     if (typeof extractImageMemo === "function") {
       const memoResult = extractImageMemo(assistantMsg.content);
@@ -23921,6 +23937,25 @@ window.JYCGiftBridge = {
     if (target && target.id !== currentId) switchConversation(target.id);
     window.dispatchEvent(new CustomEvent("jyc:chat-opened", { detail: { conversationId: currentId } }));
     await send({ parts: [{ type: "text", text: "我想看看你会送我什么。别问我，按你现在的心意从礼物图鉴里挑一份送给我，或者亲手做一份。" }] });
+  },
+};
+window.JYCSongAnnotationBridge = {
+  list: (song) => songAnnotationsFor(ensureRoleCompanionData(activeRole()), song),
+  add: (song, text, date) => {
+    const role = ensureRoleCompanionData(activeRole());
+    if (!role || !song || !String(text || "").trim()) return null;
+    const item = { id: songAnnotationId(), songId: String(song.songId || ""), title: String(song.name || "未命名歌曲").slice(0, 100), date: String(date || new Date().toISOString().slice(0, 10)), text: String(text).trim().slice(0, 240), author: "user", createdAt: Date.now() };
+    role.songAnnotations = [...(role.songAnnotations || []), item].slice(-120);
+    saveSettings();
+    window.dispatchEvent(new CustomEvent("jyc:song-annotations-updated"));
+    return item;
+  },
+  remove: (id) => {
+    const role = ensureRoleCompanionData(activeRole());
+    if (!role) return;
+    role.songAnnotations = (role.songAnnotations || []).filter(item => item.id !== id);
+    saveSettings();
+    window.dispatchEvent(new CustomEvent("jyc:song-annotations-updated"));
   },
 };
 // v336: the floating glass composer overlaps the chat by its own height; measure it

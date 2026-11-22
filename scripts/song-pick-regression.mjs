@@ -32,6 +32,27 @@ assert.equal(picked.text, "先听这首。\n\n再换。");
 assert.ok(!/点歌/.test(picked.text));
 assert.deepEqual(extractSongPick("普通回复"), { text: "普通回复", title: "" });
 
+// ---- song annotations ----
+const annotationStart = html.indexOf("/* song-annotation:start");
+const annotationEnd = html.indexOf("/* song-annotation:end */");
+assert.ok(annotationStart > 0 && annotationEnd > annotationStart, "song annotation helper block is missing");
+const annotationHelpers = new Function(html.slice(annotationStart, annotationEnd) + "\nreturn { parseSongAnnotationTags, stripSongAnnotationTags, applySongAnnotationTags, songAnnotationsFor };\n")();
+assert.deepEqual(annotationHelpers.parseSongAnnotationTags("[批注:晴天|2026-11-22|那晚一起听到副歌]\n【歌曲批注：夜曲｜2026-11-23｜在被窝里听完了】"), [
+  { title: "晴天", date: "2026-11-22", text: "那晚一起听到副歌" },
+  { title: "夜曲", date: "2026-11-23", text: "在被窝里听完了" },
+]);
+assert.equal(annotationHelpers.stripSongAnnotationTags("嗯。\n[批注:晴天|2026-11-22|那晚一起听到副歌]"), "嗯。");
+assert.equal(annotationHelpers.stripSongAnnotationTags("嗯。[批注:晴天|2026-11", true), "嗯。");
+const annotationRole = { songAnnotations: [] };
+const savedAnnotations = annotationHelpers.applySongAnnotationTags("记下来了。[批注:晴天|2026-11-22|那晚一起听到副歌]", annotationRole, "character");
+assert.equal(savedAnnotations.annotations.length, 1);
+assert.equal(annotationRole.songAnnotations[0].author, "character");
+assert.equal(savedAnnotations.text, "记下来了。");
+const guestAnnotationRole = { songAnnotations: [] };
+assert.equal(annotationHelpers.applySongAnnotationTags("[批注:晴天|2026-11-22|客人不该存]", guestAnnotationRole, "guest").text, "");
+assert.equal(guestAnnotationRole.songAnnotations.length, 0);
+assert.equal(annotationHelpers.songAnnotationsFor(annotationRole, { songId: "1", name: "晴天" }).length, 1);
+
 // ---- fuzzy matching (ported from 惟境 musicStore v202) ----
 const tracks = [
   { id: "1", name: "周杰伦 - 晴天.mp3", artist: "" },
@@ -80,7 +101,10 @@ assert.ok(music.includes('import { findTrackByTitle, buildSongPickNote } from ".
 assert.ok(music.includes('error.name === "NotAllowedError"'), "autoplay block fails quietly");
 assert.ok(!/accept\s*=\s*["']/.test(music) && !/\.accept\s*=/.test(music.slice(music.indexOf("function pickLocalFiles"), music.indexOf("function pickLocalFiles") + 900)), "import picker has no accept attribute");
 assert.ok(css.includes(".song-pick-chip"));
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v417";'), "service worker cache bumped");
+assert.ok(html.includes('id="music-annotations"') && html.includes("songAnnotations"), "song annotations are stored and displayed");
+assert.ok(music.includes("JYCSongAnnotationBridge") && music.includes("music-annotation-form"), "music player annotation UI is wired");
+assert.ok(css.includes(".music-annotations") && css.includes(".music-annotation-form"), "annotation styles are present");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v418";'), "service worker cache bumped");
 
 // ---- v361 换一版歌词 + 本地管理多选 ----
 const cands = rankLyrics([

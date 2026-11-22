@@ -868,6 +868,8 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     if (versionBtn) versionBtn.disabled = !song || versionBusy;
     const error = $("music-inline-error");
     if (error) { error.textContent = state.error || ""; error.hidden = !state.error; }
+    const annotations = $("music-annotations");
+    if (annotations && annotations.dataset.songId !== String(song?.songId || "")) renderAnnotations();
   }
 
   function renderMiniPlayer() {
@@ -892,6 +894,30 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     $("music-mini-play").textContent = state.playing ? "Ⅱ" : "▶";
   }
 
+  function renderAnnotations() {
+    const box = $("music-annotations");
+    if (!box) return;
+    const song = state.song;
+    if (!song || !window.JYCSongAnnotationBridge) { box.hidden = true; box.innerHTML = ""; box.dataset.songId = ""; return; }
+    const notes = window.JYCSongAnnotationBridge.list(song) || [];
+    box.hidden = false;
+    box.dataset.songId = String(song.songId);
+    box.innerHTML = `<div class="music-annotations-head"><span>✦ 这首歌的批注</span><small>${notes.length ? `${notes.length} 条` : "还没有"}</small></div>
+      ${notes.length ? `<div class="music-annotation-list">${notes.map(note => `<div class="music-annotation"><div class="music-annotation-date">${esc(note.date || "")}</div><div class="music-annotation-text">${esc(note.text || "")}</div><button type="button" class="music-annotation-remove" data-music-annotation-remove="${esc(note.id)}" aria-label="删除批注">×</button></div>`).join("")}</div>` : `<p class="music-annotations-empty">记下一句只属于你们的时刻。</p>`}
+      <form class="music-annotation-form" id="music-annotation-form"><input id="music-annotation-date" type="date" value="${new Date().toISOString().slice(0, 10)}" aria-label="批注日期"><input id="music-annotation-text" type="text" maxlength="240" placeholder="写一句此刻的心情或共同记忆" autocomplete="off"><button type="submit">添加</button></form>`;
+    box.querySelector("#music-annotation-form")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const input = box.querySelector("#music-annotation-text");
+      const text = input?.value.trim();
+      if (!text) return;
+      window.JYCSongAnnotationBridge.add(song, text, box.querySelector("#music-annotation-date")?.value);
+      renderAnnotations();
+    });
+    box.querySelectorAll("[data-music-annotation-remove]").forEach((button) => button.addEventListener("click", () => {
+      window.JYCSongAnnotationBridge.remove(button.dataset.musicAnnotationRemove);
+      renderAnnotations();
+    }));
+  }
   function isLiked(song) { return !!song && state.liked.some((item) => item.songId === song.songId); }
 
   function songRow(song, index, options = {}) {
@@ -1199,6 +1225,7 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
       renderMiniPlayer();
     });
     window.addEventListener("jyc:role-changed", () => { if (state.open) render(); });
+    window.addEventListener("jyc:song-annotations-updated", () => { if (state.open) renderAnnotations(); });
   }
 
   restoreLibrary();

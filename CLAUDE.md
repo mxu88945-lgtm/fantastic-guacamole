@@ -1039,3 +1039,9 @@
 点击后内容暂存于当前会话的 `bedsideNudgePending`，下一次主聊天请求以隐藏提示告诉角色自然接住一句；成功回复（包括锁屏中继恢复）后立即清除，避免重复注入。数据随现有角色/会话备份与云同步；设置开关已加入 `SYNCED_KEYS`。新增回归：`scripts/bedside-nudge-regression.mjs`，覆盖标记解析、剥离、随机抽签、身体状态筛选、主聊天/客人隔离、下一轮提示和版本缓存断言。
 
 不改主聊天发送协议、已有记忆、门禁、推送、role-wake 或剧场逻辑；本功能的标记只认主聊天主人段。提交前需执行 `python3 scripts/inject-weather-time.py --strip index.html`，不得提交 `dist/`。
+
+
+## 2026-11-22｜歌曲专属批注（v1.0.5，Service Worker `role-chat-cache-v418`）
+第三项小愿望已接入：歌单当前歌曲区域支持用户按日期添加/删除一条或多条批注；主聊天主人段可用 `[批注:歌名|YYYY-MM-DD|内容]` 或 `[歌曲批注:歌名|YYYY-MM-DD|内容]` 写入角色级 `songAnnotations`，显示和发送前会剥掉标记。播放器通过 `JYCSongAnnotationBridge` 读写当前角色数据，未改播放、队列或歌词逻辑。
+
+批注标记只在主聊天主人段执行；客人段、剧场和独立角色只剥离、不写入。新增回归为 `scripts/song-annotation-regression.mjs`，音乐回归同步覆盖解析、日期匹配和 UI 接线；数据随现有角色设置进入备份与云同步。
