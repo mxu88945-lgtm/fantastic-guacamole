@@ -4,7 +4,7 @@ import { readFileSync, statSync } from "node:fs";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 const copyStatic = readFileSync(new URL("./copy-static.mjs", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v409";'), "service worker cache bumped for 立绘 点他冒爱心，双击隐身");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v410";'), "service worker cache bumped for 立绘 点他冒爱心，双击隐身");
 
 // ---- pure classifier from index.html ----
 const start = html.indexOf("/* sprite-mode:start");

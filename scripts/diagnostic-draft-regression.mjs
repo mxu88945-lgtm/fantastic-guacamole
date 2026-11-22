@@ -1,0 +1,15 @@
+import fs from 'node:fs'
+const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')
+const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8')
+const ok = (condition, message) => { if (!condition) throw new Error(message) }
+ok(html.includes('id="runtime-diagnostic-card"'), 'runtime diagnostic card is missing')
+ok(html.includes('id="diagnostic-copy"'), 'diagnostic copy action is missing')
+ok(html.includes('不会包含 API Key 或聊天正文'), 'diagnostic privacy note is missing')
+ok(html.includes('const COMPOSER_DRAFTS_KEY = "jyc_drafts_v1"'), 'isolated draft storage key is missing')
+ok(html.includes('saveComposerDraft();') && html.includes('restoreComposerDraft();'), 'conversation draft hooks are missing')
+ok(html.includes('clearComposerDraft();'), 'successful send does not clear draft')
+ok(html.includes('const APP_VERSION = "1.0.1"'), 'app version diagnostic is missing')
+const diagnostic = html.slice(html.indexOf('const APP_VERSION'), html.indexOf('// Force-refresh'))
+ok(!diagnostic.includes('apiKey') && !diagnostic.includes('messageText'), 'diagnostic must not read secrets or chat text')
+ok(sw.includes('role-chat-cache-v410'), 'service worker version unexpectedly changed')
+console.log('diagnostic/draft regression: 9 checks passed')
