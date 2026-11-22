@@ -31,5 +31,8 @@ assert.match(html, /pushTimeCapsule\(.*openAt/s);
 assert.match(html, /timeCapsules/);
 assert.match(html, /const SYNCED_KEYS = \[[\s\S]*?"roles"/);
 const sw = fs.readFileSync('sw.js', 'utf8');
-assert.match(sw, /role-chat-cache-v419/);
+assert.match(sw, /role-chat-cache-v420/);
 console.log('time capsule regression: ok');
+// v420 回归：胶囊提示词不能引用块内 const selfCardRole（iPhone 报 Can't find variable: selfCardRole，主聊天发不出）
+assert.ok(!/buildTimeCapsulePrompt\(selfCardRole\)/.test(html), 'time capsule prompt must not reference block-scoped selfCardRole');
+assert.match(html, /buildTimeCapsulePrompt\(selfCardRoleFor\(currentConv\(\)\)\)/);

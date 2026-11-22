@@ -1052,3 +1052,5 @@
 每个剧本卡下面的历史场次明确归档为「咱俩演过的戏」，现有 RP 场次自动进入该列表，点击即可重温；模板本身不会伪装成历史演出。所有剧场会话仍使用 `space: "roleplay"`、独立 `rpProject`、独立消息与剧情记忆，剧场内容不写入主聊天记忆。新增/更新状态栏样式也只作用于当前剧本。
 
 回归为 `scripts/rp-theater-regression.mjs`，并同步所有旧回归的 Service Worker 断言到 `role-chat-cache-v419`；提交前仍需运行天气时间注入器，不提交 `dist/`。
+
+- 2026-11-23 v1.0.7 / sw v420：修复时光胶囊提示词引用块内 const selfCardRole，导致主聊天报 Can't find variable: selfCardRole、所有模型都发不出。改为 selfCardRoleFor(currentConv())，time-capsule-regression 加断言。
