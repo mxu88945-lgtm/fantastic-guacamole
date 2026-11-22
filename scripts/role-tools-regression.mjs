@@ -13,4 +13,5 @@ ok(html.includes('content: await roleToolsCall(call, abortController.signal)'), 
 ok(html.includes('return null;\n    } finally { onToolActivity?.(false); }'), "tool failures do not fall back to ordinary chat");
 ok(html.includes('正在查资料…'), "tool activity hint is missing");
 ok(html.includes('if (!isAnthropic && !isGemini'), "non-OpenAI channels are not excluded");
+ok(html.includes("Array.isArray(payload) ? payload : (payload && payload.tools)"), "bare-array /tools response from role-tools is not accepted");
 console.log(`role-tools regression checks passed (${checks})`);

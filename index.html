@@ -12150,7 +12150,8 @@ async function roleToolsDefinitions(signal) {
   const response = await fetch(url + "/tools", { headers: { authorization: "Bearer " + key }, signal });
   if (!response.ok) throw new Error("工具服务暂不可用（HTTP " + response.status + "）");
   const payload = await response.json();
-  return Array.isArray(payload.tools) ? payload.tools.filter(item => item && item.type === "function" && item.function && typeof item.function.name === "string").slice(0, 16) : [];
+  const list = Array.isArray(payload) ? payload : (payload && payload.tools); // role-tools 返回裸数组
+  return Array.isArray(list) ? list.filter(item => item && item.type === "function" && item.function && typeof item.function.name === "string").slice(0, 16) : [];
 }
 async function roleToolsCall(call, signal) {
   const url = String(settings.toolsUrl || DEFAULT_ROLE_TOOLS_URL).replace(/\/$/, ""), key = String(settings.toolsKey || "");
