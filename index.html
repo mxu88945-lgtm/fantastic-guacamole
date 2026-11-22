@@ -3004,6 +3004,9 @@
 <link rel="stylesheet" href="./src/theme-archives.css" />
 <link rel="stylesheet" href="./src/theme-greynote.css" />
 <link rel="stylesheet" href="./src/rp-manuscript-themes.css" />
+<style>
+.sensor-event-line { color: var(--muted, #8b8790); font-size: 12px; line-height: 1.4; text-align: center; margin: 8px 12px; opacity: .82; }
+</style>
 </head>
 <body>
 <!-- status-bar-style is "default": iOS draws an opaque status bar tinted by the theme-color meta
@@ -3953,6 +3956,17 @@
           <input id="toolsUrl" placeholder="工具服务地址（默认 https://tools.zhouweiweihome.top）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
           <input id="toolsKey" type="password" placeholder="工具密钥（只存本机，不进备份/诊断）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
           <span class="hint" style="display:block;margin-top:8px;">已配置时，模型可按需使用 read_url 和 web_search；失败或模型不支持时会自动回到普通聊天。</span>
+        </div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="font-weight:600;">📱 感知互动</label>
+          <span class="hint" style="display:block;margin-top:6px;">默认关闭，只在主聊天生效。录音只在本机分析，不上传、不保存；第一次打开动作或吹气时就在这一刻请求 iPhone 权限。</span>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;"><input id="senseEnabled" type="checkbox" style="width:auto;" onchange="toggleSenseMaster(this.checked);" /> 总开关</label>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px;">
+            <label><input id="senseBlow" type="checkbox" style="width:auto;" onchange="toggleSenseKind('blow',this.checked);" /> 吹气 <small id="senseBlowHint" class="hint"></small></label>
+            <label><input id="senseShake" type="checkbox" style="width:auto;" onchange="toggleSenseKind('shake',this.checked);" /> 摇晃 <small id="senseShakeHint" class="hint"></small></label>
+            <label><input id="senseRotation" type="checkbox" style="width:auto;" onchange="toggleSenseKind('rotation',this.checked);" /> 转动 <small id="senseRotationHint" class="hint"></small></label>
+            <label><input id="senseLongPress" type="checkbox" style="width:auto;" onchange="toggleSenseKind('longPress',this.checked);" /> 长按 <small id="senseLongPressHint" class="hint"></small></label>
+          </div>
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🌐 联网搜索</label>
@@ -5112,6 +5126,7 @@ let settings = {
   historyRecallScopeV2: false, // migrate older installs away from cross-persona transcript recall
   historyRecallAliases: "", // user-defined keyword groups, one pipe-separated group per line
   webSearch: false,       // 联网搜索：模型写 [联网:关键词] → App 调搜索接口再喂回（默认关，开了才会联网）
+  senseInteraction: { enabled: false, blow: false, shake: false, rotation: false, longPress: false },
   webSearchUrl: "https://s.jina.ai/",  // 搜索接口（默认 Jina；无 Key 时自动使用浏览器可直连的后备搜索）
   webSearchKey: "",       // Jina 搜索 API Key（选填，不上云）
   toolsUrl: "https://tools.zhouweiweihome.top", toolsKey: "", // role-tools：本机使用，不进备份
@@ -8067,6 +8082,7 @@ function renderMessages() {
   const guestMentionNames = guestMentionNamesFor(conv);
   for (let i = renderFrom; i < messages.length; i++) {
     const m = messages[i];
+    if (m.sensorEvent) { const event = document.createElement("div"); event.className = "sensor-event-line"; event.textContent = m.sensorEvent.label || m.content || "（你对手机做了一个动作）"; if (m.id) event.dataset.mid = m.id; box.appendChild(event); continue; }
     if (m._event || (m._compactedBy && !revealedArchivedIds.has(m.id))) continue;
     if (isNoReplyPlaceholder(m)) continue;
     if (isHiddenRoleplayMentionMessage(m)) continue;
@@ -12344,6 +12360,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     const giftNote = window.JYCGifts.buildGiftSystemNote(roleGiftParts, settings.aiName || "TA", settings.userName || "用户", roleCustomGifts());
     if (giftNote) systemText = systemText ? systemText + "\n\n" + giftNote : giftNote;
   }
+  if (window.__jycSensorPrompt && !rpProject && !currentConv()?.phone) { systemText = systemText ? systemText + "\n\n" + window.__jycSensorPrompt : window.__jycSensorPrompt; window.__jycSensorPrompt = ""; }
   if (pendingSearchContext) {
     systemText = systemText ? systemText + "\n\n" + pendingSearchContext : pendingSearchContext;
   }
@@ -20816,6 +20833,7 @@ function syncSettingsToUI() {
   $("webSearchUrl").value = settings.webSearchUrl || "";
   $("webSearchKey").value = settings.webSearchKey || "";
   $("toolsUrl").value = settings.toolsUrl || DEFAULT_ROLE_TOOLS_URL;
+  const sense = settings.senseInteraction || {}; $("senseEnabled").checked = !!sense.enabled; ["Blow","Shake","Rotation","LongPress"].forEach(k => { const key = k[0].toLowerCase()+k.slice(1); if ($("sense"+k)) $("sense"+k).checked = !!sense[key]; });
   $("toolsKey").value = settings.toolsKey || "";
   $("notionEnabled").checked = !!settings.notionEnabled;
   $("notionProxy").value = settings.notionProxy || "";
@@ -21094,6 +21112,7 @@ function readSettingsFromUI() {
   settings.webSearchKey = $("webSearchKey").value.trim();
   settings.toolsUrl = $("toolsUrl").value.trim() || DEFAULT_ROLE_TOOLS_URL;
   settings.toolsKey = $("toolsKey").value.trim();
+  settings.senseInteraction = { ...(settings.senseInteraction || {}), enabled: $("senseEnabled")?.checked === true };
   settings.notionEnabled = $("notionEnabled").checked;
   settings.notionProxy = $("notionProxy").value.trim();
   settings.notionToken = $("notionToken").value.trim();
@@ -21885,6 +21904,27 @@ function closeSidebar() {
 }
 
 // ---------- Wire up ----------
+let senseRuntime = null;
+async function ensureSenseRuntime() {
+  if (senseRuntime) return senseRuntime;
+  const mod = await import("./src/sense-interaction.js");
+  senseRuntime = new mod.SenseInteractionRuntime({
+    getTouchElement: () => document.querySelector("#messages"),
+    onPermissionError: (kind, message) => { const el = $("sense" + kind[0].toUpperCase() + kind.slice(1) + "Hint"); if (el) el.textContent = message; },
+    onBundle: bundle => {
+      const conv = currentConv();
+      if (!conv || isRoleplayConversation() || conv.phone || abortController || replyBooting) return;
+      const prompt = mod.sensorEventPrompt(bundle);
+      const eventMessage = { id: uid(), role: "user", content: prompt, ts: Date.now(), _event: true, sensorEvent: { events: bundle.events, label: bundle.events.map(event => mod.labelForEvent(event.event)).join("、") } };
+      messages.push(eventMessage); conv.updatedAt = Date.now(); saveConversations(); renderMessages(); window.__jycSensorPrompt = prompt; void generateSingleReply();
+    }
+  });
+  return senseRuntime;
+}
+async function toggleSenseMaster(on) { settings.senseInteraction = { ...(settings.senseInteraction || {}), enabled: !!on }; saveSettings(); if (!on) { senseRuntime?.pause(); return; } for (const kind of ["blow","shake","rotation","longPress"]) if (settings.senseInteraction[kind]) await toggleSenseKind(kind, true, true); }
+async function toggleSenseKind(kind, on, internal = false) { settings.senseInteraction = { ...(settings.senseInteraction || {}), [kind]: !!on, enabled: internal ? settings.senseInteraction?.enabled !== false : (settings.senseInteraction?.enabled || on) }; saveSettings(); if (!on) { senseRuntime?.disable(kind); return; } try { await (await ensureSenseRuntime()).set(kind, true); } catch (_) { settings.senseInteraction[kind] = false; saveSettings(); if ($("sense"+kind[0].toUpperCase()+kind.slice(1))) $("sense"+kind[0].toUpperCase()+kind.slice(1)).checked = false; } }
+document.addEventListener("visibilitychange", () => { if (!senseRuntime) return; if (document.hidden) senseRuntime.pause(); else if (settings.senseInteraction?.enabled) senseRuntime.resume(); });
+
 async function init() {
   window.addEventListener("jyc:chat-opened", ensureCurrentConversationRendered);
   setTimeout(() => {
@@ -21905,6 +21945,7 @@ async function init() {
   if (isMobile()) settings.sidebarCollapsed = true;
   applySidebar();
   syncSettingsToUI();
+  if (settings.senseInteraction?.enabled) void ensureSenseRuntime().then(runtime => Promise.all(["blow","shake","rotation","longPress"].filter(k => settings.senseInteraction[k]).map(k => runtime.set(k, true))));
   setupDeskPet();
   setupSettingsNavigation();
   setupAccordion();
