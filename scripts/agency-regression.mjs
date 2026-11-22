@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v416";'), "service worker cache bumped for the agency release");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v417";'), "service worker cache bumped for the agency release");
 
 const start = html.indexOf("/* agency:start");
 const end = html.indexOf("/* agency:end */");
@@ -41,7 +41,7 @@ assert.equal(lib.agencyRulesText({}, "顾祁砚", "惟惟"), "");
 assert.ok(lib.agencyRulesText({ pause: true, room: true, body: true }, "顾祁砚", "惟惟").includes("[暂停:"));
 
 // wiring
-assert.ok(html.includes('"agencyPauseEnabled","agencyRoomEnabled","agencyBodyEnabled"]'), "flags synced");
+assert.ok(html.includes('"agencyPauseEnabled","agencyRoomEnabled","agencyBodyEnabled","bedsideNudgeEnabled"]'), "flags synced");
 assert.ok(html.includes("if (typeof stripAgencyTags === \"function\") text = stripAgencyTags(text, streaming);"), "every strip point hides agency tags");
 assert.ok(html.includes("applyAgencyReply(assistantMsg.content, replyConv,"), "reply processing wired");
 assert.ok(html.includes("buildAgencyPromptText(currentConv())"), "prompt wired");

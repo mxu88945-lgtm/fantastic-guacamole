@@ -1030,3 +1030,12 @@
   - 回归：scripts/image-context-regression.mjs 改为 27 项（带图/不带图历史一致、三家接口主模型收到图、图记 40 字、重新生成仍发图、下一轮归档、同轮连发气泡、回看短语恰好 1 张最近图、图记关键词回看旧图、回看后下一轮再归档、多张旧图不累积）；image-attachment-regression 断言 liveImageMessages 和图记提示不在 system。未真机验证。
 
 - 2026-11-15 v378（Hark）：按需回看收紧。她说「修了代码」「跑剧情」，和下午截图的图记撞了 3 个字，原图被附回，他以为她刚发图。删掉图记 3 字匹配（imageMemoMentioned），只认 IMAGE_RECALL_PHRASE_RE 明确回指（那张图/刚才的截图/图里…），附最近一张；附回时前面加一行 RECALLED_IMAGE_NOTE「她之前发过的旧图…不是她刚发的」。回归 image-context-regression：标注断言 + 光说图记里的字不再附图。未真机验证。
+
+
+## 2026-11-22｜床头戳一戳（v1.0.4，Service Worker `role-chat-cache-v417`）
+
+第二项小愿望已接入主聊天：聊天框角落的挂件只在开启「床头戳一戳」且当前不是剧场/独立角色时显示；点击只从当前角色的 `bedsideNotes` 签筒抽取纸条并显示，不发消息、不调用模型。角色可在主聊天主人段用 `[戳一戳:困倦|…]`、`[戳一戳:喝水|…]`、`[戳一戳:default|…]` 存纸条；显示前统一剥离，客人段、剧场和独立角色只剥离不写入。签筒为空或无匹配身体状态时使用默认纸条；开启小天地身体状态后，困意/精力会优先选择 `sleepy`/`low` 纸条。
+
+点击后内容暂存于当前会话的 `bedsideNudgePending`，下一次主聊天请求以隐藏提示告诉角色自然接住一句；成功回复（包括锁屏中继恢复）后立即清除，避免重复注入。数据随现有角色/会话备份与云同步；设置开关已加入 `SYNCED_KEYS`。新增回归：`scripts/bedside-nudge-regression.mjs`，覆盖标记解析、剥离、随机抽签、身体状态筛选、主聊天/客人隔离、下一轮提示和版本缓存断言。
+
+不改主聊天发送协议、已有记忆、门禁、推送、role-wake 或剧场逻辑；本功能的标记只认主聊天主人段。提交前需执行 `python3 scripts/inject-weather-time.py --strip index.html`，不得提交 `dist/`。
