@@ -1,0 +1,16 @@
+import { readFileSync } from "node:fs";
+const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+let checks = 0;
+const ok = (condition, message) => { checks++; if (!condition) throw new Error(message); };
+ok(html.includes('const DEFAULT_ROLE_TOOLS_URL = "https://tools.zhouweiweihome.top"'), "default role-tools URL is missing");
+ok(html.includes('id="toolsUrl"') && html.includes('id="toolsKey"'), "role-tools settings fields are missing");
+ok(html.includes('settings.toolsUrl = $("toolsUrl").value.trim() || DEFAULT_ROLE_TOOLS_URL'), "role-tools URL is not read from settings");
+ok(html.includes('$("toolsUrl").value = settings.toolsUrl || DEFAULT_ROLE_TOOLS_URL'), "role-tools URL is not restored to settings UI");
+ok(html.includes('"toolsUrl", "toolsKey"'), "role-tools credentials are not excluded from backups");
+ok(html.includes('JSON.stringify({ name: call.name, arguments:'), "tool calls do not use the required request shape");
+ok(html.includes('for (let round = 0; round < 3; round += 1)'), "tool loop is not capped at three rounds");
+ok(html.includes('content: await roleToolsCall(call, abortController.signal)'), "tool results are not returned to the model");
+ok(html.includes('return null;\n    } finally { onToolActivity?.(false); }'), "tool failures do not fall back to ordinary chat");
+ok(html.includes('正在查资料…'), "tool activity hint is missing");
+ok(html.includes('if (!isAnthropic && !isGemini'), "non-OpenAI channels are not excluded");
+console.log(`role-tools regression checks passed (${checks})`);

@@ -3949,6 +3949,12 @@
           <input id="imageApiKey" type="password" placeholder="画图 API Key（选填，不上云；留空用当前接口）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="font-weight:600;">🧰 工具服务</label>
+          <input id="toolsUrl" placeholder="工具服务地址（默认 https://tools.zhouweiweihome.top）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+          <input id="toolsKey" type="password" placeholder="工具密钥（只存本机，不进备份/诊断）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+          <span class="hint" style="display:block;margin-top:8px;">已配置时，模型可按需使用 read_url 和 web_search；失败或模型不支持时会自动回到普通聊天。</span>
+        </div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">🌐 联网搜索</label>
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:10px;">
             <input type="checkbox" id="webSearch" style="width:auto;" onchange="readSettingsFromUI();" />
@@ -5108,6 +5114,7 @@ let settings = {
   webSearch: false,       // 联网搜索：模型写 [联网:关键词] → App 调搜索接口再喂回（默认关，开了才会联网）
   webSearchUrl: "https://s.jina.ai/",  // 搜索接口（默认 Jina；无 Key 时自动使用浏览器可直连的后备搜索）
   webSearchKey: "",       // Jina 搜索 API Key（选填，不上云）
+  toolsUrl: "https://tools.zhouweiweihome.top", toolsKey: "", // role-tools：本机使用，不进备份
   memSummary: "",         // 记忆摘要：一段"关于 ta 的人物速写"，每次对话都注入
   peopleProfiles: [],     // v354 人物档案：[{id,name,aliases,background,events:[{id,date,text,hitCount,lastUsedAt}]}]，全局、随云同步
   semanticRecallEnabled: false,   // v355 语义召回（向量）：默认关；关着时召回和 v354 完全一样
@@ -12136,6 +12143,49 @@ async function oneShotResponseText(resp, isAnthropic, isGemini) {
   return oneShotCompletionText(data, isAnthropic, isGemini);
 }
 function chatRuntimeSettings() { return settings; }
+const DEFAULT_ROLE_TOOLS_URL = "https://tools.zhouweiweihome.top";
+async function roleToolsDefinitions(signal) {
+  const url = String(settings.toolsUrl || DEFAULT_ROLE_TOOLS_URL).replace(/\/$/, ""), key = String(settings.toolsKey || "").trim();
+  if (!key || !url) return [];
+  const response = await fetch(url + "/tools", { headers: { authorization: "Bearer " + key }, signal });
+  if (!response.ok) throw new Error("工具服务暂不可用（HTTP " + response.status + "）");
+  const payload = await response.json();
+  return Array.isArray(payload.tools) ? payload.tools.filter(item => item && item.type === "function" && item.function && typeof item.function.name === "string").slice(0, 16) : [];
+}
+async function roleToolsCall(call, signal) {
+  const url = String(settings.toolsUrl || DEFAULT_ROLE_TOOLS_URL).replace(/\/$/, ""), key = String(settings.toolsKey || "");
+  const response = await fetch(url + "/call", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + key }, body: JSON.stringify({ name: call.name, arguments: (() => { try { const value = JSON.parse(call.arguments || "{}"); return value && typeof value === "object" ? value : {}; } catch (_) { return {}; } })() }), signal });
+  if (!response.ok) throw new Error("工具调用失败（HTTP " + response.status + "）");
+  const payload = await response.json();
+  if (payload.ok === false) throw new Error(typeof payload.error === "string" ? payload.error : "工具返回失败");
+  return typeof payload.result === "string" ? payload.result : JSON.stringify(payload.result || "");
+}
+async function runRoleTools(body, url, headers, onToolActivity) {
+  if (!settings.toolsKey || !settings.toolsUrl || !/chat\/completions/i.test(url)) return null;
+  let tools;
+  try { tools = await roleToolsDefinitions(abortController.signal); } catch (_) { return null; }
+  if (!tools.length) return null;
+  const messages = Array.isArray(body.messages) ? body.messages.map(message => ({ ...message })) : [];
+  for (let round = 0; round < 3; round += 1) {
+    const requestBody = { ...body, stream: false, messages, tools, stream_options: undefined };
+    delete requestBody.stream_options;
+    const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(requestBody), signal: abortController.signal });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const choice = data?.choices?.[0], message = choice?.message || {};
+    const calls = Array.isArray(message.tool_calls) ? message.tool_calls.map((call, index) => ({ id: String(call.id || "tool-call-" + (index + 1)), name: String(call.function?.name || ""), arguments: typeof call.function?.arguments === "string" ? call.function.arguments : JSON.stringify(call.function?.arguments || {}) })).filter(call => call.name) : [];
+    const text = completionContentText(message.content).trim();
+    if (!calls.length) return { text, usage: data?.usage || null };
+    messages.push({ role: "assistant", content: message.content || "", tool_calls: calls.map(call => ({ id: call.id, type: "function", function: { name: call.name, arguments: call.arguments } })) });
+    onToolActivity?.(true);
+    try {
+      for (const call of calls) messages.push({ role: "tool", tool_call_id: call.id, content: await roleToolsCall(call, abortController.signal) });
+    } catch (_) {
+      return null;
+    } finally { onToolActivity?.(false); }
+  }
+  return null;
+}
 async function streamChat(onDelta, onReasoning, requestSettings = null, speaker = null, guestTurn = null) {
   try { window.__jycMark?.("等待/接收回复"); } catch (_) {}
   const settings = requestSettings || chatRuntimeSettings();
@@ -12519,6 +12569,18 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     reasoningEffort,
   };
 
+  // role-tools uses a request-only non-streaming branch for OpenAI-compatible
+  // channels. If discovery/capability/call fails, return null and keep the normal
+  // streaming path below so ordinary chat is never blocked.
+  if (!isAnthropic && !isGemini && settings.toolsKey && settings.toolsUrl) {
+    const toolResult = await runRoleTools(body, url, headers, (active) => { if (active) showToast("正在查资料…", 2200); });
+    if (toolResult && toolResult.text) {
+      onDelta(toolResult.text);
+      lastCallUsage = toolResult.usage || null;
+      headersAt = performance.now(); firstByteAt = headersAt; firstTokenAt = headersAt;
+      return { totalMs: headersAt - callStartedAt, ttfbMs: 0, firstTokenMs: 0, visibleMs: headersAt - callStartedAt };
+    }
+  }
   // Transient errors (502/503/504 overloaded, 429 rate-limited) are common with
   // relay providers and usually clear in a few seconds. Retry a couple times with
   // backoff before surfacing the error, so the user rarely sees a one-off blip.
@@ -17859,7 +17921,7 @@ async function forceUpdate() {
 }
 
 const BACKUP_SECRET_KEYS = [
-  "apiKey", "supabaseKey", "visionApiKey", "imageApiKey",
+  "apiKey", "supabaseKey", "visionApiKey", "imageApiKey", "toolsUrl", "toolsKey",
   "notionToken", "webSearchKey", "ttsApiKey",
 ];
 function settingsWithoutSecrets(source) {
@@ -20752,6 +20814,8 @@ function syncSettingsToUI() {
   $("webSearch").checked = !!settings.webSearch;
   $("webSearchUrl").value = settings.webSearchUrl || "";
   $("webSearchKey").value = settings.webSearchKey || "";
+  $("toolsUrl").value = settings.toolsUrl || DEFAULT_ROLE_TOOLS_URL;
+  $("toolsKey").value = settings.toolsKey || "";
   $("notionEnabled").checked = !!settings.notionEnabled;
   $("notionProxy").value = settings.notionProxy || "";
   $("notionToken").value = settings.notionToken || "";
@@ -21027,6 +21091,8 @@ function readSettingsFromUI() {
   settings.webSearch = $("webSearch").checked;
   settings.webSearchUrl = $("webSearchUrl").value.trim();
   settings.webSearchKey = $("webSearchKey").value.trim();
+  settings.toolsUrl = $("toolsUrl").value.trim() || DEFAULT_ROLE_TOOLS_URL;
+  settings.toolsKey = $("toolsKey").value.trim();
   settings.notionEnabled = $("notionEnabled").checked;
   settings.notionProxy = $("notionProxy").value.trim();
   settings.notionToken = $("notionToken").value.trim();
