@@ -18,5 +18,5 @@ ok(html.includes('lastChatAt: Date.now(), ...push'), '同步请求没有传递�
 ok(html.includes('pushReady() ? { pushDevice: pushDevice(), pushUrl:'), '推送关闭时可能生成或上传新的 device')
 ok(html.includes('if (meta.wakeId && conv.messages.some(m => m && m.wakeId === meta.wakeId)) return null;'), '收件箱没有按唯一 ID 去重')
 ok(html.includes('proactiveSource: "role-wake"'), 'role-wake 消息没有独立来源标记')
-ok(sw.includes('const CACHE = "role-chat-cache-v415"'), 'sw 缓存版本不匹配')
+ok(sw.includes('const CACHE = "role-chat-cache-v416"'), 'sw 缓存版本不匹配')
 console.log(`role-wake regression: ${checks} checks passed`)

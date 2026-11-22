@@ -3447,6 +3447,7 @@
           <button id="companion-tab-mail" class="active">✉️ 给 TA 的信</button>
           <button id="companion-tab-diary">📓 TA 的私人日记</button>
           <button id="companion-tab-ledger">✓ 惦记与约定</button>
+          <button id="companion-tab-capsule">🕯️ 时光胶囊</button>
         </div>
         <section id="companion-mail-view">
           <div class="companion-card">
@@ -3494,6 +3495,17 @@
             <h3>最近了结</h3>
             <div id="ledger-resolved-list"></div>
           </div>
+        </section>
+        <section id="companion-capsule-view" hidden>
+          <div class="companion-card">
+            <h3>写一封给未来的信</h3>
+            <p>选好拆封时间后，信会先封在火漆里。还没到时间，谁也看不到里面。</p>
+            <input id="capsule-title" maxlength="60" placeholder="信封上的标题（可不填）" />
+            <textarea id="capsule-body" maxlength="3000" placeholder="写给未来的你们……"></textarea>
+            <input id="capsule-open-at" type="datetime-local" aria-label="拆封时间" />
+            <div class="companion-actions"><button class="mini-btn primary" id="capsule-save">封存这封信</button></div>
+          </div>
+          <div class="companion-card"><h3>封存中的信</h3><div id="capsule-list"></div></div>
         </section>
       </div>
     </div>
@@ -5679,6 +5691,7 @@ function ensureRoleCompanionData(role) {
   if (!Array.isArray(role.privateDiary)) role.privateDiary = [];
   if (!Array.isArray(role.specialDays)) role.specialDays = [];
   if (!Array.isArray(role.commitmentLedger)) role.commitmentLedger = [];
+  if (!Array.isArray(role.timeCapsules)) role.timeCapsules = [];
   return role;
 }
 function roleMailbox(role) { return ensureRoleCompanionData(role || activeRole())?.mailbox || []; }
@@ -5742,6 +5755,7 @@ function addRole() {
     mailbox: [],
     privateDiary: [],
     commitmentLedger: [],
+    timeCapsules: [],
   };
   settings.roles = settings.roles || [];
   settings.roles.push(r);
@@ -12348,6 +12362,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     let agencyText = "";
     try { agencyText = typeof buildAgencyPromptText === "function" ? buildAgencyPromptText(currentConv()) : ""; } catch (_) { agencyText = ""; }
     if (agencyText) systemText = systemText ? systemText + "\n\n" + agencyText : agencyText;
+    if (typeof buildTimeCapsulePrompt === "function") { const capsuleText = buildTimeCapsulePrompt(selfCardRole); if (capsuleText) systemText = systemText ? systemText + "\n\n" + capsuleText : capsuleText; }
   }
   if (globalPresetText) systemText = systemText ? systemText + "\n\n" + globalPresetText : globalPresetText;
   const additionalSystemInstruction = String(settings.systemInstruction || "").trim();
@@ -14139,6 +14154,15 @@ function extractSongPick(text) {
   return { text: stripSongPickTags(text).trim(), title };
 }
 /* song-pick:end */
+/* time-capsule:start */
+function timeCapsuleId() { return "capsule-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8); }
+function timeCapsuleList(role) { if (!role) return []; if (!Array.isArray(role.timeCapsules)) role.timeCapsules = []; return role.timeCapsules; }
+function parseTimeCapsuleTag(text) { if (typeof text !== "string") return null; const re = /(?:\[|【|［)\s*胶囊\s*[:：]\s*([^|｜\]\n]{0,60})\s*[|｜]\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})\s*[|｜]([\s\S]*?)(?:\]|】|］)/g; let last = null, m; while ((m = re.exec(text))) { const title = String(m[1] || "").trim().slice(0, 60), body = String(m[3] || "").trim().slice(0, 3000); if (body && !Number.isNaN(Date.parse(m[2]))) last = { title: title || "写给未来的信", openAt: m[2], body }; } return last; }
+function stripTimeCapsuleTags(text, streaming) { if (typeof text !== "string") return text; let out = text.replace(/(?:\[|【|［)\s*胶囊\s*[:：][\s\S]*?(?:\]|】|］)/g, ""); out = out.replace(/(?:\[|【|［)\s*胶\s*(?:囊\s*)?[:：][^\]\n]*$/, ""); if (streaming) out = out.replace(/(?:\[|【|［)\s*(?:胶\s*(?:囊\s*)?)?$/, ""); return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim(); }
+function applyTimeCapsuleTag(text, role, author, sourceMessageId, now) { const tag = parseTimeCapsuleTag(text); if (!tag || author === "guest") return { text, capsule: null }; const list = timeCapsuleList(role), at = now instanceof Date ? now.getTime() : (Number(now) || Date.now()); const capsule = { id: timeCapsuleId(), author: author === "character" ? "character" : "user", title: tag.title, body: tag.body, openAt: tag.openAt, createdAt: at, openedAt: null, sourceMessageId: sourceMessageId || "", pushScheduled: false }; list.push(capsule); return { text: stripTimeCapsuleTags(text), capsule }; }
+function capsuleState(capsule, now) { return capsule && Date.parse(capsule.openAt) <= (now instanceof Date ? now.getTime() : (Number(now) || Date.now())) ? "open" : "sealed"; }
+function capsuleCountdown(capsule, now) { if (capsuleState(capsule, now) === "open") return "可以拆封了"; const diff = Math.max(0, Date.parse(capsule.openAt) - (now instanceof Date ? now.getTime() : (Number(now) || Date.now()))); const mins = Math.ceil(diff / 60000), days = Math.floor(mins / 1440), hours = Math.floor((mins % 1440) / 60), rest = mins % 60; return "还有 " + (days ? days + "天 " : "") + (hours ? hours + "小时 " : "") + (rest ? rest + "分钟" : "不到1分钟"); }
+/* time-capsule:end */
 /* self-card:start — v366 他自己写的卡（移植惟境 personaSelfCard v211/v213）：纯函数，回归脚本只 eval 这一段 */
 var SELF_CARD_SECTIONS = [
   { key: "personality", label: "性格" },
@@ -14240,6 +14264,7 @@ function parseSelfCardTag(text) {
 }
 /** 去掉所有自我卡标记；末尾没写完的「[自我卡:喜好|还没写…」也去掉。streaming 时连「[」「【自」「[自我」这种半截开头也先藏起来。 */
 function stripSelfCardTags(text, streaming) {
+  if (typeof stripTimeCapsuleTags === "function") text = stripTimeCapsuleTags(text, streaming);
   if (typeof stripGateTags === "function") text = stripGateTags(text, streaming);
   if (typeof stripGuestTags === "function") text = stripGuestTags(text, streaming);
   if (typeof stripAgencyTags === "function") text = stripAgencyTags(text, streaming);
@@ -18029,7 +18054,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.2";
+const APP_VERSION = "1.0.3";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
@@ -18696,17 +18721,19 @@ function updateMailboxBadge() {
   badge.setAttribute("aria-label", unread ? (unread + " 封未读信") : "没有未读信");
 }
 function showCompanionTab(tab) {
-  const diary = tab === "diary", ledger = tab === "ledger", mail = !diary && !ledger;
+  const diary = tab === "diary", ledger = tab === "ledger", capsule = tab === "capsule", mail = !diary && !ledger && !capsule;
   $("companion-tab-mail").classList.toggle("active", mail);
   $("companion-tab-diary").classList.toggle("active", diary);
   $("companion-tab-ledger").classList.toggle("active", ledger);
   $("companion-mail-view").hidden = !mail;
   $("companion-diary-view").hidden = !diary;
   $("companion-ledger-view").hidden = !ledger;
+  $("companion-capsule-view").hidden = !capsule;
   const role = activeRole();
   $("companion-panel-title").textContent = ledger
     ? "✓ 惦记与约定"
     : diary ? "📓 " + ((role && role.name) || settings.aiName || "TA") + "的私人日记"
+      : capsule ? "🕯️ 时光胶囊"
       : "✉️ 给 " + ((role && role.name) || settings.aiName || "TA") + " 的信";
 }
 function openCompanionPanel(tab) {
@@ -18755,8 +18782,17 @@ function renderCompanionPanel() {
     btn.onclick = () => deletePrivateDiaryEntry(btn.dataset.diaryDelete);
   });
   renderCommitmentLedger(role);
+  renderTimeCapsules(role);
   updateMailboxBadge();
 }
+function capsuleLocalText(value) { const d = new Date(value); return Number.isNaN(d.getTime()) ? "时间待补充" : d.toLocaleString([], { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
+function buildTimeCapsulePrompt(role) { const list = timeCapsuleList(role).filter(x => capsuleState(x) === "open" && !x.openedAt); return "【时光胶囊】你可以在回复末尾写一行 [胶囊:标题|YYYY-MM-DDTHH:mm|给未来的信] 来封存一封只属于你们的信。时间必须是未来；标记会被隐藏。" + (list.length ? "你知道有一封信已经到拆封时间，但不要替她打开，等她在页面里拆封。" : ""); }
+function renderTimeCapsules(role) { const box = $("capsule-list"); if (!box) return; const list = timeCapsuleList(role).slice().sort((a,b) => Date.parse(a.openAt)-Date.parse(b.openAt)); box.innerHTML = list.length ? list.map(x => { const open = capsuleState(x) === "open"; const canRead = open || x.author === "user"; return `<article class="companion-entry"><div class="companion-entry-head"><b>🕯️ ${escapeHtml(x.title || "写给未来的信")}</b><span class="companion-status ${open ? "read" : ""}">${open ? "可以拆封" : "未到时间"}</span><time>${escapeHtml(capsuleLocalText(x.openAt))}</time></div><div class="companion-entry-text">${canRead ? escapeHtml(x.body || "") : "🔒 火漆还封着 · " + escapeHtml(capsuleCountdown(x))}</div><div class="companion-entry-foot">${!open ? `<span>${escapeHtml(capsuleCountdown(x))}</span>` : (x.openedAt ? "已拆封" : `<button data-capsule-open="${x.id}">拆开</button>`)} <button data-capsule-delete="${x.id}">删除</button></div></article>`; }).join("") : `<div class="companion-empty">还没有封存的信。把想留到未来的话，封进一枚火漆里吧。</div>`; box.querySelectorAll("[data-capsule-open]").forEach(btn => btn.onclick = () => openTimeCapsule(btn.dataset.capsuleOpen)); box.querySelectorAll("[data-capsule-delete]").forEach(btn => btn.onclick = () => deleteTimeCapsule(btn.dataset.capsuleDelete)); }
+function saveTimeCapsule() { const role = ensureRoleCompanionData(activeRole()), title = $("capsule-title").value.trim() || "写给未来的信", body = $("capsule-body").value.trim(), openAt = $("capsule-open-at").value; const when = Date.parse(openAt); if (!role || !body || !openAt || !Number.isFinite(when) || when <= Date.now()) { showToast("请写好内容，并选一个未来的时间"); return; } const capsule = { id: uid(), author: "user", title: title.slice(0,60), body: body.slice(0,3000), openAt, createdAt: Date.now(), openedAt: null, pushScheduled: false }; role.timeCapsules.push(capsule); saveSettings(); pushTimeCapsule(capsule); capsule.pushScheduled = pushReady(); saveSettings(); $("capsule-title").value = ""; $("capsule-body").value = ""; $("capsule-open-at").value = ""; renderCompanionPanel(); showToast("🕯️ 信已封好，到时间再拆"); }
+function openTimeCapsule(id) { const role = ensureRoleCompanionData(activeRole()), item = timeCapsuleList(role).find(x => x.id === id); if (!item || capsuleState(item) !== "open") { showToast("火漆还没到拆封时间"); return; } item.openedAt = item.openedAt || Date.now(); saveSettings(); renderCompanionPanel(); }
+function deleteTimeCapsule(id) { const role = ensureRoleCompanionData(activeRole()), item = timeCapsuleList(role).find(x => x.id === id); if (!item || !confirm("删除这封时光胶囊？")) return; role.timeCapsules = role.timeCapsules.filter(x => x.id !== id); saveSettings(); renderCompanionPanel(); }
+function pushTimeCapsule(item) { if (!pushReady() || !item?.openAt || Date.parse(item.openAt) <= Date.now()) return; pushPost("/schedule", { id: "capsule-" + item.id, at: Date.parse(item.openAt), title: (settings.aiName || "顾祁砚") + " · 时光胶囊", body: "有一封信可以拆了", url: location.href.split("#")[0] }).catch(() => {}); }
+function maybeNotifyTimeCapsules() { const role = ensureRoleCompanionData(activeRole()); const ready = timeCapsuleList(role).filter(x => capsuleState(x) === "open" && !x.openedAt); if (ready.length) showToast("🕯️ 有一封信可以拆了", 4500); }
 function saveMailboxNote() {
   const role = ensureRoleCompanionData(activeRole());
   const input = $("mailbox-compose");
@@ -19499,6 +19535,7 @@ function onAppActive() {
   void relayRecoverPending();
   pushPullInbox();
   roleWakePullInbox();
+  maybeNotifyTimeCapsules();
   notionAutoSync();
   if (maybeReadMailbox()) return;
   if (maybeCycleReminder()) return;
@@ -19773,6 +19810,7 @@ async function generateSingleReply(speaker = null, requestSettings = null, guest
     assistantMsg.responseState = "complete";
     // v393 客人群聊：只留轮到的这个人自己那段（段首【名字】去掉，替别人写的丢掉）；[不接话] 就不留这条。
     if (guestTurn) {
+      assistantMsg.content = stripTimeCapsuleTags(assistantMsg.content, false);
       assistantMsg.content = guestOwnSegment(assistantMsg.content, guestTurn.speakerName, guestTurn.otherNames, settings.userName);
       if (!guestSpeaking) {
         const kickRole = guestRoleFor(replyConv);
@@ -19821,6 +19859,8 @@ async function generateSingleReply(speaker = null, requestSettings = null, guest
         replyMessages.slice(0, Math.max(0, replyMessages.indexOf(assistantMsg))));
       if (typeof assistantMsg.reasoning === "string") assistantMsg.reasoning = stripAlbumAgencyTags(assistantMsg.reasoning);
     }
+    // 时光胶囊只认主聊天主人段；客人/剧场不写入角色胶囊。
+    if (!guestTurn && !independent && !replyProject && !backstageMode && typeof applyTimeCapsuleTag === "function") { const capsuleResult = applyTimeCapsuleTag(assistantMsg.content, activeRole(), "character", assistantMsg.id); assistantMsg.content = capsuleResult.text; if (capsuleResult.capsule) { saveSettings(); pushTimeCapsule(capsuleResult.capsule); capsuleResult.capsule.pushScheduled = pushReady(); } }
     // Capture the private marker before reasoning normalization. A relay may
     // flatten hidden reasoning into content, or stream it through the separate
     // reasoning channel; either way it must be saved before that channel is
@@ -22183,6 +22223,8 @@ async function init() {
   $("sidebar-mailbox").onclick = () => { openCompanionPanel("mail"); if (isMobile()) closeSidebar(); };
   $("sidebar-special-days").onclick = () => { openSpecialDaysPanel(); if (isMobile()) closeSidebar(); };
   $("companion-close").onclick = closeCompanionPanel;
+  $("companion-tab-capsule").onclick = () => showCompanionTab("capsule");
+  $("capsule-save").onclick = saveTimeCapsule;
   $("companion-tab-mail").onclick = () => showCompanionTab("mail");
   $("companion-tab-diary").onclick = () => showCompanionTab("diary");
   $("companion-tab-ledger").onclick = () => showCompanionTab("ledger");
