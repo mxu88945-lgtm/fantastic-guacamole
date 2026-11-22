@@ -3958,6 +3958,13 @@
           <span class="hint" style="display:block;margin-top:8px;">已配置时，模型可按需使用 read_url 和 web_search；失败或模型不支持时会自动回到普通聊天。</span>
         </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <label style="font-weight:600;">🌙 锁屏也不断</label>
+          <span class="hint" style="display:block;margin-top:6px;">打开后，主聊天和主聊天里的工具回合会先交给中继跑完；锁屏或切后台回来后会继续收尾。配置只存这台设备，不进备份、云同步或诊断摘要。</span>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;"><input id="relayEnabled" type="checkbox" style="width:auto;" onchange="readSettingsFromUI();" /> 开启锁屏中继</label>
+          <input id="relayUrl" placeholder="中继地址（例如 https://relay.example.com）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+          <input id="relayKey" type="password" placeholder="RELAY_KEY（只存本机，不进备份/云同步）" style="margin-top:8px;" onchange="readSettingsFromUI();" />
+        </div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">📱 感知互动</label>
           <span class="hint" style="display:block;margin-top:6px;">默认关闭，只在主聊天生效。录音只在本机分析，不上传、不保存；第一次打开动作或吹气时就在这一刻请求 iPhone 权限。</span>
           <label style="display:flex;align-items:center;gap:8px;margin-top:10px;"><input id="senseEnabled" type="checkbox" style="width:auto;" onchange="toggleSenseMaster(this.checked);" /> 总开关</label>
@@ -5138,6 +5145,7 @@ let settings = {
   webSearchUrl: "https://s.jina.ai/",  // 搜索接口（默认 Jina；无 Key 时自动使用浏览器可直连的后备搜索）
   webSearchKey: "",       // Jina 搜索 API Key（选填，不上云）
   toolsUrl: "https://tools.zhouweiweihome.top", toolsKey: "", // role-tools：本机使用，不进备份
+  relayEnabled: false, relayUrl: "", relayKey: "", // role-relay：本机使用，不进备份/同步
   memSummary: "",         // 记忆摘要：一段"关于 ta 的人物速写"，每次对话都注入
   peopleProfiles: [],     // v354 人物档案：[{id,name,aliases,background,events:[{id,date,text,hitCount,lastUsedAt}]}]，全局、随云同步
   semanticRecallEnabled: false,   // v355 语义召回（向量）：默认关；关着时召回和 v354 完全一样
@@ -12168,6 +12176,53 @@ async function oneShotResponseText(resp, isAnthropic, isGemini) {
 }
 function chatRuntimeSettings() { return settings; }
 const DEFAULT_ROLE_TOOLS_URL = "https://tools.zhouweiweihome.top";
+const DEFAULT_ROLE_RELAY_URL = "";
+const RELAY_PENDING_STORAGE_KEY = "jyc_relay_pending_v1";
+function relayConfig() {
+  const url = String(settings.relayUrl || DEFAULT_ROLE_RELAY_URL).trim().replace(/\/$/, "");
+  const key = String(settings.relayKey || "").trim();
+  return settings.relayEnabled === true && url && key ? { url, key } : null;
+}
+function relayPendingRead() {
+  try { const value = JSON.parse(localStorage.getItem(RELAY_PENDING_STORAGE_KEY) || "null"); return value && typeof value === "object" ? value : null; } catch (_) { return null; }
+}
+function relayPendingWrite(value) {
+  try { if (value) localStorage.setItem(RELAY_PENDING_STORAGE_KEY, JSON.stringify(value)); else localStorage.removeItem(RELAY_PENDING_STORAGE_KEY); } catch (_) {}
+}
+async function relayResult(id, config, signal) {
+  const response = await fetch(config.url + "/result/" + encodeURIComponent(id), { headers: { authorization: "Bearer " + config.key }, cache: "no-store", signal });
+  if (!response.ok) throw new Error("中继结果暂不可用（HTTP " + response.status + "）");
+  return response.json();
+}
+async function relayCall(modelUrl, headers, body, label = "主聊天") {
+  const config = relayConfig();
+  if (!config || !/chat\/completions|\/messages/i.test(modelUrl)) return null;
+  const id = "relay-" + uid();
+  relayPendingWrite({ id, conversationId: currentId, messageId: globalThis.__jycRelayReplyId || "", startedAt: Date.now(), label });
+  try {
+    const push = typeof pushReady === "function" && pushReady()
+      ? { pushDevice: pushDevice(), pushUrl: location.href.split("#")[0], title: settings.aiName || "顾祁砚" } : {};
+    const response = await fetch(config.url + "/start", {
+      method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + config.key },
+      body: JSON.stringify({ id, base: modelUrl, key: headers.authorization?.replace(/^Bearer\s+/i, "") || headers["x-api-key"] || "", body, ...push }),
+    });
+    if (!response.ok) throw new Error("中继不可用（HTTP " + response.status + "）");
+    let text = "";
+    if (response.body?.getReader) {
+      const reader = response.body.getReader(), decoder = new TextDecoder();
+      while (true) { const { done, value } = await reader.read(); if (done) break; text += decoder.decode(value, { stream: true }); }
+    } else text = await response.text();
+    const result = await relayResult(id, config);
+    if (label !== "主聊天") relayPendingWrite(null);
+    return { text: result.text || text, toolCalls: result.toolCalls || [], usage: result.usage || null };
+  } catch (error) {
+    // If /start was accepted, keep the id for foreground recovery; only a rejected
+    // start is safe to fall back to direct fetch without duplicating the model turn.
+    if (/中继不可用|HTTP/.test(error?.message || "")) relayPendingWrite(null);
+    else showToast("中继暂时断开，回来后会继续取回这条回复", 3000);
+    return null;
+  }
+}
 async function roleToolsDefinitions(signal) {
   const url = String(settings.toolsUrl || DEFAULT_ROLE_TOOLS_URL).replace(/\/$/, ""), key = String(settings.toolsKey || "").trim();
   if (!key || !url) return [];
@@ -12194,9 +12249,15 @@ async function runRoleTools(body, url, headers, onToolActivity) {
   for (let round = 0; round < 3; round += 1) {
     const requestBody = { ...body, stream: false, messages, tools, stream_options: undefined };
     delete requestBody.stream_options;
-    const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(requestBody), signal: abortController.signal });
-    if (!response.ok) return null;
-    const data = await response.json();
+    const relayResult = await relayCall(url, headers, requestBody, "工具回合");
+    let data;
+    if (relayResult) {
+      data = { choices: [{ message: { content: relayResult.text || "", tool_calls: relayResult.toolCalls || [] } }] };
+    } else {
+      const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(requestBody), signal: abortController.signal });
+      if (!response.ok) return null;
+      data = await response.json();
+    }
     const choice = data?.choices?.[0], message = choice?.message || {};
     const calls = Array.isArray(message.tool_calls) ? message.tool_calls.map((call, index) => ({ id: String(call.id || "tool-call-" + (index + 1)), name: String(call.function?.name || ""), arguments: typeof call.function?.arguments === "string" ? call.function.arguments : JSON.stringify(call.function?.arguments || {}) })).filter(call => call.name) : [];
     const text = completionContentText(message.content).trim();
@@ -12605,6 +12666,19 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
       lastCallUsage = toolResult.usage || null;
       headersAt = performance.now(); firstByteAt = headersAt; firstTokenAt = headersAt;
       return { totalMs: headersAt - callStartedAt, ttfbMs: 0, firstTokenMs: 0, visibleMs: headersAt - callStartedAt };
+    }
+  }
+  // role-relay is deliberately limited to the ordinary main-chat request.
+  // Roleplay/theatre, guest turns and group dispatches must remain direct and
+  // isolated. A rejected relay start returns null and uses the existing path.
+  if (!rpProject && !guestTurn && !speaker && !isGemini) {
+    const relayed = await relayCall(url, headers, body, "主聊天");
+    if (relayed) {
+      const text = String(relayed.text || "");
+      if (text) { markToken(text); onDelta(text); }
+      lastCallUsage = relayed.usage || null;
+      headersAt = performance.now(); firstByteAt = headersAt; if (text) firstTokenAt = headersAt;
+      return { totalMs: headersAt - callStartedAt, ttfbMs: 0, firstTokenMs: text ? 0 : NaN, visibleMs: headersAt - callStartedAt };
     }
   }
   // Transient errors (502/503/504 overloaded, 429 rate-limited) are common with
@@ -17955,7 +18029,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.1";
+const APP_VERSION = "1.0.2";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
@@ -18009,7 +18083,7 @@ async function forceUpdate() {
 }
 
 const BACKUP_SECRET_KEYS = [
-  "apiKey", "supabaseKey", "visionApiKey", "imageApiKey", "toolsUrl", "toolsKey",
+  "apiKey", "supabaseKey", "visionApiKey", "imageApiKey", "toolsUrl", "toolsKey", "relayEnabled", "relayUrl", "relayKey",
   "notionToken", "webSearchKey", "ttsApiKey",
 ];
 function settingsWithoutSecrets(source) {
@@ -19374,9 +19448,55 @@ function maybeCycleReminder() {
   }).catch(() => {});
   return true;
 }
+async function relayRecoverPending() {
+  const pending = relayPendingRead(), config = relayConfig();
+  if (!pending || !config) return;
+  try {
+    const result = await relayResult(pending.id, config);
+    if (result.status === "running") return;
+    relayPendingWrite(null);
+    if (result.status !== "done" || !String(result.text || "").trim()) return;
+    const conv = conversations.find(item => item.id === pending.conversationId);
+    if (!conv) return;
+    let msg = (conv.messages || []).find(item => item.id === pending.messageId);
+    if (!msg) {
+      msg = { id: pending.messageId || uid(), role: "assistant", content: "", reasoning: "", traces: [], ts: Date.now(), responseState: "submitted" };
+      conv.messages = conv.messages || []; conv.messages.push(msg);
+    }
+    msg.content = String(result.text || ""); msg.reasoning = ""; msg.responseState = "complete";
+    const sourceId = msg.id;
+    const diary = typeof extractPrivateDiary === "function" ? extractPrivateDiary(msg.content, sourceId) : msg.content;
+    msg.content = diary;
+    if (typeof extractCompanionLedgerControls === "function") msg.content = extractCompanionLedgerControls(msg.content, sourceId);
+    if (typeof extractPeopleMarkers === "function") msg.content = extractPeopleMarkers(msg.content, sourceId, true);
+    const normalized = typeof extractAssistantReasoning === "function" ? extractAssistantReasoning(msg.content, false) : { answer: msg.content, reasoning: "" };
+    msg.reasoning = normalized.reasoning || ""; msg.content = normalized.answer || "";
+    msg.content = msg.content.replace(/\[\s*(?:搜索|联网|相册|提醒)\s*[:：][^\]\n]*\]/g, "").replace(/\[\s*旧文\s*[:：][^\]\n]*\]/g, "").trim();
+    if (typeof stripSelfCardTags === "function") msg.content = stripSelfCardTags(msg.content, true).trim();
+    if (typeof stripSongPickTags === "function") msg.content = stripSongPickTags(msg.content, true).trim();
+    if (typeof stripImageMemoTags === "function") msg.content = stripImageMemoTags(msg.content, true).trim();
+    if (typeof applyAgencyReply === "function") msg.content = applyAgencyReply(msg.content, conv, true);
+    if (typeof extractMemorySaves === "function") msg.content = extractMemorySaves(msg.content, sourceId);
+    if (typeof extractNotionSaves === "function") msg.content = await extractNotionSaves(msg.content);
+    if (typeof extractReminders === "function") {
+      const reminders = extractReminders(msg.content); msg.content = reminders.text;
+      for (const reminder of reminders.reminders || []) addReminderMessage(reminder.text, reminder.mins);
+    }
+    const gateCmds = typeof extractGateCommands === "function" ? extractGateCommands(msg.content) : [];
+    if (typeof stripGateTags === "function") msg.content = stripGateTags(msg.content);
+    if (typeof gateActive === "function" && gateActive() && typeof gateApplyCommands === "function") { gateApplyCommands(gateCmds); if (typeof gateMarkTold === "function") gateMarkTold(); }
+    if (typeof consumeWorkbenchDirective === "function") msg.content = consumeWorkbenchDirective(msg.content);
+    conv.updatedAt = Date.now(); saveConversations();
+    if (currentId === conv.id) { messages = conv.messages; renderMessages(); if (stickBottom) jumpToBottom(); }
+    showToast("🌙 锁屏期间的回复已经接着写完了", 3200);
+  } catch (_) {
+    // A temporary network failure keeps the pending id for the next foreground.
+  }
+}
 // App became active (cold start / tab refocus): caring period reminder takes priority,
 function onAppActive() {
   updateReminderCards(); startReminderTimer();   // catch up countdowns after the tab was backgrounded
+  void relayRecoverPending();
   pushPullInbox();
   roleWakePullInbox();
   notionAutoSync();
@@ -19461,6 +19581,7 @@ async function generateSingleReply(speaker = null, requestSettings = null, guest
       : speaker ? { rpSpeakerId: speaker.id, rpSpeakerName: speaker.name, rpSpeakerAvatar: isImageRef(speaker.avatar) ? speaker.avatar : "" } : {}),
     ...(guestTurn ? guestTurnFields(guestTurn) : {}),
   };
+  if (!replyProject && !guestTurn && !speaker) globalThis.__jycRelayReplyId = assistantMsg.id;
   messages.push(assistantMsg);
   const el = makeMsgEl("assistant", "", assistantMsg);
   $("messages").appendChild(el);
@@ -19887,6 +20008,7 @@ async function generateSingleReply(speaker = null, requestSettings = null, guest
     if (paintFrame !== null) cancelAnimationFrame(paintFrame);
     setSending(!!roleplayGroupRun);
     abortController = null;
+    if (globalThis.__jycRelayReplyId === assistantMsg.id) globalThis.__jycRelayReplyId = "";
     saveConversations();
     renderMessages();   // re-render so per-message actions (copy / regenerate) show
     if (typeof syncSpriteStage === "function") syncSpriteStage({ reply: !!assistantMsg && assistantMsg.responseState !== "error" });  // 立绘模式: pick his expression from the finished reply (local, no tokens)
@@ -20911,6 +21033,9 @@ function syncSettingsToUI() {
   $("toolsUrl").value = settings.toolsUrl || DEFAULT_ROLE_TOOLS_URL;
   const sense = settings.senseInteraction || {}; $("senseEnabled").checked = !!sense.enabled; ["Blow","Shake","Rotation","LongPress"].forEach(k => { const key = k[0].toLowerCase()+k.slice(1); if ($("sense"+k)) $("sense"+k).checked = !!sense[key]; });
   $("toolsKey").value = settings.toolsKey || "";
+  $("relayEnabled").checked = settings.relayEnabled === true;
+  $("relayUrl").value = settings.relayUrl || "";
+  $("relayKey").value = settings.relayKey || "";
   $("notionEnabled").checked = !!settings.notionEnabled;
   $("notionProxy").value = settings.notionProxy || "";
   $("notionToken").value = settings.notionToken || "";
@@ -21189,6 +21314,9 @@ function readSettingsFromUI() {
   settings.webSearchKey = $("webSearchKey").value.trim();
   settings.toolsUrl = $("toolsUrl").value.trim() || DEFAULT_ROLE_TOOLS_URL;
   settings.toolsKey = $("toolsKey").value.trim();
+  settings.relayEnabled = $("relayEnabled")?.checked === true;
+  settings.relayUrl = $("relayUrl")?.value.trim() || "";
+  settings.relayKey = $("relayKey")?.value.trim() || "";
   settings.senseInteraction = { ...(settings.senseInteraction || {}), enabled: $("senseEnabled")?.checked === true };
   settings.notionEnabled = $("notionEnabled").checked;
   settings.notionProxy = $("notionProxy").value.trim();
