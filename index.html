@@ -4189,6 +4189,14 @@
                 <option value="0">关</option><option value="1">每天 1 条</option><option value="2">每天 2 条</option><option value="3">每天 3 条</option><option value="5">每天 5 条</option>
               </select>
             </div>
+            <div style="display:flex;align-items:center;gap:10px;min-height:50px;padding:10px 12px;font-size:13px;font-weight:600;border-top:1px solid var(--border);">
+              <div style="flex:1;min-width:0;"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="role-wake-enabled" style="width:auto;flex-shrink:0;" onchange="roleWakeSaveConfig()" />他自己的小心思</label><span class="hint" style="display:block;font-weight:400;margin-top:4px;">独立服务每半小时涨一点想念、分享欲、担心或好奇；超过门槛后才让模型决定要不要来找你。密钥只存本机。</span></div>
+            </div>
+            <div style="display:grid;gap:8px;padding:10px 12px;border-top:1px solid var(--border);">
+              <input id="role-wake-url" placeholder="role-wake 服务地址（部署后填写）" autocomplete="off" onchange="roleWakeSaveConfig()" />
+              <input id="role-wake-key" type="password" placeholder="role-wake 密钥（只存本机，不进备份）" autocomplete="new-password" onchange="roleWakeSaveConfig()" />
+              <small class="hint" id="role-wake-status">尚未配置</small>
+            </div>
             <label style="display:flex;align-items:center;gap:10px;min-height:50px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;border-top:1px solid var(--border);">
               <input type="checkbox" id="songPickEnabled" style="width:auto;flex-shrink:0;" onchange="readSettingsFromUI();" />
               <span>🎵 让他自己点歌
@@ -16740,6 +16748,67 @@ async function pushEnable() {
     pushStatusText(); showToast("🔔 后台提醒开好了");
   } catch (e) { showToast("开启失败：" + (e.message || e), 5000); pushStatusText(); }
 }
+// v413 role-wake：独立于旧 push 服务的“自己的小心思”收件箱。
+// URL、开关和密钥只存 localStorage，不进入 settings、备份或云同步。
+function roleWakeConfig() {
+  return {
+    enabled: localStorage.getItem("jyc-role-wake-enabled") === "1",
+    url: (localStorage.getItem("jyc-role-wake-url") || "").trim().replace(/\/+$/, ""),
+    key: localStorage.getItem("jyc-role-wake-key") || "",
+  };
+}
+function roleWakeSaveConfig() {
+  const enabled = $("role-wake-enabled")?.checked === true;
+  const url = $("role-wake-url")?.value.trim() || "";
+  const key = $("role-wake-key")?.value || "";
+  localStorage.setItem("jyc-role-wake-enabled", enabled ? "1" : "0");
+  localStorage.setItem("jyc-role-wake-url", url);
+  localStorage.setItem("jyc-role-wake-key", key);
+  roleWakeRenderStatus();
+}
+function roleWakeRenderStatus() {
+  const cfg = roleWakeConfig();
+  if ($("role-wake-enabled")) $("role-wake-enabled").checked = cfg.enabled;
+  if ($("role-wake-url")) $("role-wake-url").value = cfg.url;
+  if ($("role-wake-key")) $("role-wake-key").value = cfg.key;
+  if ($("role-wake-status")) $("role-wake-status").textContent = !cfg.enabled ? "已关闭" : (!cfg.url || !cfg.key ? "已打开，但还没填服务地址和密钥" : "已打开：聊天后同步摘要，打开 App 时取回主动消息");
+}
+function roleWakeReady() { const cfg = roleWakeConfig(); return cfg.enabled && /^https:\/\//i.test(cfg.url) && !!cfg.key; }
+function roleWakeHeaders(cfg) { return { Authorization: "Bearer " + cfg.key, "Content-Type": "application/json" }; }
+function roleWakeRoleId(conv) { return String(conv?.roleId || settings.activeRoleId || activeRole()?.id || "main"); }
+function roleWakeSummary(conv) {
+  const recent = (conv?.messages || []).filter(m => m && (m.role === "user" || m.role === "assistant") && !m._event).slice(-8).map(m => `${m.role === "user" ? "她" : "他"}：${messageText(m).replace(/\s+/g, " ").slice(0, 220)}`).join("\n");
+  const role = (settings.roles || []).find(r => r.id === conv?.roleId) || activeRole();
+  const persona = [role?.systemPrompt, role?.memory, settings.systemPrompt, settings.memSummary].filter(Boolean).join("\n").slice(0, 6000);
+  return { personaSummary: persona, recentSummary: recent.slice(0, 1800) };
+}
+async function roleWakeSyncAfterChat() {
+  if (!roleWakeReady()) return;
+  const cfg = roleWakeConfig(), conv = latestRoleConversation();
+  if (!conv) return;
+  const summary = roleWakeSummary(conv);
+  try {
+    await fetch(cfg.url + "/sync", { method: "POST", headers: roleWakeHeaders(cfg), body: JSON.stringify({ roleId: roleWakeRoleId(conv), roleName: settings.aiName || activeRole()?.name || "角色", ...summary, lastChatAt: Date.now() }) });
+  } catch (_) {}
+}
+async function roleWakePullInbox() {
+  if (!roleWakeReady()) return;
+  const cfg = roleWakeConfig(), conv = latestRoleConversation();
+  if (!conv) return;
+  const roleId = encodeURIComponent(roleWakeRoleId(conv));
+  try {
+    const response = await fetch(cfg.url + "/inbox?roleId=" + roleId, { headers: { Authorization: "Bearer " + cfg.key } });
+    if (!response.ok) return;
+    const body = await response.json();
+    if (!Array.isArray(body.messages)) return;
+    let added = 0;
+    for (const item of body.messages) {
+      if (appendProactiveMessage(conv, stripGateTags(String(item.text || "")), { wakeId: item.id || "", proactiveSource: "role-wake" })) added++;
+    }
+    if (added) { saveConversations(); if (currentId === conv.id) { messages = conv.messages; renderMessages(); jumpToBottom(); } }
+  } catch (_) {}
+}
+
 function pushSchedule(r) {
   if (!pushReady() || !r || !r.dueAt) return;
   pushPost("/schedule", { id: r.id, at: r.dueAt, title: (settings.aiName || "顾祁砚") + " · 提醒", body: r.text, url: location.href.split("#")[0] }).catch(() => {});
@@ -16776,7 +16845,7 @@ async function pushPullInbox() {
     for (const m of list) {
       const conv = conversations.find(c => c.id === m.conv) || latestRoleConversation();
       if (!conv) break;
-      const msg = appendProactiveMessage(conv, typeof stripGateTags === "function" ? stripGateTags(String(m.text || "")) : m.text);
+      const msg = appendProactiveMessage(conv, typeof stripGateTags === "function" ? stripGateTags(String(m.text || "")) : m.text, { wakeId: m.id || "", proactiveSource: "role-wake" });
       if (msg) { msg.ts = m.ts || msg.ts; done.push(m.id); }
     }
     if (done.length) { saveConversations(); await pushPost("/ack", { ids: done }); }
@@ -18307,6 +18376,8 @@ async function send(opts) {
   } catch (e) {
     console.error("[send→generateReply error]", e);
     showToast("❌ 发送异常: " + (e.message || String(e)).slice(0, 80));
+  } finally {
+    if (typeof roleWakeSyncAfterChat === "function") roleWakeSyncAfterChat();
   }
 }
 
@@ -18352,9 +18423,12 @@ function latestRoleConversation() {
   return privateRoleConvs().filter(c => Array.isArray(c.messages) && c.messages.length)
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
 }
-function appendProactiveMessage(conv, text) {
+function appendProactiveMessage(conv, text, meta = {}) {
   if (!conv || !text || !text.trim()) return null;
-  const msg = { id: uid(), role: "assistant", content: text.trim(), ts: Date.now() };
+  const normalized = String(text).toLowerCase().replace(/[\s，。！？、；：“”‘’（）()《》〈〉…—\-_.!?;:'"]/g, "").slice(0, 180);
+  if (meta.wakeId && conv.messages.some(m => m && m.wakeId === meta.wakeId)) return null;
+  if (normalized && conv.messages.slice(-48).some(m => m && m.role === "assistant" && String(m.content || "").toLowerCase().replace(/[\s，。！？、；：“”‘’（）()《》〈〉…—\-_.!?;:'"]/g, "").slice(0, 180) === normalized && (m.proactive || m.ts > Date.now() - 7 * 86400000))) return null;
+  const msg = { id: uid(), role: "assistant", content: text.trim(), ts: Date.now(), ...(meta.proactive ? meta : { proactive: true, ...meta }) };
   conv.messages.push(msg);
   conv.updatedAt = Date.now();
   conversations = [conv, ...conversations.filter(c => c.id !== conv.id)];
@@ -19303,6 +19377,7 @@ function maybeCycleReminder() {
 function onAppActive() {
   updateReminderCards(); startReminderTimer();   // catch up countdowns after the tab was backgrounded
   pushPullInbox();
+  roleWakePullInbox();
   notionAutoSync();
   if (maybeReadMailbox()) return;
   if (maybeCycleReminder()) return;
@@ -20909,6 +20984,7 @@ function syncSettingsToUI() {
   renderThemeCards();
   renderAccentSwatches();
   updateProviderHint();
+  roleWakeRenderStatus();
   updateStatusLine();
   renderModelQuick();
   updateAvatarPreviews();
