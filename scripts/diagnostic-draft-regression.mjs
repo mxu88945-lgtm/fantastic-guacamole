@@ -14,5 +14,5 @@ ok(html.includes('clearComposerDraft();'), 'successful send does not clear draft
 ok(html.includes('const APP_VERSION = "1.0.1"'), 'app version diagnostic is missing')
 const diagnostic = html.slice(html.indexOf('const APP_VERSION'), html.indexOf('// Force-refresh'))
 ok(!diagnostic.includes('apiKey') && !diagnostic.includes('messageText'), 'diagnostic must not read secrets or chat text')
-ok(sw.includes('role-chat-cache-v413'), 'service worker version unexpectedly changed')
+ok(sw.includes('role-chat-cache-v414'), 'service worker version unexpectedly changed')
 console.log('diagnostic/draft regression: connectivity and draft checks passed')

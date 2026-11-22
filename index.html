@@ -16787,8 +16787,9 @@ async function roleWakeSyncAfterChat() {
   const cfg = roleWakeConfig(), conv = latestRoleConversation();
   if (!conv) return;
   const summary = roleWakeSummary(conv);
+  const push = pushReady() ? { pushDevice: pushDevice(), pushUrl: location.href.split("#")[0] } : {};
   try {
-    await fetch(cfg.url + "/sync", { method: "POST", headers: roleWakeHeaders(cfg), body: JSON.stringify({ roleId: roleWakeRoleId(conv), roleName: settings.aiName || activeRole()?.name || "角色", ...summary, lastChatAt: Date.now() }) });
+    await fetch(cfg.url + "/sync", { method: "POST", headers: roleWakeHeaders(cfg), body: JSON.stringify({ roleId: roleWakeRoleId(conv), roleName: settings.aiName || activeRole()?.name || "角色", ...summary, lastChatAt: Date.now(), ...push }) });
   } catch (_) {}
 }
 async function roleWakePullInbox() {
