@@ -2695,6 +2695,30 @@
     color: #fff !important;
     -webkit-text-fill-color: #fff;
   }
+  /* 1.0.18：oi 那种亮磨砂——模糊放在气泡底下的一层伪元素上（字不被滤镜糊），
+     底色偏亮的奶灰，背景人像透出来是糊开的一片。 */
+  html[data-theme-key="frostbubble"][data-chat-bg="1"] #messages .msg.assistant .bubble {
+    position: relative;
+    isolation: isolate;
+    background: transparent !important;
+    border-color: rgba(255,255,255,.55);
+    box-shadow: 0 6px 20px rgba(40,36,44,.10), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  html[data-theme-key="frostbubble"][data-chat-bg="1"] #messages .msg.assistant .bubble::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: rgba(238,234,236,.62);
+    -webkit-backdrop-filter: blur(28px) saturate(1.15) brightness(1.06);
+    backdrop-filter: blur(28px) saturate(1.15) brightness(1.06);
+  }
+  html[data-theme-key="frostbubble"][data-chat-bg="1"] #messages .msg.user .bubble {
+    background: rgba(16,16,18,.94) !important;
+    border-color: rgba(255,255,255,.08);
+  }
   html[data-chat-bg="1"] #messages .msg.assistant .bubble blockquote {
     border-left-color: currentColor;
   }
@@ -18154,7 +18178,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.17";
+const APP_VERSION = "1.0.18";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
