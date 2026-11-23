@@ -18099,7 +18099,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.10";
+const APP_VERSION = "1.0.11";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
@@ -22226,6 +22226,8 @@ async function ensureSenseRuntime() {
 async function toggleSenseMaster(on) { settings.senseInteraction = { ...(settings.senseInteraction || {}), enabled: !!on }; saveSettings(); if (!on) { senseRuntime?.pause(); return; } for (const kind of ["blow","shake","rotation","longPress"]) if (settings.senseInteraction[kind]) await toggleSenseKind(kind, true, true); }
 async function toggleSenseKind(kind, on, internal = false) { const motionAsk = on && !internal && (kind === "shake" || kind === "rotation") && typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function" ? Promise.all([DeviceMotionEvent.requestPermission(), typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function" ? DeviceOrientationEvent.requestPermission() : "granted"]).catch(() => ["denied"]) : null; const micAsk = on && !internal && kind === "blow" && navigator.mediaDevices?.getUserMedia ? navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => { stream.getTracks().forEach(t => t.stop()); return "granted"; }).catch(() => "denied") : null; const senseHint = msg => { const el = $("sense" + kind[0].toUpperCase() + kind.slice(1) + "Hint"); if (el) el.textContent = msg; }; if (on) senseHint(""); if (motionAsk && (await motionAsk).some(r => r !== "granted")) { senseHint("动作权限没打开：彻底关掉 App 重开后再点一次，弹窗选允许"); if ($("sense"+kind[0].toUpperCase()+kind.slice(1))) $("sense"+kind[0].toUpperCase()+kind.slice(1)).checked = false; return; } if (micAsk && (await micAsk) !== "granted") { senseHint("麦克风没允许：iPhone 设置里给这个网页开麦克风后再点"); if ($("senseBlow")) $("senseBlow").checked = false; return; } settings.senseInteraction = { ...(settings.senseInteraction || {}), [kind]: !!on, enabled: internal ? settings.senseInteraction?.enabled !== false : (settings.senseInteraction?.enabled || on) }; saveSettings(); if (!on) { senseRuntime?.disable(kind); return; } try { await (await ensureSenseRuntime()).set(kind, true); } catch (_) { const hintEl = $("sense" + kind[0].toUpperCase() + kind.slice(1) + "Hint"); if (hintEl && !hintEl.textContent) hintEl.textContent = "没开起来，刷新一下再试"; settings.senseInteraction[kind] = false; saveSettings(); if ($("sense"+kind[0].toUpperCase()+kind.slice(1))) $("sense"+kind[0].toUpperCase()+kind.slice(1)).checked = false; } }
 document.addEventListener("visibilitychange", () => { if (!senseRuntime) return; if (document.hidden) senseRuntime.pause(); else if (settings.senseInteraction?.enabled) senseRuntime.resume(); });
+// 1.0.11：重开 App 后按已保存的开关自动接回感知（吹气/摇晃在第一次点屏幕时才真正开始，iOS 规定要先点一下）。
+setTimeout(() => { const s = settings.senseInteraction; if (!s?.enabled) return; for (const kind of ["blow","shake","rotation","longPress"]) if (s[kind]) ensureSenseRuntime().then(rt => rt.set(kind, true)).catch(() => {}); }, 2500);
 
 async function init() {
   window.addEventListener("jyc:chat-opened", ensureCurrentConversationRendered);

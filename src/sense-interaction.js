@@ -18,7 +18,7 @@ export class SenseInteractionRuntime {
   }
   disable(kind) { this.enabled.delete(kind); this.bridge?.disable(kind); }
   pause() { this.paused = true; this.bridge?.disableAll(); }
-  async resume() { if (!this.paused) return; this.paused = false; for (const kind of [...this.enabled]) await this.set(kind, true).catch(() => undefined); }
+  async resume() { if (!this.paused) return; this.paused = false; for (const kind of [...this.enabled]) { this.enabled.delete(kind); await this.set(kind, true).catch(() => { this.enabled.add(kind); }); } }
   dispose() { this.bridge?.disableAll(); this.enabled.clear(); if (this.timer) clearTimeout(this.timer); }
   receive(event) { if (this.paused || !kindForEvent(event.event)) return; this.pending.push(event); if (this.timer) clearTimeout(this.timer); this.timer = setTimeout(() => { const bundle = mergeSensorEvents(this.pending); this.pending = []; this.timer = null; if (bundle) this.options.onBundle(bundle); }, 3000); }
 }
