@@ -18099,7 +18099,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.9";
+const APP_VERSION = "1.0.10";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
@@ -22209,7 +22209,7 @@ function closeSidebar() {
 let senseRuntime = null;
 async function ensureSenseRuntime() {
   if (senseRuntime) return senseRuntime;
-  const mod = await import("./src/sense-interaction.js");
+  const mod = await import(/* @vite-ignore */ new URL("src/sense-interaction.js", document.baseURI).href);
   senseRuntime = new mod.SenseInteractionRuntime({
     getTouchElement: () => document.querySelector("#messages"),
     onPermissionError: (kind, message) => { const el = $("sense" + kind[0].toUpperCase() + kind.slice(1) + "Hint"); if (el) el.textContent = message; },

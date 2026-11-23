@@ -8,3 +8,4 @@ assert.ok(html.includes("DeviceMotionEvent.requestPermission()"), "motion permis
 assert.ok(html.includes("外观已保存，其它设置等这条回复结束再改"), "theater look saves during a reply");
 assert.ok(html.includes('id="music-lyrics-paste"') && music.includes("function pasteLyrics"), "paste lyrics button");
 console.log("1.0.8 small fixes regression passed");
+assert.ok(html.includes(`new URL("src/sense-interaction.js", document.baseURI)`), "sense module must load at runtime, not be inlined as data: URL");
