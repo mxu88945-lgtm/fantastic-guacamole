@@ -860,6 +860,15 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     showToast("已把这首歌放进聊天输入框");
   }
 
+  /* 1.0.20：主聊天每轮读这里——正在放的歌、放到哪、此刻歌词，让他“听得见” */
+  window.jycMusicNow = () => {
+    if (!state.song || audio.paused || audio.ended) return null;
+    const lines = state.lyrics || [];
+    const i = state.lyricIndex;
+    const around = i >= 0 ? lines.slice(Math.max(0, i - 1), i + 3).map((l) => l.text).filter(Boolean) : [];
+    return { name: state.song.name, artist: state.song.artist, position: fmt(audio.currentTime), duration: fmt(audio.duration), lyric: around.join(" / ") };
+  };
+
   function currentLyric() {
     if (state.lyricIndex < 0 || !state.lyrics[state.lyricIndex]) return null;
     return state.lyrics[state.lyricIndex];
