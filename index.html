@@ -3386,15 +3386,25 @@
             <section class="music-connect-card" id="music-connect-card">
               <div class="music-connect-kicker">ERYU MUSIC SERVICE</div>
               <h2>先把音乐接进来</h2>
-              <p>顾祁砚端口负责陪你听歌，歌曲搜索、音源和歌词由云端 Eryu 服务处理。地址与 token 只保存在这台设备。</p>
+              <p>顾祁砚端口负责陪你听歌，歌曲搜索、音源和歌词由你自己的音乐服务（music.zhouweiweihome.top）处理。地址与 token 只保存在这台设备。</p>
               <div class="music-connect-form">
-                <div class="music-field"><label for="music-base-url">Eryu 服务地址</label><input id="music-base-url" type="url" inputmode="url" placeholder="https://eryu-cloud-functions.vercel.app" autocomplete="off"></div>
-                <div class="music-field"><label for="music-token">访问 token</label><input id="music-token" type="password" placeholder="Vercel 的 ERYU_TOKEN" autocomplete="off"></div>
+                <div class="music-field"><label for="music-base-url">Eryu 服务地址</label><input id="music-base-url" type="url" inputmode="url" placeholder="https://music.zhouweiweihome.top" autocomplete="off"></div>
+                <div class="music-field"><label for="music-token">访问 token</label><input id="music-token" type="password" placeholder="跟「工具密钥」是同一把" autocomplete="off"></div>
                 <div class="music-connect-actions"><button type="button" class="music-primary" id="music-connect-btn">连接并保存</button><button type="button" class="music-secondary" id="music-cancel-config" hidden>取消</button><button type="button" class="music-danger" id="music-logout-btn">清除连接</button></div>
+                <button type="button" class="music-secondary" id="music-autofill-btn" style="margin-top:10px;width:100%">一键填好（用设置里的工具密钥）</button>
+                <div class="music-netease" id="music-netease" hidden style="margin-top:14px;padding:12px;border-radius:14px;background:rgba(127,127,127,.08)">
+                  <div id="music-netease-status" style="font-size:14px;margin-bottom:8px">网易云：未登录（只能放免费歌）</div>
+                  <button type="button" class="music-primary" id="music-netease-login" style="width:100%">扫码登录网易云</button>
+                  <div id="music-netease-qr" hidden style="margin-top:12px;text-align:center">
+                    <div id="music-netease-qr-img" style="width:220px;max-width:70vw;margin:0 auto;background:#fff;border-radius:12px;padding:6px"></div>
+                    <p style="font-size:13px;line-height:1.6;margin:10px 0 0;opacity:.8">截图这张码 → 打开网易云音乐 App → 左上角菜单「扫一扫」→ 右上角「相册」选这张截图 → 在手机上点确认登录。这里会自动变成已登录。</p>
+                  </div>
+                  <button type="button" class="music-secondary" id="music-netease-logout" hidden style="width:100%;margin-top:8px">退出网易云</button>
+                </div>
                 <button type="button" class="music-secondary" id="music-local-import-btn" style="margin-top:10px;width:100%">♪ 不连也行：导入手机里的歌</button>
                 <div class="music-connect-status" id="music-connect-status"></div>
               </div>
-              <p class="music-connect-note">后端的网易云 Cookie 放在 Vercel 环境变量里，前端只保存服务地址和访问 token，不会把 Cookie 塞进网页。</p>
+              <p class="music-connect-note">网易云的登录信息只存在你的 Cloudflare 音乐服务里，网页不会拿到它。</p>
             </section>
 
             <section class="music-app" id="music-app" hidden>
@@ -18178,7 +18188,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.18";
+const APP_VERSION = "1.0.19";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");

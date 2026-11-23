@@ -13,7 +13,7 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
   const PLAYER_KEY = "jyc_music_player_v1";
   const LIBRARY_KEY = "jyc_music_library_v1";
   const LOCAL_KEY = "jyc_music_local_v1";
-  const DEFAULT_BASE_URL = "https://eryu-cloud-functions.vercel.app";
+  const DEFAULT_BASE_URL = "https://music.zhouweiweihome.top";
   const $ = (id) => document.getElementById(id);
   const audio = new Audio();
   audio.preload = "metadata";
@@ -301,7 +301,8 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
   function loadConfig() {
     try {
       const raw = JSON.parse(localStorage.getItem(CONFIG_KEY) || "{}");
-      return { baseUrl: cleanBase(raw.baseUrl || DEFAULT_BASE_URL), token: String(raw.token || "") };
+      const legacy = /eryu-cloud-functions\.vercel\.app/.test(String(raw.baseUrl || ""));
+      return { baseUrl: cleanBase(legacy ? DEFAULT_BASE_URL : (raw.baseUrl || DEFAULT_BASE_URL)), token: String(raw.token || "") };
     } catch (_) {
       return { baseUrl: DEFAULT_BASE_URL, token: "" };
     }
@@ -446,6 +447,7 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
       await loadRecent();
       saveLibrary();
       setStatus("连接成功");
+      refreshNetease();
       state.error = "";
       render();
       notifyMusicChanged();
@@ -470,6 +472,54 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     if (ok) showToast("听歌房连接成功");
   }
 
+  /* 1.0.19：自建音乐服务 + 网易云扫码登录 */
+  function sharedKey() {
+    try { return String((typeof settings !== "undefined" && (settings.toolsKey || settings.relayKey)) || "").trim(); } catch (_) { return ""; }
+  }
+  async function autofillConnect() {
+    const base = $("music-base-url"), token = $("music-token");
+    if (base) base.value = DEFAULT_BASE_URL;
+    const key = sharedKey();
+    if (!key) { setStatus("设置里还没填「工具密钥」，先填那个，或者把它粘到 token 这里", true); return; }
+    if (token) token.value = key;
+    await connectFromForm();
+  }
+  let neteasePoll = null;
+  async function refreshNetease() {
+    const box = $("music-netease");
+    if (!box) return;
+    box.hidden = !state.connected;
+    if (!state.connected) return;
+    const info = await api("/health").catch(() => ({}));
+    const status = $("music-netease-status");
+    if (status) status.textContent = info.loggedIn ? `网易云：已登录（${info.nickname}）` : "网易云：未登录（只能放免费歌）";
+    const login = $("music-netease-login"), logout = $("music-netease-logout");
+    if (login) login.textContent = info.loggedIn ? "换个号重新扫码" : "扫码登录网易云";
+    if (logout) logout.hidden = !info.loggedIn;
+  }
+  async function startNeteaseLogin() {
+    clearInterval(neteasePoll);
+    const wrap = $("music-netease-qr"), img = $("music-netease-qr-img"), status = $("music-netease-status");
+    try {
+      const data = await api("/login/qr", { method: "POST" });
+      if (img) img.innerHTML = data.svg || "";
+      if (wrap) wrap.hidden = false;
+      if (status) status.textContent = "等你扫码…";
+      const started = Date.now();
+      neteasePoll = setInterval(async () => {
+        if (Date.now() - started > 180000) { clearInterval(neteasePoll); if (status) status.textContent = "二维码过期了，再点一次"; if (wrap) wrap.hidden = true; return; }
+        const r = await api(`/login/qr/check?key=${encodeURIComponent(data.key)}`).catch(() => ({}));
+        if (r.code === 802 && status) status.textContent = "扫到了，在网易云 App 里点确认登录";
+        if (r.code === 800) { clearInterval(neteasePoll); if (status) status.textContent = "二维码过期了，再点一次"; if (wrap) wrap.hidden = true; }
+        if (r.code === 803) { clearInterval(neteasePoll); if (wrap) wrap.hidden = true; showToast(r.message || "网易云登录成功"); refreshNetease(); }
+      }, 2500);
+    } catch (error) { if (status) status.textContent = error.message || "拿不到二维码"; }
+  }
+  async function neteaseLogout() {
+    await api("/login/logout", { method: "POST" }).catch(() => {});
+    showToast("已退出网易云"); refreshNetease();
+  }
+
   function openConfig() {
     const card = $("music-connect-card");
     if (!card) return;
@@ -478,7 +528,8 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     const token = $("music-token");
     if (base) base.value = state.config.baseUrl;
     if (token) token.value = state.config.token;
-    requestAnimationFrame(() => base?.focus());
+    refreshNetease();
+    if (!state.connected) requestAnimationFrame(() => base?.focus());
   }
 
   function closeConfig() {
@@ -1218,6 +1269,9 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
       else if (state.connected || state.local.length) { delete card.dataset.editing; closeConfig(); }
     });
     $("music-connect-btn")?.addEventListener("click", connectFromForm);
+    $("music-autofill-btn")?.addEventListener("click", autofillConnect);
+    $("music-netease-login")?.addEventListener("click", startNeteaseLogin);
+    $("music-netease-logout")?.addEventListener("click", neteaseLogout);
     $("music-local-import-btn")?.addEventListener("click", () => pickLocalFiles());
     $("music-cancel-config")?.addEventListener("click", () => { delete $("music-connect-card").dataset.editing; closeConfig(); });
     $("music-logout-btn")?.addEventListener("click", () => {
