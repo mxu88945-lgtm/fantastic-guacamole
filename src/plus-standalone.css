@@ -1,0 +1,7 @@
+/* 1.0.23：照 io —— ＋ 单独一个白色圆钮，放在输入胶囊左边，不再和语音/发送挤在一起。 */
+html body .composer-wrap .composer { position: relative !important; overflow: visible !important; margin-left: max(48px, calc((100% - 820px) / 2 + 48px)) !important; margin-right: auto !important; max-width: min(820px, calc(100% - 48px)) !important; }
+html body .composer-wrap .composer .composer-row { position: static !important; }
+html body .composer-wrap .composer #plus-btn { position: absolute !important; left: -50px !important; bottom: 3px !important; width: 40px !important; height: 40px !important; margin: 0 !important; border-radius: 50% !important; border: 1px solid rgba(255,255,255,.85) !important; background: rgba(255,255,255,.92) !important; box-shadow: 0 6px 18px rgba(40,32,44,.12) !important; color: #3d3740 !important; filter: none !important; }
+html body .composer-wrap .composer #plus-btn svg { width: 19px; height: 19px; transition: transform .18s ease; }
+html body .composer-wrap .composer #plus-btn:active { transform: scale(.94); }
+html[data-theme="dark"] body .composer-wrap .composer #plus-btn { background: rgba(48,48,54,.92) !important; border-color: rgba(255,255,255,.08) !important; color: #ececf0 !important; }
