@@ -18,7 +18,7 @@ assert.match(html, /authorization:\s*\"Bearer \" \+ config\.key/);
 assert.match(html, /base:\s*modelUrl/);
 assert.match(html, /key:\s*headers\.authorization/);
 assert.match(html, /relayCall\(url, headers, requestBody, \"工具回合\"\)/);
-assert.match(html, /relayCall\(url, headers, body, \"主聊天\"\)/);
+assert.match(html, /relayCall\(url, headers, body, "主聊天", /);
 assert.match(html, /if \(!rpProject && !guestTurn && !speaker && !isGemini\)/);
 assert.match(html, /relayRecoverPending\(\)/);
 assert.match(html, /extractMemorySaves\(msg\.content, sourceId\)/);

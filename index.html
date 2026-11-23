@@ -10865,8 +10865,20 @@ function buildRoleplayProjectText(conv = currentConv()) {
   ].filter(Boolean).join("\n\n");
 }
 function buildSharedRoleplayExperienceText() {
+  // 1.0.15：剧场档案带日期——最后一次跑是什么时候、隔了多久，每条戏内记忆记于哪天。
+  function rpAgoLabel(at, now = Date.now()) {
+    const t = Number(at || 0); if (!t) return "";
+    const d = new Date(t), diff = Math.max(0, now - t);
+    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    const ago = diff < 36e5 ? "不到1小时前" : diff < 864e5 ? `${Math.floor(diff / 36e5)}小时前` : diff < 30 * 864e5 ? `${Math.floor(diff / 864e5)}天前` : `${Math.floor(diff / (30 * 864e5))}个多月前`;
+    return `${stamp}（${ago}）`;
+  }
+  function rpLastPlayedAt(conv) {
+    const ts = (conv?.messages || []).filter(m => m && !m._event && !m._summary).map(m => Number(m.ts || 0)).filter(Boolean);
+    return ts.length ? Math.max(...ts) : Number(conv?.updatedAt || 0);
+  }
   if (isRoleplayConversation()) return "";
-  const projects = roleConvs().filter(isRoleplayConversation).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 6);
+  const projects = roleConvs().filter(isRoleplayConversation).sort((a, b) => rpLastPlayedAt(b) - rpLastPlayedAt(a)).slice(0, 6);
   if (!projects.length) return "";
   const query = (typeof currentMemoryRecallQuery === "function" ? currentMemoryRecallQuery() : "").trim().toLowerCase();
   const queryTerms = roleplayRecallTerms(query).filter(term => term.length >= 3);
@@ -10889,12 +10901,12 @@ function buildSharedRoleplayExperienceText() {
     if (generalIntent) score += Math.max(1, 10 - index);
     return { conv, p, title, score, index };
   });
-  const indexText = indexed.map(({ p, title }) => `- 《${title}》：${p.leadChannel?.playedByOwner === false ? "独立主角" : "你出演"} ${p.actorName || "舞台角色"}；用户出演 ${p.userRole || "自定角色"}`).join("\n");
+  const indexText = indexed.map(({ conv, p, title }) => `- 《${title}》：${p.leadChannel?.playedByOwner === false ? "独立主角" : "你出演"} ${p.actorName || "舞台角色"}；用户出演 ${p.userRole || "自定角色"}；最后一次跑：${rpAgoLabel(rpLastPlayedAt(conv)) || "不详"}`).join("\n");
   const selected = indexed.filter(item => item.score >= 10).sort((a, b) => b.score - a.score || a.index - b.index).slice(0, 2);
   // The owner should naturally remember a scene that was just performed with
   // the user. Keep one detailed 24-hour bridge even when the next main-chat
   // turn does not repeat the script title; older scenes remain topic-recalled.
-  const recent = indexed.filter(item => Date.now() - Number(item.conv?.updatedAt || 0) < 864e5).slice(0, 1);
+  const recent = indexed.filter(item => Date.now() - rpLastPlayedAt(item.conv) < 864e5).slice(0, 1);
   const detailed = [...selected, ...recent]
     .filter((item, index, all) => all.findIndex(other => other.conv === item.conv) === index)
     .slice(0, 2);
@@ -10909,14 +10921,15 @@ function buildSharedRoleplayExperienceText() {
       return value.length >= 2 && query.includes(value);
     }) || queryTerms.some(term => `${item.title || ""}\n${item.text || ""}`.toLowerCase().includes(term)));
     const memoryRows = (matched.length ? matched : memories.slice(-3)).slice(-6);
-    const archive = [String(p.memory || "").trim().slice(-700), ...memoryRows.map(item => [item.title ? `【${item.title}】` : "", item.text].filter(Boolean).join(" "))]
+    const archive = [String(p.memory || "").trim().slice(-700), ...memoryRows.map(item => [item.at ? `[${rpAgoLabel(item.at).replace(/^(\S+) \S+/, "$1")}]` : "", item.title ? `【${item.title}】` : "", item.text].filter(Boolean).join(" "))]
       .filter(Boolean).join("\n").slice(-1500);
     const recent = (conv.messages || []).filter(m => !m._event && !m._summary && !looksLikeRoleplayRichHtml(messageText(m))).slice(-2)
       .map(m => `${m.role === "user" ? p.userRole || "用户戏内角色" : m.rpSpeakerName || p.actorName || "舞台角色"}：${messageText(m).slice(0, 420)}`).join("\n");
-    return `《${title}》相关只读档案\n${archive ? `戏内记忆：\n${archive}` : ""}\n${recent ? `最近正文：\n${recent}` : ""}`.trim();
+    return `《${title}》相关只读档案（最后一次跑：${rpAgoLabel(rpLastPlayedAt(conv)) || "不详"}）\n${archive ? `戏内记忆：\n${archive}` : ""}\n${recent ? `最近正文：\n${recent}` : ""}`.trim();
   }).join("\n\n");
   return [
     "【共同演出索引·只读戏剧档案】\n你和用户确实一起演过下列剧本；索引只帮助你知道有哪些共同演出，不代表本体真实经历。",
+    `现在是 ${rpAgoLabel(Date.now()).replace(/（.*$/, "")}。上面写着每部戏最后一次跑的时间：很久没跑的戏，剧情就停在那时候，后面没有新进展；别把旧戏当成刚发生的，也别把两部戏的先后弄反。`,
     indexText,
     details ? `${selected.length ? "【本轮话题命中的剧场档案】" : "【最近24小时共同演出档案】"}\n${details}` : "本轮没有点名某场戏，不展开剧情正文；需要细节时可按剧名或角色名搜索 RP 旧文。",
     "你可以自然记得自己陪她演过这些剧情，也可以在主聊天里聊演戏感受；所有人物关系、事件与感情仍只属于相应剧本，不得据此替换本体身份、真实关系或其他剧本事实。只说自然记得的内容，不要主动提起系统、索引、注入、召回、记忆架构、后台标签或技术实现。",
@@ -12224,7 +12237,7 @@ async function relayResult(id, config, signal) {
   if (!response.ok) throw new Error("中继结果暂不可用（HTTP " + response.status + "）");
   return response.json();
 }
-async function relayCall(modelUrl, headers, body, label = "主聊天") {
+async function relayCall(modelUrl, headers, body, label = "主聊天", onChunk = null) {
   const config = relayConfig();
   if (!config || !/chat\/completions|\/messages/i.test(modelUrl)) return null;
   const id = "relay-" + uid();
@@ -12240,11 +12253,11 @@ async function relayCall(modelUrl, headers, body, label = "主聊天") {
     let text = "";
     if (response.body?.getReader) {
       const reader = response.body.getReader(), decoder = new TextDecoder();
-      while (true) { const { done, value } = await reader.read(); if (done) break; text += decoder.decode(value, { stream: true }); }
+      while (true) { const { done, value } = await reader.read(); if (done) break; const piece = decoder.decode(value, { stream: true }); text += piece; if (piece && onChunk) { try { onChunk(piece); } catch (_) {} } }
     } else text = await response.text();
     const result = await relayResult(id, config);
     if (label !== "主聊天") relayPendingWrite(null);
-    return { text: result.text || text, toolCalls: result.toolCalls || [], usage: result.usage || null };
+    return { text: result.text || text, streamed: text, toolCalls: result.toolCalls || [], usage: result.usage || null };
   } catch (error) {
     // If /start was accepted, keep the id for foreground recovery; only a rejected
     // start is safe to fall back to direct fetch without duplicating the model turn.
@@ -12714,14 +12727,19 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   // Roleplay/theatre, guest turns and group dispatches must remain direct and
   // isolated. A rejected relay start returns null and uses the existing path.
   if (!rpProject && !guestTurn && !speaker && !isGemini) {
-    const relayed = await relayCall(url, headers, body, "主聊天");
+    // 1.0.15：中继边跑边把字传回来，这里直接一段段显示；锁屏断开回来后再用 /result 补齐剩下的。
+    let shown = "", relayFirstAt = 0;
+    const relayed = await relayCall(url, headers, body, "主聊天", (piece) => { if (!relayFirstAt) { relayFirstAt = performance.now(); markToken(piece); } shown += piece; onDelta(piece); });
     if (relayed) {
       const text = String(relayed.text || "");
-      if (text) { markToken(text); onDelta(text); }
+      if (text && !shown) { markToken(text); onDelta(text); }
+      else if (text.length > shown.length && text.startsWith(shown)) onDelta(text.slice(shown.length));
       lastCallUsage = relayed.usage || null;
-      headersAt = performance.now(); firstByteAt = headersAt; if (text) firstTokenAt = headersAt;
+      headersAt = performance.now(); firstByteAt = relayFirstAt || headersAt; if (text) firstTokenAt = relayFirstAt || headersAt;
       return { totalMs: headersAt - callStartedAt, ttfbMs: 0, firstTokenMs: text ? 0 : NaN, visibleMs: headersAt - callStartedAt };
     }
+    // 已经显示了一部分又断开（多半是锁屏）：不再直连重跑一遍，回到前台由中继补齐。
+    if (shown) { headersAt = performance.now(); return { totalMs: headersAt - callStartedAt, ttfbMs: 0, firstTokenMs: 0, visibleMs: headersAt - callStartedAt }; }
   }
   // Transient errors (502/503/504 overloaded, 429 rate-limited) are common with
   // relay providers and usually clear in a few seconds. Retry a couple times with
@@ -18108,7 +18126,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.14";
+const APP_VERSION = "1.0.15";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
