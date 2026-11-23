@@ -1022,6 +1022,45 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     else if (recent.length) bindSongRows($("music-recent-list"), recent, { playRest: false });
   }
 
+  /* 1.0.20 网易云歌单：读她网易云账号里的歌单（含「我喜欢的音乐」），点进去整单播放 */
+  const ne = { playlists: null, open: null, songs: [], loading: false, error: "" };
+  async function loadNeteasePlaylists(force = false) {
+    if (ne.loading || (ne.playlists && !force)) return;
+    ne.loading = true; ne.error = ""; renderView();
+    try { const d = await api("/music/netease/playlists"); ne.playlists = d.playlists || []; ne.error = d.error || ""; }
+    catch (e) { ne.error = e?.message || "歌单读不到"; ne.playlists = ne.playlists || []; }
+    ne.loading = false; renderView();
+  }
+  async function openNeteasePlaylist(pl) {
+    ne.open = pl; ne.songs = []; ne.loading = true; ne.error = ""; renderView();
+    try { const d = await api("/music/netease/playlist?id=" + encodeURIComponent(pl.id)); ne.songs = d.songs || []; }
+    catch (e) { ne.error = e?.message || "这个歌单读不到"; }
+    ne.loading = false; renderView();
+  }
+  function renderNetease() {
+    const view = $("music-view");
+    if (!view) return;
+    if (ne.open) {
+      view.innerHTML = `<div class="music-queue-head"><button type="button" id="music-ne-back">← 歌单</button><div class="music-section-label">${esc(ne.open.name)} · ${ne.loading ? "读取中…" : ne.songs.length + " 首"}</div>${ne.songs.length ? `<button type="button" id="music-ne-playall">全部播放</button>` : ""}</div>
+        ${ne.error ? `<div class="music-error">${esc(ne.error)}</div>` : ""}
+        ${ne.songs.length ? `<div class="music-song-list" id="music-ne-list">${ne.songs.map((song, i) => songRow(song, i, { playRest: true })).join("")}</div>` : ""}`;
+      $("music-ne-back")?.addEventListener("click", () => { ne.open = null; ne.songs = []; renderView(); });
+      $("music-ne-playall")?.addEventListener("click", () => playSong(ne.songs[0], ne.songs.slice(1)));
+      if (ne.songs.length) bindSongRows($("music-ne-list"), ne.songs, { playRest: true });
+      return;
+    }
+    if (!ne.playlists && !ne.loading) { loadNeteasePlaylists(); return; }
+    const list = ne.playlists || [];
+    view.innerHTML = `<div class="music-queue-head"><div class="music-section-label">网易云歌单${list.length ? " · " + list.length + " 个" : ""}</div><button type="button" id="music-ne-refresh">${ne.loading ? "…" : "刷新"}</button></div>
+      ${ne.error ? `<div class="music-error">${esc(ne.error)}</div>` : ""}
+      ${list.length ? `<div class="music-song-list">${list.map((pl, i) => `<div class="music-song-row" data-ne-pl="${i}">
+        ${pl.cover ? `<img class="music-song-cover" src="${esc(pl.cover)}" alt="" loading="lazy">` : `<span class="music-song-cover empty">♪</span>`}
+        <div class="music-song-info"><div class="music-song-name">${pl.liked ? "♥ " : ""}${esc(pl.name)}</div><div class="music-song-artist">${pl.count} 首${pl.mine ? "" : " · 收藏的"}</div></div></div>`).join("")}</div>`
+        : (!ne.loading && !ne.error ? `<div class="music-empty"><div><strong>还没有歌单</strong>在网易云里建的歌单、收藏的歌单都会出现在这里。</div></div>` : "")}`;
+    $("music-ne-refresh")?.addEventListener("click", () => loadNeteasePlaylists(true));
+    view.querySelectorAll("[data-ne-pl]").forEach((row) => row.addEventListener("click", () => openNeteasePlaylist(list[Number(row.dataset.nePl)])));
+  }
+
   function renderLiked() {
     const view = $("music-view");
     if (!view) return;
@@ -1117,7 +1156,8 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     if (localCount) localCount.textContent = String(state.local.length);
     if (state.activeTab === "local") { renderLocal(); document.querySelectorAll("[data-music-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.musicTab === "local")); return; }
     if (!state.connected) return;
-    if (state.activeTab === "liked") renderLiked();
+    if (state.activeTab === "netease") renderNetease();
+    else if (state.activeTab === "liked") renderLiked();
     else if (state.activeTab === "queue") renderQueue();
     else renderDiscover();
     document.querySelectorAll("[data-music-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.musicTab === state.activeTab));

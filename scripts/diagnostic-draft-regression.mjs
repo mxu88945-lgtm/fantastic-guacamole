@@ -11,7 +11,7 @@ ok(html.includes('可能需要开 VPN') && html.includes('method: "GET"'), 'conn
 ok(html.includes('const COMPOSER_DRAFTS_KEY = "jyc_drafts_v1"'), 'isolated draft storage key is missing')
 ok(html.includes('saveComposerDraft();') && html.includes('restoreComposerDraft();'), 'conversation draft hooks are missing')
 ok(html.includes('clearComposerDraft();'), 'successful send does not clear draft')
-ok(html.includes('const APP_VERSION = "1.0.20"'), 'app version diagnostic is missing')
+ok(html.includes('const APP_VERSION = "1.0.21"'), 'app version diagnostic is missing')
 const diagnostic = html.slice(html.indexOf('const APP_VERSION'), html.indexOf('// Force-refresh'))
 ok(!diagnostic.includes('apiKey') && !diagnostic.includes('messageText'), 'diagnostic must not read secrets or chat text')
 ok(sw.includes('role-chat-cache-v423'), 'service worker version unexpectedly changed')
