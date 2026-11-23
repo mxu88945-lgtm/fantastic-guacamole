@@ -2689,6 +2689,12 @@
   html[data-chat-bg="1"] #messages .msg.user .bubble {
     color: color-mix(in srgb, var(--system-text-color, #fff) 92%, transparent);
   }
+  /* 1.0.17：磨砂气泡 + 聊天背景图时，自己的黑气泡必须是白字（自定义字色只管角色那边）。 */
+  html[data-theme-key="frostbubble"][data-chat-bg="1"] #messages .msg.user .bubble,
+  html[data-theme-key="frostbubble"][data-chat-bg="1"] #messages .msg.user .bubble :is(p, span, div, em, strong, a, li) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff;
+  }
   html[data-chat-bg="1"] #messages .msg.assistant .bubble blockquote {
     border-left-color: currentColor;
   }
@@ -18148,7 +18154,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.16";
+const APP_VERSION = "1.0.17";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
