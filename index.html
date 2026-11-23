@@ -1515,6 +1515,28 @@
       color-mix(in srgb, rgba(235,231,246,.40) var(--bubble-pct, 100%), transparent);
     border-radius: 18px 18px 6px 18px;
   }
+  /* 1.0.16：照 oi 的雾面灰气泡——底子实一点、字压暗，背景是大图也看得清；
+     对白不再一行一个描边胶囊，平铺成整段文字。 */
+  html[data-theme-key="frostbubble"] .msg.assistant .bubble,
+  html[data-theme-key="frostbubble"] .msg.user .bubble {
+    -webkit-backdrop-filter: blur(26px) saturate(1.05);
+    backdrop-filter: blur(26px) saturate(1.05);
+    border-color: rgba(255,255,255,.42);
+    color: #1d1b22;
+  }
+  html[data-theme-key="frostbubble"] .msg.assistant .bubble {
+    background: color-mix(in srgb, rgba(226,224,229,.84) var(--bubble-pct, 100%), rgba(226,224,229,.55));
+    border-radius: 18px;
+  }
+  html[data-theme-key="frostbubble"] .msg.user .bubble {
+    background: color-mix(in srgb, rgba(30,29,34,.86) var(--bubble-pct, 100%), rgba(30,29,34,.6));
+    color: #fff;
+    border-color: rgba(255,255,255,.12);
+  }
+  html[data-theme-key="frostbubble"] .msg.assistant .bubble span.chat-quote {
+    padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
+    color: inherit;
+  }
   html[data-theme-key="frostbubble"] .msg.flat.assistant {
     width: 100%;
   }
@@ -18126,7 +18148,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.15";
+const APP_VERSION = "1.0.16";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
