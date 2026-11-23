@@ -12489,12 +12489,6 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
       : "")
     + "具体事实不确定时先按需搜索旧聊天，不要用猜测补洞，也不要因暂时看不到一段原文就否认已经建立的关系。";
   systemText = systemText ? systemText + "\n\n" + roleContinuityNote : roleContinuityNote;
-  // 1.0.20 一起听歌：她在听歌房放歌时，他“听得见”——歌名、进度、此刻歌词
-  if (!rpProject) {
-    let nowMusic = null;
-    try { nowMusic = typeof window.jycMusicNow === "function" ? window.jycMusicNow() : null; } catch (_) { nowMusic = null; }
-    if (nowMusic) systemText += `\n\n【一起听歌·此刻】她正在听歌房里放歌，你们在一起听：《${nowMusic.name}》— ${nowMusic.artist}，放到 ${nowMusic.position}/${nowMusic.duration}。${nowMusic.lyric ? "这会儿唱到：" + nowMusic.lyric + "。" : ""}你听得见这首歌，可以自然地聊它、跟着哼、接歌词，但别每句都提。`;
-  }
   const hasReferenceAttachment = historyWindow.messages.some(message => {
     const content = sendContent(message);
     return Array.isArray(content) && content.some(part => part?.type === "file");
@@ -15738,7 +15732,7 @@ var songPickHandled = new Set();  // 每条消息最多自动切一次
 function songPickChipHtml(title, id) {
   const status = songPickStatus.get(id) || "";
   let missing = status === "missing";
-  try { if (!status && window.JYCMusic?.findPickSong && !window.JYCMusic.findPickSong(title)) missing = true; } catch (_) {}
+  try { if (!status && window.JYCMusic?.findPickSong && !window.JYCMusic.findPickSong(title) && !window.JYCMusic.getState?.().connected) missing = true; } catch (_) {}
   const hint = status === "blocked" || status === "error" ? "点一下播放" : (missing ? "导入这首" : "");
   return `<button type="button" class="song-pick-chip${hint ? " has-hint" : ""}" data-song-pick="${escapeHtml(title).replace(/"/g, "&quot;")}" data-song-pick-id="${escapeHtml(String(id || "")).replace(/"/g, "&quot;")}">`
     + `<span class="song-pick-label">🎵 他点了《${escapeHtml(title)}》</span>${hint ? `<span class="song-pick-hint">${hint}</span>` : ""}</button>`;
@@ -15767,7 +15761,7 @@ document.addEventListener("click", (event) => {
   if (!title || !music) return;
   const done = (status) => { songPickStatus.set(id, status); refreshSongPickChip(id); };
   // iOS：打开文件选择要在同一次点击里同步发生，所以先同步查歌单
-  if (!music.findPickSong(title)) { music.importForPick(title, done); return; }
+  if (!music.findPickSong(title) && !music.getState?.().connected) { music.importForPick(title, done); return; }
   music.playPicked(title, { auto: false }).then(done, () => done("error"));
 });
 // Pull [记忆:…] tokens out of an assistant reply, save them to the library, return cleaned text.
@@ -18195,7 +18189,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.21";
+const APP_VERSION = "1.0.22";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");

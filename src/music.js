@@ -660,7 +660,10 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     return [...state.local, ...state.liked, ...state.queue].filter((s) => s && !seen.has(s.songId) && seen.add(s.songId));
   }
   function songPickNote() {
-    return buildSongPickNote(pickPool().map((s) => s.name));
+    const base = buildSongPickNote(pickPool().map((s) => s.name));
+    if (!state.connected) return base;
+    const online = "她连着网易云，你也可以点歌单外的歌：在回复最末尾单独一行写 `[点歌:歌名 歌手]`，应用会去网易云搜到直接放（偶尔点，别每轮都点，正文不用解释）。";
+    return base ? base + "\n" + online : "【自己点歌】" + online;
   }
   function findPickSong(title, pool = pickPool()) {
     const tracks = pool.map((s) => ({ id: s.songId, name: s.name, artist: s.artist === "本地音乐" || s.artist === "未知歌手" ? "" : s.artist }));
@@ -672,7 +675,10 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
   }
   /** 返回 "playing" | "already" | "missing" | "blocked" | "error" */
   async function playPicked(title, opts = {}) {
-    const song = findPickSong(title);
+    let song = findPickSong(title);
+    if (!song && state.connected && String(title || "").trim()) {
+      try { const d = await api(`/music/search?q=${encodeURIComponent(title)}`); song = (d.songs || [])[0] || null; } catch (_) { song = null; }
+    }
     if (!song) return "missing";
     if (isSongPlaying(song)) return "already";
     const ok = await playSong(song, state.queue.filter((s) => s.songId !== song.songId), { quiet: !!opts.auto });
@@ -859,15 +865,6 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     close();
     showToast("已把这首歌放进聊天输入框");
   }
-
-  /* 1.0.20：主聊天每轮读这里——正在放的歌、放到哪、此刻歌词，让他“听得见” */
-  window.jycMusicNow = () => {
-    if (!state.song || audio.paused || audio.ended) return null;
-    const lines = state.lyrics || [];
-    const i = state.lyricIndex;
-    const around = i >= 0 ? lines.slice(Math.max(0, i - 1), i + 3).map((l) => l.text).filter(Boolean) : [];
-    return { name: state.song.name, artist: state.song.artist, position: fmt(audio.currentTime), duration: fmt(audio.duration), lyric: around.join(" / ") };
-  };
 
   function currentLyric() {
     if (state.lyricIndex < 0 || !state.lyrics[state.lyricIndex]) return null;
