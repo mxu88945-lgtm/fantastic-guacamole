@@ -732,7 +732,7 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
         if (state.song?.songId !== song.songId) return;
         applyLyrics(parseAnyLyrics(text || ""), song.songId);
         state.lyricTranslations = new Map();
-        state.lyricHint = state.lyrics.length ? "" : "没找到歌词，可以在「本地」里给这首点「词」，或点「换一版歌词」再找";
+        state.lyricHint = state.lyrics.length ? "" : "没找到歌词，可以点「贴歌词」自己粘贴，或点「换一版歌词」再找";
       } finally {
         state.lyricsLoading = false;
         if (state.lyricsOpen) renderLyrics();
@@ -1067,6 +1067,33 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     if (queueCount) queueCount.textContent = String(state.queue.length);
   }
 
+  /** 自己贴歌词：在线歌和本地歌都存进 lyric:<id>，之后优先用它（支持带时间轴的 LRC 或纯文本） */
+  function pasteLyrics() {
+    const song = state.song;
+    if (!song) return;
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:20px;";
+    wrap.innerHTML = `<div style="background:var(--card,#fff);color:inherit;border-radius:16px;padding:16px;width:100%;max-width:420px;box-shadow:0 10px 40px rgba(0,0,0,.2);"><div style="font-weight:600;margin-bottom:6px;">给《${esc(song.name)}》贴歌词</div><div style="font-size:12px;opacity:.7;margin-bottom:8px;">纯文字或带时间的 LRC 都行，留空保存就恢复自动找。</div><textarea style="width:100%;height:240px;box-sizing:border-box;border-radius:10px;border:1px solid rgba(0,0,0,.15);padding:10px;font-size:14px;" placeholder="把歌词粘贴到这里"></textarea><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px;"><button type="button" data-act="cancel">取消</button><button type="button" data-act="save" style="font-weight:600;">保存</button></div></div>`;
+    document.body.appendChild(wrap);
+    const ta = wrap.querySelector("textarea");
+    localGet(`lyric:${song.songId}`).then((t) => { if (t && !ta.value) ta.value = t; }).catch(() => {});
+    const close = () => wrap.remove();
+    wrap.addEventListener("click", (e) => { if (e.target === wrap) close(); });
+    wrap.querySelector('[data-act="cancel"]').addEventListener("click", close);
+    wrap.querySelector('[data-act="save"]').addEventListener("click", async () => {
+      const text = ta.value.trim();
+      if (text && !parseAnyLyrics(text).length) { showToast("没认出歌词内容"); return; }
+      if (text) await localPut(`lyric:${song.songId}`, text).catch(() => {});
+      else await localDel(`lyric:${song.songId}`);
+      lyricCands.delete(song.songId);
+      setOffset(song.songId, 0);
+      close();
+      if (state.song?.songId === song.songId) await loadLyrics(!!text);
+      showToast(text ? "歌词已保存" : "已恢复自动找歌词");
+    });
+    setTimeout(() => ta.focus(), 50);
+  }
+
   function renderLyrics() {
     const sheet = $("music-lyrics");
     if (!sheet || !state.song) return;
@@ -1204,6 +1231,7 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     $("music-lyrics-btn")?.addEventListener("click", openLyrics);
     $("music-version-btn")?.addEventListener("click", nextLyricVersion);
     $("music-lyrics-version")?.addEventListener("click", nextLyricVersion);
+    $("music-lyrics-paste")?.addEventListener("click", pasteLyrics);
     $("music-offset-minus")?.addEventListener("click", () => nudgeLyrics(-0.5));
     $("music-offset-plus")?.addEventListener("click", () => nudgeLyrics(0.5));
     $("music-share-btn")?.addEventListener("click", shareWithCompanion);

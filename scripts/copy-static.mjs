@@ -12,4 +12,10 @@ for (const mood of ["cold", "shy", "angry", "smirk", "love", "smug", "sad", "sur
   await copyFile(new URL(`../${file}`, import.meta.url), new URL(`../dist/${file}`, import.meta.url));
 }
 
+// 感知互动 modules are loaded by a runtime import() from a classic <script>, so Vite does not bundle them.
+await mkdir(new URL("../dist/src/", import.meta.url), { recursive: true });
+for (const file of ["src/sense-interaction.js", "src/sense-bridge.js", "src/math.js"]) {
+  await copyFile(new URL(`../${file}`, import.meta.url), new URL(`../dist/${file}`, import.meta.url));
+}
+
 console.log("static PWA files copied to dist");

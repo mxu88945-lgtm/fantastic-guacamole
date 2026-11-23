@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const copy = readFileSync(new URL("./copy-static.mjs", import.meta.url), "utf8");
+const music = readFileSync(new URL("../src/music.js", import.meta.url), "utf8");
+for (const f of ["src/sense-interaction.js", "src/sense-bridge.js", "src/math.js"]) assert.ok(copy.includes(f), `${f} must be copied to dist`);
+assert.ok(html.includes("DeviceMotionEvent.requestPermission()"), "motion permission asked inside the tap");
+assert.ok(html.includes("外观已保存，其它设置等这条回复结束再改"), "theater look saves during a reply");
+assert.ok(html.includes('id="music-lyrics-paste"') && music.includes("function pasteLyrics"), "paste lyrics button");
+console.log("1.0.8 small fixes regression passed");

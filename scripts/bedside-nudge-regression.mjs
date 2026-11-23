@@ -28,5 +28,5 @@ assert.equal(bedsideNudgePrompt(false), '');
 assert.match(html, /bedsideNudgePending/);
 assert.match(html, /id="bedside-nudge-btn"/);
 const sw = fs.readFileSync('sw.js', 'utf8');
-assert.match(sw, /role-chat-cache-v420/);
+assert.match(sw, /role-chat-cache-v421/);
 console.log('bedside nudge regression: ok');

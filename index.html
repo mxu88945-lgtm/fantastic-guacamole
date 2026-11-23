@@ -3379,7 +3379,7 @@
         <section class="music-lyrics" id="music-lyrics" hidden aria-label="同步歌词">
           <div class="music-lyrics-header"><button type="button" id="music-lyrics-back" aria-label="返回听歌房">←</button><div class="music-lyrics-heading"><strong id="music-lyrics-name">正在播放</strong><small id="music-lyrics-artist">—</small></div><span style="width:36px"></span></div>
           <div class="music-lyrics-main"><img class="music-lyrics-cover" id="music-lyrics-cover" alt=""><div class="music-lyrics-lines" id="music-lyrics-lines"></div></div>
-          <div class="music-lyrics-foot"><div class="music-lyric-tools" id="music-lyric-tools" hidden><button type="button" id="music-offset-minus">提前 0.5s</button><span id="music-offset-value">0.0s</span><button type="button" id="music-offset-plus">延后 0.5s</button><button type="button" class="push" id="music-lyrics-version">换一版歌词</button></div><input class="music-lyrics-seek" id="music-lyrics-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="歌词播放进度"><div class="music-lyrics-controls"><button type="button" id="music-lyrics-prev" aria-label="上一首">⏮︎</button><button type="button" class="primary" id="music-lyrics-play" aria-label="播放或暂停">▶</button><button type="button" id="music-lyrics-next" aria-label="下一首">⏭︎</button></div></div>
+          <div class="music-lyrics-foot"><div class="music-lyric-tools" id="music-lyric-tools" hidden><button type="button" id="music-offset-minus">提前 0.5s</button><span id="music-offset-value">0.0s</span><button type="button" id="music-offset-plus">延后 0.5s</button><button type="button" class="push" id="music-lyrics-version">换一版歌词</button><button type="button" id="music-lyrics-paste">贴歌词</button></div><input class="music-lyrics-seek" id="music-lyrics-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="歌词播放进度"><div class="music-lyrics-controls"><button type="button" id="music-lyrics-prev" aria-label="上一首">⏮︎</button><button type="button" class="primary" id="music-lyrics-play" aria-label="播放或暂停">▶</button><button type="button" id="music-lyrics-next" aria-label="下一首">⏭︎</button></div></div>
         </section>
       </div>
     </div>
@@ -18098,7 +18098,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.7";
+const APP_VERSION = "1.0.8";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
@@ -22223,7 +22223,7 @@ async function ensureSenseRuntime() {
   return senseRuntime;
 }
 async function toggleSenseMaster(on) { settings.senseInteraction = { ...(settings.senseInteraction || {}), enabled: !!on }; saveSettings(); if (!on) { senseRuntime?.pause(); return; } for (const kind of ["blow","shake","rotation","longPress"]) if (settings.senseInteraction[kind]) await toggleSenseKind(kind, true, true); }
-async function toggleSenseKind(kind, on, internal = false) { settings.senseInteraction = { ...(settings.senseInteraction || {}), [kind]: !!on, enabled: internal ? settings.senseInteraction?.enabled !== false : (settings.senseInteraction?.enabled || on) }; saveSettings(); if (!on) { senseRuntime?.disable(kind); return; } try { await (await ensureSenseRuntime()).set(kind, true); } catch (_) { settings.senseInteraction[kind] = false; saveSettings(); if ($("sense"+kind[0].toUpperCase()+kind.slice(1))) $("sense"+kind[0].toUpperCase()+kind.slice(1)).checked = false; } }
+async function toggleSenseKind(kind, on, internal = false) { const motionAsk = on && !internal && (kind === "shake" || kind === "rotation") && typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function" ? Promise.all([DeviceMotionEvent.requestPermission(), typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function" ? DeviceOrientationEvent.requestPermission() : "granted"]).catch(() => ["denied"]) : null; const micAsk = on && !internal && kind === "blow" && navigator.mediaDevices?.getUserMedia ? navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => { stream.getTracks().forEach(t => t.stop()); return "granted"; }).catch(() => "denied") : null; const senseHint = msg => { const el = $("sense" + kind[0].toUpperCase() + kind.slice(1) + "Hint"); if (el) el.textContent = msg; }; if (on) senseHint(""); if (motionAsk && (await motionAsk).some(r => r !== "granted")) { senseHint("动作权限没打开：彻底关掉 App 重开后再点一次，弹窗选允许"); if ($("sense"+kind[0].toUpperCase()+kind.slice(1))) $("sense"+kind[0].toUpperCase()+kind.slice(1)).checked = false; return; } if (micAsk && (await micAsk) !== "granted") { senseHint("麦克风没允许：iPhone 设置里给这个网页开麦克风后再点"); if ($("senseBlow")) $("senseBlow").checked = false; return; } settings.senseInteraction = { ...(settings.senseInteraction || {}), [kind]: !!on, enabled: internal ? settings.senseInteraction?.enabled !== false : (settings.senseInteraction?.enabled || on) }; saveSettings(); if (!on) { senseRuntime?.disable(kind); return; } try { await (await ensureSenseRuntime()).set(kind, true); } catch (_) { const hintEl = $("sense" + kind[0].toUpperCase() + kind.slice(1) + "Hint"); if (hintEl && !hintEl.textContent) hintEl.textContent = "没开起来，刷新一下再试"; settings.senseInteraction[kind] = false; saveSettings(); if ($("sense"+kind[0].toUpperCase()+kind.slice(1))) $("sense"+kind[0].toUpperCase()+kind.slice(1)).checked = false; } }
 document.addEventListener("visibilitychange", () => { if (!senseRuntime) return; if (document.hidden) senseRuntime.pause(); else if (settings.senseInteraction?.enabled) senseRuntime.resume(); });
 
 async function init() {
@@ -23631,7 +23631,16 @@ window.JYCRoleplayBridge = {
   },
   saveSceneSettings(id, patch) {
     const conv = conversations.find(item => item.id === id && item.roleId === settings.activeRoleId && isRoleplayConversation(item));
-    if (!conv || abortController || replyBooting || roleplayGroupRun) { showToast("等当前回复结束后再保存设置"); return null; }
+    if (!conv) return null;
+    if (abortController || replyBooting || roleplayGroupRun) {
+      // 外观（主题、壁纸、文字、状态栏）回复中也能存；其余设置仍等回复结束
+      const lookKeys = ["chatTextColor", "chatNarrationColor", "chatQuoteColor", "chatFontSize", "chatFontFamily", "chatFontWeight", "statusBarStyle", "rpTheme", "rpWallpaper", "rpWallpaperOpacity", "rpOverlayOpacity", "rpBaseColor"];
+      const current = normalizedRoleplayProject(conv.rpProject, conv);
+      const otherChanged = Object.keys(patch || {}).some(key => !lookKeys.includes(key) && Object.hasOwn(current, key) && JSON.stringify(patch[key]) !== JSON.stringify(current[key]));
+      patch = Object.fromEntries(Object.entries(patch || {}).filter(([key]) => lookKeys.includes(key)));
+      if (!Object.keys(patch).length) { showToast("等当前回复结束后再保存设置"); return null; }
+      if (otherChanged) showToast("外观已保存，其它设置等这条回复结束再改");
+    }
     const allowed = {};
     ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "userAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor", "chatFontSize", "chatFontFamily", "chatFontWeight", "statusBarStyle", "rpTheme", "rpWallpaper", "rpWallpaperOpacity", "rpOverlayOpacity", "rpBaseColor", "sceneSystemPromptEnabled", "sceneSystemPrompt"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
     const previousPortraits = JSON.stringify([conv.rpProject?.userAvatar || "", ...roleplayMembers(normalizedRoleplayProject(conv.rpProject, conv)).map(member => [member.id, member.avatar])]);
