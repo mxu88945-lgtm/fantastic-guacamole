@@ -309,7 +309,7 @@ ok(js.includes('rp-role-manage') && js.includes('rp-role-search') && js.includes
 ok(js.includes('rp-role-select-all') && js.includes('rp-role-delete-selected') && js.includes('已选 '), 'role library manage mode must offer select-all, a selected count and batch delete');
 ok(!js.slice(js.indexOf('rp-role-bulk'), js.indexOf('rp-role-bulk') + 400).includes('分组'), 'role library bulk toolbar must not offer grouping (the port has no card groups)');
 ok(js.includes('rp-role-row-main') && js.includes('rp-role-badge') && js.includes('rp-role-more'), 'role library rows must carry a badge and a ••• menu button');
-ok(js.includes('rp-role-flat') && !js.includes('groupRoleEntries(roles, projects)'), '1.0.27: role library is one flat list, not grouped by 剧本');
+ok(js.includes('stickyRoleGroups(roles, projects)') && js.includes('rp-role-groups-v1') && js.includes('data-rp-sheet-action="group"'), '1.0.31: role library groups are sticky (stored once) and movable by hand');
 ok(css.includes('.rp-role-group') && css.includes('.rp-role-group-head'), 'role library groups must be styled');
 const projectsSlice = js.slice(js.indexOf('rp-projects-view'), js.indexOf('rp-roles-view'));
 const rolesSlice = js.slice(js.indexOf('rp-roles-view'), js.indexOf('rp-detail-view'));
