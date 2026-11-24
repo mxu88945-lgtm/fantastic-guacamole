@@ -1,0 +1,15 @@
+/* 1.0.24：有聊天背景图时——名字、时间、小圆点一律白字（不跟正文色走），否则深色壁纸上看不见；
+   右上「…」菜单嵌在带毛玻璃的按钮组里，iOS 嵌套 backdrop-filter 不生效，变成透明底——给它不透的底。 */
+html[data-chat-bg="1"] body:not(.rp-chat-active) #messages .msg :is(.name, .msg-time, .msg-tokens, .msg-latency, .msg-actions, .msg-act) {
+  color: rgba(255,255,255,.94) !important;
+  text-shadow: 0 1px 3px rgba(0,0,0,.45) !important;
+}
+html body .header-menu {
+  background: rgba(252,250,247,.97) !important;
+  border-color: rgba(0,0,0,.06) !important;
+  box-shadow: 0 14px 36px rgba(0,0,0,.22) !important;
+}
+html body .header-menu button { color: #2c2a2e !important; }
+html body .header-menu button.danger { color: var(--danger, #d84a4a) !important; }
+html[data-theme="dark"] body .header-menu { background: rgba(36,36,40,.97) !important; border-color: rgba(255,255,255,.08) !important; }
+html[data-theme="dark"] body .header-menu button { color: #ececf0 !important; }
