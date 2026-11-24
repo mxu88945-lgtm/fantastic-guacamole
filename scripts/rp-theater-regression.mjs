@@ -57,7 +57,7 @@ ok(navigation.opened === 'recent', 'entering from the owner home must resume the
 navigation.bridge.list = () => [];
 navigation.opened = null;
 navigation.openStoryChat();
-ok(navigation.opened === null && navigation.section === 'projects', 'without a story the entrance must show projects instead of opening the owner chat');
+ok(navigation.opened === null && navigation.section === 'roles', 'without a story the entrance must show roles instead of opening the owner chat');
 ok(js.includes('id="rp-role-list"') && js.includes("detailCast(project).map"), "RP role library does not include the cast from every script");
 ok(css.includes("body.rp-chat-active #model-config-btn { display: none; }"), "RP composer still shows the redundant model pill");
 ok(css.includes("#rp-field-opening") && css.includes(".rp-greeting-card.selected"), "mobile-friendly opening editor is missing");

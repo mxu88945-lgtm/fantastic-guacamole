@@ -309,7 +309,7 @@ function plainPreviewWithMedia(value) {
 
           <section id="rp-library-view">
             <input id="rp-import-file" type="file" accept=".json,.txt,.md,.markdown,.png,.zip,application/json,text/*,image/png,application/zip,application/x-zip-compressed" hidden />
-            <nav class="rp-lib-tabs" role="tablist" aria-label="剧场分栏"><button type="button" role="tab" data-rp-space="roles" id="rp-tab-roles">角色<small id="rp-tab-role-count"></small></button><button type="button" role="tab" data-rp-space="projects" id="rp-tab-projects">对话<small id="rp-tab-project-count"></small></button><button type="button" class="rp-lib-tab-main" data-rp-space="main">继续上次 ›</button></nav>
+            <nav class="rp-lib-tabs" role="tablist" aria-label="剧场分栏"><button type="button" role="tab" data-rp-space="roles" id="rp-tab-roles">角色<small id="rp-tab-role-count"></small></button><button type="button" role="tab" data-rp-space="projects" id="rp-tab-projects" hidden>对话<small id="rp-tab-project-count"></small></button><button type="button" class="rp-lib-tab-main" data-rp-space="main">继续上次 ›</button></nav>
             <section class="rp-library-hub" id="rp-library-hub" hidden>
               <div class="rp-space-menu">
                 <button type="button" data-rp-space="main"><span class="rp-space-icon">💬</span><span><strong>主聊天</strong><small id="rp-main-chat-copy">继续剧情对话</small></span><i>›</i></button>
@@ -536,7 +536,8 @@ function plainPreviewWithMedia(value) {
   }
 
   function setLibrarySection(section = "hub") {
-    const next = section === "projects" ? "projects" : "roles";
+    // 对话列表在剧情里的侧栏管，剧场首页只放角色卡。
+    const next = "roles";
     state.librarySection = next;
     $("rp-library-hub").hidden = next !== "hub";
     $("rp-projects-view").hidden = next !== "projects";
@@ -1296,7 +1297,7 @@ function plainPreviewWithMedia(value) {
     const target = projects.find(project => project.id === current?.id)
       || [...projects].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
     if (target) { enter(target.id); return; }
-    setLibrarySection("projects");
+    setLibrarySection("roles");
     bridge.toast("先新建或导入一个剧本，就能开始剧情对话");
   }
 
