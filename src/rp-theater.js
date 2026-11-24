@@ -18,7 +18,7 @@ if (!bridge) {
     "scene-pudding": ["#5b4330", "#9d8165", "#7c5842"],
   };
   const sceneBases = { "liquid-pearl": "#f4f8fb", "liquid-mist": "#edf3f8", "scene-paper": "#f6f8f8", "scene-scrapbook": "#fefdf8", "scene-academy": "#fcfcf9", "scene-mobile": "#fafafc", "scene-letter": "#f7f7f5", "scene-mistnote": "#f3f6f7", "scene-nightglow": "#f9f8f5", "scene-vinyl": "#ffffff", "scene-pudding": "#fefcf3" };
-  const state = { editingId: "", detailId: "", detailMemberId: "lead", librarySection: "hub", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {}, roleManage: false, roleQuery: "", roleSelected: [], importReturnSection: "" };
+  const state = { editingId: "", detailId: "", detailMemberId: "lead", librarySection: "hub", files: [], greetings: [""], selectedGreeting: 0, repairTargetId: "", tags: [], worldEntries: [], worldMemberId: "", regexRules: [], actorAvatar: "", avatarRevision: 0, avatarPending: false, leadChannel: {}, roleManage: false, roleQuery: "", roleSelected: [], importReturnSection: "" };
   // 角色库折叠的组键（视图偏好，关掉剧场即清掉）
   const collapsedRoleGroups = new Set();
   let roleSheetEntry = null;
@@ -435,6 +435,20 @@ function plainPreviewWithMedia(value) {
     return Array.isArray(project?.projectFiles) ? project.projectFiles.map((file) => ({ ...file })) : [];
   }
 
+  function normalizeWorldEntries(list) {
+    return Array.isArray(list) ? list.map((e) => ({ id: safeText(e.id || "", 80), title: safeText(e.title || "条目", 80), keys: Array.isArray(e.keys) ? e.keys : [], secondaryKeys: Array.isArray(e.secondaryKeys) ? e.secondaryKeys : [], content: safeText(e.content || "", 50000), enabled: e.enabled !== false, constant: Boolean(e.constant), selective: Boolean(e.selective), useRegex: e.useRegex !== false, position: safeText(e.position || "before_char", 30), insertionOrder: Number(e.insertionOrder ?? 100) || 100, depth: Number(e.depth ?? 4) || 4, probability: Number(e.probability ?? 100) || 100, expanded: false })) : [];
+  }
+
+  // 共演成员的世界书：用和主角一样的编辑页，但只写回这位成员自己的 worldEntries。
+  function saveMemberWorld() {
+    const id = state.editingId, memberId = state.worldMemberId;
+    const full = id && memberId ? bridge.get(id) : null;
+    if (!full) return false;
+    const entries = state.worldEntries.map(({ expanded, ...e }) => e);
+    const members = (full.rpProject?.members || []).map((item) => (item.id || item.name) === memberId ? { ...item, worldEntries: entries } : item);
+    return Boolean(bridge.update(id, { members }));
+  }
+
   function currentDraft() {
     commitGreetingDraft();
     // 角色世界书：启用的条目拼成 world
@@ -475,6 +489,7 @@ function plainPreviewWithMedia(value) {
   }
 
   function autosaveExistingDraft() {
+    if (state.worldMemberId) { saveMemberWorld(); return; }
     if (!state.editingId || state.avatarPending) return;
     const draft = currentDraft();
     if (!draft.title || !draft.actorName || (!draft.characterPrompt && !draft.projectFiles.length)) return;
@@ -510,7 +525,7 @@ function plainPreviewWithMedia(value) {
     $("rp-field-temporary").value = safeText(data.temporaryPlot);
     $("rp-field-status-style").value = ["liquid", "paper", "minimal"].includes(data.statusBarStyle) ? data.statusBarStyle : "liquid";
     state.tags = Array.isArray(data.tags) ? data.tags.map((t) => safeText(t, 40)).filter(Boolean).slice(0, 24) : [];
-    state.worldEntries = Array.isArray(data.worldEntries) ? data.worldEntries.map((e) => ({ id: safeText(e.id || "", 80), title: safeText(e.title || "条目", 80), keys: Array.isArray(e.keys) ? e.keys : [], secondaryKeys: Array.isArray(e.secondaryKeys) ? e.secondaryKeys : [], content: safeText(e.content || "", 50000), enabled: e.enabled !== false, constant: Boolean(e.constant), selective: Boolean(e.selective), useRegex: e.useRegex !== false, position: safeText(e.position || "before_char", 30), insertionOrder: Number(e.insertionOrder ?? 100) || 100, depth: Number(e.depth ?? 4) || 4, probability: Number(e.probability ?? 100) || 100, expanded: false })) : [];
+    state.worldEntries = normalizeWorldEntries(data.worldEntries);
     state.regexRules = Array.isArray(data.regexRules) ? data.regexRules.map((r) => ({ ...r, id: safeText(r.id || "", 80), name: safeText(r.name || "规则", 120), findRegex: safeText(r.findRegex || "", 20000), replaceString: safeText(r.replaceString || "", 50000), disabled: Boolean(r.disabled), expanded: false })) : [];
     $("rp-field-description").dataset.full = safeText(data.description || "", 20000);
     renderCardBlocks();
@@ -642,7 +657,7 @@ function plainPreviewWithMedia(value) {
     $("rp-detail-greeting-count").textContent = `${greetings.filter(Boolean).length} 个开场 · ${owner ? "由 " + bridge.role().roleName + " 出演" : "独立角色"}`;
     // 共演成员只看自己的世界书；剧本主角的世界书不再冒充成员的。
     const wb = Array.isArray(selected.worldEntries) ? selected.worldEntries : [];
-    $("rp-detail-world-count").textContent = isLead ? `${wb.length} 条 · 可编辑、启停和调整插入位置` : (wb.length ? `${selected.name}自己的 ${wb.length} 条 · 点开查看` : `${selected.name}没有自带世界书`);
+    $("rp-detail-world-count").textContent = isLead ? `${wb.length} 条 · 可编辑、启停和调整插入位置` : `${selected.name}自己的 ${wb.length} 条 · 可编辑、启停`;
     const memberWorld = $("rp-detail-member-world");
     memberWorld.hidden = true;
     memberWorld.innerHTML = wb.map((entry) => `<div class="rp-detail-opening"><small>${escapeHtml(entry.title || "条目")}${entry.enabled === false ? " · 已关闭" : ""}${Array.isArray(entry.keys) && entry.keys.length ? " · " + escapeHtml(entry.keys.slice(0, 6).join("、")) : ""}</small><p>${escapeHtml(String(entry.content || "").slice(0, 600)).replace(/\n/g, "<br>")}</p></div>`).join("") || `<div class="rp-empty"><p>${escapeHtml(selected.name)}没有自带世界书。重新从角色卡文件导入这位成员，会把卡里的世界书一起带进来。</p></div>`;
@@ -668,7 +683,7 @@ function plainPreviewWithMedia(value) {
     $("rp-detail-edit").onclick = isLead ? () => showEditor(project, "main") : openMemberSettings;
     $("rp-detail-back").onclick = () => showLibrary(state.librarySection === "projects" ? "projects" : "roles");
     $("rp-detail-goto-main").onclick = isLead ? () => showEditor(project, "main") : openMemberSettings;
-    $("rp-detail-goto-world").onclick = isLead ? () => showEditor(project, "world") : () => { memberWorld.hidden = !memberWorld.hidden; };
+    $("rp-detail-goto-world").onclick = isLead ? () => showEditor(project, "world") : () => showEditor(bridge.get(project.id) || project, "world", selected.id);
     $("rp-detail-goto-regex").onclick = isLead ? () => showEditor(project, "regex") : openMemberSettings;
     $("rp-detail-goto-theater").onclick = () => showEditor(project, "theater");
     $("rp-detail-continue").onclick = () => { enter(project.id); };
@@ -676,16 +691,19 @@ function plainPreviewWithMedia(value) {
     state.detailId = project.id;
   }
   const SECTION_TITLES = { main: "角色卡主体与开场白", world: "角色世界书", regex: "角色正则与美化", theater: "剧本世界观" };
-  function showEditor(project, section = "") {
+  function showEditor(project, section = "", memberId = "") {
     if (!project) { state.tags = []; state.worldEntries = []; state.regexRules = []; }
+    state.worldMemberId = "";
     fillEditor(project || null);
+    const member = project && section === "world" && memberId && memberId !== "lead" ? (project.rpProject?.members || []).find((item) => (item.id || item.name) === memberId) : null;
+    if (member) { state.worldMemberId = memberId; state.worldEntries = normalizeWorldEntries(member.worldEntries); renderCardBlocks(); }
     const sec = project && SECTION_TITLES[section] ? section : "";
     const view = $("rp-editor-view");
     if (sec) view.dataset.section = sec; else delete view.dataset.section;
     if (sec) $("rp-editor-title").textContent = SECTION_TITLES[sec];
     if (sec) {
       $("rp-theater-head-title").textContent = SECTION_TITLES[sec];
-      $("rp-theater-subtitle").textContent = "自动保存 · 仅属于当前角色卡";
+      $("rp-theater-subtitle").textContent = member ? `自动保存 · 只属于${member.name || "这位成员"}` : "自动保存 · 仅属于当前角色卡";
       $("rp-theater-head-actions").hidden = true;
     } else {
       resetTheaterHeader();
@@ -701,6 +719,7 @@ function plainPreviewWithMedia(value) {
   }
   function leaveEditor() {
     const id = state.editingId;
+    if (state.worldMemberId) { state.worldMemberId = ""; if (id && bridge.get(id)) { showDetail(id); return; } }
     const returnSection = state.importReturnSection || "";
     state.importReturnSection = "";
     if (id && state.detailId === id && bridge.get(id)) showDetail(id); else showLibrary(returnSection || "hub");
@@ -1377,6 +1396,7 @@ function plainPreviewWithMedia(value) {
   }
 
   function save(shouldEnter) {
+    if (state.worldMemberId) { if (saveMemberWorld()) bridge.toast("世界书已保存"); else bridge.toast("保存失败，请重试"); leaveEditor(); return; }
     if (state.avatarPending) { bridge.toast("头像正在处理，稍等一下再保存"); return; }
     const draft = currentDraft();
     if (!validateDraft(draft)) return;
