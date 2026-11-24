@@ -38,7 +38,7 @@ ok(js.includes("importCharacterCard") && js.includes("character_book"), "charact
 ok(js.includes("alternate_greetings") && js.includes("rp-greeting-list"), "alternate greeting import or picker is missing");
 ok(js.includes("rp-preview-greeting") && js.includes("greetingPreviewDocument"), "opening preview is missing");
 ok(js.includes("bridge.startWithGreeting") && js.includes("选择开场白"), "new scenes must start through the opening picker");
-ok(js.includes("剧本册") && js.includes("咱俩演过的戏") && js.includes("data-rp-start"), "theater drawer must expose a script book, archive label and one-tap opening");
+ok(js.includes("rp-lib-tabs") && js.includes("咱俩演过的戏") && js.includes("data-rp-start"), "theater drawer must expose a script book, archive label and one-tap opening");
 ok(js.includes("savedProjects") && js.includes("bridge.savedCards?.()"), "script book must include saved script templates, not only live scenes");
 ok(js.includes("rp-field-status-style") && js.includes("statusBarStyle"), "each script must persist its status bar style");
 ok(html.includes('statusBarStyle: ["liquid", "paper", "minimal"]') && html.includes('rp-status-${escapeHtml(project?.statusBarStyle || "liquid")}'), "status bar style must be normalized and isolated per RP project");
@@ -309,8 +309,7 @@ ok(js.includes('rp-role-manage') && js.includes('rp-role-search') && js.includes
 ok(js.includes('rp-role-select-all') && js.includes('rp-role-delete-selected') && js.includes('已选 '), 'role library manage mode must offer select-all, a selected count and batch delete');
 ok(!js.slice(js.indexOf('rp-role-bulk'), js.indexOf('rp-role-bulk') + 400).includes('分组'), 'role library bulk toolbar must not offer grouping (the port has no card groups)');
 ok(js.includes('rp-role-row-main') && js.includes('rp-role-badge') && js.includes('rp-role-more'), 'role library rows must carry a badge and a ••• menu button');
-ok(js.includes('groupRoleEntries(roles, projects)') && js.includes('rp-role-group-head') && js.includes('（原剧本）'), 'role library must group cards by their source剧本, with orphaned cards under their original剧本');
-ok(js.includes('collapsedRoleGroups') && js.includes('rp-role-group-toggle'), 'role library groups must be collapsible');
+ok(js.includes('rp-role-flat') && !js.includes('groupRoleEntries(roles, projects)'), '1.0.27: role library is one flat list, not grouped by 剧本');
 ok(css.includes('.rp-role-group') && css.includes('.rp-role-group-head'), 'role library groups must be styled');
 const projectsSlice = js.slice(js.indexOf('rp-projects-view'), js.indexOf('rp-roles-view'));
 const rolesSlice = js.slice(js.indexOf('rp-roles-view'), js.indexOf('rp-detail-view'));

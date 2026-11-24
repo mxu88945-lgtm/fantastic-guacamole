@@ -92,7 +92,7 @@ const uniqueRoles = theater.roleLibraryEntries(projects, saved);
 assert.equal(uniqueRoles.length, 2, "opening several scenes must not multiply the two role cards");
 assert.equal(uniqueRoles[0].project.id, "new-2", "the visible card must retain a live detail destination");
 assert.equal(JSON.stringify(projects), beforeScenes, "view deduplication must never remove scene cast");
-assert.equal(theater.roleLibraryEntries([...projects, { id: "variant", cast: [{ ...cast[1], prompt: "独立修改后的人设" }] }], saved).length, 3, "distinct card versions must remain visible");
+assert.equal(theater.roleLibraryEntries([...projects, { id: "variant", cast: [{ ...cast[1], prompt: "独立修改后的人设" }] }], saved).length, 2, "1.0.27: same-name versions collapse into one card (惟境-style flat library)");
 assert.equal(theater.roleLibraryEntries([], saved).length, 1, "a removed-scene role must remain recoverable from its archive");
 
 const familyCard = { actorName: "周竞尧", characterPrompt: "原始主角人设", greetings: ["开场一", "开场二"] };

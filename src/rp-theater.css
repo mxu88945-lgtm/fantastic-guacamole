@@ -626,3 +626,10 @@ body.rp-chat-active #messages :is(.rp-story-text, .roleplay-opening-text) > :not
 
 .rp-detail-member-world { margin: -4px 0 8px; padding: 2px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-panel); max-height: 50vh; overflow-y: auto; }
 .rp-detail-member-world p { margin: 4px 0 0; font-size: 13px; line-height: 1.55; white-space: normal; word-break: break-word; }
+
+.rp-lib-tabs { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 6px; margin: 0 0 14px; padding: 5px; border-radius: 16px; background: color-mix(in srgb, var(--bg-panel) 92%, transparent); border: 1px solid var(--border); }
+.rp-lib-tabs button { flex: 1; min-height: 38px; border: 0; border-radius: 12px; background: transparent; color: var(--text-dim); font-size: 15px; font-weight: 600; cursor: pointer; }
+.rp-lib-tabs button small { margin-left: 4px; font-size: 11px; font-weight: 500; opacity: .75; }
+.rp-lib-tabs button[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--bg-panel)); color: var(--text); }
+.rp-lib-tabs .rp-lib-tab-main { flex: 0 0 auto; padding: 0 10px; font-size: 12px; font-weight: 500; }
+.rp-role-flat { display: grid; gap: 10px; }

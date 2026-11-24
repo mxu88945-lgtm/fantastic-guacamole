@@ -309,8 +309,8 @@ function plainPreviewWithMedia(value) {
 
           <section id="rp-library-view">
             <input id="rp-import-file" type="file" accept=".json,.txt,.md,.markdown,.png,.zip,application/json,text/*,image/png,application/zip,application/x-zip-compressed" hidden />
-            <section class="rp-library-hub" id="rp-library-hub">
-              <div class="rp-section-title"><div><strong>选择要进入的空间</strong><small>聊天、剧本和角色资料分开放</small></div></div>
+            <nav class="rp-lib-tabs" role="tablist" aria-label="剧场分栏"><button type="button" role="tab" data-rp-space="roles" id="rp-tab-roles">角色<small id="rp-tab-role-count"></small></button><button type="button" role="tab" data-rp-space="projects" id="rp-tab-projects">对话<small id="rp-tab-project-count"></small></button><button type="button" class="rp-lib-tab-main" data-rp-space="main">继续上次 ›</button></nav>
+            <section class="rp-library-hub" id="rp-library-hub" hidden>
               <div class="rp-space-menu">
                 <button type="button" data-rp-space="main"><span class="rp-space-icon">💬</span><span><strong>主聊天</strong><small id="rp-main-chat-copy">继续剧情对话</small></span><i>›</i></button>
                 <button type="button" data-rp-space="projects"><span class="rp-space-icon">🎬</span><span><strong>剧本项目</strong><small id="rp-hub-project-count">0 部戏</small></span><i>›</i></button>
@@ -318,13 +318,13 @@ function plainPreviewWithMedia(value) {
               </div>
             </section>
             <section id="rp-projects-view" hidden>
-              <div class="rp-section-title"><div><strong>剧本册</strong><small id="rp-project-count">0 个剧本 · 人设、开场白和状态栏样式都保存在这里</small></div><div class="rp-section-actions"><button type="button" data-rp-space="hub">返回分类</button></div></div>
+              <div class="rp-section-title"><div><strong>对话</strong><small id="rp-project-count">0 个剧本</small></div></div>
               <div class="rp-project-grid" id="rp-project-list"></div>
               <div class="rp-empty" id="rp-project-empty" hidden><span>◇</span><strong>还没有剧本</strong><p>新建一部剧本，角色会自动出现在角色库里。</p><button type="button" id="rp-empty-create">创建第一个剧本</button></div>
             </section>
             <section id="rp-roles-view" hidden>
-              <div class="rp-section-title"><div><strong id="rp-role-title">角色库</strong><small id="rp-role-count">0 张角色卡</small></div><div class="rp-section-actions"><button type="button" id="rp-role-manage">管理</button><button type="button" id="rp-import-project">导入角色卡</button><button type="button" id="rp-roles-back">返回分类</button></div></div>
-              <p class="rp-library-note">按剧本分组存放：主角、共演角色和导演卡都在各自剧本的组里，剧本删了剩下的卡会归到原剧本的组里，久了也不会分不清谁是谁的 npc。点开即可查看对应的人设、世界书、正则与开场白。</p>
+              <div class="rp-section-title"><div><strong id="rp-role-title">角色库</strong><small id="rp-role-count">0 张角色卡</small></div><div class="rp-section-actions"><button type="button" id="rp-role-manage">管理</button><button type="button" id="rp-import-project">导入角色卡</button><button type="button" id="rp-roles-back" hidden>返回</button></div></div>
+              <p class="rp-library-note">一人一张卡，各自带人设、世界书、正则和开场白。同名角色只留一张（优先带世界书、最新的那张）。群戏在对话里从这里挑人。</p>
               <div class="rp-role-search"><span>⌕</span><input id="rp-role-query" type="text" placeholder="搜索名字、标签或简介" autocomplete="off" /><button type="button" id="rp-role-query-clear" hidden>×</button></div>
               <div class="rp-role-bulk" id="rp-role-bulk" hidden><button type="button" id="rp-role-select-all">全选</button><span id="rp-role-selected">已选 0</span><button type="button" class="danger" id="rp-role-delete-selected">删除所选</button></div>
               <div class="rp-role-list" id="rp-role-list"></div>
@@ -536,12 +536,14 @@ function plainPreviewWithMedia(value) {
   }
 
   function setLibrarySection(section = "hub") {
-    const next = ["hub", "projects", "roles"].includes(section) ? section : "hub";
+    const next = section === "projects" ? "projects" : "roles";
     state.librarySection = next;
     $("rp-library-hub").hidden = next !== "hub";
     $("rp-projects-view").hidden = next !== "projects";
     $("rp-roles-view").hidden = next !== "roles";
     $("rp-theater-panel").dataset.librarySection = next;
+    $("rp-tab-roles").setAttribute("aria-selected", String(next === "roles"));
+    $("rp-tab-projects").setAttribute("aria-selected", String(next === "projects"));
     $("rp-theater-panel").querySelector(".rp-theater-body").scrollTop = 0;
   }
 
@@ -550,7 +552,7 @@ function plainPreviewWithMedia(value) {
     $("rp-theater-subtitle").textContent = "本体在线，陪你入戏";
     $("rp-theater-head-actions").hidden = false;
   }
-  function showLibrary(section = "hub") {
+  function showLibrary(section = state.librarySection || "roles") {
     resetTheaterHeader();
     $("rp-library-view").hidden = false;
     $("rp-editor-view").hidden = true;
@@ -663,7 +665,7 @@ function plainPreviewWithMedia(value) {
     const openMemberSettings = () => window.JYCRoleplayGroup?.openMember?.(selected.id);
     $("rp-detail-edit").textContent = isLead ? "编辑" : "编辑成员";
     $("rp-detail-edit").onclick = isLead ? () => showEditor(project, "main") : openMemberSettings;
-    $("rp-detail-back").onclick = () => showLibrary(state.librarySection === "roles" ? "roles" : state.librarySection === "projects" ? "projects" : "hub");
+    $("rp-detail-back").onclick = () => showLibrary(state.librarySection === "projects" ? "projects" : "roles");
     $("rp-detail-goto-main").onclick = isLead ? () => showEditor(project, "main") : openMemberSettings;
     $("rp-detail-goto-world").onclick = isLead ? () => showEditor(project, "world") : () => { memberWorld.hidden = !memberWorld.hidden; };
     $("rp-detail-goto-regex").onclick = isLead ? () => showEditor(project, "regex") : openMemberSettings;
@@ -878,7 +880,6 @@ function plainPreviewWithMedia(value) {
     const key = member => JSON.stringify([
       member.kind === "director" ? "director" : "actor",
       String(member.name || "").trim().toLowerCase(),
-      String(member.prompt || "").replace(/\r\n?/g, "\n").trim(),
     ]);
     const worldCount = entry => (entry.member.worldEntries || []).length;
     const add = entry => {
@@ -930,7 +931,6 @@ function plainPreviewWithMedia(value) {
     return JSON.stringify([
       member.kind === "director" ? "director" : "actor",
       String(member.name || "").trim().toLowerCase(),
-      String(member.prompt || "").replace(/\r\n?/g, "\n").trim(),
     ]);
   }
 
@@ -1029,7 +1029,7 @@ function plainPreviewWithMedia(value) {
     const { project, member, savedCardId } = entry;
     const name = member.name || "未命名角色";
     // 库里同一身份（类型+名字+人设）的留存副本全部清掉，不然删一张冒一张。
-    const purgeCopies = () => bridge.removeCardsByIdentity?.(member.kind, member.name, member.prompt);
+    const purgeCopies = () => bridge.removeCardsByIdentity?.(member.kind, member.name, null);
     if (savedCardId) {
       if (!silent && !confirm(`删除已留存的角色卡「${name}」？只删库里的这张卡，不会影响任何剧本和对话。`)) return false;
       const removed = bridge.removeCard?.(savedCardId);
@@ -1163,6 +1163,7 @@ function plainPreviewWithMedia(value) {
     $("rp-identity-copy").textContent = `开启“由 ${info.roleName || "TA"} 出演”时保留本体身份；关闭后只演角色自己。主角默认开启，其他成员和导演默认关闭，每张卡单独保存。`;
     $("rp-project-count").textContent = `${groups.length} 个剧本`;
     $("rp-hub-project-count").textContent = `${groups.length} 部戏`;
+    $("rp-tab-project-count").textContent = String(groups.length);
     $("rp-project-empty").hidden = projects.length > 0;
     const list = $("rp-project-list");
     list.innerHTML = groups.map((group) => {
@@ -1210,6 +1211,7 @@ function plainPreviewWithMedia(value) {
     const roles = !roleQuery ? allRoles : allRoles.filter(({ member }) =>
       [member.name || "", ...(member.tags || []), member.description || member.prompt || ""].join("\n").toLowerCase().includes(roleQuery));
     $("rp-hub-role-count").textContent = `${allRoles.length} 张角色卡`;
+    $("rp-tab-role-count").textContent = String(allRoles.length);
     $("rp-role-title").textContent = state.roleManage ? "选择角色" : "角色库";
     $("rp-role-count").textContent = state.roleManage ? `已选择 ${state.roleSelected.length} 个角色` : `${allRoles.length} 张角色卡`;
     $("rp-role-manage").textContent = state.roleManage ? "完成" : "管理";
@@ -1225,7 +1227,6 @@ function plainPreviewWithMedia(value) {
     $("rp-role-manage").onclick = () => { state.roleManage = !state.roleManage; state.roleSelected = []; render(); };
     $("rp-roles-back").onclick = () => {
       if (state.roleManage) { state.roleManage = false; state.roleSelected = []; render(); return; }
-      setLibrarySection("hub");
     };
     $("rp-role-query").oninput = (event) => { state.roleQuery = event.target.value; render(); };
     $("rp-role-query-clear").onclick = () => { state.roleQuery = ""; $("rp-role-query").value = ""; render(); };
@@ -1235,7 +1236,7 @@ function plainPreviewWithMedia(value) {
       render();
     };
     $("rp-role-delete-selected").onclick = () => deleteSelectedRoles(allRoles);
-    const roleGroups = groupRoleEntries(roles, projects);
+    const roleGroups = [{ key: "all", title: "", entries: roles }];
     const roleList = $("rp-role-list");
     roleList.innerHTML = roleGroups.map((group, groupIndex) => {
       const collapsed = collapsedRoleGroups.has(group.key);
@@ -1243,13 +1244,14 @@ function plainPreviewWithMedia(value) {
         const { member, savedCardId } = entry;
         const key = roleEntryKey(entry);
         const avatar = /^(https?:\/\/|data:image\/)/.test(member.avatar || "") ? member.avatar : "";
-        const badge = savedCardId ? "已留存角色卡" : member.id === "lead" ? "剧本主角" : member.kind === "director" ? "共演导演" : "共演角色";
+        const wbCount = (member.worldEntries || []).length;
+        const badge = member.kind === "director" ? "导演" : wbCount ? `世界书 ${wbCount}` : "角色";
         const desc = plainPreview(member.description || member.prompt || "") || "暂无角色简介";
         const quote = roleEntryGreetings(entry).find((text) => text.trim());
         const selected = state.roleManage && state.roleSelected.includes(key);
         return `<div class="rp-role-row${selected ? " selected" : ""}"><button type="button" class="rp-role-row-main" data-rp-role-group="${groupIndex}" data-rp-role-row="${index}"><span class="rp-role-avatar">${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml([...(member.name || "角")][0])}</span><span class="rp-role-copy"><span class="rp-role-title"><strong>${escapeHtml(member.name || "未命名角色")}</strong><span class="rp-role-badge">${escapeHtml(badge)}</span></span><em>${escapeHtml(desc)}</em>${quote ? `<small>“${escapeHtml(plainPreview(quote))}”</small>` : ""}</span></button>${state.roleManage ? `<button type="button" class="rp-role-select${selected ? " selected" : ""}" aria-label="${selected ? "取消选择" : "选择"}${escapeHtml(member.name || "角色")}" data-rp-role-group="${groupIndex}" data-rp-role-select="${index}">${selected ? "✓" : ""}</button>` : `<button type="button" class="rp-role-more" aria-label="管理${escapeHtml(member.name || "角色")}" data-rp-role-group="${groupIndex}" data-rp-role-more="${index}">•••</button>`}</div>`;
       }).join("");
-      return `<section class="rp-role-group"><button type="button" class="rp-role-group-head" data-rp-role-group-head="${groupIndex}"><span class="rp-role-group-toggle">${collapsed ? "▸" : "▾"}</span><strong>${escapeHtml(group.title)}</strong><span>${group.entries.length} 张</span></button>${rows}</section>`;
+      return `<section class="rp-role-group rp-role-flat">${rows}</section>`;
     }).join("");
     const roleEntryAt = (button) => roleGroups[Number(button.dataset.rpRoleGroup)]?.entries[Number(button.dataset.rpRoleRow ?? button.dataset.rpRoleSelect ?? button.dataset.rpRoleMore)];
     roleList.querySelectorAll("[data-rp-role-group-head]").forEach((button) => button.addEventListener("click", () => {
