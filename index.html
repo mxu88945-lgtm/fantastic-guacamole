@@ -10471,6 +10471,7 @@ function normalizedRoleplayProject(value, conv) {
       avatar: /^(https?:\/\/|data:image\/)/.test(item.avatar || "") ? String(item.avatar).slice(0, 2000000) : "",
       providerId: String(item.providerId || "").slice(0, 120), model: String(item.model || "").slice(0, 200), enabled: item.enabled !== false,
       privateMemory: String(item.privateMemory || "").replace(/\u0000/g, "").slice(0, 16000),
+      worldEntries: Array.isArray(item.worldEntries) ? cloneChatData(item.worldEntries.filter(entry => entry && typeof entry === "object").slice(0, 300)) : [],
     })) : [],
     memories: Array.isArray(raw.memories) ? raw.memories.filter(item => item && String(item.text || "").trim()).slice(-memorySettings.maxEntries).map(item => ({
       id: String(item.id || uid()), title: String(item.title || "").trim().slice(0, 120), text: String(item.text || "").trim().slice(0, 1600),
@@ -10523,6 +10524,11 @@ function activeRoleplayWorldText(project, conv = currentConv()) {
       && roleplayEntryKeywordMatch(entry, source))
     .sort((a, b) => (Number(a.insertionOrder) || 100) - (Number(b.insertionOrder) || 100))
     .map(entry => String(entry.content).trim()).join("\n\n").slice(0, 30000);
+}
+// 共演成员自带的世界书（导入成员卡时的 character_book），只发给这位成员自己。
+function roleplayMemberWorldText(speaker, project, conv = currentConv()) {
+  if (!speaker || speaker.id === "lead" || !Array.isArray(speaker.worldEntries) || !speaker.worldEntries.length) return "";
+  return activeRoleplayWorldText({ worldEntries: speaker.worldEntries, scenario: project?.scenario || "" }, conv);
 }
 function roleplayWorldFragments(project, predicate = () => true) {
   const values = (Array.isArray(project?.worldEntries) ? project.worldEntries : [])
@@ -10765,6 +10771,7 @@ function roleplaySpeakerPrompt(speaker, project) {
     speaker.kind === "director" ? "你是本场导演：负责场景、节奏、NPC 和必要的承接；不要接管已加入的角色，也不要替用户决定行动、感情或台词。导演建议不等于已发生事实。"
       : `本轮舞台身份是「${speaker.name}」。主角「${project.actorName}」的人物资料只定义主角；本条以当前成员的人设和视角演出，不替其他成员或用户发言。`,
     speaker.prompt ? `【${speaker.name}的共演资料】\n${speaker.prompt}` : "",
+    speaker.id !== "lead" && roleplayMemberWorldText(speaker, project) ? `【${speaker.name}自己的世界书】\n${roleplayMemberWorldText(speaker, project)}` : "",
     speaker.beautificationProtocol ? `【${speaker.name}的状态栏与显示美化协议｜必须遵守】\n${speaker.beautificationProtocol}` : "",
     roleplayPrivateMemoryText(speaker),
     "共享本剧本的世界观、场景、正文与连续性档案。各角色只使用自己在戏内知道的信息；后台共享不等于人物全知。只输出这一成员的正文，不重演整轮对话。",
@@ -10821,6 +10828,7 @@ function buildIndependentRoleplayPrompt(project, speaker, conv = currentConv()) 
     "用户的戏内身份仅以本剧本资料为准。不替用户说话、行动、作决定、下心理结论或预设同意。共享资料不代表戏内人物全知。",
     roleplayUserIdentityBlock(project),
     speaker.prompt ? `【本角色专属设定】\n${speaker.prompt}` : "",
+    roleplayMemberWorldText(speaker, project, conv) ? `【${speaker.name}自己的世界书】\n${roleplayMemberWorldText(speaker, project, conv)}` : "",
     theaterWorld ? `【本剧本共同世界观】\n${theaterWorld}` : "",
     world ? `【当前启用的世界书与长期背景】\n${world}` : "",
     project.scenario ? `【当前场景锚点】\n${project.scenario}` : "",
@@ -18191,7 +18199,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.24";
+const APP_VERSION = "1.0.25";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
@@ -23154,7 +23162,7 @@ function roleplayCardTemplate(project, member = null) {
   const raw = member ? {
     title: member.name, actorName: member.name, actorAvatar: member.avatar,
     characterPrompt: member.prompt, beautificationProtocol: member.beautificationProtocol,
-    greetings: [member.greeting || ""], regexRules: member.regexRules,
+    greetings: [member.greeting || ""], regexRules: member.regexRules, worldEntries: member.worldEntries || [],
     leadChannel: { playedByOwner: member.playedByOwner === true },
   } : { ...project };
   return normalizedRoleplayProject({ ...raw, members: [], groupEnabled: false,
@@ -23703,13 +23711,13 @@ window.JYCRoleplayBridge = {
       const project = normalizedRoleplayProject(conv.rpProject, conv);
       const source = conv.title || project.title || "已有剧本";
       push({ name: project.actorName, prompt: project.characterPrompt, avatar: project.actorAvatar, greeting: project.opening,
-        beautificationProtocol: project.beautificationProtocol || "", regexRules: project.regexRules, kind: "actor" }, source);
+        beautificationProtocol: project.beautificationProtocol || "", regexRules: project.regexRules, worldEntries: project.worldEntries || [], kind: "actor" }, source);
       (project.members || []).forEach(member => push({ ...member }, source));
     });
     savedRoleplayCards().forEach(card => {
       const p = card.rpProject;
       push({ name: p.actorName, prompt: p.characterPrompt, avatar: p.actorAvatar, greeting: p.opening,
-        beautificationProtocol: p.beautificationProtocol, regexRules: p.regexRules, kind: card.kind }, "已留存角色卡");
+        beautificationProtocol: p.beautificationProtocol, regexRules: p.regexRules, worldEntries: p.worldEntries || [], kind: card.kind }, "已留存角色卡");
     });
     return items;
   },

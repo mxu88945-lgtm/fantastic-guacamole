@@ -30,6 +30,24 @@ if (bridge) {
       disabled: Boolean(rule.disabled), promptOnly: Boolean(rule.promptOnly || rule.prompt_only),
     })).filter(rule => rule.findRegex);
   }
+  // 成员卡自带的 character_book：存成这位成员自己的世界书，不混进主角的。
+  function cardWorldEntries(card) {
+    const book = card?.character_book || {};
+    const raw = Array.isArray(book.entries) ? book.entries : Object.values(book.entries || {});
+    return raw.filter(entry => entry && String(entry.content || "").trim()).slice(0, 300).map((entry, idx) => {
+      const ext = entry.extensions && typeof entry.extensions === "object" ? entry.extensions : {};
+      const keys = list => (Array.isArray(list) ? list : []).map(key => String(key || "").slice(0, 60)).filter(Boolean);
+      return {
+        id: String(entry.id ?? `wb-${idx}`).slice(0, 80),
+        title: String(entry.comment || String(entry.content).split("\n")[0].replace(/^[#\s]+/, "").slice(0, 40) || `条目 ${idx + 1}`).slice(0, 80),
+        keys: keys(entry.keys), secondaryKeys: keys(entry.secondary_keys),
+        content: String(entry.content).slice(0, 50000), enabled: entry.enabled !== false,
+        constant: Boolean(entry.constant), selective: Boolean(entry.selective), useRegex: entry.use_regex !== false,
+        position: String(entry.position || "before_char").slice(0, 30), insertionOrder: Number(entry.insertion_order ?? 100) || 100,
+        depth: Number(ext.depth ?? 4) || 4, probability: Number(ext.probability ?? 100) || 100, expanded: false,
+      };
+    });
+  }
   function collect() {
     if (!draft) return;
     draft.groupEnabled = panel.querySelector("#rp-group-enabled").checked;
@@ -366,7 +384,7 @@ if (bridge) {
     const names = new Set([draft.actorName, ...draft.members.map(member => member.name)]);
     let name = baseName, suffix = 2;
     while (names.has(name)) name = `${baseName} ${suffix++}`;
-    draft.members.push({ id: memberId(), name, kind, playedByOwner: false, prompt: card.prompt || (kind === "director" ? "负责环境、转场与未加入群聊的 NPC，承接现有剧情，不替用户或其他共演角色发言。" : ""), privateMemory: card.privateMemory || "", greeting: card.greeting || "", beautificationProtocol: card.beautificationProtocol || "", regexRules: Array.isArray(card.regexRules) ? card.regexRules : [], avatar: /^(https?:\/\/|data:image\/)/.test(card.avatar || "") ? card.avatar : "", enabled: true, providerId: "", model: "", newMember: true });
+    draft.members.push({ id: memberId(), name, kind, playedByOwner: false, prompt: card.prompt || (kind === "director" ? "负责环境、转场与未加入群聊的 NPC，承接现有剧情，不替用户或其他共演角色发言。" : ""), privateMemory: card.privateMemory || "", greeting: card.greeting || "", beautificationProtocol: card.beautificationProtocol || "", regexRules: Array.isArray(card.regexRules) ? card.regexRules : [], worldEntries: Array.isArray(card.worldEntries) ? structuredClone(card.worldEntries) : [], avatar: /^(https?:\/\/|data:image\/)/.test(card.avatar || "") ? card.avatar : "", enabled: true, providerId: "", model: "", newMember: true });
     draft.groupEnabled = true; panel.querySelector("#rp-group-enabled").checked = true;
     bridge.rememberCast?.(sceneId, draft);
     markDirty(); renderMembers();
@@ -492,7 +510,7 @@ if (bridge) {
           const beautificationProtocol = card.extensions?.beautification_protocol || card.beautificationProtocol || "";
           const prompt = [card.description, card.personality, card.scenario, card.mes_example, card.post_history_instructions, beautificationProtocol].filter(value => typeof value === "string").join("\n\n");
           if (!card.name || !prompt) throw new Error("文件中没有人物名字或角色资料");
-          addMember("actor", { name: String(card.name), prompt, avatar: card.avatar, greeting: card.first_mes || card.greeting || "", beautificationProtocol, regexRules: cardRegexRules(card) });
+          addMember("actor", { name: String(card.name), prompt, avatar: card.avatar, greeting: card.first_mes || card.greeting || "", beautificationProtocol, regexRules: cardRegexRules(card), worldEntries: cardWorldEntries(card) });
         } else addMember("actor", { name: file.name.replace(/\.[^.]+$/, ""), prompt: text });
       } catch (error) { bridge.toast(error.message || "角色卡读取失败"); }
       event.target.value = "";

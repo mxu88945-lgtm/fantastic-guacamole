@@ -623,3 +623,6 @@ body.rp-chat-active #messages :is(.rp-story-text, .roleplay-opening-text) > :not
   background-image: none !important;
   box-shadow: none !important;
 }
+
+.rp-detail-member-world { margin: -4px 0 8px; padding: 2px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-panel); max-height: 50vh; overflow-y: auto; }
+.rp-detail-member-world p { margin: 4px 0 0; font-size: 13px; line-height: 1.55; white-space: normal; word-break: break-word; }

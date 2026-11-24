@@ -349,6 +349,7 @@ function plainPreviewWithMedia(value) {
             </div>
             <button type="button" class="rp-detail-link" id="rp-detail-goto-main"><div><strong>角色卡主体与开场白</strong><small id="rp-detail-greeting-count">—</small></div><i>›</i></button>
             <button type="button" class="rp-detail-link" id="rp-detail-goto-world"><div><strong>角色世界书</strong><small id="rp-detail-world-count">—</small></div><i>›</i></button>
+            <div class="rp-detail-member-world" id="rp-detail-member-world" hidden></div>
             <button type="button" class="rp-detail-link" id="rp-detail-goto-regex"><div><strong>角色正则与美化</strong><small id="rp-detail-regex-count">—</small></div><i>›</i></button>
             <button type="button" class="rp-detail-link" id="rp-detail-goto-theater"><div><strong>剧本世界观</strong><small id="rp-detail-theater-count">—</small></div><i>›</i></button>
             <div class="rp-detail-card3"><div class="rp-card-block-head"><div><strong>开场白</strong></div></div><div id="rp-detail-openings"></div></div>
@@ -598,7 +599,7 @@ function plainPreviewWithMedia(value) {
       tags: [member.kind === "director" ? "共演导演" : "共演角色"],
       greetings: member.greeting ? [safeText(member.greeting, 300000)] : [],
       regexRules: Array.isArray(member.regexRules) ? member.regexRules : [],
-      worldEntries: [],
+      worldEntries: Array.isArray(member.worldEntries) ? member.worldEntries : [],
     }))];
   }
 
@@ -636,8 +637,12 @@ function plainPreviewWithMedia(value) {
     const greetings = selected.greetings || [];
     const owner = isLead ? rp.leadChannel?.playedByOwner !== false : selected.playedByOwner === true;
     $("rp-detail-greeting-count").textContent = `${greetings.filter(Boolean).length} 个开场 · ${owner ? "由 " + bridge.role().roleName + " 出演" : "独立角色"}`;
-    const wb = isLead ? selected.worldEntries : (Array.isArray(data.worldEntries) ? data.worldEntries : []);
-    $("rp-detail-world-count").textContent = isLead ? `${wb.length} 条 · 可编辑、启停和调整插入位置` : `共用本剧本 ${wb.length} 条世界书`;
+    // 共演成员只看自己的世界书；剧本主角的世界书不再冒充成员的。
+    const wb = Array.isArray(selected.worldEntries) ? selected.worldEntries : [];
+    $("rp-detail-world-count").textContent = isLead ? `${wb.length} 条 · 可编辑、启停和调整插入位置` : (wb.length ? `${selected.name}自己的 ${wb.length} 条 · 点开查看` : `${selected.name}没有自带世界书`);
+    const memberWorld = $("rp-detail-member-world");
+    memberWorld.hidden = true;
+    memberWorld.innerHTML = wb.map((entry) => `<div class="rp-detail-opening"><small>${escapeHtml(entry.title || "条目")}${entry.enabled === false ? " · 已关闭" : ""}${Array.isArray(entry.keys) && entry.keys.length ? " · " + escapeHtml(entry.keys.slice(0, 6).join("、")) : ""}</small><p>${escapeHtml(String(entry.content || "").slice(0, 600)).replace(/\n/g, "<br>")}</p></div>`).join("") || `<div class="rp-empty"><p>${escapeHtml(selected.name)}没有自带世界书。重新从角色卡文件导入这位成员，会把卡里的世界书一起带进来。</p></div>`;
     const rx = selected.regexRules || [];
     const rxOn = rx.filter((r) => !r.disabled).length;
     $("rp-detail-regex-count").textContent = `${rx.length} 条 · ${rxOn} 条启用`;
@@ -660,7 +665,7 @@ function plainPreviewWithMedia(value) {
     $("rp-detail-edit").onclick = isLead ? () => showEditor(project, "main") : openMemberSettings;
     $("rp-detail-back").onclick = () => showLibrary(state.librarySection === "roles" ? "roles" : state.librarySection === "projects" ? "projects" : "hub");
     $("rp-detail-goto-main").onclick = isLead ? () => showEditor(project, "main") : openMemberSettings;
-    $("rp-detail-goto-world").onclick = () => showEditor(project, "world");
+    $("rp-detail-goto-world").onclick = isLead ? () => showEditor(project, "world") : () => { memberWorld.hidden = !memberWorld.hidden; };
     $("rp-detail-goto-regex").onclick = isLead ? () => showEditor(project, "regex") : openMemberSettings;
     $("rp-detail-goto-theater").onclick = () => showEditor(project, "theater");
     $("rp-detail-continue").onclick = () => { enter(project.id); };
@@ -875,16 +880,22 @@ function plainPreviewWithMedia(value) {
       String(member.name || "").trim().toLowerCase(),
       String(member.prompt || "").replace(/\r\n?/g, "\n").trim(),
     ]);
+    const worldCount = entry => (entry.member.worldEntries || []).length;
     const add = entry => {
       const identity = key(entry.member);
-      if (seen.has(identity)) return;
+      if (seen.has(identity)) {
+        // 同名同设定的卡：留着带世界书的那张，别让剧本里没带世界书的成员副本把它盖掉。
+        const idx = roles.findIndex(item => key(item.member) === identity);
+        if (idx >= 0 && worldCount(entry) > worldCount(roles[idx])) roles[idx] = entry;
+        return;
+      }
       seen.add(identity); roles.push(entry);
     };
     projects.flatMap((project) => detailCast(project).map((member) => ({ project, member }))).forEach(add);
     for (const card of savedCards) {
       const p = card.rpProject;
       add({ project: { id: "", title: card.sourceTitle || "原剧本" },
-        member: { id: card.memberId, name: p.actorName, prompt: p.characterPrompt, avatar: p.actorAvatar, kind: card.kind }, savedCardId: card.id });
+        member: { id: card.memberId, name: p.actorName, prompt: p.characterPrompt, avatar: p.actorAvatar, kind: card.kind, worldEntries: p.worldEntries || [] }, savedCardId: card.id });
     }
     return roles;
   }
