@@ -633,3 +633,17 @@ body.rp-chat-active #messages :is(.rp-story-text, .roleplay-opening-text) > :not
 .rp-lib-tabs button[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--bg-panel)); color: var(--text); }
 .rp-lib-tabs .rp-lib-tab-main { flex: 0 0 auto; padding: 0 10px; font-size: 12px; font-weight: 500; }
 .rp-role-flat { display: grid; gap: 10px; }
+
+.rp-lib-tabs { background: var(--bg-panel); box-shadow: 0 6px 18px rgba(0,0,0,.05); }
+.rp-project-grid:has(.rp-chat-row) { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.rp-chat-row { display: grid; grid-template-columns: minmax(0,1fr) 40px; align-items: center; padding: 8px 8px 8px 12px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg-panel); }
+.rp-chat-row-main { display: flex; align-items: center; gap: 12px; min-width: 0; border: 0; background: transparent; color: var(--text); text-align: left; padding: 2px 0; cursor: pointer; }
+.rp-chat-avatar { flex: 0 0 46px; width: 46px; height: 46px; border-radius: 14px; overflow: hidden; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 14%, var(--bg-panel)); font-weight: 700; }
+.rp-chat-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.rp-chat-copy { min-width: 0; display: grid; gap: 3px; }
+.rp-chat-copy strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-chat-copy small { color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-chat-more { width: 36px; height: 36px; border: 0; border-radius: 12px; background: transparent; color: var(--text-dim); font-size: 14px; cursor: pointer; }
+.rp-chat-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 2px; }
+.rp-chat-actions button { min-height: 32px; padding: 0 12px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, var(--bg-panel)); color: var(--text); font-size: 13px; cursor: pointer; }
+.rp-chat-actions button.danger { color: #d0454c; background: rgba(208,69,76,.08); }

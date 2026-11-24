@@ -320,7 +320,7 @@ function plainPreviewWithMedia(value) {
             <section id="rp-projects-view" hidden>
               <div class="rp-section-title"><div><strong>对话</strong><small id="rp-project-count">0 个剧本</small></div></div>
               <div class="rp-project-grid" id="rp-project-list"></div>
-              <div class="rp-empty" id="rp-project-empty" hidden><span>◇</span><strong>还没有剧本</strong><p>新建一部剧本，角色会自动出现在角色库里。</p><button type="button" id="rp-empty-create">创建第一个剧本</button></div>
+              <div class="rp-empty" id="rp-project-empty" hidden><span>◇</span><strong>还没有对话</strong><p>去角色栏点一张卡开演，对话就会出现在这里。</p><button type="button" id="rp-empty-create">新建剧本</button></div>
             </section>
             <section id="rp-roles-view" hidden>
               <div class="rp-section-title"><div><strong id="rp-role-title">角色库</strong><small id="rp-role-count">0 张角色卡</small></div><div class="rp-section-actions"><button type="button" id="rp-role-manage">管理</button><button type="button" id="rp-import-project">导入角色卡</button><button type="button" id="rp-roles-back" hidden>返回</button></div></div>
@@ -1161,46 +1161,39 @@ function plainPreviewWithMedia(value) {
     $("rp-theater-subtitle").textContent = `${info.roleName || "TA"} 本体在线 · 陪你入戏`;
     $("rp-main-chat-copy").textContent = "继续当前或最近的剧情对话";
     $("rp-identity-copy").textContent = `开启“由 ${info.roleName || "TA"} 出演”时保留本体身份；关闭后只演角色自己。主角默认开启，其他成员和导演默认关闭，每张卡单独保存。`;
-    $("rp-project-count").textContent = `${groups.length} 个剧本`;
     $("rp-hub-project-count").textContent = `${groups.length} 部戏`;
-    $("rp-tab-project-count").textContent = String(groups.length);
-    $("rp-project-empty").hidden = projects.length > 0;
+    // 惟境式对话栏：只列真正的对话（不含角色卡模板），一段一行，点了直接进；••• 里放其他操作。
+    const sessions = liveProjects.filter((item) => !item.cardPreview).sort((x, y) => (y.updatedAt || 0) - (x.updatedAt || 0));
+    $("rp-project-count").textContent = `${sessions.length} 段对话 · 点一下继续演`;
+    $("rp-tab-project-count").textContent = String(sessions.length);
+    $("rp-project-empty").hidden = sessions.length > 0;
     const list = $("rp-project-list");
-    list.innerHTML = groups.map((group) => {
-      const project = group.sessions[0];
-      const actor = project.rpProject?.actorName || "未命名角色";
-      const statusStyle = project.rpProject?.statusBarStyle || "liquid";
-      const userRole = project.rpProject?.userRole ? `你演 ${project.rpProject.userRole}` : "你的戏内身份待定";
-      const casting = project.rpProject?.leadChannel?.playedByOwner === false ? "独立角色" : `${info.roleName || "TA"} 演`;
-      return `<article class="rp-project-card" data-rp-project="${escapeHtml(project.id)}">
-        <span class="rp-project-mark">${project.rpProject?.actorAvatar ? `<img src="${escapeHtml(project.rpProject.actorAvatar)}" alt="">` : escapeHtml([...actor][0] || "剧")}</span>
-        <button type="button" class="rp-project-copy" data-rp-detail="${escapeHtml(project.id)}"><small>RP PROJECT · ${escapeHtml(formatTime(project.updatedAt))}</small><strong>${escapeHtml(group.title)}</strong><p>${escapeHtml(casting)} ${escapeHtml(actor)} · ${escapeHtml(userRole)}</p><em>${project.cardPreview ? "剧本模板 · " : `${project.messageCount || 0} 条正文 · ${project.memoryCount || 0} 条剧情记忆 · `}${group.sessions.filter(session => !session.cardPreview).length} 段对话 · 状态栏：${escapeHtml({ liquid: "液态卡片", paper: "纸笺清单", minimal: "极简横线" }[statusStyle] || "液态卡片")}</em></button>
-        <button type="button" class="rp-continue" data-rp-start="${escapeHtml(project.id)}">一键开演</button>
-        <div class="rp-project-menu"><button type="button" data-rp-edit="${escapeHtml(project.id)}">角色卡与开场白</button><button type="button" data-rp-duplicate="${escapeHtml(project.id)}">选择开场并新建对话</button><button type="button" data-rp-copy-scene="${escapeHtml(project.id)}">复制当前场景并继续线路</button></div>
-        <details class="rp-project-sessions"><summary>咱俩演过的戏（${Math.max(0, group.sessions.filter(session => !session.cardPreview).length)} 段，可重温）</summary>${group.sessions.map(session => `<div class="rp-session-row"><button type="button" data-rp-open="${escapeHtml(session.id)}">开场 ${(session.rpProject?.openingIndex || 0) + 1} · ${escapeHtml(formatTime(session.updatedAt))}<small>${session.messageCount || 0} 条正文 · ${session.memoryCount || 0} 条剧情记忆</small></button>${session.cardPreview ? "" : `<button type="button" class="danger" data-rp-delete="${escapeHtml(session.id)}">删除</button>`}</div>`).join("")}</details>
-      </article>`;
+    list.innerHTML = sessions.map((session) => {
+      const rp = session.rpProject || {};
+      const actor = rp.actorName || "未命名角色";
+      const cast = rp.groupEnabled && Array.isArray(rp.members) && rp.members.length ? `${actor} 等 ${rp.members.length + 1} 人` : actor;
+      const avatar = /^(https?:\/\/|data:image\/)/.test(rp.actorAvatar || "") ? rp.actorAvatar : "";
+      return `<div class="rp-chat-row" data-rp-row="${escapeHtml(session.id)}">
+        <button type="button" class="rp-chat-row-main" data-rp-open="${escapeHtml(session.id)}"><span class="rp-chat-avatar">${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml([...actor][0] || "剧")}</span><span class="rp-chat-copy"><strong>${escapeHtml(session.title || "未命名剧本")}</strong><small>${escapeHtml(cast)} · ${session.messageCount || 0} 条 · ${escapeHtml(formatTime(session.updatedAt))}</small></span></button>
+        <button type="button" class="rp-chat-more" aria-label="更多操作" data-rp-more="${escapeHtml(session.id)}">•••</button>
+        <div class="rp-chat-actions" hidden><button type="button" data-rp-detail="${escapeHtml(session.id)}">角色资料</button><button type="button" data-rp-duplicate="${escapeHtml(session.id)}">换个开场重开</button><button type="button" data-rp-copy-scene="${escapeHtml(session.id)}">复制这段继续</button><button type="button" class="danger" data-rp-delete="${escapeHtml(session.id)}">删除</button></div>
+      </div>`;
     }).join("");
+    list.querySelectorAll("[data-rp-more]").forEach((button) => button.addEventListener("click", () => {
+      const actions = button.parentElement.querySelector(".rp-chat-actions");
+      list.querySelectorAll(".rp-chat-actions").forEach((el) => { if (el !== actions) el.hidden = true; });
+      actions.hidden = !actions.hidden;
+    }));
     list.querySelectorAll("[data-rp-open]").forEach((button) => button.addEventListener("click", () => enter(button.dataset.rpOpen)));
-    list.querySelectorAll("[data-rp-start]").forEach((button) => button.addEventListener("click", () => {
-      const project = bridge.get(button.dataset.rpStart);
-      if (!project) return;
-      const started = bridge.startWithGreeting(project.id, Number(project.rpProject?.openingIndex || 0), true);
-      if (started) enter(started.id);
-    }));
     list.querySelectorAll("[data-rp-detail]").forEach((button) => button.addEventListener("click", () => showDetail(button.dataset.rpDetail)));
-    list.querySelectorAll("[data-rp-edit]").forEach((button) => button.addEventListener("click", () => showEditor(bridge.get(button.dataset.rpEdit))));
     list.querySelectorAll("[data-rp-copy-scene]").forEach((button) => button.addEventListener("click", () => {
-      const id = button.dataset.rpCopyScene;
-      const copied = bridge.duplicate?.(id);
-      if (copied) bridge.toast("已复制当前场景，并恢复跟随当前剧情线路");
-      else bridge.toast("复制场景失败，请重试");
+      const copied = bridge.duplicate?.(button.dataset.rpCopyScene);
+      bridge.toast(copied ? "已复制这段对话，可以接着演" : "复制失败，请重试");
     }));
-    list.querySelectorAll("[data-rp-duplicate]").forEach((button) => button.addEventListener("click", () => {
-      chooseOpening(button.dataset.rpDuplicate, true);
-    }));
+    list.querySelectorAll("[data-rp-duplicate]").forEach((button) => button.addEventListener("click", () => chooseOpening(button.dataset.rpDuplicate, true)));
     list.querySelectorAll("[data-rp-delete]").forEach((button) => button.addEventListener("click", () => {
       const project = bridge.get(button.dataset.rpDelete);
-      if (!project || !confirm(`删除这段对话「${project.title || "未命名剧本"}」？\n这会删除这段对话的正文和戏内记忆，其他历史对话不受影响。`)) return;
+      if (!project || !confirm(`删除这段对话「${project.title || "未命名剧本"}」？\n正文和戏内记忆会删掉，角色卡还在角色栏里。`)) return;
       bridge.remove(project.id);
       render();
     }));

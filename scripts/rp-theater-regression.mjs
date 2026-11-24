@@ -38,7 +38,7 @@ ok(js.includes("importCharacterCard") && js.includes("character_book"), "charact
 ok(js.includes("alternate_greetings") && js.includes("rp-greeting-list"), "alternate greeting import or picker is missing");
 ok(js.includes("rp-preview-greeting") && js.includes("greetingPreviewDocument"), "opening preview is missing");
 ok(js.includes("bridge.startWithGreeting") && js.includes("选择开场白"), "new scenes must start through the opening picker");
-ok(js.includes("rp-lib-tabs") && js.includes("咱俩演过的戏") && js.includes("data-rp-start"), "theater drawer must expose a script book, archive label and one-tap opening");
+ok(js.includes("rp-lib-tabs") && js.includes("rp-chat-row") && js.includes("data-rp-open"), "theater drawer must expose a script book, archive label and one-tap opening");
 ok(js.includes("savedProjects") && js.includes("bridge.savedCards?.()"), "script book must include saved script templates, not only live scenes");
 ok(js.includes("rp-field-status-style") && js.includes("statusBarStyle"), "each script must persist its status bar style");
 ok(html.includes('statusBarStyle: ["liquid", "paper", "minimal"]') && html.includes('rp-status-${escapeHtml(project?.statusBarStyle || "liquid")}'), "status bar style must be normalized and isolated per RP project");
@@ -373,5 +373,5 @@ ok(html.includes('const recovered = speaker ? normalizeRoleplayStatusForCard(tex
 ok(html.includes('function roleplaySceneFromCurrent(source)'), 'current-scene copy helper is missing');
 ok(html.includes('conv.messages = cloneChatData(source.messages || [])'), 'copied scenes must retain the current conversation line');
 ok(html.includes('return roleplaySceneFromCurrent(source);'), 'scene duplication must follow the current storyline');
-ok(js.includes('data-rp-copy-scene') && js.includes('复制当前场景并继续线路'), 'theater must expose current-scene copy action');
+ok(js.includes('data-rp-copy-scene') && js.includes('复制这段继续'), 'theater must expose current-scene copy action');
 console.log(`RP theater regression checks passed (${checks})`);
