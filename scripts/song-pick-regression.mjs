@@ -104,7 +104,7 @@ assert.ok(css.includes(".song-pick-chip"));
 assert.ok(html.includes('id="music-annotations"') && html.includes("songAnnotations"), "song annotations are stored and displayed");
 assert.ok(music.includes("JYCSongAnnotationBridge") && music.includes("music-annotation-form"), "music player annotation UI is wired");
 assert.ok(css.includes(".music-annotations") && css.includes(".music-annotation-form"), "annotation styles are present");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v426";'), "service worker cache bumped");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v427";'), "service worker cache bumped");
 
 // ---- v361 换一版歌词 + 本地管理多选 ----
 const cands = rankLyrics([

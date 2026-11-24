@@ -1028,9 +1028,13 @@ function plainPreviewWithMedia(value) {
   function deleteRoleEntry(entry, silent = false) {
     const { project, member, savedCardId } = entry;
     const name = member.name || "未命名角色";
+    // 库里同一身份（类型+名字+人设）的留存副本全部清掉，不然删一张冒一张。
+    const purgeCopies = () => bridge.removeCardsByIdentity?.(member.kind, member.name, member.prompt);
     if (savedCardId) {
       if (!silent && !confirm(`删除已留存的角色卡「${name}」？只删库里的这张卡，不会影响任何剧本和对话。`)) return false;
-      if (bridge.removeCard?.(savedCardId)) { if (!silent) bridge.toast("已删除这张角色卡"); return true; }
+      const removed = bridge.removeCard?.(savedCardId);
+      const copies = purgeCopies() || 0;
+      if (removed || copies) { if (!silent) bridge.toast("已删除这张角色卡"); return true; }
       return false;
     }
     if (member.id === "lead") {
@@ -1043,6 +1047,7 @@ function plainPreviewWithMedia(value) {
       bridge.savedCards?.().forEach((card) => {
         if (sessionIds.has(card.sourceId) && card.memberId === "lead") bridge.removeCard?.(card.id);
       });
+      purgeCopies();
       if (!silent) bridge.toast(`已删除「${name}」及这部剧本`);
       return true;
     }
@@ -1054,6 +1059,7 @@ function plainPreviewWithMedia(value) {
     bridge.savedCards?.().forEach((card) => {
       if (card.sourceId === project.id && card.memberId === member.id) bridge.removeCard?.(card.id);
     });
+    purgeCopies();
     if (!silent) bridge.toast(`已把「${name}」移出共演`);
     return true;
   }
