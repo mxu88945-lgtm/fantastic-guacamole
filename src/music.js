@@ -1319,10 +1319,13 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
   }
 
   /** v343：一起听歌——每轮注入系统提示，让 TA 知道正在放什么、唱到哪句、歌单里有什么 */
-  function promptNote() {
+  function promptNote(opts = {}) {
     const song = state.song;
     if (!song || !state.playing) return "";
-    const parts = [`【一起听歌】她正在放《${song.name}》${song.artist && song.artist !== "本地音乐" && song.artist !== "未知歌手" ? `— ${song.artist}` : ""}，放到 ${fmt(state.currentTime)}${state.duration ? ` / ${fmt(state.duration)}` : ""}。你们像是在一起听。`];
+    const artistPart = song.artist && song.artist !== "本地音乐" && song.artist !== "未知歌手" ? `— ${song.artist}` : "";
+    // 1.0.36 剧场里这首歌是这一幕的背景配乐：只烘托氛围，不让角色跳出戏去聊「一起听歌」
+    if (opts.theater) return `【背景配乐】这一幕正响着《${song.name}》${artistPart}。它只是剧情的背景音乐，用来烘托氛围；剧中人物不一定听得到，不要跳出剧情去聊放歌这件事，除非剧情里本来就在放音乐。`;
+    const parts = [`【一起听歌】她正在放《${song.name}》${artistPart}，放到 ${fmt(state.currentTime)}${state.duration ? ` / ${fmt(state.duration)}` : ""}。你们像是在一起听。`];
     const lines = state.lyrics || [];
     if (lines.length && lines[0].time >= 0) {
       const i = state.lyricIndex;
@@ -1419,7 +1422,7 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
   restoreLibrary();
   restoreLocalList();
   restorePlayerState();
-  window.JYCMusic = { open, close, summary, promptNote, togglePlay, playNext, songPickNote, findPickSong, playPicked, importForPick, isSongPlaying, nextLyricVersion, getState: () => ({ ...state, lyrics: undefined, lyricTranslations: undefined }) };
+  window.JYCMusic = { open, close, summary, promptNote, playlistNames: () => pickPool().map((s) => s.name), togglePlay, playNext, songPickNote, findPickSong, playPicked, importForPick, isSongPlaying, nextLyricVersion, getState: () => ({ ...state, lyrics: undefined, lyricTranslations: undefined }) };
   bind();
   renderMiniPlayer();
 })();

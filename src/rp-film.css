@@ -1,0 +1,124 @@
+/* 1.0.36 剧场美化卡（从惟境 v198–v283 搬来）：颜色跟随顾祁砚的 --accent */
+.film-card {
+  /* v301 跟随主题：纸底/线/点缀都从 --theme-accent 系列调浅调出，换主题自动变色 */
+  --film-accent: var(--accent, #9b3a32);
+  --film-accent-text: color-mix(in srgb, var(--accent, #9b3a32) 70%, #3a2a24);
+  --film-paper: color-mix(in srgb, var(--film-accent) 5%, #fff);
+  --film-paper-2: color-mix(in srgb, var(--film-accent) 11%, #fff);
+  --film-line: color-mix(in srgb, var(--film-accent) 22%, #fff);
+  --film-red: var(--film-accent-text);
+  --film-brown: color-mix(in srgb, var(--film-accent-text) 82%, #333);
+  --film-muted: color-mix(in srgb, var(--film-accent-text) 55%, #aaa);
+  --film-ink: color-mix(in srgb, var(--film-accent-text) 45%, #2a2a2a);
+  --film-soft: color-mix(in srgb, var(--film-accent) 9%, #fff);
+  --film-soft-line: color-mix(in srgb, var(--film-accent) 28%, #fff);
+  --film-shade: color-mix(in srgb, var(--film-accent-text) 14%, transparent);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 420px;
+  margin: 10px 0 2px;
+  padding: 12px 12px 14px;
+  border: 1px solid var(--film-line);
+  border-radius: 18px;
+  color: var(--film-ink);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+  background: var(--film-paper);
+  box-shadow: 0 2px 10px var(--film-shade);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.film-card *, .film-card *::before, .film-card *::after { box-sizing: border-box; }
+.film-card p { margin: 0; }
+.film-card small { display: block; font-size: 9.5px; line-height: 1.3; letter-spacing: .16em; color: var(--film-muted); text-transform: uppercase; }
+
+/* 唱片机条 */
+.film-gramo { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 9px; border-radius: 14px; background: var(--film-paper-2); }
+.film-gramo-disc { flex: none; width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle, var(--film-red) 0 4px, var(--film-paper-2) 4.5px 6.5px, color-mix(in srgb, var(--film-accent-text) 70%, #222) 7px 9px, color-mix(in srgb, var(--film-accent-text) 85%, #444) 9.5px 11px, color-mix(in srgb, var(--film-accent-text) 70%, #222) 11.5px 13px, color-mix(in srgb, var(--film-accent-text) 85%, #444) 13.5px 100%); box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); animation: film-spin 4.8s linear infinite; animation-play-state: paused; }
+.film-gramo-disc.spinning { animation-play-state: running; }
+@keyframes film-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .film-gramo-disc { animation: none; } }
+.film-gramo-text { min-width: 0; flex: 1; }
+.film-gramo-text strong { display: block; overflow: hidden; color: var(--film-ink); font-size: 13.5px; font-weight: 600; line-height: 1.35; white-space: nowrap; text-overflow: ellipsis; }
+.film-gramo-text em { display: block; overflow: hidden; color: var(--film-muted); font-size: 11px; font-style: normal; line-height: 1.3; white-space: nowrap; text-overflow: ellipsis; }
+.film-gramo-actions { flex: none; display: flex; gap: 6px; }
+.film-gramo-actions button { display: grid; place-items: center; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 50%; color: var(--film-red); background: var(--film-paper); box-shadow: 0 1px 4px var(--film-shade); touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.film-gramo-actions button:first-child { color: #fff; background: var(--film-red); }
+.film-gramo-actions svg { width: 15px; height: 15px; fill: currentColor; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.film-gramo-note { margin: 6px 4px 0; color: var(--film-muted); font-size: 11px; }
+
+/* 胶片框：浅色片基 + 上下齿孔 */
+.film-strip { position: relative; margin-top: 12px; padding: 13px 10px; border-radius: 8px; background-color: var(--film-line); background-image: radial-gradient(circle at 50% 50%, var(--film-paper) 0 2.6px, transparent 3px), radial-gradient(circle at 50% 50%, var(--film-paper) 0 2.6px, transparent 3px); background-size: 14px 13px, 14px 13px; background-position: 4px 0, 4px 100%; background-repeat: repeat-x, repeat-x; }
+.film-frame { position: relative; overflow: hidden; height: 168px; border-radius: 4px; background: var(--film-paper-2); box-shadow: inset 0 0 0 1px var(--film-shade); }
+.film-frame-bg { position: absolute; inset: -16px; background-size: cover; background-position: center; filter: blur(14px) saturate(.8) brightness(1.05); opacity: .75; }
+.film-frame img { position: relative; display: block; width: 100%; height: 100%; object-fit: contain; filter: sepia(.18) saturate(.92) contrast(.98); }
+.film-frame-empty { display: grid; place-items: center; background-color: var(--film-paper-2); background-image: repeating-linear-gradient(0deg, color-mix(in srgb, var(--film-accent-text) 4%, transparent) 0 1px, transparent 1px 4px), repeating-linear-gradient(90deg, color-mix(in srgb, var(--film-accent-text) 3%, transparent) 0 1px, transparent 1px 5px); }
+.film-frame-empty > span { color: color-mix(in srgb, var(--film-accent-text) 32%, transparent); font-size: 11px; letter-spacing: .5em; }
+.film-frame-title { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); overflow: hidden; padding: 3px 9px; border-radius: 999px; color: var(--film-ink); font-size: 11.5px; line-height: 1.4; white-space: nowrap; text-overflow: ellipsis; background: color-mix(in srgb, var(--film-paper) 92%, transparent); }
+.film-dial { position: absolute; top: 4px; right: 4px; width: 38px; height: 38px; }
+.film-dial circle { fill: var(--film-paper); stroke: var(--film-red); stroke-width: 1.3; }
+.film-dial line { stroke: var(--film-red); stroke-width: 1.1; stroke-linecap: round; }
+.film-dial .film-dial-needle { stroke: var(--film-brown); stroke-width: 1.6; }
+.film-dial .film-dial-hub { fill: var(--film-red); stroke: none; }
+
+/* ARCHIVE + 英中两行 */
+.film-caption { padding: 11px 4px 2px; }
+.film-archive { display: flex; justify-content: space-between; gap: 8px; color: var(--film-red); font-size: 9.5px; letter-spacing: .18em; }
+.film-archive span:last-child { color: var(--film-muted); letter-spacing: .08em; }
+.film-scene-desc { margin-top: 5px !important; color: var(--film-muted); font-size: 11.5px; line-height: 1.55; }
+.film-en { margin-top: 7px !important; color: var(--film-brown); font-size: 11.5px; font-style: italic; line-height: 1.5; letter-spacing: .01em; }
+.film-zh { margin-top: 2px !important; color: var(--film-ink); font-size: 17px; font-weight: 600; line-height: 1.45; letter-spacing: .04em; }
+
+/* NPC 档案 */
+.film-npc { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--film-line); }
+.film-npc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.film-npc-grid button { min-width: 0; min-height: 0; padding: 7px 9px; border: 1px solid var(--film-line); border-radius: 10px; color: var(--film-ink); text-align: left; background: var(--film-paper); touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.film-npc-grid button span { display: block; overflow: hidden; font-size: 12px; line-height: 1.4; white-space: nowrap; text-overflow: ellipsis; }
+.film-npc-grid button.active { border-color: var(--film-red); background: var(--film-soft); }
+.film-npc-grid button.active small { color: var(--film-red); }
+.film-npc-detail { margin-top: 8px; padding: 10px 11px; border-radius: 12px; background: var(--film-paper-2); }
+.film-npc-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
+.film-npc-head small { flex-basis: 100%; color: var(--film-red); }
+.film-npc-head strong { color: var(--film-ink); font-size: 16px; font-weight: 600; line-height: 1.35; }
+.film-npc-head span { color: var(--film-muted); font-size: 12px; }
+.film-npc-detail dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 0; }
+.film-npc-detail dl > div { min-width: 0; }
+.film-npc-detail dt { color: var(--film-muted); font-size: 9.5px; letter-spacing: .16em; }
+.film-npc-detail dd { margin: 1px 0 0; color: var(--film-ink); font-size: 12.5px; line-height: 1.45; }
+.film-npc-detail > p { margin-top: 7px !important; color: var(--film-brown); font-size: 12.5px; line-height: 1.6; }
+.film-danger { display: inline-flex; align-items: center; gap: 3px; }
+.film-danger i { display: block; width: 10px; height: 5px; border-radius: 2px; background: var(--film-line); }
+.film-danger i.on { background: var(--film-brown); }
+.film-danger-3 i.on { background: var(--film-red); }
+.film-danger b { margin-left: 4px; font-weight: 600; }
+.film-danger-3 b { color: var(--film-red); }
+
+/* 心声气泡 */
+.film-heart { position: relative; margin: 14px 2px 0 14px; padding: 9px 13px 10px; border: 1px solid var(--film-soft-line); border-radius: 4px 16px 16px 16px; background: var(--film-soft); }
+.film-heart small { color: var(--film-red); }
+.film-heart p { margin-top: 3px !important; color: var(--film-brown); font-size: 13.5px; line-height: 1.6; }
+.film-heart p::before { content: '「'; }
+.film-heart p::after { content: '」'; }
+
+/* 气泡布局：卡片在气泡下方，跟着气泡列宽 */
+@media (min-width: 640px) { .film-frame { height: 200px; } }
+/* v200 唱片机条：真正在放的歌 + 当前歌词（一行省略）；模型点的歌退成小灰字 */
+.film-gramo-text em.film-gramo-lyric { color: var(--film-brown); }
+.film-gramo-text small.film-gramo-requested { margin-top: 1px; overflow: hidden; color: var(--film-muted); font-size: 10px; letter-spacing: .04em; text-transform: none; white-space: nowrap; text-overflow: ellipsis; }
+/* v202：点的歌不在歌单 → 小灰字可点，直接导入；自动切歌被拦 → 提示点播放 */
+.film-gramo-import { display: block; max-width: 100%; min-width: 0; min-height: 0; margin: 2px 0 0; padding: 0; border: 0; background: none; color: var(--film-muted); font: inherit; font-size: 10px; letter-spacing: .04em; line-height: 1.45; text-align: left; white-space: normal; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.film-gramo-import b { font-weight: 600; color: var(--film-red); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--film-soft-line); }
+.film-gramo-tap { color: var(--film-red); }
+.film-gramo-actions button.film-gramo-nudge { box-shadow: 0 0 0 2px var(--film-soft-line); }
+
+/* v283：点唱片/歌名展开歌单选歌 */
+.film-gramo-pickable, .film-gramo-disc { cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.film-gramo-list { margin: 6px 0 0; padding: 4px; list-style: none; max-height: 216px; overflow-y: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; background: var(--film-paper-2); }
+.film-gramo-list button { display: block; width: 100%; min-height: 0; padding: 8px 10px; border: 0; border-radius: 8px; color: var(--film-ink); background: transparent; font-size: 13px; line-height: 1.35; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; -webkit-tap-highlight-color: transparent; }
+.film-gramo-list button.active { color: var(--film-red); font-weight: 600; background: var(--film-paper); }
+.film-frame .film-frame-avatar { position: relative; display: block; width: 100%; height: 100%; object-fit: contain; }
+.film-card .film-gramo-actions button { cursor: pointer; }
+.film-npc-detail[hidden] { display: none; }
+.msg .film-card { max-width: min(420px, 100%); }
