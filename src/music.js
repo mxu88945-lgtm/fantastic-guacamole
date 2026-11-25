@@ -680,6 +680,7 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
       try { const d = await api(`/music/search?q=${encodeURIComponent(title)}`); song = (d.songs || [])[0] || null; } catch (_) { song = null; }
     }
     if (!song) return "missing";
+    state.lastPicked = { title: String(title || ""), songId: song.songId, name: song.name };
     if (isSongPlaying(song)) return "already";
     const ok = await playSong(song, state.queue.filter((s) => s.songId !== song.songId), { quiet: !!opts.auto });
     return ok ? "playing" : (state.blocked ? "blocked" : "error");

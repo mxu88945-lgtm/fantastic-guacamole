@@ -166,37 +166,59 @@ ${songRule}
 
   // 每条消息的放歌状态（只在本次打开期间）：playing | already | missing | blocked | error
   const status = new Map();
+  const cardSpeaker = new Map(); // id → 点歌的角色名
   const handled = new Set();
   const songQuery = (card) => card?.song ? `${card.song.title}${card.song.artist ? " " + card.song.artist : ""}` : "";
 
-  function isThisPlaying(card) {
+  // 每张卡真正放上的那首（网易云搜到的歌名常和卡里写的不完全一样，比如 的/地）
+  const pickedSong = new Map(); // id → songId
+  const norm = (v) => String(v || "").toLowerCase().replace(/[\s·・.,，。!！?？'"“”‘’《》「」()（）\[\]【】\-–—_/／]/g, "").replace(/[的地得]/g, "的");
+  function nowInfo() {
     try {
-      const st = window.JYCMusic?.getState?.();
-      if (!st?.song || !st.playing || !card?.song) return false;
-      const a = String(st.song.name || "").replace(/\s+/g, "").toLowerCase();
-      const b = card.song.title.replace(/\s+/g, "").toLowerCase();
-      return !!a && !!b && (a.includes(b) || b.includes(a));
-    } catch (_) { return false; }
+      const st = globalThis.JYCMusic?.getState?.();
+      if (!st?.song) return null;
+      const artist = st.song.artist && st.song.artist !== "本地音乐" && st.song.artist !== "未知歌手" ? st.song.artist : "";
+      return { id: st.song.songId, name: st.song.name || "", artist, playing: !!st.playing };
+    } catch (_) { return null; }
   }
+  function isCardSong(card, id, now) {
+    if (!now || !card?.song) return false;
+    if (pickedSong.get(String(id)) && pickedSong.get(String(id)) === now.id) return true;
+    const a = norm(now.name), b = norm(card.song.title);
+    return !!a && !!b && (a === b || a.includes(b) || b.includes(a));
+  }
+  function isThisPlaying(card, id) { const now = nowInfo(); return !!now?.playing && isCardSong(card, id, now); }
 
+  // v200 同款：放的不是卡里的歌 → 显示真正在放的歌；卡里的歌退成一行小字「X点的：…」，点它就放
   function gramoHtml(card, id) {
     const st = status.get(id) || "";
-    const here = isThisPlaying(card);
-    let nowName = "";
-    try { const s = window.JYCMusic?.getState?.(); if (s?.song && s.playing) nowName = s.song.name || ""; } catch (_) {}
-    const title = card.song ? card.song.title : (nowName || "背景配乐");
-    let sub = card.song ? (card.song.artist || "") : (nowName ? "正在放" : "这一幕没点歌");
-    let hint = "";
-    if (card.song && !here) {
-      if (st === "missing") hint = `<button type="button" class="film-gramo-import" data-film-act="import"><b>点这里导入《${esc(card.song.title)}》</b></button>`;
-      else if (st === "blocked" || st === "error") hint = `<small class="film-gramo-requested film-gramo-tap">点播放 ▶ 听《${esc(card.song.title)}》</small>`;
-      else if (nowName) hint = `<small class="film-gramo-requested">正在放：${esc(nowName)}</small>`;
+    const now = nowInfo();
+    const here = !!now?.playing && isCardSong(card, id, now);
+    const other = !!now?.playing && !here;
+    const who = cardSpeaker.get(id) || "他";
+    let title, sub, hint = "";
+    if (other) {
+      title = now.name;
+      sub = now.artist || "正在放";
+      if (card.song) hint = st === "missing"
+        ? `<button type="button" class="film-gramo-import" data-film-act="import">${esc(who)}点的：${esc(card.song.title)} · <b>导入这首</b></button>`
+        : `<button type="button" class="film-gramo-import" data-film-act="play">${esc(who)}点的：<b>${esc(card.song.title)}</b> ▶</button>`;
+    } else if (card.song) {
+      title = card.song.title;
+      sub = here ? (now.artist || card.song.artist || "正在放") : (card.song.artist || "");
+      if (!here) {
+        if (st === "missing") hint = `<button type="button" class="film-gramo-import" data-film-act="import"><b>点这里导入《${esc(card.song.title)}》</b></button>`;
+        else hint = `<small class="film-gramo-requested film-gramo-tap">点播放 ▶ 听《${esc(card.song.title)}》</small>`;
+      }
+    } else {
+      title = now?.name || "背景配乐";
+      sub = now ? (now.artist || "你的歌单") : "这一幕没点歌";
     }
-    if (here) sub = card.song.artist ? `${card.song.artist} · 正在放` : "正在放";
+    const playingAny = !!now?.playing;
     return `<div class="film-gramo">
-      <span class="film-gramo-disc${here ? " spinning" : ""}" aria-hidden="true"></span>
+      <span class="film-gramo-disc${playingAny ? " spinning" : ""}" aria-hidden="true"></span>
       <div class="film-gramo-text"><small>GRAMOPHONE · SIDE A</small><strong>${esc(title)}</strong>${sub ? `<em>${esc(sub)}</em>` : ""}${hint}</div>
-      <div class="film-gramo-actions"><button type="button" data-film-act="play" class="${st === "blocked" || st === "error" ? "film-gramo-nudge" : ""}" aria-label="${here ? "暂停" : "播放"}">${here ? ICON.pause : ICON.play}</button><button type="button" data-film-act="next" aria-label="下一首">${ICON.next}</button></div>
+      <div class="film-gramo-actions"><button type="button" data-film-act="toggle" class="${card.song && !here && !other ? "film-gramo-nudge" : ""}" aria-label="${playingAny ? "暂停" : "播放"}">${playingAny ? ICON.pause : ICON.play}</button><button type="button" data-film-act="next" aria-label="下一首">${ICON.next}</button></div>
     </div>`;
   }
 
@@ -206,6 +228,7 @@ ${songRule}
     if (!card) return "";
     const id = String(opts.id || "");
     const name = opts.speakerName || "";
+    if (name) cardSpeaker.set(id, name);
     const no = archiveNo(id + "|" + (card.sceneTitle || "") + "|" + (card.heart || ""));
     const avatar = opts.avatar && /^(?:https?:|data:image\/|blob:|\.?\/)/.test(opts.avatar) ? opts.avatar : "";
     const frame = avatar
@@ -247,6 +270,19 @@ ${songRule}
   }
   function remember(id, text) { const c = extract(text, false); if (c) cardCache.set(String(id || ""), c); return c; }
 
+  async function playCard(id, card, auto) {
+    const music = globalThis.JYCMusic;
+    id = String(id);
+    let st = "error";
+    try { st = await music.playPicked(songQuery(card), { auto }); } catch (_) { st = "error"; }
+    if (st === "missing" && card.song.artist) { try { st = await music.playPicked(card.song.title, { auto }); } catch (_) { st = "error"; } }
+    try { const lp = music.getState?.().lastPicked; if (lp?.songId && (st === "playing" || st === "already")) pickedSong.set(id, lp.songId); } catch (_) {}
+    status.set(id, st);
+    refresh(id);
+    setTimeout(() => refresh(id), 1200);
+    return st;
+  }
+
   /** 回复刚写完时调用一次：自动放卡里点的歌。 */
   async function autoplay(id, text) {
     const card = remember(id, text);
@@ -256,12 +292,8 @@ ${songRule}
     handled.add(key);
     const music = window.JYCMusic;
     if (!music?.playPicked) return "no-player";
-    if (isThisPlaying(card)) { status.set(String(id), "already"); refresh(String(id)); return "already"; }
-    let st = "error";
-    try { st = await music.playPicked(songQuery(card), { auto: true }); } catch (_) { st = "error"; }
-    if (st === "missing" && card.song.artist) { try { st = await music.playPicked(card.song.title, { auto: true }); } catch (_) { st = "error"; } }
-    status.set(String(id), st);
-    refresh(String(id));
+    if (isThisPlaying(card, id)) { status.set(String(id), "already"); refresh(String(id)); return "already"; }
+    const st = await playCard(id, card, true);
     return st;
   }
 
@@ -288,17 +320,21 @@ ${songRule}
     if (!music) return;
     const done = (st) => { status.set(id, st); refresh(id); };
     const kind = act.dataset.filmAct;
-    if (kind === "next") { try { music.playNext?.(); } catch (_) {} setTimeout(() => refresh(id), 600); return; }
+    const later = () => { refresh(id); setTimeout(() => refresh(id), 700); setTimeout(() => refresh(id), 2000); };
+    if (kind === "next") { try { music.playNext?.(); } catch (_) {} later(); return; }
     if (kind === "import") { music.importForPick?.(title || query, done); return; }
-    // play：卡里的歌正在放 → 暂停；否则放卡里的歌（iOS 要同步打开文件选择，所以先同步查歌单）
     const card = cardCache.get(id);
-    if (card && isThisPlaying(card)) { music.togglePlay?.(); setTimeout(() => refresh(id), 300); return; }
-    if (!query) { music.togglePlay?.(); setTimeout(() => refresh(id), 300); return; }
+    const now = nowInfo();
+    // 大按钮：在放就暂停；没在放时有卡里的歌就放它，没有就接着放
+    if (kind === "toggle" && (now?.playing || !card?.song)) { music.togglePlay?.(); later(); return; }
+    if (!card?.song) return;
+    if (now && !now.playing && isCardSong(card, id, now)) { music.togglePlay?.(); later(); return; }
+    // iOS 要同步打开文件选择，所以先同步查歌单
     if (!music.findPickSong?.(title || query) && !music.getState?.().connected) { music.importForPick?.(title || query, done); return; }
-    music.playPicked(query, { auto: false }).then(done, () => done("error"));
+    void playCard(id, card, false);
   });
   // 播放器换歌 / 暂停时，卡上的唱片跟着转停
-  setInterval(() => { if (document.querySelector(".film-card")) refresh(); }, 2500);
+  setInterval(() => { if (document.querySelector(".film-card")) refresh(); }, 1500);
 
   window.JYCFilm = { strip, extract, html, instruction, REMINDER, autoplay, remember, refresh };
 })();
