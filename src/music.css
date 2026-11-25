@@ -253,3 +253,13 @@
 .song-pick-hint { flex-shrink: 0; color: var(--accent); font-weight: 600; }
 .song-pick-hint::before { content: "·"; margin-right: 6px; color: var(--text-dim); font-weight: 400; }
 .msg .body > .song-pick-chip, .msg.flat > .song-pick-chip, .msg.archive-row > .song-pick-chip { align-self: flex-start; }
+
+/* 1.0.33 网易云：逛歌单的分类小胶囊 */
+.music-ne-chips { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0 2px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.music-ne-chips::-webkit-scrollbar { display: none; }
+.music-ne-chips.cats { padding-top: 4px; }
+.music-ne-chip { flex: 0 0 auto; border: 1px solid var(--border); background: var(--bg-panel); color: var(--text-dim); border-radius: 999px; padding: 6px 13px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.music-ne-chip.small { padding: 4px 10px; font-size: 11px; }
+.music-ne-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.music-ne-more { display: block; width: 100%; margin: 10px 0 4px; padding: 10px; border: 1px dashed var(--border); border-radius: 12px; background: transparent; color: var(--text-dim); font-size: 12px; cursor: pointer; }
+#music-ne-search-pl { margin-left: 2px; }

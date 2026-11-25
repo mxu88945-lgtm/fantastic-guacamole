@@ -1019,13 +1019,35 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     else if (recent.length) bindSongRows($("music-recent-list"), recent, { playRest: false });
   }
 
-  /* 1.0.20 网易云歌单：读她网易云账号里的歌单（含「我喜欢的音乐」），点进去整单播放 */
-  const ne = { playlists: null, open: null, songs: [], loading: false, error: "" };
+  /* 1.0.20 网易云歌单：读她网易云账号里的歌单（含「我喜欢的音乐」），点进去整单播放
+     1.0.33：还能逛公开歌单 —— 推荐 / 排行榜 / 热门（按分类）/ 搜歌单 */
+  const NE_CATS = ["全部", "华语", "流行", "欧美", "粤语", "日语", "韩语", "民谣", "R&B/Soul", "说唱", "摇滚", "电子", "轻音乐", "古风", "影视原声", "ACG", "治愈", "伤感", "浪漫", "夜晚", "学习", "放松", "怀旧"];
+  const NE_SRC = [["mine", "我的"], ["rec", "推荐"], ["top", "排行榜"], ["hot", "热门"]];
+  const ne = { playlists: null, open: null, songs: [], loading: false, error: "", src: "mine", cat: "全部", q: "", lists: {}, more: false };
+  const neKey = () => ne.src === "hot" ? "hot:" + ne.cat : ne.src === "search" ? "search:" + ne.q : ne.src;
   async function loadNeteasePlaylists(force = false) {
     if (ne.loading || (ne.playlists && !force)) return;
     ne.loading = true; ne.error = ""; renderView();
     try { const d = await api("/music/netease/playlists"); ne.playlists = d.playlists || []; ne.error = d.error || ""; }
     catch (e) { ne.error = e?.message || "歌单读不到"; ne.playlists = ne.playlists || []; }
+    ne.loading = false; renderView();
+  }
+  async function loadDiscover(more = false) {
+    if (ne.loading) return;
+    const key = neKey();
+    const prev = ne.lists[key] || [];
+    if (!more && ne.lists[key]) return;
+    ne.loading = true; ne.error = ""; renderView();
+    try {
+      const qs = new URLSearchParams({ type: ne.src, offset: String(more ? prev.length : 0) });
+      if (ne.src === "hot") qs.set("cat", ne.cat);
+      if (ne.src === "search") qs.set("q", ne.q);
+      const d = await api("/music/netease/discover?" + qs.toString());
+      const got = d.playlists || [];
+      ne.lists[key] = more ? prev.concat(got.filter((x) => !prev.some((y) => y.id === x.id))) : got;
+      ne.more = (ne.src === "hot" || ne.src === "search") && got.length >= 30;
+      if (d.error) ne.error = d.error;
+    } catch (e) { ne.error = e?.message || "歌单读不到"; ne.lists[key] = prev; }
     ne.loading = false; renderView();
   }
   async function openNeteasePlaylist(pl) {
@@ -1034,6 +1056,12 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     catch (e) { ne.error = e?.message || "这个歌单读不到"; }
     ne.loading = false; renderView();
   }
+  const fmtPlays = (n) => n >= 1e8 ? (n / 1e8).toFixed(1) + "亿次" : n >= 1e4 ? Math.round(n / 1e4) + "万次" : n ? n + "次" : "";
+  function plRows(list) {
+    return `<div class="music-song-list">${list.map((pl, i) => `<div class="music-song-row" data-ne-pl="${i}">
+        ${pl.cover ? `<img class="music-song-cover" src="${esc(pl.cover)}" alt="" loading="lazy">` : `<span class="music-song-cover empty">♪</span>`}
+        <div class="music-song-info"><div class="music-song-name">${pl.liked ? "♥ " : ""}${esc(pl.name)}</div><div class="music-song-artist">${[pl.count ? pl.count + " 首" : "", ne.src === "mine" ? (pl.mine ? "" : "收藏的") : fmtPlays(pl.plays), pl.note || ""].filter(Boolean).map(esc).join(" · ")}</div></div></div>`).join("")}</div>`;
+  }
   function renderNetease() {
     const view = $("music-view");
     if (!view) return;
@@ -1041,23 +1069,29 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
       view.innerHTML = `<div class="music-queue-head"><button type="button" id="music-ne-back">← 歌单</button><div class="music-section-label">${esc(ne.open.name)} · ${ne.loading ? "读取中…" : ne.songs.length + " 首"}</div>${ne.songs.length ? `<button type="button" id="music-ne-playall">全部播放</button>` : ""}</div>
         ${ne.error ? `<div class="music-error">${esc(ne.error)}</div>` : ""}
         ${ne.songs.length ? `<div class="music-song-list" id="music-ne-list">${ne.songs.map((song, i) => songRow(song, i, { playRest: true })).join("")}</div>` : ""}`;
-      $("music-ne-back")?.addEventListener("click", () => { ne.open = null; ne.songs = []; renderView(); });
+      $("music-ne-back")?.addEventListener("click", () => { ne.open = null; ne.songs = []; ne.error = ""; renderView(); });
       $("music-ne-playall")?.addEventListener("click", () => playSong(ne.songs[0], ne.songs.slice(1)));
       if (ne.songs.length) bindSongRows($("music-ne-list"), ne.songs, { playRest: true });
       return;
     }
-    if (!ne.playlists && !ne.loading) { loadNeteasePlaylists(); return; }
-    const list = ne.playlists || [];
-    // 1.0.32：歌单页顶部也能直接搜网易云，搜完跳到「搜索」页看结果。
-    view.innerHTML = `<form class="music-search-form" id="music-ne-search-form"><span>⌕</span><input id="music-ne-search-input" placeholder="在网易云搜歌曲或歌手" autocomplete="off"><button type="submit">搜索</button></form>
-      <div class="music-queue-head"><div class="music-section-label">网易云歌单${list.length ? " · " + list.length + " 个" : ""}</div><button type="button" id="music-ne-refresh">${ne.loading ? "…" : "刷新"}</button></div>
+    if (ne.src === "mine" && !ne.playlists && !ne.loading) { loadNeteasePlaylists(); return; }
+    if (ne.src !== "mine" && !ne.lists[neKey()] && !ne.loading) { loadDiscover(); return; }
+    const list = ne.src === "mine" ? (ne.playlists || []) : (ne.lists[neKey()] || []);
+    const label = ne.src === "mine" ? "我的歌单" : ne.src === "rec" ? "推荐歌单" : ne.src === "top" ? "排行榜" : ne.src === "hot" ? "热门 · " + ne.cat : "「" + ne.q + "」的歌单";
+    // 1.0.32：顶部搜索框；1.0.33：可以搜歌，也可以搜歌单
+    view.innerHTML = `<form class="music-search-form" id="music-ne-search-form"><span>⌕</span><input id="music-ne-search-input" placeholder="搜歌曲、歌手或歌单" autocomplete="off" value="${esc(ne.src === "search" ? ne.q : "")}"><button type="submit">搜歌</button><button type="button" id="music-ne-search-pl">搜歌单</button></form>
+      <div class="music-ne-chips">${NE_SRC.map(([k, t]) => `<button type="button" class="music-ne-chip${ne.src === k ? " on" : ""}" data-ne-src="${k}">${t}</button>`).join("")}</div>
+      ${ne.src === "hot" ? `<div class="music-ne-chips cats">${NE_CATS.map((c) => `<button type="button" class="music-ne-chip small${ne.cat === c ? " on" : ""}" data-ne-cat="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : ""}
+      <div class="music-queue-head"><div class="music-section-label">${esc(label)}${list.length ? " · " + list.length + " 个" : ""}</div><button type="button" id="music-ne-refresh">${ne.loading ? "…" : "刷新"}</button></div>
       ${ne.error ? `<div class="music-error">${esc(ne.error)}</div>` : ""}
-      ${list.length ? `<div class="music-song-list">${list.map((pl, i) => `<div class="music-song-row" data-ne-pl="${i}">
-        ${pl.cover ? `<img class="music-song-cover" src="${esc(pl.cover)}" alt="" loading="lazy">` : `<span class="music-song-cover empty">♪</span>`}
-        <div class="music-song-info"><div class="music-song-name">${pl.liked ? "♥ " : ""}${esc(pl.name)}</div><div class="music-song-artist">${pl.count} 首${pl.mine ? "" : " · 收藏的"}</div></div></div>`).join("")}</div>`
-        : (!ne.loading && !ne.error ? `<div class="music-empty"><div><strong>还没有歌单</strong>在网易云里建的歌单、收藏的歌单都会出现在这里。</div></div>` : "")}`;
+      ${list.length ? plRows(list) : (!ne.loading && !ne.error ? `<div class="music-empty"><div><strong>${ne.src === "mine" ? "还没有歌单" : "这里没找到歌单"}</strong>${ne.src === "mine" ? "在网易云里建的歌单、收藏的歌单都会出现在这里。" : "换个分类或关键词试试。"}</div></div>` : (ne.loading ? `<div class="music-empty"><div>读取中…</div></div>` : ""))}
+      ${list.length && ne.src !== "mine" && ne.more ? `<button type="button" class="music-ne-more" id="music-ne-more">${ne.loading ? "读取中…" : "加载更多"}</button>` : ""}`;
     $("music-ne-search-form")?.addEventListener("submit", (event) => { event.preventDefault(); const q = $("music-ne-search-input")?.value; if (!String(q || "").trim()) return; state.activeTab = "search"; searchSongs(q); });
-    $("music-ne-refresh")?.addEventListener("click", () => loadNeteasePlaylists(true));
+    $("music-ne-search-pl")?.addEventListener("click", () => { const q = String($("music-ne-search-input")?.value || "").trim(); if (!q) return; ne.src = "search"; ne.q = q; delete ne.lists[neKey()]; ne.error = ""; loadDiscover(); });
+    view.querySelectorAll("[data-ne-src]").forEach((b) => b.addEventListener("click", () => { ne.src = b.dataset.neSrc; ne.error = ""; renderView(); }));
+    view.querySelectorAll("[data-ne-cat]").forEach((b) => b.addEventListener("click", () => { ne.cat = b.dataset.neCat; ne.error = ""; renderView(); }));
+    $("music-ne-refresh")?.addEventListener("click", () => { if (ne.src === "mine") loadNeteasePlaylists(true); else { delete ne.lists[neKey()]; loadDiscover(); } });
+    $("music-ne-more")?.addEventListener("click", () => loadDiscover(true));
     view.querySelectorAll("[data-ne-pl]").forEach((row) => row.addEventListener("click", () => openNeteasePlaylist(list[Number(row.dataset.nePl)])));
   }
 
