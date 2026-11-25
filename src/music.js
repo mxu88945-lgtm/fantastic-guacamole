@@ -1006,7 +1006,7 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     const results = state.searchResults;
     const recent = state.recent;
     view.innerHTML = `<div class="music-discover-head">
-      <form class="music-search-form" id="music-search-form"><span>⌕</span><input id="music-search-input" value="${esc(state.query)}" placeholder="搜索歌曲或歌手" autocomplete="off"><button type="submit">${state.searching ? "…" : "搜索"}</button></form>
+      <form class="music-search-form" id="music-search-form"><span>⌕</span><input id="music-search-input" value="${esc(state.query)}" placeholder="在网易云搜歌曲或歌手" autocomplete="off"><button type="submit">${state.searching ? "…" : "搜索"}</button></form>
       <button type="button" class="music-roam-btn ${state.roam ? "active" : ""}" id="music-roam-btn">✦ ${state.roam ? "已开启漫游" : "播完漫游"}</button>
     </div>
     ${state.error ? `<div class="music-error">${esc(state.error)}</div>` : ""}
@@ -1048,12 +1048,15 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     }
     if (!ne.playlists && !ne.loading) { loadNeteasePlaylists(); return; }
     const list = ne.playlists || [];
-    view.innerHTML = `<div class="music-queue-head"><div class="music-section-label">网易云歌单${list.length ? " · " + list.length + " 个" : ""}</div><button type="button" id="music-ne-refresh">${ne.loading ? "…" : "刷新"}</button></div>
+    // 1.0.32：歌单页顶部也能直接搜网易云，搜完跳到「搜索」页看结果。
+    view.innerHTML = `<form class="music-search-form" id="music-ne-search-form"><span>⌕</span><input id="music-ne-search-input" placeholder="在网易云搜歌曲或歌手" autocomplete="off"><button type="submit">搜索</button></form>
+      <div class="music-queue-head"><div class="music-section-label">网易云歌单${list.length ? " · " + list.length + " 个" : ""}</div><button type="button" id="music-ne-refresh">${ne.loading ? "…" : "刷新"}</button></div>
       ${ne.error ? `<div class="music-error">${esc(ne.error)}</div>` : ""}
       ${list.length ? `<div class="music-song-list">${list.map((pl, i) => `<div class="music-song-row" data-ne-pl="${i}">
         ${pl.cover ? `<img class="music-song-cover" src="${esc(pl.cover)}" alt="" loading="lazy">` : `<span class="music-song-cover empty">♪</span>`}
         <div class="music-song-info"><div class="music-song-name">${pl.liked ? "♥ " : ""}${esc(pl.name)}</div><div class="music-song-artist">${pl.count} 首${pl.mine ? "" : " · 收藏的"}</div></div></div>`).join("")}</div>`
         : (!ne.loading && !ne.error ? `<div class="music-empty"><div><strong>还没有歌单</strong>在网易云里建的歌单、收藏的歌单都会出现在这里。</div></div>` : "")}`;
+    $("music-ne-search-form")?.addEventListener("submit", (event) => { event.preventDefault(); const q = $("music-ne-search-input")?.value; if (!String(q || "").trim()) return; state.activeTab = "search"; searchSongs(q); });
     $("music-ne-refresh")?.addEventListener("click", () => loadNeteasePlaylists(true));
     view.querySelectorAll("[data-ne-pl]").forEach((row) => row.addEventListener("click", () => openNeteasePlaylist(list[Number(row.dataset.nePl)])));
   }

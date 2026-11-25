@@ -3432,7 +3432,7 @@
               </section>
               <div class="music-error" id="music-inline-error" hidden></div>
               <div class="music-tabs" role="tablist" aria-label="听歌房分区">
-                <button type="button" class="music-tab active" data-music-tab="search">发现</button>
+                <button type="button" class="music-tab active" data-music-tab="search">搜索</button>
                 <button type="button" class="music-tab" data-music-tab="netease">歌单</button>
                 <button type="button" class="music-tab" data-music-tab="liked">喜欢 <span class="music-tab-count" id="music-liked-count">0</span></button>
                 <button type="button" class="music-tab" data-music-tab="queue">队列 <span class="music-tab-count" id="music-queue-count">0</span></button>
@@ -18199,7 +18199,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.31";
+const APP_VERSION = "1.0.32";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
