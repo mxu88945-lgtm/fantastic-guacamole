@@ -321,7 +321,12 @@ ${songRule}
     const done = (st) => { status.set(id, st); refresh(id); };
     const kind = act.dataset.filmAct;
     const later = () => { refresh(id); setTimeout(() => refresh(id), 700); setTimeout(() => refresh(id), 2000); };
-    if (kind === "next") { try { music.playNext?.(); } catch (_) {} later(); return; }
+    if (kind === "next") {
+      // 1.0.39：卡里点了歌但现在放的不是它 → 下一首先切到卡里的歌
+      const c = cardCache.get(id); const n = nowInfo();
+      if (c?.song && !isCardSong(c, id, n) && (music.findPickSong?.(title || query) || music.getState?.().connected)) { void playCard(id, c, false); return; }
+      try { music.playNext?.(); } catch (_) {} later(); return;
+    }
     if (kind === "import") { music.importForPick?.(title || query, done); return; }
     const card = cardCache.get(id);
     const now = nowInfo();

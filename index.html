@@ -12686,7 +12686,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     const finalTemporaryPlot = backstageMode ? "" : roleplayTemporaryPlotPrompt(activeSpeaker, activeTemporaryPlot);
     if (finalTemporaryPlot) systemText = `${systemText}\n\n${finalTemporaryPlot}`;
   }
-  // 1.0.38 剧场美化卡：独立配角（不由主人扮演、走自己那套提示词）也要写卡，放在最末尾
+  // 1.0.39 剧场美化卡：独立配角（不由主人扮演、走自己那套提示词）也要写卡，放在最末尾
   if (rpProject && independent && settings.rpFilmCardEnabled !== false && globalThis.JYCFilm?.instruction) {
     let filmNote = "";
     try { filmNote = globalThis.JYCFilm.instruction(activeSpeaker?.name || "他", settings.userName || "她"); } catch (_) { filmNote = ""; }
@@ -18234,7 +18234,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.38";
+const APP_VERSION = "1.0.39";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");

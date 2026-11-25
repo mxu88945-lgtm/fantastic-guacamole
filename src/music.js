@@ -723,9 +723,23 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     if (state.roam && state.song && state.connected && !isLocal(state.song)) {
       try {
         const data = await api(`/music/roam?id=${encodeURIComponent(state.song.songId)}`);
-        if (data.song) await playSong(data.song);
+        if (data.song) { await playSong(data.song); return; }
       } catch (_) {}
     }
+    // 1.0.39：队列空、没开漫游时也要有反应——按「喜欢/本地」顺序放下一首
+    const pool = pickPool();
+    if (pool.length && !(pool.length === 1 && state.song && pool[0].songId === state.song.songId)) {
+      const i = state.song ? pool.findIndex((x) => x.songId === state.song.songId) : -1;
+      const nextSong = pool[(i + 1 + pool.length) % pool.length];
+      if (nextSong) { await playSong(nextSong); return; }
+    }
+    if (state.song && state.connected && !isLocal(state.song)) {
+      try {
+        const data = await api(`/music/roam?id=${encodeURIComponent(state.song.songId)}`);
+        if (data.song) { await playSong(data.song); return; }
+      } catch (_) {}
+    }
+    showToast("没有下一首了，先加几首到队列或喜欢");
     renderQueue();
   }
 
