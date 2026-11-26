@@ -9374,15 +9374,22 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState, 
   }
   if (role === "assistant" && !streaming && isRoleplayConversation() && !looksLikeRoleplayRichHtml(answer)) answer = roleplayRegexDisplay(answer, message);
   const useRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && looksLikeRoleplayRichHtml(answer);
-  // 1.0.46 惟境同款：含 HTML 的回复先在源码里把 [配图:名字] 换成 <img>，再交给卡片框渲染
-  if (useRoleplayHtml && typeof rpPlotTagsToHtml === "function") answer = rpPlotTagsToHtml(answer, message?.plotImages);
+  // 1.0.47 含 HTML 的回复：图不能塞进卡片框（大图会把卡片撑过上限、退成纯文字），
+  // 标签从源码里去掉，用到的图放在卡片下面单独显示
+  let plotImagesAfterHtml = "";
+  if (useRoleplayHtml && typeof rpUsedPlotImages === "function" && /配图/.test(answer)) {
+    const usedPlotImages = rpUsedPlotImages(answer, message?.plotImages);
+    plotImagesAfterHtml = usedPlotImages.map(image => `<img class="rp-plot-img" src="${escapeHtml(image.dataUrl)}" alt="" style="display:block;width:100%;max-width:320px;height:auto;border-radius:12px;margin:12px auto">`).join("");
+    answer = answer.replace(RP_PLOT_IMAGE_TAG, "");
+  }
   const semanticRoleplayHtml = role === "assistant" && !streaming && isRoleplayConversation() && !useRoleplayHtml
     ? roleplaySemanticDisplay(answer, normalizedRoleplayProject(currentConv()?.rpProject, currentConv())) : "";
   let textHtml = answer
     ? (useRoleplayHtml ? (roleplayCanInlineHtml(answer) ? roleplayInlineHtml(answer) : roleplayRichFrameHtml(answer)) : (semanticRoleplayHtml || (role === "assistant" ? (isRoleplayConversation() ? renderRoleplayStoryText(answer) : renderMarkdown(answer)) : (isRoleplayConversation() ? renderRoleplayStoryText(answer) : (userQuoteCapsules() ? renderMarkdown(answer, true) : escapeHtml(answer).replace(/\n/g, "<br>"))))))
     : "";
-  // 1.0.45 临时剧情幕后配图（1.0.46：卡片框里的回复已在源码里换好，这里只换普通正文，避免把图塞进框的属性里撑坏气泡）
+  // 1.0.45 临时剧情幕后配图：普通正文原位换图；HTML 卡片的图接在卡片后面
   if (role === "assistant" && textHtml && !useRoleplayHtml && typeof rpPlotTagsToHtml === "function") textHtml = rpPlotTagsToHtml(textHtml, message?.plotImages);
+  if (plotImagesAfterHtml) textHtml += plotImagesAfterHtml;
   // turn [贴纸:名字] tokens in the assistant's reply into the actual sticker image
   if (role === "assistant" && !useRoleplayHtml) {
     const stickerToken = /\[(?:贴纸|表情包|表情|sticker)[:：]\s*([^\]]+)\]/gi;
@@ -18405,7 +18412,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.46";
+const APP_VERSION = "1.0.47";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
