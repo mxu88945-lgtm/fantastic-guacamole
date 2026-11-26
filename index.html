@@ -2316,6 +2316,8 @@
     display: flex; flex-direction: column; gap: 7px; pointer-events: none;
   }
   #reminder-pin:empty { display: none; }
+  /* 1.0.43：右上角迷你播放器在时，任务小窗挪到它下面，不再叠在一起 */
+  body:has(.music-mini-player:not([hidden])):not(.music-open) #reminder-pin { top: calc(110px + env(safe-area-inset-top)); }
   .pin-card {
     pointer-events: auto;
     background: var(--bg-soft); border: 1px solid var(--border);
@@ -18301,7 +18303,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.42";
+const APP_VERSION = "1.0.43";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
