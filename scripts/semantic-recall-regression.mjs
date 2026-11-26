@@ -14,7 +14,7 @@ let checks = 0
 const ok = (value, message) => { assert.ok(value, message); checks++ }
 
 // ---- source wiring ----
-ok(sw.includes('const CACHE = "role-chat-cache-v441";'), 'service worker cache was not bumped to v355')
+ok(sw.includes('const CACHE = "role-chat-cache-v442";'), 'service worker cache was not bumped to v355')
 ok(html.includes('🧭 语义召回') && html.includes('id="semantic-enabled"') && html.includes('id="semantic-provider"')
   && html.includes('id="semantic-model"') && html.includes('id="semantic-test"') && html.includes('id="semantic-rebuild"')
   && html.includes('id="semantic-progress"'), 'settings → 记忆库 has no 🧭 语义召回 card')
@@ -187,7 +187,7 @@ ok(chunks[3].text.includes('天气好冷') && chunks[3].msgs.length === 1, 'an o
 ok(!S.semanticConversationChunks(current).length, 'a fresh still-growing tail must not be embedded yet')
 ok(S.semanticConversationChunks(pastWindow) === chunks, 'chunk cache not reused when unchanged')
 const all = S.allSemanticChunks()
-ok(!all.some(c => c.conv === rpWindow), 'roleplay transcripts must not be indexed')
+ok(all.some(c => c.conv === rpWindow), '1.0.41: roleplay transcripts are indexed for in-theater recall')
 ok(all.some(c => c.kind === 'memory' && c.body === '惟惟养了九只玄凤鹦鹉') && !all.some(c => c.body === '不注入的条目'), 'memory entries are not one chunk each')
 ok(all.some(c => c.kind === 'person' && c.text.includes('伯恩') && c.text.includes('修好了键盘')), 'people events are not one chunk each')
 
@@ -275,10 +275,14 @@ current.messages.push({ id: 'c9', role: 'user', content: '好呀', ts: now + 1 }
 ok(await S.prepareSemanticRecall(historyWindow) === null && calls.length === ackCalls, '“好呀” should not trigger a query embedding')
 current.messages.pop()
 
-// roleplay window: semantic recall stays off
+// 1.0.41 roleplay window: semantic recall is on, but only finds that theater window's own text
 currentRef = rpWindow
-ok(!S.semanticRecallActive() && await S.prepareSemanticRecall({ messages: [] }) === null, 'semantic recall ran inside a roleplay window')
+ok(S.semanticRecallActive(), 'semantic recall should be active inside a roleplay window')
+const rpState = await S.prepareSemanticRecall({ messages: [] })
+ok(!rpState || rpState.hits.every(h => h.chunk.kind === 'chat' && h.chunk.conv === rpWindow), 'theater recall leaked main-chat or memory chunks')
 currentRef = current
+const mainState = await S.prepareSemanticRecall(historyWindow)
+ok(!mainState || mainState.hits.every(h => h.chunk.conv !== rpWindow), 'main chat recalled roleplay transcripts')
 
 // ---- timeout fallback ----
 current.messages.push({ id: 'c10', role: 'user', content: '我想唱歌但嗓子哑了', ts: now + 2 })

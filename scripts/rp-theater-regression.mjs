@@ -127,7 +127,7 @@ const shared = context.buildSharedRoleplayExperienceText();
 ok(shared.includes('戏内已经离婚') && shared.includes('顾里：归还信物') && shared.includes('不代表本体真实经历') && shared.length <= 2600, 'topic-matched private prompts must include a bounded RP archive with fiction boundaries');
 ok(html.includes('roleplayExperience.includes("【最近24小时共同演出档案】")') && html.includes('{ key: "roleplayExperience", label: roleplayExperienceMatched ? "共同演出档案 · 本轮命中"') && html.includes('priority: roleplayExperienceMatched ? 4 : 9') && !html.includes('const sharedRoleplayExperience = buildSharedRoleplayExperienceText();'), 'RP archives must share the inspected memory budget and promote topic-matched or fresh shared-scene details');
 ok(html.includes('主聊天记忆和幕后手记属于演员本人的后台认知') && html.includes('不得由舞台角色在剧情正文里主动说出'), 'owner memory may reach theater cognition but must stay out of the stage character prose');
-ok(html.includes('const newestFallback = entries.filter(item => !item.pinned).slice(-3);') && !html.includes('...ranked.slice(-3)'), 'RP fallback recall must use the newest entries instead of the lowest-ranked tail');
+ok(html.includes('const newestFallback = entries.filter(item => !item.pinned).slice(-5);') && !html.includes('...ranked.slice(-3)'), 'RP fallback recall must use the newest entries instead of the lowest-ranked tail');
 context.current = { space: 'roleplay' };
 ok(context.buildSharedRoleplayExperienceText() === '', 'other RP projects must not leak into the active stage');
 ok(dashboard.includes('JYCRoleplayBridge?.exitToHome?.()') && js.includes('rp-home-exit'), 'RP must have a working backstage-home exit');

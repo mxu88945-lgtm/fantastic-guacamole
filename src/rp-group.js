@@ -353,11 +353,11 @@ if (bridge) {
       <div class="rp-group-scroll rp-memory-settings">
         <section class="rp-memory-identity"><strong>独立记忆库</strong><p class="rp-group-note">只属于《${escape(scene.title)}》，不会与其他剧本混用。一次总结会同时生成长期记忆并提炼各角色自己的核心记忆；只有模型漏掉核心区时才自动补提炼。</p></section>
         <section><div class="rp-group-section-head"><h3>记忆 API 来源</h3><button type="button" data-api>管理接口 ›</button></div><p class="rp-group-note">${escape(api.label || "沿用当前记忆模型")}</p></section>
-        <section><label><strong>自动总结</strong><small class="rp-group-note">每多少条新正文总结一次，0 为禁用</small><input id="rp-memory-auto-every" type="number" min="0" max="200" value="${Number(memory.autoEvery ?? 50)}"></label><label><strong>记忆上限</strong><small class="rp-group-note">最多保留 20～2000 条长期记忆</small><input id="rp-memory-max-entries" type="number" min="20" max="2000" value="${Number(memory.maxEntries ?? 2000)}"></label></section>
+        <section><label><strong>自动总结</strong><small class="rp-group-note">每多少条新正文总结一次，0 为禁用</small><input id="rp-memory-auto-every" type="number" min="0" max="200" value="${Number(memory.autoEvery ?? 16)}"></label><label><strong>记忆上限</strong><small class="rp-group-note">最多保留 20～2000 条长期记忆</small><input id="rp-memory-max-entries" type="number" min="20" max="2000" value="${Number(memory.maxEntries ?? 2000)}"></label></section>
         <section><label class="rp-memory-toggle"><span><strong>自动提炼角色核心记忆</strong><small>与长期记忆同次提炼，把已发生、已完成、已查明的事实分配给真正知情的角色；缺失时才补一次请求。</small></span><input id="rp-memory-auto-core" type="checkbox" ${memory.autoCharacterMemory !== false ? "checked" : ""}></label></section>
         <section><label><strong>记忆总结提示词</strong><textarea id="rp-memory-summary-prompt" rows="10" maxlength="20000">${escape(memory.summaryPrompt || "")}</textarea></label></section>
         <section><label><strong>记忆注入位置</strong><select id="rp-memory-inject-position">${positions.map(([value, label]) => `<option value="${value}" ${memory.injectPosition === value ? "selected" : ""}>${label}</option>`).join("")}</select></label></section>
-        <section><label><strong>记忆注入提示词</strong><textarea id="rp-memory-inject-prompt" rows="7" maxlength="20000">${escape(memory.injectPrompt || "")}</textarea></label><p class="rp-group-note">使用 <code>{{memories}}</code> 作为召回内容占位符。系统会用最近剧情和关键词筛选相关内容；普通记忆最多召回 8 条、总量约 6000 字，置顶记忆优先保留。</p></section>
+        <section><label><strong>记忆注入提示词</strong><textarea id="rp-memory-inject-prompt" rows="7" maxlength="20000">${escape(memory.injectPrompt || "")}</textarea></label><p class="rp-group-note">使用 <code>{{memories}}</code> 作为召回内容占位符。系统会用最近剧情和关键词筛选相关内容；普通记忆最多召回 12 条、总量约 6000 字，置顶记忆优先保留。</p></section>
         <section><div class="rp-memory-actions"><button type="button" data-save-memory-settings>保存记忆设置</button><button type="button" data-refresh>立即总结当前对话</button><button type="button" data-rebuild-memory>从头重新总结本对话</button></div><p id="rp-memory-action-status" class="rp-group-note" role="status" aria-live="polite"></p></section>
         <section><div class="rp-group-section-head"><h3>查看与管理长期记忆</h3><span id="rp-scene-memory-count" class="rp-group-note"></span></div><details><summary>手填连续性档案</summary><textarea id="rp-memory-manual" rows="6" maxlength="120000"></textarea><button type="button" data-save-manual>保存档案</button></details><details open><summary>长期记忆与提取关键词</summary><div id="rp-memory-list"></div><label>补充一条重要事实<textarea id="rp-memory-new" rows="3" maxlength="1600" placeholder="只记录已经发生的剧情"></textarea></label><button type="button" data-add-memory>添加记忆</button></details><details><summary>较早剧情摘要 · 只读</summary><pre id="rp-memory-summary"></pre></details></section>
         <section><h3>角色私人核心记忆</h3><p class="rp-group-note">只会注入对应角色自己的请求。自动提炼只收录该角色确认知道的既成事实。</p>${members.map(member => `<details class="rp-private-memory-card" data-private-member="${escape(member.id)}"><summary>${escape(member.name)}</summary><textarea rows="6" maxlength="16000">${escape(member.privateMemory || "")}</textarea></details>`).join("")}<button type="button" data-save-private-memories>保存角色核心记忆</button></section>
@@ -367,11 +367,11 @@ if (bridge) {
     panel.querySelector(".rp-group-drawer").focus();
   }
   function memorySettingsPatch(useDefaults = false) {
-    if (useDefaults) return { autoEvery: 50, maxEntries: 2000, autoCharacterMemory: true,
+    if (useDefaults) return { autoEvery: 16, autoEveryV2: true, maxEntries: 2000, autoCharacterMemory: true,
       summaryPrompt: "【暂停剧情扮演】请只整理本次新增正文中已经发生、已经完成或已经确认，且会影响后续剧情的事实。不要记录猜测、计划、普通动作、状态栏措辞或未落地的幕后安排；不要替用户补写言行。对照已有记忆去重，并为每条记忆提取 3～8 个便于日后召回的关键词。",
       injectPosition: "after-main-prompt", injectPrompt: "以下是本剧本已经发生过的长期记忆。请把它们当作连续性事实自然承接，不要逐条复述，也不要替用户决定言行：\n\n{{memories}}" };
     return {
-      autoEvery: Number(panel.querySelector("#rp-memory-auto-every")?.value || 0), maxEntries: Number(panel.querySelector("#rp-memory-max-entries")?.value || 2000),
+      autoEvery: Number(panel.querySelector("#rp-memory-auto-every")?.value || 0), autoEveryV2: true, maxEntries: Number(panel.querySelector("#rp-memory-max-entries")?.value || 2000),
       autoCharacterMemory: panel.querySelector("#rp-memory-auto-core")?.checked !== false,
       summaryPrompt: panel.querySelector("#rp-memory-summary-prompt")?.value || "", injectPosition: panel.querySelector("#rp-memory-inject-position")?.value || "after-main-prompt",
       injectPrompt: panel.querySelector("#rp-memory-inject-prompt")?.value || "",
