@@ -10870,7 +10870,13 @@ function buildIndependentRoleplayMemory(historyWindow, conv = currentConv()) {
     .map(message => `${message.role === "user" ? p.userRole || "用户戏内角色" : message.rpSpeakerName || p.actorName || "舞台角色"}：${messageText(message).slice(0, 500)}`).join("\n");
   // 1.0.41：配角也能按话题（关键词 + 语义）找回滑出窗口的旧正文，跟主角一样。
   let recall = "";
-  try { recall = retrieveOmittedCurrentChat(historyWindow)?.text || ""; } catch (_) { recall = ""; }
+  try {
+    const evicted = retrieveRoleplayEvicted(historyWindow, conv);
+    if (evicted) {
+      recall = evicted.text || "";
+      if (recall && evicted.keys?.length) commitRecallKeys(evicted.keys, evicted.turn);
+    } else recall = retrieveOmittedCurrentChat(historyWindow)?.text || "";
+  } catch (_) { recall = ""; }
   const text = [summary ? "【本场较早剧情摘要】\n" + summary.slice(-8000) : "", recall, earlier ? "【本窗口较早正文衔接】\n" + earlier : ""].filter(Boolean).join("\n\n");
   return { text, audit: { scope: "scene-only", budget: 12000, used: text.length, duplicateLines: 0, cooldownSuppressed: 0,
     blocks: [{ key: "scene-continuity", label: "本场剧情连续性", chars: text.length, included: !!text, sources: [] }] } };
@@ -11787,6 +11793,46 @@ function retrieveOmittedCurrentChat(windowInfo) {
     selectedCount: selected.length,
     suppressedCount: cooldown.suppressed.length,
   });
+}
+
+// 1.0.42 剧场：滑出窗口的较早剧情原文按需召回（惟境 evictedRecall 同款，见 src/rp-evicted-recall.js）。
+// 按「一轮交流」切小段，只拿她最新这句去对，专有词/点名/问往事才带，每轮最多 2 段，召回后冷却 4 轮。
+// 返回 prepacked 结果：文字已排好，记忆组装时不再按单条消息重新打包。
+function retrieveRoleplayEvicted(windowInfo, conv = currentConv()) {
+  const api = globalThis.JYCEvictedRecall;
+  const empty = { ...emptyRecallResult("current"), prepacked: true };
+  if (!api || !conv || !isRoleplayConversation(conv)) return null;
+  const p = normalizedRoleplayProject(conv.rpProject, conv);
+  const list = conv.messages || [];
+  const omitted = new Set((windowInfo?.omitted || []));
+  list.forEach(m => { if (m && m._compactedBy) omitted.add(m); });
+  const source = list.filter(m => omitted.has(m) && isChatContentMessage(m) && !m._event && !m._summary);
+  if (!source.length) return empty;
+  const userName = String(p.userRole || userRef() || "她");
+  const pool = api.pool(source.map(m => ({
+    id: m.id || ((m.role || "") + ":" + (m.ts || "")),
+    role: m.role === "user" ? "user" : "assistant",
+    speaker: m.role === "user" ? userName : String(m.rpSpeakerName || p.actorName || "舞台角色"),
+    text: messageText(m), createdAt: m.ts,
+  })));
+  const latest = [...list].reverse().find(m => m && m.role === "user" && !m._event && !m._summary && messageText(m).trim());
+  const query = latest ? messageText(latest).trim() : "";
+  if (!query) return { ...empty, candidateCount: 0 };
+  let semantic;
+  const state = typeof semanticRecallState !== "undefined" ? semanticRecallState : null;
+  if (state?.hits?.length) {
+    const byId = new Map();
+    for (const { chunk, sim } of state.hits) {
+      if (chunk?.kind !== "chat" || chunk.conv !== conv) continue;
+      (chunk.msgs || []).forEach(m => { const id = m?.id || ((m?.role || "") + ":" + (m?.ts || "")); byId.set(id, Math.max(byId.get(id) || 0, sim)); });
+    }
+    if (byId.size) semantic = api.semanticByChunk(pool, id => byId.get(id));
+  }
+  const ledger = ensureMemoryRecallLedger(conv).hits;
+  const turn = memoryRecallTurn(conv);
+  const r = api.recall(pool, { query, explicit: explicitMemoryRecallIntent(query), skipNames: [userName, p.actorName, settings.aiName, settings.userName], ledger, turn, semantic });
+  return { scope: "current", prepacked: true, text: r.text, keys: r.keys, turn,
+    candidateCount: r.candidates, selectedCount: r.chunks.length, suppressedCount: r.suppressed, poolChunks: r.poolChunks };
 }
 
 // Short-lived working memory for ordinary life reports and fresh project progress.
@@ -13837,7 +13883,7 @@ function renderMemoryInspection() {
     <div class="memory-inspection-list">${lanes}</div>`;
 }
 function buildBoundedMemoryContext(historyWindow) {
-  const currentRecall = retrieveOmittedCurrentChat(historyWindow);
+  const currentRecall = (typeof retrieveRoleplayEvicted === "function" && typeof isRoleplayConversation === "function" && isRoleplayConversation() && retrieveRoleplayEvicted(historyWindow)) || retrieveOmittedCurrentChat(historyWindow);
   const crossRecall = retrieveCrossChat();
   const recentState = buildRecentStateContext(historyWindow);
   // v354 人物档案：她最近一两条消息点名的人（最多 3 人，每人约 800 字）。
@@ -13887,7 +13933,7 @@ function buildBoundedMemoryContext(historyWindow) {
     { key: "commitmentLedger", label: "惦记与约定账本", priority: 2, order: 75, cap: 1050, text: commitmentLedger },
     { key: "recentState", label: "近期状态与进展", priority: 2, order: 80, cap: RECENT_STATE_CHAR_BUDGET, text: recentState },
     { key: "pendingContinuity", label: "旧文临时衔接", priority: 3, order: 85, cap: PENDING_CONTINUITY_BRIDGE_CHAR_BUDGET, text: pendingContinuity },
-    { key: "currentExact", label: "本窗旧文", priority: 3, order: 90, cap: 1400, recall: currentRecall, text: currentRecall.text },
+    { key: "currentExact", label: currentRecall.prepacked ? "滑出窗口的剧情原文" : "本窗旧文", priority: 3, order: 90, cap: 1400, recall: currentRecall, text: currentRecall.text },
     { key: "crossExact", label: "其他窗口原文", priority: 4, order: 91, cap: 1400, recall: crossRecall, text: crossRecall.text },
     { key: "facts", label: "用户确认长期事实", priority: 5, order: 30, cap: 1550, text: facts,
       memoryReasons: typeof lastMemoryLaneReceipts !== "undefined" ? lastMemoryLaneReceipts.confirmed : [] },
@@ -13921,8 +13967,12 @@ function buildBoundedMemoryContext(historyWindow) {
     // line-clip its original wording, and count only sources actually sent.
     const recall = block.recall?.hits
       ? packHistoryRecall(block.recall, Math.min(block.cap, remaining)) : block.recall;
-    const capped = recall?.hits ? recall.text : clipMemoryContextBlock(block.text, block.cap);
-    const deduped = recall?.hits ? { text: capped, dropped: 0 } : dedupeMemoryContextBlock(capped, seenFacts);
+    // 1.0.42 剧场滑出原文已按小段排好：放得下就整段带，放不下就不带，不逐行去重。
+    const prepacked = !!recall?.prepacked;
+    const capped = recall?.hits ? recall.text
+      : prepacked ? (recall.text.length <= Math.min(block.cap, remaining) ? recall.text : "")
+      : clipMemoryContextBlock(block.text, block.cap);
+    const deduped = recall?.hits || prepacked ? { text: capped, dropped: 0 } : dedupeMemoryContextBlock(capped, seenFacts);
     duplicateLines += deduped.dropped;
     const included = remaining >= 80 ? clipMemoryContextBlock(deduped.text, remaining) : "";
     const chars = included.length;
@@ -18251,7 +18301,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.41";
+const APP_VERSION = "1.0.42";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
@@ -24222,6 +24272,7 @@ if ("serviceWorker" in navigator) {
 <script type="module" src="./src/game-room.js"></script>
 <script type="module" src="./src/rp-theater.js"></script>
 <script type="module" src="./src/rp-film.js"></script>
+<script type="module" src="./src/rp-evicted-recall.js"></script>
 <script type="module" src="./src/rp-group.js"></script>
 <script type="module" src="./src/gifts.js"></script>
 <script type="module" src="./src/dashboard.js"></script>
