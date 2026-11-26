@@ -154,6 +154,7 @@ ${songRule}
     play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 5.8v12.4L18 12z"/></svg>',
     pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5v13M15 5.5v13"/></svg>',
     next: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 5.5v13"/><path d="M6 5.8v12.4L15.5 12z"/></svg>',
+    search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.5" fill="none"/><path d="M15 15l4.5 4.5"/></svg>',
   };
   function dial() {
     const ticks = Array.from({ length: 12 }, (_, i) => i * 30).map((d) => `<line x1="20" y1="5.5" x2="20" y2="${d % 90 === 0 ? 9.5 : 8}" transform="rotate(${d} 20 20)"/>`).join("");
@@ -218,7 +219,7 @@ ${songRule}
     return `<div class="film-gramo">
       <span class="film-gramo-disc${playingAny ? " spinning" : ""}" aria-hidden="true"></span>
       <div class="film-gramo-text"><small>GRAMOPHONE · SIDE A</small><strong>${esc(title)}</strong>${sub ? `<em>${esc(sub)}</em>` : ""}${hint}</div>
-      <div class="film-gramo-actions"><button type="button" data-film-act="toggle" class="${card.song && !here && !other ? "film-gramo-nudge" : ""}" aria-label="${playingAny ? "暂停" : "播放"}">${playingAny ? ICON.pause : ICON.play}</button><button type="button" data-film-act="next" aria-label="下一首">${ICON.next}</button></div>
+      <div class="film-gramo-actions"><button type="button" data-film-act="toggle" class="${card.song && !here && !other ? "film-gramo-nudge" : ""}" aria-label="${playingAny ? "暂停" : "播放"}">${playingAny ? ICON.pause : ICON.play}</button><button type="button" data-film-act="next" aria-label="下一首">${ICON.next}</button><button type="button" data-film-act="search" aria-label="搜歌">${ICON.search}</button></div>
     </div>`;
   }
 
@@ -320,6 +321,7 @@ ${songRule}
     if (!music) return;
     const done = (st) => { status.set(id, st); refresh(id); };
     const kind = act.dataset.filmAct;
+    if (kind === "search") { if (music.openSearch) void music.openSearch(); else void music.open?.(); return; }
     const later = () => { refresh(id); setTimeout(() => refresh(id), 700); setTimeout(() => refresh(id), 2000); };
     if (kind === "next") {
       // 1.0.39：卡里点了歌但现在放的不是它 → 下一首先切到卡里的歌

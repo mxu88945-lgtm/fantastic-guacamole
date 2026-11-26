@@ -1324,6 +1324,15 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
     }
   }
 
+  /** 1.0.44：唱片机上的搜索按钮 → 打开播放器直接到网易云搜歌 */
+  async function openSearch() {
+    state.activeTab = "search";
+    await open();
+    // 刚打开时还没连上会被切到「本地」，连上后再切回搜索
+    if (state.connected && state.activeTab !== "search") { state.activeTab = "search"; renderView(); }
+    setTimeout(() => { const input = $("music-search-input"); if (input) { input.focus(); input.select?.(); } }, 60);
+  }
+
   function close() {
     state.open = false;
     closeLyrics();
@@ -1437,7 +1446,7 @@ import { guessLyricMeta, lyricQueryPairs, rankLyrics, mergeCandidates, nextCandi
   restoreLibrary();
   restoreLocalList();
   restorePlayerState();
-  window.JYCMusic = { open, close, summary, promptNote, playlistNames: () => pickPool().map((s) => s.name), togglePlay, playNext, songPickNote, findPickSong, playPicked, importForPick, isSongPlaying, nextLyricVersion, getState: () => ({ ...state, lyrics: undefined, lyricTranslations: undefined }) };
+  window.JYCMusic = { open, openSearch, close, summary, promptNote, playlistNames: () => pickPool().map((s) => s.name), togglePlay, playNext, songPickNote, findPickSong, playPicked, importForPick, isSongPlaying, nextLyricVersion, getState: () => ({ ...state, lyrics: undefined, lyricTranslations: undefined }) };
   bind();
   renderMiniPlayer();
 })();
