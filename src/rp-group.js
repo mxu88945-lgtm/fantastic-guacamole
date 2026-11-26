@@ -1,6 +1,6 @@
 import "./rp-group.css";
 import "./rp-mentions.js";
-import { readRoleplayAvatar } from "./rp-avatar.js";
+import { readRoleplayAvatar, readPlotImage } from "./rp-avatar.js";
 
 const bridge = window.JYCRoleplayBridge;
 if (bridge) {
@@ -62,6 +62,10 @@ if (bridge) {
     if (userRole) draft.userRole = userRole.value;
     if (userIdentity) draft.userIdentity = userIdentity.value;
     if (plotText) draft.temporaryPlot = plotText.value;
+    panel.querySelectorAll("[data-plot-image-name]").forEach(input => {
+      const image = (draft.temporaryPlotImages || []).find(item => item.id === input.dataset.plotImageName);
+      if (image) image.name = input.value.slice(0, 20);
+    });
     if (plotMode) draft.temporaryPlotMode = plotMode.value;
     if (plotUses) draft.temporaryPlotRemainingUses = Math.max(1, Math.min(100, Math.floor(Number(plotUses.value) || 1)));
     if (sceneSystemPromptEnabled) draft.sceneSystemPromptEnabled = sceneSystemPromptEnabled.checked;
@@ -79,6 +83,16 @@ if (bridge) {
       if (!member) return;
       row.querySelectorAll("[data-field]").forEach(input => { member[input.dataset.field] = input.type === "checkbox" ? input.checked : input.value; });
     });
+  }
+  function renderPlotImages() {
+    const box = panel.querySelector("#rp-plot-images");
+    if (!box || !draft) return;
+    const list = Array.isArray(draft.temporaryPlotImages) ? draft.temporaryPlotImages : [];
+    box.innerHTML = list.map((image, index) => `<div class="rp-plot-image-row" style="display:flex;align-items:center;gap:8px;margin:6px 0"><img src="${escape(image.dataUrl)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:10px;flex:none"><input data-plot-image-name="${escape(image.id)}" maxlength="20" value="${escape(image.name || "")}" placeholder="名字，比如 热搜截图（空着就叫 图${index + 1}）" aria-label="配图名字" style="flex:1;min-width:0"><button type="button" data-plot-image-del="${escape(image.id)}">删除</button></div>`).join("");
+    const count = panel.querySelector("[data-plot-image-count]");
+    if (count) count.textContent = String(list.length);
+    const pick = panel.querySelector("[data-plot-image-pick]");
+    if (pick) pick.disabled = list.length >= 4;
   }
   function textThemeDefaults() {
     const theme = rpThemes.find(item => item[0] === draft?.rpTheme) || rpThemes[0];
@@ -114,6 +128,7 @@ if (bridge) {
       temporaryPlot: draft.temporaryPlot, temporaryPlotMode: draft.temporaryPlotMode,
       temporaryPlotRemainingUses: draft.temporaryPlotRemainingUses,
       temporaryPlotRecipientIds: draft.temporaryPlotRecipientIds,
+      temporaryPlotImages: draft.temporaryPlotImages || [],
       chatTextColor: draft.chatTextColor, chatNarrationColor: draft.chatNarrationColor, chatQuoteColor: draft.chatQuoteColor,
       chatFontSize: draft.chatFontSize, chatFontFamily: draft.chatFontFamily, chatFontWeight: draft.chatFontWeight,
       rpTheme: draft.rpTheme, rpWallpaper: draft.rpWallpaper, rpWallpaperOpacity: draft.rpWallpaperOpacity, rpOverlayOpacity: draft.rpOverlayOpacity, rpBaseColor: draft.rpBaseColor,
@@ -312,7 +327,7 @@ if (bridge) {
       <section id="rp-user-profile"><div class="rp-group-section-head"><h3>用户身份</h3><span class="rp-group-note">仅本剧本</span></div><p class="rp-group-note">这份身份只发给本场共演角色，不会改动顾祁砚本体里的“周惟惟”，也不会串进其他剧本。</p><div class="rp-user-avatar-row"><span class="rp-cast-avatar" data-user-avatar-preview>${draft.userAvatar ? `<img src="${escape(draft.userAvatar)}" alt="">` : escape(String(draft.userRole || "我").slice(0, 1))}</span><div class="rp-cast-add"><button type="button" data-avatar-pick-user>从相册选择头像</button><button type="button" data-avatar-clear="user">移除头像</button><input type="file" accept="image/*" data-avatar-file="user" hidden></div></div><label>姓名 / 戏内身份<input id="rp-user-role" maxlength="240" value="${escape(draft.userRole || "")}" placeholder="例如：宁梦曦"></label><label>用户身份资料<textarea id="rp-user-identity" rows="8" maxlength="30000" placeholder="填写背景、经历、关系、外貌或这条剧情里需要角色知道的身份资料……">${escape(draft.userIdentity || "")}</textarea></label></section>
       <section id="rp-display-section"><div class="rp-group-section-head"><h3>文字显示主题</h3><span class="rp-group-note">仅本剧本</span></div><p class="rp-group-note">文字采用惟镜式全宽正文与液态对白，不读取顾祁砚本体的字体、字号、字重或气泡布局。</p><label>字体<select data-rp-font="chatFontFamily">${[["default", "系统字体"], ["kai", "楷体"], ["song", "宋体"]].map(([value, label]) => `<option value="${value}" ${(draft.chatFontFamily || "default") === value ? "selected" : ""}>${label}</option>`).join("")}</select></label><div class="rp-font-size-row"><label>字体大小</label><div class="rp-font-size-slider"><input type="range" data-rp-font="chatFontSize" min="12" max="20" step="0.5" value="${fontSizePx}" aria-label="字体大小"><span class="rp-font-size-pill" data-rp-font-size-value>${fontSizePx}</span></div><div class="rp-font-size-preview"><div class="rp-font-size-preview-title">聊天正文预览</div><div data-rp-font-size-sample style="font-size: ${previewFontSize}; font-weight: ${fontWeight}"><p data-rp-font-size-sample-narration style="color:${escape(draft.chatNarrationColor || textDefaults.chatNarrationColor)}">（他终于等到你回来。）</p><p data-rp-font-size-sample-dialogue style="color:${escape(draft.chatTextColor || textDefaults.chatTextColor)}">“我一直在这里。”</p></div></div></div><div class="rp-font-weight-row"><label>字体字重 <output data-rp-font-weight-value>${fontWeight}</output></label><input type="range" data-rp-font="chatFontWeight" min="300" max="800" step="50" value="${fontWeight}" aria-label="字体字重"><small>数值越大越粗；建议正文使用 400～500。</small></div><div class="rp-text-theme-grid">${textThemeRow("chatTextColor", "正文", textDefaults.chatTextColor)}${textThemeRow("chatNarrationColor", "旁白", textDefaults.chatNarrationColor)}${textThemeRow("chatQuoteColor", "引用", textDefaults.chatQuoteColor)}</div><button type="button" data-reset-text-theme>恢复当前液态主题文字</button></section>
       ${appearanceSection()}<section id="rp-scene-preset-section"><div class="rp-group-section-head"><h3>剧情系统预设</h3><label class="rp-cast-check"><input id="rp-scene-system-enabled" type="checkbox" ${draft.sceneSystemPromptEnabled !== false ? "checked" : ""}>启用</label></div><p class="rp-group-note">仅本剧本、每轮隐藏发送，并放在角色卡、世界观和记忆之后执行。不会改动顾祁砚本体或其他剧本。</p><label>系统预设<textarea id="rp-scene-system-prompt" rows="12" maxlength="30000" placeholder="填写本剧本每轮都要遵守的写作要求……">${escape(draft.sceneSystemPrompt || adultScenePreset.content || "")}</textarea></label><div class="rp-cast-add"><button type="button" data-fill-scene-preset="adult-fiction">恢复“成人剧情 · 直接连贯”</button><button type="button" data-clear-scene-preset>清空</button></div><p class="rp-group-note">成人预设限定为成年人、自愿情节；会要求连贯描写，同时不替你的角色新增台词、动作、心理或同意。</p></section>
-      <section id="rp-temporary-section"><div class="rp-group-section-head"><h3>临时剧情</h3><span class="rp-group-note">正文不显示</span></div><p class="rp-group-note">仅本对话生效。群聊只有本轮被你 @ 且符合接收范围的角色能看到；单人剧情直接发送或续演即可。</p><label>生效时长<select id="rp-temporary-mode"><option value="once" ${draft.temporaryPlotMode === "once" ? "selected" : ""}>仅下一次（默认）</option><option value="counted" ${draft.temporaryPlotMode === "counted" ? "selected" : ""}>持续指定次数</option><option value="persistent" ${draft.temporaryPlotMode === "persistent" ? "selected" : ""}>持续到手动结束</option></select></label><label id="rp-temporary-uses-wrap">剩余成功次数<input id="rp-temporary-uses" type="number" min="1" max="100" value="${Number(draft.temporaryPlotRemainingUses) || 3}"></label><fieldset id="rp-plot-recipients" class="rp-plot-recipients"></fieldset><label>幕后安排<textarea id="rp-temporary-plot" rows="12" maxlength="120000" placeholder="例如：让他接到一通紧急电话；或保持缓慢对峙，不急着和解……">${escape(draft.temporaryPlot || "")}</textarea></label><div class="rp-cast-add"><button type="button" data-clear-plot>清空 / 结束</button></div><p class="rp-group-note">成功回复后按次数消耗；失败或停止时保留。持续方向会沿最新进展推进，不要求重复已经发生的事件。</p></section>
+      <section id="rp-temporary-section"><div class="rp-group-section-head"><h3>临时剧情</h3><span class="rp-group-note">正文不显示</span></div><p class="rp-group-note">仅本对话生效。群聊只有本轮被你 @ 且符合接收范围的角色能看到；单人剧情直接发送或续演即可。</p><label>生效时长<select id="rp-temporary-mode"><option value="once" ${draft.temporaryPlotMode === "once" ? "selected" : ""}>仅下一次（默认）</option><option value="counted" ${draft.temporaryPlotMode === "counted" ? "selected" : ""}>持续指定次数</option><option value="persistent" ${draft.temporaryPlotMode === "persistent" ? "selected" : ""}>持续到手动结束</option></select></label><label id="rp-temporary-uses-wrap">剩余成功次数<input id="rp-temporary-uses" type="number" min="1" max="100" value="${Number(draft.temporaryPlotRemainingUses) || 3}"></label><fieldset id="rp-plot-recipients" class="rp-plot-recipients"></fieldset><label>幕后安排<textarea id="rp-temporary-plot" rows="12" maxlength="120000" placeholder="例如：让他接到一通紧急电话；或保持缓慢对峙，不急着和解……">${escape(draft.temporaryPlot || "")}</textarea></label><div class="rp-plot-images-card"><div class="rp-group-section-head"><h3 style="font-size:14px">幕后配图（<span data-plot-image-count>0</span>/4）</h3></div><p class="rp-group-note">给每张图起个名字，在安排里写怎么用，例如「让他发一条热搜，配上 热搜截图」。他会看图，在正文合适的位置贴出来；用过的图自动移走。每张图约多上千 token。</p><div id="rp-plot-images"></div><div class="rp-cast-add"><button type="button" data-plot-image-pick>添加图片</button><input type="file" accept="image/*" multiple data-plot-image-file hidden></div></div><div class="rp-cast-add"><button type="button" data-clear-plot>清空 / 结束</button></div><p class="rp-group-note">成功回复后按次数消耗；失败或停止时保留。持续方向会沿最新进展推进，不要求重复已经发生的事件。</p></section>
       <section id="rp-scene-memory" class="rp-memory-link-card"><button type="button" data-open-memory><span><strong>长期记忆</strong><small id="rp-scene-memory-count"></small></span><b>›</b></button><p class="rp-group-note">自动总结、关键词召回、角色私人核心记忆和注入位置都在这里设置。</p></section>
       <section class="rp-group-links"><button type="button" data-backstage-notes><span>📓 幕后手记<small data-backstage-count style="opacity:.6;font-weight:400"></small></span></button><button type="button" data-detail>情景与角色资料 ›</button><button type="button" data-export-scene>导出当前对话 TXT ↓</button><button type="button" data-import-scene>导入对话 TXT · 新建副本 ↑</button><input type="file" id="rp-scene-import-file" accept=".txt,.json,text/plain,application/json" hidden><button type="button" data-home>回到顾祁砚本体主页 ›</button></section></div>
       <footer><small id="rp-group-save-state">成员设置只属于当前窗口</small><button type="button" data-save>保存并返回对戏</button></footer></aside>`;
@@ -329,7 +344,7 @@ if (bridge) {
       button.textContent = button.textContent.replace(/\s*[›↓↑]\s*$/u, "");
     });
     installSectionFolds();
-    renderMembers(); renderMemory(); updateTemporaryPlotMode();
+    renderMembers(); renderMemory(); updateTemporaryPlotMode(); renderPlotImages();
     panel.querySelector(".rp-group-drawer").focus();
     focusMember(memberId);
     queueMicrotask(autoRefreshMissingModels);
@@ -476,6 +491,29 @@ if (bridge) {
       panel.querySelectorAll("[data-plot-recipient]").forEach(input => { input.disabled = event.target.checked; });
       if (event.target.checked) panel.querySelectorAll("[data-plot-recipient]").forEach(input => { input.checked = false; });
     }
+    if (event.target.hasAttribute("data-plot-image-file")) {
+      const files = [...(event.target.files || [])];
+      event.target.value = "";
+      if (!files.length) return;
+      collect();
+      const revision = draftRevision;
+      const room = Math.max(0, 4 - (draft.temporaryPlotImages || []).length);
+      if (!room) { bridge.toast("最多 4 张配图"); return; }
+      avatarPending++;
+      try {
+        const added = [];
+        for (const file of files.slice(0, room)) {
+          try { added.push(await readPlotImage(file)); } catch (error) { bridge.toast(error.message); }
+        }
+        if (revision !== draftRevision || !added.length) return;
+        collect();
+        const list = draft.temporaryPlotImages = [...(draft.temporaryPlotImages || [])];
+        added.forEach(dataUrl => list.push({ id: "pi-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), name: `图${list.length + 1}`, dataUrl }));
+        markDirty(); renderPlotImages();
+        if (files.length > room) bridge.toast("最多 4 张，多出来的没加");
+      } finally { if (revision === draftRevision) avatarPending--; }
+      return;
+    }
     if (event.target.hasAttribute("data-avatar-file")) {
       const file = event.target.files[0], memberId = event.target.dataset.avatarFile;
       event.target.value = "";
@@ -593,7 +631,15 @@ if (bridge) {
       panel.querySelector("#rp-scene-system-enabled").checked = false;
       markDirty();
     }
+    else if (button.hasAttribute("data-plot-image-pick")) panel.querySelector("[data-plot-image-file]")?.click();
+    else if (button.hasAttribute("data-plot-image-del")) {
+      collect();
+      draft.temporaryPlotImages = (draft.temporaryPlotImages || []).filter(item => item.id !== button.dataset.plotImageDel);
+      markDirty(); renderPlotImages();
+    }
     else if (button.hasAttribute("data-clear-plot")) {
+      draft.temporaryPlotImages = [];
+      renderPlotImages();
       draft.temporaryPlot = ""; draft.temporaryPlotMode = "once"; draft.temporaryPlotRemainingUses = 3; draft.temporaryPlotRecipientIds = null;
       panel.querySelector("#rp-temporary-plot").value = "";
       panel.querySelector("#rp-temporary-mode").value = "once";

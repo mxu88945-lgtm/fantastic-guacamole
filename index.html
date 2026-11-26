@@ -8228,6 +8228,7 @@ function renderMessages() {
       tokens: m.tokens, timing: m.timing, promptAudit: m.promptAudit, historyRecall: m.historyRecall,
       songPick: m.role === "assistant" && !isRoleplayConversation() ? m.songPick : "", songPickId: m.id,
       filmId: m.role === "assistant" && isRoleplayConversation() ? (m.id || "") : undefined,
+      plotImages: m.role === "assistant" && Array.isArray(m.plotImages) ? m.plotImages : undefined,
       selfCardEdit: m.role === "assistant" && !isRoleplayConversation() ? m.selfCardEdit : "",
     });
     el.dataset.idx = i;
@@ -9378,6 +9379,8 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState, 
   let textHtml = answer
     ? (useRoleplayHtml ? (roleplayCanInlineHtml(answer) ? roleplayInlineHtml(answer) : roleplayRichFrameHtml(answer)) : (semanticRoleplayHtml || (role === "assistant" ? (isRoleplayConversation() ? renderRoleplayStoryText(answer) : renderMarkdown(answer)) : (isRoleplayConversation() ? renderRoleplayStoryText(answer) : (userQuoteCapsules() ? renderMarkdown(answer, true) : escapeHtml(answer).replace(/\n/g, "<br>"))))))
     : "";
+  // 1.0.45 临时剧情幕后配图
+  if (role === "assistant" && textHtml && typeof rpPlotTagsToHtml === "function") textHtml = rpPlotTagsToHtml(textHtml, message?.plotImages);
   // turn [贴纸:名字] tokens in the assistant's reply into the actual sticker image
   if (role === "assistant" && !useRoleplayHtml) {
     const stickerToken = /\[(?:贴纸|表情包|表情|sticker)[:：]\s*([^\]]+)\]/gi;
@@ -10477,6 +10480,10 @@ function normalizedRoleplayProject(value, conv) {
     temporaryPlotRecipientIds: Array.isArray(plotRecipientSource)
       ? [...new Set(plotRecipientSource.map(item => String(item || "").slice(0, 120)).filter(Boolean))].slice(0, 9)
       : null,
+    temporaryPlotImages: (Array.isArray(raw.temporaryPlotImages) ? raw.temporaryPlotImages : [])
+      .filter(item => item && typeof item.dataUrl === "string" && item.dataUrl.startsWith("data:image/"))
+      .slice(0, 4)
+      .map((item, index) => ({ id: String(item.id || "pi-" + index).slice(0, 60), name: String(item.name ?? "").replace(/\u0000/g, "").slice(0, 20), dataUrl: item.dataUrl.slice(0, 4000000) })),
     opening: greetings[openingIndex], memory: text("memory"),
     greetings, openingIndex, alternateGreetings: greetings.filter((_, index) => index !== openingIndex),
     theaterWorldBackground: text("theaterWorldBackground"), theaterWorldEnabled: raw.theaterWorldEnabled !== false,
@@ -10659,7 +10666,90 @@ function roleplayTemporaryPlotFor(project, speaker, userMessage = latestRoleplay
     mode: project.temporaryPlotMode || "once",
     remainingUses: project.temporaryPlotRemainingUses || 3,
     recipientIds: Array.isArray(project.temporaryPlotRecipientIds) ? [...project.temporaryPlotRecipientIds] : null,
+    images: Array.isArray(project.temporaryPlotImages) ? project.temporaryPlotImages.slice(0, 4) : [],
   };
+}
+/* 1.0.45 临时剧情幕后配图（移植惟境 v284/v302/v303 plotImages）：她在临时剧情里传图起名，
+ * 模型看图后在正文单独一行写 [配图:名字]，界面在那个位置显示图片；用过的图从后台移走。 */
+var RP_PLOT_IMAGE_TAG = /\[配图[:：]\s*([^\]\n]{1,40}?)\s*\]/g;
+function rpPlotImageNorm(value) { return String(value || "").trim().replace(/[「」『』"“”《》\s]/g, ""); }
+function rpPlotImageName(image, index) { return String(image?.name || "").trim() || `图${index + 1}`; }
+function rpFindPlotImage(images, name) {
+  const key = rpPlotImageNorm(name);
+  return (images || []).find((image, index) => rpPlotImageNorm(rpPlotImageName(image, index)) === key) || null;
+}
+function rpUsedPlotImages(text, images) {
+  if (!images?.length || typeof text !== "string") return [];
+  const used = [];
+  for (const match of text.matchAll(RP_PLOT_IMAGE_TAG)) {
+    const image = rpFindPlotImage(images, match[1]);
+    if (image && !used.includes(image)) used.push(image);
+  }
+  return used;
+}
+function rpPlotImageInstruction(images) {
+  if (!images?.length) return "";
+  const list = images.map((image, index) => `图${index + 1}「${rpPlotImageName(image, index)}」`).join("、");
+  const tags = images.map((image, index) => `[配图:${rpPlotImageName(image, index)}]`).join("、");
+  return `【幕后配图】她附了 ${images.length} 张图（按顺序附在本轮最后，只给你看）：${list}。剧情里需要把某张图展示出来时（如热搜、新闻、聊天截图、照片），在那个位置单独一行原样写对应标签：${tags}，名字必须与清单一致，每张最多用一次；图里的文字和画面要与你写的内容对得上。安排里提到要配图、发图、附上这张图时，本轮正文必须用上；没提到就按剧情需要决定。不要提到这些图是幕后给的。`;
+}
+/** 安排里点名要配的图，模型没写标签时自动补到第一段讲照片/截图/热搜的正文前，找不到就放在正文末尾（状态块之前）。 */
+function rpEnsurePlotImageTags(text, images, plotText) {
+  if (typeof text !== "string" || !images?.length || !String(plotText || "").trim()) return text;
+  const plot = rpPlotImageNorm(plotText);
+  const mentionsPicture = /图|照片|截图|热搜|配图|发图/.test(plotText);
+  const used = rpUsedPlotImages(text, images);
+  const missing = images.filter((image, index) => {
+    const name = rpPlotImageNorm(rpPlotImageName(image, index));
+    return ((name && plot.includes(name)) || (images.length === 1 && mentionsPicture)) && !used.includes(image);
+  });
+  if (!missing.length) return text;
+  const tags = missing.map(image => `[配图:${rpPlotImageName(image, images.indexOf(image))}]`).join("\n");
+  const statusAt = text.search(/\n\s*(?:<[a-z]|```)/i);
+  const body = statusAt > 0 ? text.slice(0, statusAt) : text;
+  const rest = statusAt > 0 ? text.slice(statusAt) : "";
+  const lines = body.split("\n");
+  const hit = lines.findIndex(line => /照片|图片|截图|热搜|原图|抓拍|配图/.test(line) && !/^\s*</.test(line) && !/^\s*\[/.test(line));
+  if (hit >= 0) { lines.splice(hit, 0, tags, ""); return lines.join("\n") + rest; }
+  return `${body}\n\n${tags}${rest}`;
+}
+/** 显示：标签换成图片；找不到对应图的标签直接隐藏。 */
+function rpPlotTagsToHtml(html, images) {
+  if (typeof html !== "string" || !/配图/.test(html)) return html;
+  return html.replace(RP_PLOT_IMAGE_TAG, (_, name) => {
+    const image = rpFindPlotImage(images, name);
+    return image ? `<img class="rp-plot-img" src="${escapeHtml(image.dataUrl)}" alt="" style="display:block;width:100%;max-width:320px;height:auto;border-radius:12px;margin:10px 0">` : "";
+  });
+}
+/** 把配图附到请求最后一条用户消息上（没有就补一条）。 */
+function rpAppendPlotImagesToWire(history, images, format) {
+  const valid = (images || []).filter(image => typeof image?.dataUrl === "string" && image.dataUrl.startsWith("data:image/"));
+  if (!valid.length || !Array.isArray(history)) return;
+  const parts = valid.map(image => ({ type: "image", dataUrl: image.dataUrl, mediaType: /^data:([^;,]+)/i.exec(image.dataUrl)?.[1] || "image/jpeg" }));
+  const bridge = "（幕后配图，只给你看）";
+  const last = history[history.length - 1];
+  if (format === "gemini") {
+    const extra = geminiPartsForContent(parts);
+    if (last && last.role === "user") last.parts = [...(last.parts || []), ...extra];
+    else history.push({ role: "user", parts: [{ text: bridge }, ...extra] });
+    return;
+  }
+  const extra = toApiContent(parts, format === "anthropic");
+  if (last && last.role === "user") {
+    const content = typeof last.content === "string" ? (last.content.trim() ? [{ type: "text", text: last.content }] : []) : (Array.isArray(last.content) ? last.content : []);
+    last.content = [...content, ...extra];
+  } else history.push({ role: "user", content: [{ type: "text", text: bridge }, ...extra] });
+}
+/** 用过的图从临时剧情里移走（剩下的留给下一轮）。 */
+function removeUsedRoleplayPlotImages(conv, usedIds) {
+  if (!conv || !usedIds?.length || !isRoleplayConversation(conv)) return;
+  const project = normalizedRoleplayProject(conv.rpProject, conv);
+  const next = (project.temporaryPlotImages || []).filter(image => !usedIds.includes(image.id));
+  if (next.length === (project.temporaryPlotImages || []).length) return;
+  project.temporaryPlotImages = next;
+  conv.rpProject = project;
+  conv.updatedAt = Date.now();
+  saveConversations();
 }
 function consumeRoleplayTemporaryPlot(conv, captured) {
   if (!conv || !captured || captured.mode === "persistent" || !isRoleplayConversation(conv)) return false;
@@ -10674,6 +10764,7 @@ function consumeRoleplayTemporaryPlot(conv, captured) {
     project.temporaryPlotMode = "once";
     project.temporaryPlotRemainingUses = 3;
     project.temporaryPlotRecipientIds = null;
+    project.temporaryPlotImages = [];
   }
   conv.rpProject = project;
   conv.updatedAt = Date.now();
@@ -12483,6 +12574,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
   const activeTemporaryPlot = rpProject ? roleplayTemporaryPlotFor(rpProject, activeSpeaker) : null;
   const independent = rpProject && roleplayIndependentSpeaker(activeSpeaker);
   const backstageMode = !!(rpProject && !independent && rpProject.backstagePaused);
+  let plotImagesForWire = [];
   onReasoning = onReasoning || (() => {});
   const isAnthropic = settings.provider === "anthropic";
   const isGemini = settings.provider === "gemini";
@@ -12744,6 +12836,10 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     // it, while recipient filtering remains local to roleplayTemporaryPlotFor().
     const finalTemporaryPlot = backstageMode ? "" : roleplayTemporaryPlotPrompt(activeSpeaker, activeTemporaryPlot);
     if (finalTemporaryPlot) systemText = `${systemText}\n\n${finalTemporaryPlot}`;
+    if (finalTemporaryPlot && activeTemporaryPlot?.images?.length) {
+      plotImagesForWire = activeTemporaryPlot.images;
+      systemText = `${systemText}\n\n${rpPlotImageInstruction(plotImagesForWire)}`;
+    }
   }
   // 1.0.39 剧场美化卡：独立配角（不由主人扮演、走自己那套提示词）也要写卡，放在最末尾
   if (rpProject && independent && settings.rpFilmCardEnabled !== false && globalThis.JYCFilm?.instruction) {
@@ -12849,6 +12945,10 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     const lastRole = history[history.length - 1]?.role;
     if (lastRole === "assistant") history.push({ role: "user", content: dispatch });
     else if (lastRole === "model") history.push({ role: "user", parts: [{ text: dispatch }] });
+  }
+  // 1.0.45 临时剧情幕后配图：图只在安排生效的这一轮随请求发出，挂在最后一条用户消息上
+  if (plotImagesForWire.length) {
+    try { rpAppendPlotImagesToWire(isGemini ? body.contents : body.messages, plotImagesForWire, isGemini ? "gemini" : isAnthropic ? "anthropic" : "openai"); } catch (_) {}
   }
   if (temperatureUnsupportedFor(settings.provider, base, model)) {
     if (isGemini) delete body.generationConfig.temperature;
@@ -18303,7 +18403,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.44";
+const APP_VERSION = "1.0.45";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
@@ -20222,6 +20322,19 @@ async function generateSingleReply(speaker = null, requestSettings = null, guest
       // fields that were really emitted; group scenes may use their fallback.
       if (replyProject && replySpeaker && !backstageMode)
         assistantMsg.content = ensureRoleplayStatusOutput(assistantMsg.content, replySpeaker, replyProject);
+      // 1.0.45 临时剧情幕后配图：正文里用到的图存到这条消息上显示，并从安排里移走
+      if (replyProject && !backstageMode && typeof assistantMsg.content === "string") {
+        const plotWithImages = roleplayTemporaryPlotFor(replyProject, replySpeaker);
+        if (plotWithImages?.images?.length) {
+          assistantMsg.content = rpEnsurePlotImageTags(assistantMsg.content, plotWithImages.images, plotWithImages.text);
+          const usedImages = rpUsedPlotImages(assistantMsg.content, plotWithImages.images);
+          if (usedImages.length) {
+            const keep = Array.isArray(assistantMsg.plotImages) ? assistantMsg.plotImages : [];
+            assistantMsg.plotImages = [...keep, ...usedImages.filter(image => !keep.some(item => item.id === image.id))].map(image => ({ id: image.id, name: image.name, dataUrl: image.dataUrl }));
+            removeUsedRoleplayPlotImages(replyConv, usedImages.map(image => image.id));
+          }
+        }
+      }
       // The owner can send a real gift card by emitting the constrained gift
       // marker taught in the system prompt. Keep the card in the transcript so
       // it survives reloads, exports, compaction and future memory retrieval.
@@ -23901,7 +24014,7 @@ window.JYCRoleplayBridge = {
       if (otherChanged) showToast("外观已保存，其它设置等这条回复结束再改");
     }
     const allowed = {};
-    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "userAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "chatTextColor", "chatNarrationColor", "chatQuoteColor", "chatFontSize", "chatFontFamily", "chatFontWeight", "statusBarStyle", "rpTheme", "rpWallpaper", "rpWallpaperOpacity", "rpOverlayOpacity", "rpBaseColor", "sceneSystemPromptEnabled", "sceneSystemPrompt"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
+    ["groupEnabled", "replyMode", "members", "leadChannel", "actorAvatar", "userAvatar", "memory", "memorySettings", "userRole", "userIdentity", "temporaryPlot", "temporaryPlotMode", "temporaryPlotRemainingUses", "temporaryPlotRecipientIds", "temporaryPlotImages", "chatTextColor", "chatNarrationColor", "chatQuoteColor", "chatFontSize", "chatFontFamily", "chatFontWeight", "statusBarStyle", "rpTheme", "rpWallpaper", "rpWallpaperOpacity", "rpOverlayOpacity", "rpBaseColor", "sceneSystemPromptEnabled", "sceneSystemPrompt"].forEach(key => { if (Object.hasOwn(patch || {}, key)) allowed[key] = patch[key]; });
     const previousPortraits = JSON.stringify([conv.rpProject?.userAvatar || "", ...roleplayMembers(normalizedRoleplayProject(conv.rpProject, conv)).map(member => [member.id, member.avatar])]);
     const previousTextTheme = JSON.stringify([conv.rpProject?.rpTheme, conv.rpProject?.chatTextColor, conv.rpProject?.chatNarrationColor, conv.rpProject?.chatQuoteColor, conv.rpProject?.chatFontSize, conv.rpProject?.chatFontFamily, conv.rpProject?.chatFontWeight]);
     rememberRoleplayCards([conv]);
