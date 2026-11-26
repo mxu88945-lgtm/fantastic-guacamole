@@ -32,5 +32,5 @@ assert.ok(html.includes("applySongAnnotationTags(assistantMsg.content, activeRol
 assert.ok(html.includes("guestCleanReply") && html.includes("stripSongAnnotationTags"));
 assert.ok(music.includes("JYCSongAnnotationBridge") && music.includes("music-annotation-form"));
 assert.ok(css.includes(".music-annotations") && css.includes(".music-annotation-form"));
-assert.match(sw, /role-chat-cache-v446/);
+assert.match(sw, /role-chat-cache-v447/);
 console.log("song annotation regression passed");
