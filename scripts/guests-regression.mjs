@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 const mentions = readFileSync(new URL("../src/rp-mentions.js", import.meta.url), "utf8");
-assert.ok(sw.includes('const CACHE = "role-chat-cache-v455";'), "service worker cache bumped for the guests release");
+assert.ok(sw.includes('const CACHE = "role-chat-cache-v456";'), "service worker cache bumped for the guests release");
 
 // ---- pure helpers from index.html ----
 const start = html.indexOf("/* guests:start");
