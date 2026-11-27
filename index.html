@@ -12770,7 +12770,7 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
     systemText = systemText ? systemText + "\n\n" + nw : nw;
   }
   if (typeof barkReady === "function" && barkReady() && !isRoleplayConversation()) {
-    const wn = "【叫醒】她明确让你某个时间叫她起床/叫醒她时，写 `[叫醒:HH:MM|到点时你想对她说的一句话]`（24小时制，例 `[叫醒:07:00|起床了，小懒猫]`），到点手机静音也会响；没让叫就别写，标记隐藏。";
+    const wn = "【叫醒】她明确让你某个时间叫她起床/叫醒她时，写 `[叫醒:HH:MM|到点时你想对她说的一句话]`（24小时制，例 `[叫醒:07:00|起床了，小懒猫]`；她说“X分钟后”就写 `[叫醒:X分钟后|…]`，别自己换算钟点），到点手机静音也会响；没让叫就别写，标记隐藏。";
     systemText = systemText ? systemText + "\n\n" + wn : wn;
   }
   if (settings.reminderEnabled) {
@@ -17279,6 +17279,8 @@ async function barkTest() {
 // "07:00" / "7点半" / "明天7:30" → 下一个该时刻（本机时间）
 function barkNextTime(spec, now = new Date()) {
   const s = String(spec || "").replace(/\s+/g, "");
+  const rel = s.match(/^(\d{1,3}|半)(分钟|分|小时|个小时|钟头)[以之]?后/);
+  if (rel) { const n = rel[1] === "半" ? 0.5 : parseInt(rel[1], 10); const ms = /小时|钟头/.test(rel[2]) ? n * 3600000 : n * 60000; return ms > 0 && ms <= 86400000 ? new Date(now.getTime() + ms) : null; }
   const m = s.match(/(\d{1,2})(?:[:：点](\d{1,2}|半)?)?/); if (!m) return null;
   let h = parseInt(m[1], 10), min = m[2] === "半" ? 30 : parseInt(m[2] || "0", 10);
   if (/(下午|晚上|傍晚)/.test(s) && h < 12) h += 12;
@@ -17286,7 +17288,11 @@ function barkNextTime(spec, now = new Date()) {
   const t = new Date(now); t.setSeconds(0, 0); t.setHours(h, min);
   if (/后天/.test(s)) t.setDate(t.getDate() + 2);
   else if (/明天|明早|明晚/.test(s)) t.setDate(t.getDate() + 1);
-  else if (t.getTime() <= now.getTime() + 30000) t.setDate(t.getDate() + 1);
+  else if (t.getTime() <= now.getTime() + 30000) {
+    // 他回得慢、几分钟内的时间已经过了：当成“马上”，别挪到明天同一时刻
+    if (now.getTime() - t.getTime() <= 15 * 60000) return new Date(now.getTime() + 30000);
+    t.setDate(t.getDate() + 1);
+  }
   return t;
 }
 function extractWakeCalls(text) {
@@ -18494,7 +18500,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.50";
+const APP_VERSION = "1.0.51";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
