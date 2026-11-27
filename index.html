@@ -3760,6 +3760,7 @@
               <button data-settings-tab="prompt"><span class="settings-item-icon">¶</span><span class="settings-item-copy"><strong>系统提示词</strong><em>身份、人设、语气与行为边界</em></span><span class="settings-item-status" id="settings-status-prompt"></span><span class="settings-chevron">›</span></button>
               <button data-settings-tab="appearance"><span class="settings-item-icon">✦</span><span class="settings-item-copy"><strong>外观与聊天</strong><em>主题、背景、字体与消息布局</em></span><span class="settings-item-status" id="settings-status-appearance"></span><span class="settings-chevron">›</span></button>
               <button data-settings-tab="media"><span class="settings-item-icon">◖</span><span class="settings-item-copy"><strong>语音与媒体</strong><em>朗读、音色与媒体能力</em></span><span class="settings-item-status" id="settings-status-media"></span><span class="settings-chevron">›</span></button>
+              <button data-settings-tab="companion"><span class="settings-item-icon">☾</span><span class="settings-item-copy"><strong>陪伴小功能</strong><em>他的小天地、小心思、提醒与叫醒你</em></span><span class="settings-item-status" id="settings-status-companion"></span><span class="settings-chevron">›</span></button>
               <button data-settings-tab="memory"><span class="settings-item-icon">◇</span><span class="settings-item-copy"><strong>记忆</strong><em>长期记忆与跨窗口回忆</em></span><span class="settings-item-status" id="settings-status-memory"></span><span class="settings-chevron">›</span></button>
             </div>
           </section>
@@ -4260,6 +4261,15 @@
         </div>
 
         <div class="section-title"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.65-7 10-7 10z"/></svg>角色陪伴</div>
+        <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
+          <button class="self-card-entry" type="button" onclick="document.getElementById('agency-open')?.click()">
+            <span class="self-card-entry-copy"><strong>🌙 他的小天地</strong><em>暂停的权利 · 隐私室 · 身体状态 · 床头戳一戳</em></span><span class="settings-chevron">›</span>
+          </button>
+          <button class="self-card-entry" type="button" style="margin-top:10px;" onclick="document.getElementById('self-card-open')?.click()">
+            <span class="self-card-entry-copy"><strong>✎ 他自己写的卡</strong><em>他在相处中慢慢补全的自己</em></span><span class="settings-chevron">›</span>
+          </button>
+          <div class="hint" style="margin-top:10px;">往下：🔔 关掉 App 也能收到提醒 · 💌 他会主动来找你 · 他自己的小心思 · ⏰ 叫醒你</div>
+        </div>
         <div class="field" style="grid-column: 1 / -1; border:1px solid var(--border); border-radius:13px; padding:14px;">
           <label style="font-weight:600;">主动陪伴</label>
           <span class="hint" style="display:block;margin-top:5px;">控制当前角色主动来找你和下任务卡的方式。</span>
@@ -18484,7 +18494,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.49";
+const APP_VERSION = "1.0.50";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
@@ -22099,6 +22109,7 @@ const SETTINGS_PAGES = {
   prompt: { title: "系统提示词", desc: "编辑当前角色的人设、语气与行为边界；保存后从下一条消息生效。" },
   services: { title: "模型与服务", desc: "管理聊天渠道、模型、联网与画图能力。" },
   billing: { title: "用量与账单", desc: "查看本地 token、调用次数与花费记录。" },
+  companion: { title: "陪伴小功能", desc: "他的小天地、他自己写的卡、主动找你、小心思、提醒和叫醒你，都在这一页。" },
   memory: { title: "记忆", desc: "整理长期记忆与跨窗口回忆内容。" },
   media: { title: "语音与媒体", desc: "设置朗读、音色和媒体能力。" },
   appearance: { title: "外观与聊天", desc: "调整主题、背景、字体与消息布局。" },
@@ -22141,6 +22152,7 @@ function renderSettingsHome() {
   set("settings-status-prompt", globalPresetCount ? `${promptStatus} · 预设 ${globalPresetCount}` : promptStatus);
   set("settings-status-appearance", currentTheme()?.name || "跟随主题");
   set("settings-status-media", settings.ttsEnabled ? "朗读已开启" : "按需开启");
+  set("settings-status-companion", typeof barkReady === "function" && barkReady() ? "叫醒已就绪" : (typeof roleWakeReady === "function" && roleWakeReady() ? "小心思已开" : ""));
   set("settings-status-memory", memoryCount ? `${memoryCount} 条` : "等待积累");
   set("settings-status-services", getModelDisplayLabel(conversationModel() || "待配置"));
   set("settings-status-account", $("auth-status")?.textContent?.includes("已登录") ? "已同步" : "本地保存");
@@ -22152,7 +22164,7 @@ function settingsGroupFor(title) {
   if (title.includes("账号")) return "account";
   if (title.includes("角色档案")) return "role";
   if (title.includes("系统提示词")) return "prompt";
-  if (title.includes("角色陪伴")) return "role";
+  if (title.includes("角色陪伴")) return "companion";
   if (title.includes("用量")) return "billing";
   if (title.includes("模型")) return "services";
   if (title.includes("记忆")) return "memory";
