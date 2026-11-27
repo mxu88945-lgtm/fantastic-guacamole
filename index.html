@@ -10263,13 +10263,20 @@ async function ttsOpenAI(text) {
 
 // MiniMax (海螺) native TTS: POST /v1/t2a_v2?GroupId=... → JSON whose data.audio
 // is a hex-encoded mp3. voice_setting.voice_id accepts cloned (复刻) voice IDs.
+// 1.0.52 省钱：MiniMax 默认走 speech-2.8-turbo（¥2/万字符，hd 是 ¥3.5）；想要 hd 就在模型里写 speech-2.8-hd!（末尾加感叹号=坚持用）
+function ttsMinimaxModel() {
+  const m = String(settings.ttsModel || "").trim();
+  if (m.endsWith("!")) return m.slice(0, -1);
+  if (!m || /^speech-0[12]|hd$/i.test(m) || /-hd\b/i.test(m)) return "speech-2.8-turbo";
+  return m;
+}
 async function ttsMinimax(text) {
   const base = settings.ttsBaseUrl.replace(/\/$/, "");
   const resp = await fetch(base + "/v1/t2a_v2?GroupId=" + encodeURIComponent(settings.ttsGroupId), {
     method: "POST",
     headers: { "Authorization": "Bearer " + settings.ttsApiKey, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: settings.ttsModel || "speech-01-turbo",
+      model: ttsMinimaxModel(),
       text,
       stream: false,
       voice_setting: { voice_id: settings.ttsVoice || "female-tianmei-jingpin", speed: parseFloat(settings.ttsSpeed) || 1, vol: 1, pitch: 0 },
@@ -18500,7 +18507,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.51";
+const APP_VERSION = "1.0.52";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
