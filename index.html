@@ -4292,6 +4292,11 @@
               <input id="role-wake-key" type="password" placeholder="role-wake 密钥（只存本机，不进备份）" autocomplete="new-password" onchange="roleWakeSaveConfig()" />
               <small class="hint" id="role-wake-status">尚未配置</small>
             </div>
+            <div style="display:grid;gap:8px;padding:10px 12px;border-top:1px solid var(--border);">
+              <div style="font-size:13px;font-weight:600;">⏰ 叫醒你（Bark 强提醒）<span class="hint" style="display:block;font-weight:400;margin-top:4px;">跟他说“明早7点叫我”，到点手机静音也会连响；你回他一句就停。要先填好上面的服务地址和密钥，并在 Bark 里允许「重要警告」。</span></div>
+              <input id="bark-key" type="password" placeholder="Bark 密钥（App 首页链接里 api.day.app/ 后面那串，只存本机）" autocomplete="off" onchange="barkSaveKey()" />
+              <div style="display:flex;gap:8px;align-items:center;"><button type="button" class="mini-btn" onclick="barkTest()">响一下试试</button><small class="hint" id="bark-status">未设置</small></div>
+            </div>
             <label style="display:flex;align-items:center;gap:10px;min-height:50px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;border-top:1px solid var(--border);">
               <input type="checkbox" id="songPickEnabled" style="width:auto;flex-shrink:0;" onchange="readSettingsFromUI();" />
               <span>🎵 让他自己点歌
@@ -9400,6 +9405,7 @@ function bubbleHtml(role, content, reasoning, streaming, traces, responseState, 
       ? textHtml.replace(stickerToken, (m, name) => stickerHtml(resolveSticker(name.trim())))
       : textHtml.replace(stickerToken, "");
     // hide any [记忆:…] token from display (it's parsed/saved separately)
+    textHtml = textHtml.replace(/[\[【]\s*(?:叫醒|闹钟)\s*[:：][^\]】\n]*[\]】]/g, "");
     textHtml = textHtml.replace(/[\[【]\s*(?:记忆|记住|存记忆|memory)\s*[:：][^\]】]*[\]】]/gi, "");
     // v354 人物档案标记同样只给应用看
     textHtml = textHtml.replace(/(?:\[|【)\s*人物\s*[:：][^\]】]*(?:\]|】)/g, "");
@@ -12752,6 +12758,10 @@ async function streamChat(onDelta, onReasoning, requestSettings = null, speaker 
       : "";
     const nw = "【Notion】值得长期保存时写 `[存档:内容]`，标记隐藏。" + pagesLine;
     systemText = systemText ? systemText + "\n\n" + nw : nw;
+  }
+  if (typeof barkReady === "function" && barkReady() && !isRoleplayConversation()) {
+    const wn = "【叫醒】她明确让你某个时间叫她起床/叫醒她时，写 `[叫醒:HH:MM|到点时你想对她说的一句话]`（24小时制，例 `[叫醒:07:00|起床了，小懒猫]`），到点手机静音也会响；没让叫就别写，标记隐藏。";
+    systemText = systemText ? systemText + "\n\n" + wn : wn;
   }
   if (settings.reminderEnabled) {
     const note = "【任务卡】仅对易忘的重要安排/健康事项写 `[提醒:事项|分钟]`（不确定写30）；多数回复不用，每轮最多一个，标记会变倒计时卡。";
@@ -17221,7 +17231,7 @@ function roleWakeSaveConfig() {
   localStorage.setItem("jyc-role-wake-enabled", enabled ? "1" : "0");
   localStorage.setItem("jyc-role-wake-url", url);
   localStorage.setItem("jyc-role-wake-key", key);
-  roleWakeRenderStatus();
+  roleWakeRenderStatus(); if (typeof barkRenderStatus === "function") barkRenderStatus();
 }
 function roleWakeRenderStatus() {
   const cfg = roleWakeConfig();
@@ -17230,6 +17240,68 @@ function roleWakeRenderStatus() {
   if ($("role-wake-key")) $("role-wake-key").value = cfg.key;
   if ($("role-wake-status")) $("role-wake-status").textContent = !cfg.enabled ? "已关闭" : (!cfg.url || !cfg.key ? "已打开，但还没填服务地址和密钥" : "已打开：聊天后同步摘要，打开 App 时取回主动消息");
 }
+// 1.0.49 Bark 叫醒：他写 [叫醒:HH:MM|一句话]，交给 role-wake 服务到点发 Bark 重要警告（静音也响），每3分钟重复，她回消息就停。
+function barkKey() { return (localStorage.getItem("gqy-bark-key") || "").trim(); }
+function barkReady() { const cfg = roleWakeConfig(); return !!barkKey() && /^https:\/\//i.test(cfg.url) && !!cfg.key; }
+function barkSaveKey() {
+  let v = ($("bark-key")?.value || "").trim();
+  const m = v.match(/api\.day\.app\/([A-Za-z0-9_-]{6,64})/); if (m) v = m[1];
+  localStorage.setItem("gqy-bark-key", v); barkRenderStatus();
+}
+function barkRenderStatus() {
+  if ($("bark-key")) $("bark-key").value = barkKey();
+  const el = $("bark-status"); if (!el) return;
+  const cfg = roleWakeConfig();
+  el.textContent = !barkKey() ? "未设置" : (!cfg.url || !cfg.key ? "还差上面的服务地址和密钥" : "已就绪");
+}
+async function barkPost(path, data) {
+  const cfg = roleWakeConfig();
+  const res = await fetch(cfg.url + path, { method: "POST", headers: roleWakeHeaders(cfg), body: JSON.stringify({ barkKey: barkKey(), ...data }) });
+  let body = {}; try { body = await res.json(); } catch (_) {}
+  if (!res.ok || body.ok === false) throw new Error(body.error || ("HTTP " + res.status));
+  return body;
+}
+async function barkTest() {
+  if (!barkReady()) { barkRenderStatus(); showToast("先填好 Bark 密钥和服务地址/密钥"); return; }
+  try { await barkPost("/bark/test", { title: settings.aiName || "顾祁砚", body: "试一下，听到了吗？" }); showToast("⏰ 已发出，看看手机响没响"); }
+  catch (e) { showToast("发送失败：" + (e.message || e), 5000); }
+}
+// "07:00" / "7点半" / "明天7:30" → 下一个该时刻（本机时间）
+function barkNextTime(spec, now = new Date()) {
+  const s = String(spec || "").replace(/\s+/g, "");
+  const m = s.match(/(\d{1,2})(?:[:：点](\d{1,2}|半)?)?/); if (!m) return null;
+  let h = parseInt(m[1], 10), min = m[2] === "半" ? 30 : parseInt(m[2] || "0", 10);
+  if (/(下午|晚上|傍晚)/.test(s) && h < 12) h += 12;
+  if (h > 23 || min > 59) return null;
+  const t = new Date(now); t.setSeconds(0, 0); t.setHours(h, min);
+  if (/后天/.test(s)) t.setDate(t.getDate() + 2);
+  else if (/明天|明早|明晚/.test(s)) t.setDate(t.getDate() + 1);
+  else if (t.getTime() <= now.getTime() + 30000) t.setDate(t.getDate() + 1);
+  return t;
+}
+function extractWakeCalls(text) {
+  if (typeof text !== "string") return { text, wakes: [] };
+  const wakes = [];
+  const cleaned = text.replace(/[\[【]\s*(?:叫醒|闹钟|叫我)\s*[:：]\s*([^\]】\n]+)[\]】]/g, (m, c) => {
+    const body = String(c || "").trim(); const bar = body.indexOf("|");
+    const when = bar > -1 ? body.slice(0, bar) : body, line = bar > -1 ? body.slice(bar + 1).trim() : "";
+    const at = barkNextTime(when); if (at) wakes.push({ at: at.getTime(), line: line || "该起床啦" });
+    return "";
+  }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  return { text: cleaned, wakes };
+}
+async function scheduleWakeCalls(wakes) {
+  if (!wakes?.length) return;
+  if (!barkReady()) { showToast("他想定叫醒，但 Bark 还没设置好", 5000); return; }
+  for (const w of wakes.slice(0, 2)) {
+    try {
+      await barkPost("/bark/schedule", { id: "wake-" + w.at, at: w.at, title: settings.aiName || "顾祁砚", body: w.line, repeat: 6, every: 3, url: location.href.split("#")[0] });
+      const d = new Date(w.at);
+      showToast("⏰ 已定好 " + (d.getDate() !== new Date().getDate() ? "明天 " : "") + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + " 叫醒你", 4000);
+    } catch (e) { showToast("叫醒没定上：" + (e.message || e), 5000); }
+  }
+}
+function barkStopRinging() { if (barkReady()) barkPost("/bark/cancel", { onlyFired: true }).catch(() => {}); }
 function roleWakeReady() { const cfg = roleWakeConfig(); return cfg.enabled && /^https:\/\//i.test(cfg.url) && !!cfg.key; }
 function roleWakeHeaders(cfg) { return { Authorization: "Bearer " + cfg.key, "Content-Type": "application/json" }; }
 function roleWakeRoleId(conv) { return String(conv?.roleId || settings.activeRoleId || activeRole()?.id || "main"); }
@@ -18412,7 +18484,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.48";
+const APP_VERSION = "1.0.49";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
@@ -18757,6 +18829,7 @@ async function send(opts) {
   const selectedIds = !directParts ? window.JYCRoleplayMentions?.selectedIds?.() || [] : [];
   const rpReplyMemberIds = [...new Set([...selectedIds, ...mention.memberIds])];
   const text = mention.text;
+  if ((text || directParts) && typeof barkStopRinging === "function") barkStopRinging();
   if (rp?.groupEnabled && !directParts && /(?:^|\s)[@＠][^\s@＠]*$/u.test(rawText) && !mention.memberIds.length) {
     showToast("从 @ 列表里点选要回复的成员，再发送正文"); return;
   }
@@ -20309,6 +20382,11 @@ async function generateSingleReply(speaker = null, requestSettings = null, guest
       // write any [存档:…] entries up to the Notion archive (琛琛印记), then strip them
       if (!independent) assistantMsg.content = await extractNotionSaves(assistantMsg.content);
       // pull out any [提醒:…|分钟] → reminder cards get appended (as messages) after the reply renders
+      if (!independent && typeof extractWakeCalls === "function") {
+        const wk = extractWakeCalls(assistantMsg.content);
+        assistantMsg.content = wk.text;
+        if (wk.wakes.length) scheduleWakeCalls(wk.wakes);
+      }
       const remRes = independent ? { text: stripIndependentRoleplayControls(assistantMsg.content), reminders: [] } : extractReminders(assistantMsg.content);
       assistantMsg.content = remRes.text;
       // 角色锁屏：解析【锁屏 N分钟：理由】，从显示文本中剥离并弹出锁屏倒计时
@@ -21548,7 +21626,7 @@ function syncSettingsToUI() {
   renderThemeCards();
   renderAccentSwatches();
   updateProviderHint();
-  roleWakeRenderStatus();
+  roleWakeRenderStatus(); if (typeof barkRenderStatus === "function") barkRenderStatus();
   updateStatusLine();
   renderModelQuick();
   updateAvatarPreviews();
