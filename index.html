@@ -4163,6 +4163,8 @@
           <label>🎨 我的音色库 <span class="hint">（点「用这个」切换）</span></label>
           <div id="ttsVoiceList" style="display:flex; flex-direction:column; gap:6px; margin-top:6px;"></div>
           <span class="hint" id="ttsVoiceLibEmpty" style="display:none;">还没有保存的音色，克隆一个就会出现在这里～</span>
+          <button class="mini-btn" type="button" style="margin-top:10px;" onclick="fetchMinimaxVoices()">🔍 查我账号里还能用的音色</button>
+          <div id="ttsRemoteVoices" style="display:flex; flex-direction:column; gap:6px; margin-top:8px;"></div>
         </div>
         <div class="field" style="grid-column: 1 / -1;">
           <label>语速 <span id="ttsSpeedVal">1.0</span>x</label>
@@ -10261,6 +10263,34 @@ async function ttsOpenAI(text) {
   return await resp.blob();
 }
 
+// 1.0.53 查账号里真实存在的音色（/v1/get_voice），克隆失效时一键换
+async function fetchMinimaxVoices() {
+  const box = $("ttsRemoteVoices"); if (!box) return;
+  readSettingsFromUI();
+  if (!settings.ttsApiKey || !settings.ttsBaseUrl) { box.textContent = "先填好上面的地址和 Key"; return; }
+  box.textContent = "查询中…";
+  try {
+    const base = settings.ttsBaseUrl.replace(/\/$/, "");
+    const resp = await fetch(base + "/v1/get_voice", { method: "POST", headers: { "Authorization": "Bearer " + settings.ttsApiKey, "Content-Type": "application/json" }, body: JSON.stringify({ voice_type: "all" }) });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || (data.base_resp && data.base_resp.status_code)) throw new Error((data.base_resp && data.base_resp.status_msg) || ("HTTP " + resp.status));
+    const mine = [...(data.voice_cloning || []).map(v => ({ id: v.voice_id, name: "🎤 我克隆的 · " + v.voice_id })), ...(data.voice_generation || []).map(v => ({ id: v.voice_id, name: "✨ 我设计的 · " + v.voice_id }))];
+    const sys = (data.system_voice || []).filter(v => /^(male|Chinese|female)/i.test(v.voice_id || "")).slice(0, 30).map(v => ({ id: v.voice_id, name: (v.voice_name || v.voice_id) }));
+    const list = [...mine, ...sys];
+    box.innerHTML = "";
+    const head = document.createElement("div"); head.className = "hint";
+    head.textContent = (mine.length ? `你自己的音色 ${mine.length} 个` : "你账号里已经没有克隆音色了（7天没用会被删）") + (settings.ttsVoice && !list.some(v => v.id === settings.ttsVoice) ? "；当前填的那个已失效" : "") + "。下面系统音色也能直接用：";
+    box.appendChild(head);
+    list.forEach(v => {
+      const row = document.createElement("div"); row.style.cssText = "display:flex; gap:8px; align-items:center;";
+      const nm = document.createElement("span"); nm.style.cssText = "flex:1; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"; nm.textContent = v.name + (v.id === settings.ttsVoice ? "（当前）" : "");
+      const use = document.createElement("button"); use.className = "mini-btn"; use.type = "button"; use.textContent = "用这个";
+      use.onclick = () => { settings.ttsVoice = v.id; if ($("ttsVoice")) $("ttsVoice").value = v.id; saveSettings(); showToast("已换成 " + v.id + "，让他读一句试试", 3000); fetchMinimaxVoices(); };
+      row.append(nm, use); box.appendChild(row);
+    });
+  } catch (e) { box.textContent = "没查到：" + (e.message || e); }
+}
+
 // MiniMax (海螺) native TTS: POST /v1/t2a_v2?GroupId=... → JSON whose data.audio
 // is a hex-encoded mp3. voice_setting.voice_id accepts cloned (复刻) voice IDs.
 // 1.0.52 省钱：MiniMax 默认走 speech-2.8-turbo（¥2/万字符，hd 是 ¥3.5）；想要 hd 就在模型里写 speech-2.8-hd!（末尾加感叹号=坚持用）
@@ -10286,6 +10316,7 @@ async function ttsMinimax(text) {
   if (!resp.ok) throw new Error(await resp.text());
   const data = await resp.json();
   if (data.base_resp && data.base_resp.status_code !== 0) {
+    if (data.base_resp.status_code === 2054) throw new Error("这个音色在 MiniMax 已经没了（克隆的音色7天内没用就会被删）。去 设置→语音与媒体 点「查我账号里还能用的音色」换一个，或重新克隆");
     throw new Error((data.base_resp.status_msg || "MiniMax 报错") + "（code " + data.base_resp.status_code + "）");
   }
   const hex = data.data && data.data.audio;
@@ -18507,7 +18538,7 @@ function stageSticker(s) {
   renderAttachPreview();
 }
 
-const APP_VERSION = "1.0.52";
+const APP_VERSION = "1.0.53";
 function diagnosticSummary(swVersion = "未知") {
   const role = activeRole(), conv = currentConv(), provider = conversationProvider(conv);
   return [`应用版本：${APP_VERSION}`, `Service Worker：${swVersion}`, `主题：${currentTheme()?.name || settings.themeName || "未知"}`, `角色：${role?.name || settings.aiName || "未选择"}`, `会话：${conv?.title || "新对话"}`, `接口：${provider?.name || settings.provider || "未配置"}`, `模型：${conversationModel(conv) || "未配置"}`].join("\n");
