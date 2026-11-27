@@ -12,7 +12,7 @@ let checks = 0;
 const ok = (cond, msg) => { if (!cond) throw new Error(msg); checks++; };
 const eq = (a, b, msg) => ok(JSON.stringify(a) === JSON.stringify(b), `${msg}\n  got:      ${JSON.stringify(a)}\n  expected: ${JSON.stringify(b)}`);
 
-ok(sw.includes('const CACHE = "role-chat-cache-v454";'), "service worker cache was not bumped to v387");
+ok(sw.includes('const CACHE = "role-chat-cache-v455";'), "service worker cache was not bumped to v387");
 
 // ── 纯规则（src/album-agency.js）──
 eq(A.parseAlbumTags("好可爱。\n[存相册:她家的小玄凤歪头]"), [{ caption: "她家的小玄凤歪头", locked: false }], "存相册 tag");
